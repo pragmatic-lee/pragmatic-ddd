@@ -1,0 +1,49 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+*.jar
+*.war
+*.zip
+*.tar
+*.tar.gz
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.metadata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Build output
+build/
+out/
+bin/
+
+# Test output
+hs_err_pid*
+replay_pid*
+
+# JaCoCo
+jacoco.exec
+
+# Maven wrapper
+!.mvn/wrapper/maven-wrapper.jar
+docs/

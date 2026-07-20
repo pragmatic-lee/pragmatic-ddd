@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.pragmatic.ddd</groupId>
+    <artifactId>pragmatic-ddd</artifactId>
+    <version>2.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>Pragmatic DDD</name>
+    <description>Pragmatic Domain-Driven Design Framework — aggregator root (build only, not published to Central).</description>
+    <url>https://github.com/lixiaojing/pragmatic-ddd</url>
+
+    <modules>
+        <module>pragmatic-ddd-parent</module>
+        <module>pragmatic-ddd-bom</module>
+        <module>pragmatic-ddd-core</module>
+        <module>pragmatic-ddd-rocketmq</module>
+        <module>pragmatic-ddd-kafka</module>
+        <module>pragmatic-ddd-mybatis</module>
+        <module>pragmatic-ddd-spring-boot</module>
+    </modules>
+
+    <profiles>
+        <!--
+            默认构建/发布不含 examples，保证库构建干净、发布不会误带示例。
+            想连同示例一起编译（examples 会复用 reactor 内刚构建的 core），加 -Pexamples：
+                mvn install -Pexamples
+        -->
+        <profile>
+            <id>examples</id>
+            <modules>
+                <module>examples</module>
+            </modules>
+        </profile>
+    </profiles>
+</project>
