@@ -23,9 +23,15 @@
 
     <developers>
         <developer>
-            <id>lixiaojing</id>
-            <name>Li XiaoJing</name>
-            <email>lee.bmw@foxmail.com</email>
+            <id>wizard</id>
+            <name>Wizard Lee</name>
+            <email>postmaster@pragmatic-ddd.com</email>
+            <url>https://gitee.com/lixiaojing/pragmatic-ddd</url>
+            <organization>Pragmatic DDD</organization>
+            <roles>
+                <role>architect</role>
+                <role>developer</role>
+            </roles>
         </developer>
     </developers>
 
