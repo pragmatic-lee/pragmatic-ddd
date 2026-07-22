@@ -41,10 +41,17 @@ public final class EnumValueResolver {
     private final ConcurrentMap<Class<? extends Enum<?>>, ResolverEntry> registry = new ConcurrentHashMap<>();
 
     // ===== 集中注册（启动期由 EnumTypeHandlerAutoConfigurer 调用） =====
+    /** 按 resolver 的默认策略注册单枚举。 */
     public <E extends Enum<E>> void register(Class<E> type) {
-        registry.put(type, ResolverEntry.build(type, resolveRule(type), codec));
+        register(type, defaultRule);
     }
 
+    /** 按显式策略注册单枚举。 */
+    public <E extends Enum<E>> void register(Class<E> type, EnumRule rule) {
+        registry.put(type, ResolverEntry.build(type, rule, codec));
+    }
+
+    /** 批量注册：统一使用默认策略。 */
     public void registerAll(Collection<Class<?>> types) {
         for (Class<?> t : types)
             if (Enum.class.isAssignableFrom(t)) {
@@ -52,9 +59,18 @@ public final class EnumValueResolver {
             }
     }
 
+    /** 批量注册：每个枚举自带策略（key=枚举类, value=策略）。 */
+    public void registerAll(Map<Class<?>, EnumRule> typedRules) {
+        for (Map.Entry<Class<?>, EnumRule> e : typedRules.entrySet()) {
+            Class<?> t = e.getKey();
+            if (!Enum.class.isAssignableFrom(t)) continue;
+            register(t.asSubclass(Enum.class), e.getValue());
+        }
+    }
+
     // ===== 反序列化（运行期只查表, O(1)） =====
     public <E extends Enum<E>> E resolve(Class<E> type, Object raw) {
-        return resolve(type, raw, resolveRule(type));
+        return resolve(type, raw, ruleOf(type));
     }
 
     public <E extends Enum<E>> E resolve(Class<E> type, Object raw, EnumRule rule) {
@@ -93,17 +109,18 @@ public final class EnumValueResolver {
     }
 
     /**
-     * 读枚举类上的 @EnumMapping 或回退默认规则。由 EnumTypeHandlerAutoConfigurer 调用，故为 public。
+     * 取某枚举注册时设定的策略；未注册则返回默认策略。由 EnumTypeHandlerAutoConfigurer 取 rule 构造 handler。
      */
-    public EnumRule resolveRule(Class<?> type) {
-        EnumMapping ann = type.getAnnotation(EnumMapping.class);
-        return (ann != null) ? ann.strategy() : defaultRule;
+    public EnumRule ruleOf(Class<? extends Enum<?>> type) {
+        ResolverEntry entry = registry.get(type);
+        return entry != null ? entry.rule() : defaultRule;
     }
 
     /**
      * 单枚举注册条目：启动期预建索引 + 选定策略，运行期零反射。包可见以供给策略类访问。
      */
     static final class ResolverEntry {
+        final EnumRule rule;
         final EnumCodec codec;
         final Map<Object, Enum<?>> valueIndex;
         final Map<String, Enum<?>> labelIndex;
@@ -114,10 +131,14 @@ public final class EnumValueResolver {
             if (IEnumValue.class.isAssignableFrom(type)) {
                 Map<Object, Enum<?>> valueIndex = EnumValueIndex.buildValueIndex(type, codec);   // 不再需要 (Class) raw cast
                 Map<String, Enum<?>> labelIndex = EnumValueIndex.buildLabelIndex(type);
-                return new ResolverEntry(codec, valueIndex, labelIndex, ordinalIndex);
+                return new ResolverEntry(rule, codec, valueIndex, labelIndex, ordinalIndex);
             }
             // 无码枚举无 IEnumValue：仅 ordinal 索引可用，CODE / LABEL 策略不适用
-            return new ResolverEntry(codec, new LinkedHashMap<>(), new LinkedHashMap<>(), ordinalIndex);
+            return new ResolverEntry(rule, codec, new LinkedHashMap<>(), new LinkedHashMap<>(), ordinalIndex);
+        }
+
+        EnumRule rule() {
+            return rule;
         }
 
         EnumCodec codec() {
@@ -136,7 +157,8 @@ public final class EnumValueResolver {
             return ordinalIndex;
         }
 
-        private ResolverEntry(EnumCodec codec, Map<Object, Enum<?>> v, Map<String, Enum<?>> l, Map<Integer, Enum<?>> o) {
+        private ResolverEntry(EnumRule rule, EnumCodec codec, Map<Object, Enum<?>> v, Map<String, Enum<?>> l, Map<Integer, Enum<?>> o) {
+            this.rule = rule;
             this.codec = codec;
             this.valueIndex = v;
             this.labelIndex = l;
