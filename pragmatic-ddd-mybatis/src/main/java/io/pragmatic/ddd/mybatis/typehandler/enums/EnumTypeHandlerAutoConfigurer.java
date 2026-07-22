@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.mybatis.typehandler.enums;
 
+import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 
@@ -33,6 +34,15 @@ public final class EnumTypeHandlerAutoConfigurer {
             if (!Enum.class.isAssignableFrom(t)) continue;
             registerHandler(reg, resolver, t);                   // 委托泛型辅助方法，统一类型变量 T
         }
+    }
+
+    /**
+     * 统一装配入口：从 {@link TypeHandlerContext} 取 resolver 与 enumRules，
+     * 与 JSON 通道（{@code JsonTypeHandlerAutoConfigurer}）对称地消费同一上下文，
+     * 确保枚举策略单点来源、杜绝双通道配置漂移。由 {@link TypeHandlerContext#registerInto} 调用。
+     */
+    public static void configure(TypeHandlerContext ctx, SqlSessionFactory sqlSessionFactory) {
+        configure(ctx.resolver(), sqlSessionFactory, ctx.enumRules());
     }
 
     /** 便捷入口：批量注册枚举，统一使用 resolver 的默认策略。 */
