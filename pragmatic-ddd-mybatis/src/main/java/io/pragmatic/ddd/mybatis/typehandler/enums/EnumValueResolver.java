@@ -35,7 +35,9 @@ public final class EnumValueResolver {
         this.defaultRule = defaultRule;
     }
 
-    /** 枚举类 → 已注册条目（策略 + 预建索引）。启动期一次性灌满，运行期只读。 */
+    /**
+     * 枚举类 → 已注册条目（策略 + 预建索引）。启动期一次性灌满，运行期只读。
+     */
     private final ConcurrentMap<Class<? extends Enum<?>>, ResolverEntry> registry = new ConcurrentHashMap<>();
 
     // ===== 集中注册（启动期由 EnumTypeHandlerAutoConfigurer 调用） =====
@@ -45,7 +47,9 @@ public final class EnumValueResolver {
 
     public void registerAll(Collection<Class<?>> types) {
         for (Class<?> t : types)
-            if (Enum.class.isAssignableFrom(t)) register(t.asSubclass(Enum.class)); // 含无码枚举
+            if (Enum.class.isAssignableFrom(t)) {
+                register(t.asSubclass(Enum.class)); // 含无码枚举
+            }
     }
 
     // ===== 反序列化（运行期只查表, O(1)） =====
@@ -59,10 +63,20 @@ public final class EnumValueResolver {
         return strategyOf(rule).resolve(type, raw, entry);
     }
 
-    /** 便捷方法 */
-    public <E extends Enum<E> & IEnumValue<?, ?>> E byValue(Class<E> type, Object code) { return resolve(type, code, EnumRule.CODE); }
-    public <E extends Enum<E>> E byName(Class<E> type, String name)                  { return resolve(type, name, EnumRule.NAME); }
-    public <E extends Enum<E>> E byOrdinal(Class<E> type, int ordinal)               { return resolve(type, ordinal, EnumRule.ORDINAL); }
+    /**
+     * 便捷方法
+     */
+    public <E extends Enum<E> & IEnumValue<?, ?>> E byValue(Class<E> type, Object code) {
+        return resolve(type, code, EnumRule.CODE);
+    }
+
+    public <E extends Enum<E>> E byName(Class<E> type, String name) {
+        return resolve(type, name, EnumRule.NAME);
+    }
+
+    public <E extends Enum<E>> E byOrdinal(Class<E> type, int ordinal) {
+        return resolve(type, ordinal, EnumRule.ORDINAL);
+    }
 
     private ResolverEntry registerLazily(Class<?> type) {
         register(type.asSubclass(Enum.class));
@@ -71,20 +85,24 @@ public final class EnumValueResolver {
 
     EnumParseStrategy strategyOf(EnumRule rule) {
         return switch (rule) {
-            case NAME    -> EnumNameStrategy.INSTANCE;
+            case NAME -> EnumNameStrategy.INSTANCE;
             case ORDINAL -> EnumOrdinalStrategy.INSTANCE;
-            case LABEL   -> EnumLabelStrategy.INSTANCE;
-            case CODE    -> EnumValueStrategy.INSTANCE;
+            case LABEL -> EnumLabelStrategy.INSTANCE;
+            case CODE -> EnumValueStrategy.INSTANCE;
         };
     }
 
-    /** 读枚举类上的 @EnumMapping 或回退默认规则。由 EnumTypeHandlerAutoConfigurer 调用，故为 public。 */
+    /**
+     * 读枚举类上的 @EnumMapping 或回退默认规则。由 EnumTypeHandlerAutoConfigurer 调用，故为 public。
+     */
     public EnumRule resolveRule(Class<?> type) {
         EnumMapping ann = type.getAnnotation(EnumMapping.class);
         return (ann != null) ? ann.strategy() : defaultRule;
     }
 
-    /** 单枚举注册条目：启动期预建索引 + 选定策略，运行期零反射。包可见以供给策略类访问。 */
+    /**
+     * 单枚举注册条目：启动期预建索引 + 选定策略，运行期零反射。包可见以供给策略类访问。
+     */
     static final class ResolverEntry {
         final EnumCodec codec;
         final Map<Object, Enum<?>> valueIndex;
@@ -102,10 +120,21 @@ public final class EnumValueResolver {
             return new ResolverEntry(codec, new LinkedHashMap<>(), new LinkedHashMap<>(), ordinalIndex);
         }
 
-        EnumCodec codec()                    { return codec; }
-        Map<Object, Enum<?>> valueIndex()    { return valueIndex; }
-        Map<String, Enum<?>> labelIndex()    { return labelIndex; }
-        Map<Integer, Enum<?>> ordinalIndex() { return ordinalIndex; }
+        EnumCodec codec() {
+            return codec;
+        }
+
+        Map<Object, Enum<?>> valueIndex() {
+            return valueIndex;
+        }
+
+        Map<String, Enum<?>> labelIndex() {
+            return labelIndex;
+        }
+
+        Map<Integer, Enum<?>> ordinalIndex() {
+            return ordinalIndex;
+        }
 
         private ResolverEntry(EnumCodec codec, Map<Object, Enum<?>> v, Map<String, Enum<?>> l, Map<Integer, Enum<?>> o) {
             this.codec = codec;
