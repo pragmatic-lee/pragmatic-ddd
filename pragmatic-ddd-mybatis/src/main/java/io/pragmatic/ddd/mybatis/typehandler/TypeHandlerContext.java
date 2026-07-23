@@ -6,6 +6,8 @@ import io.pragmatic.ddd.mybatis.typehandler.enums.EnumTypeHandlerAutoConfigurer;
 import io.pragmatic.ddd.mybatis.typehandler.enums.EnumValueResolver;
 import io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue;
 import io.pragmatic.ddd.mybatis.typehandler.json.JsonTypeHandlerAutoConfigurer;
+import io.pragmatic.ddd.mybatis.typehandler.list.CollectionElementTypeConfig;
+import io.pragmatic.ddd.mybatis.typehandler.list.ListTypeHandlerAutoConfigurer;
 import org.apache.ibatis.session.SqlSessionFactory;
 
 import java.util.Collection;
@@ -34,13 +36,16 @@ import java.util.Map;
 public record TypeHandlerContext(EnumValueResolver resolver,
                                  JsonSerializer serializer,
                                  JdbcJsonValue jdbcJsonValue,
-                                 Map<Class<?>, EnumRule> enumRules, Collection<Class<?>> voTypes) {
+                                 Map<Class<?>, EnumRule> enumRules,
+                                 Collection<Class<?>> voTypes,
+                                 CollectionElementTypeConfig collections) {
 
     /**
-     * 一次性注册枚举通道 + JSON 通道；调用方在 SqlSessionFactory 构建后调用一次。
+     * 一次性注册枚举通道 + JSON 通道 + 集合(List)通道；调用方在 SqlSessionFactory 构建后调用一次。
      */
     public void registerInto(SqlSessionFactory sqlSessionFactory) {
         EnumTypeHandlerAutoConfigurer.configure(this, sqlSessionFactory);
         JsonTypeHandlerAutoConfigurer.configure(this, sqlSessionFactory);
+        ListTypeHandlerAutoConfigurer.configure(this, sqlSessionFactory, collections);
     }
 }

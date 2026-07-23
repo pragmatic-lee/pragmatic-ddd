@@ -114,6 +114,20 @@ public final class Fastjson2JsonSerializer implements JsonSerializer, IEventSeri
         return JSON.parseObject(text, type, readContext);
     }
 
+    @Override
+    public <T> T deserialize(String json, Type type) {
+        if (json == null || json.isEmpty()) return null;
+        return JSON.parseObject(json, type, readContext);
+    }
+
+    @Override
+    public <T> T fromJsonValue(Object json, Type type) {
+        if (json == null) return null;
+        String text = toJsonText(json);
+        if (text == null || text.isEmpty()) return null;
+        return JSON.parseObject(text, type, readContext);
+    }
+
     /** 把 getObject 读回的任意 JSON 形态规整为文本：放行 String，PGobject 取其内部 JSON 文本。 */
     private String toJsonText(Object json) {
         if (json instanceof String s) return s;
