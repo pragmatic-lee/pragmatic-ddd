@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.pragmatic.ddd.mybatis.outbox.MysqlOutboxMapper">
+
+    <resultMap id="OutboxMessageResult" type="io.pragmatic.ddd.application.outbox.OutboxMessage">
+        <id column="id" property="id"/>
+        <result column="aggregate_id" property="aggregateId"/>
+        <result column="aggregate_type" property="aggregateType"/>
+        <result column="event_type" property="eventType"/>
+        <result column="business_id" property="businessId"/>
+        <result column="payload" property="payload"/>
+        <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result column="attempts" property="attempts"/>
+        <result column="queue" property="queue"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="claimed_at" property="claimedAt"/>
+        <result column="sent_at" property="sentAt"/>
+        <result column="last_error" property="lastError"/>
+    </resultMap>
+
+    <insert id="insertBatch" parameterType="map">
+        INSERT INTO outbox_message
+            (id,
+             aggregate_id,
+             aggregate_type,
+             event_type,
+             business_id,
+             payload,
+             status,
+             attempts,
+             queue,
+             created_at,
+             claimed_at,
+             sent_at,
+             last_error)
+        VALUES
+        <foreach collection="list" item="m" separator=",">
+            (#{m.id},
+             #{m.aggregateId},
+             #{m.aggregateType},
+             #{m.eventType},
+             #{m.businessId},
+             #{m.payload},
+             #{m.status},
+             #{m.attempts},
+             #{m.queue},
+             #{m.createdAt},
+             #{m.claimedAt},
+             #{m.sentAt},
+             #{m.lastError})
+        </foreach>
+    </insert>
+
+    <select id="selectById" resultMap="OutboxMessageResult">
+        SELECT * FROM outbox_message WHERE id = #{id}
+    </select>
+
+    <select id="selectAttempts" resultType="int">
+        SELECT attempts FROM outbox_message WHERE id = #{id}
+    </select>
+
+    <update id="claim">
+        UPDATE outbox_message
+        SET status = 'PROCESSING',
+            claimed_at = #{claimedAt}
+        WHERE id = #{id}
+          AND status = 'PENDING'
+    </update>
+
+    <select id="selectByClaimToken" resultMap="OutboxMessageResult" parameterType="map">
+        SELECT * FROM outbox_message WHERE claim_token = #{token}
+    </select>
+
+    <update id="markSent">
+        UPDATE outbox_message
+        SET status = 'SENT',
+            sent_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND status IN ('PENDING', 'PROCESSING')
+    </update>
+
+    <update id="release">
+        UPDATE outbox_message
+        SET status = 'PENDING',
+            claimed_at = NULL
+        WHERE id = #{id} AND status = 'PROCESSING'
+    </update>
+
+    <update id="incrementAttempts">
+        UPDATE outbox_message
+        SET attempts = attempts + 1
+        WHERE id = #{id} AND status NOT IN ('SENT', 'FAILED')
+    </update>
+
+    <update id="markFailed">
+        UPDATE outbox_message
+        SET status = 'FAILED'
+        WHERE id = #{id} AND status != 'SENT'
+    </update>
+
+    <!--
+        claimPending 为「原子认领」UPDATE（MySQL 语法），固化于此：
+        一条语句把 age > grace 的 PENDING 批量翻为 PROCESSING 并打上 token，
+        LIMIT 截断；多实例安全（InnoDB 保证每行只被一个事务翻成功）。
+        cutoff / batchSize / token 由 MybatisOutboxStore 传入。
+    -->
+    <update id="claimPending" parameterType="map">
+        <![CDATA[
+        UPDATE outbox_message
+        SET status = 'PROCESSING', claimed_at = CURRENT_TIMESTAMP, claim_token = #{token}
+        WHERE status = 'PENDING' AND created_at < #{cutoff}
+        ORDER BY created_at ASC
+        LIMIT #{batchSize}
+        ]]>
+    </update>
+
+</mapper>
