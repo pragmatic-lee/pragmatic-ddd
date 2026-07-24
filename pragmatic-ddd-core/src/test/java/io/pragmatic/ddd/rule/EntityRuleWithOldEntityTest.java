@@ -167,7 +167,7 @@ public class EntityRuleWithOldEntityTest {
         }
 
         @Override
-        protected OperationRegistry entityActions() {
+        protected OperationRegistry entityOperations() {
             return null;
         }
     }

@@ -68,7 +68,7 @@ public class Order extends EntityBase<Long> {
 
     public void payment() {
         this.status = 1; // paid
-        eventCollector.pushEvent(new OrderPayedEvent(this));
+        eventCollector.collect(new OrderPayedEvent(this));
     }
 
     @Override

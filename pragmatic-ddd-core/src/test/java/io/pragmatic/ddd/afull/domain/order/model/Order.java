@@ -42,7 +42,7 @@ public class Order extends AggregateRoot<Long> {
     }
 
     @Override
-    protected OperationRegistry entityActions() {
+    protected OperationRegistry entityOperations() {
         return null;
     }
 

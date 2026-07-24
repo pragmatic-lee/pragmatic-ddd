@@ -16,12 +16,12 @@ public class DomainEventCollectorTest {
 
         DomainEventCollector domainEventCollector = new DomainEventCollector();
 
-        domainEventCollector.pushEvent(new Demo1Event());
-        domainEventCollector.pushEvent(new Demo2Event());
+        domainEventCollector.collect(new Demo1Event());
+        domainEventCollector.collect(new Demo2Event());
 
         final long id = System.currentTimeMillis();
 
-        domainEventCollector.pushDelayGenerateEvent(() -> {
+        domainEventCollector.collectDelayed(() -> {
 
             Demo3Event demo3Event = new Demo3Event();
             demo3Event.id = id;
@@ -29,11 +29,11 @@ public class DomainEventCollectorTest {
             return demo3Event;
         });
 
-        Assert.assertEquals(3, domainEventCollector.getEventList().size());
+        Assert.assertEquals(3, domainEventCollector.getEvents().size());
 
         domainEventCollector.removeEvent(Demo1Event.class);
 
-        Assert.assertEquals(2, domainEventCollector.getEventList().size());
+        Assert.assertEquals(2, domainEventCollector.getEvents().size());
 
     }
 

@@ -40,12 +40,12 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     private String updatedBy;
 
     private final DomainEventCollector eventCollector = new DomainEventCollector();
-    private TriggeredOperations actionCollector;
+    private TriggeredOperations triggeredOperations;
 
     @Override
     protected abstract BrokenRuleMessage getBrokenRuleMessages();
 
-    protected abstract OperationRegistry entityActions();
+    protected abstract OperationRegistry entityOperations();
 
     protected <V> V setAndReturnOld(Consumer<V> set, Supplier<V> getOld, V newValue) {
         V old = getOld.get();
@@ -64,30 +64,30 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
 
 
     protected void publishEvent(BaseDomainEvent event) {
-        event.actionName = this.getCurrentActionCode();
+        event.operationCode = this.getCurrentOperationCode();
         event.version = this.getNewVersion();
-        this.eventCollector.pushEvent(event);
+        this.eventCollector.collect(event);
     }
 
-    protected void publishEvent(BaseDomainEvent event, EntityOperation triggerAction) {
-        event.actionName = triggerAction.code();
+    protected void publishEvent(BaseDomainEvent event, EntityOperation triggerOperation) {
+        event.operationCode = triggerOperation.code();
         event.version = this.getNewVersion();
-        this.eventCollector.pushEvent(event);
+        this.eventCollector.collect(event);
     }
 
     protected void publishEvent(Supplier<IDomainEvent> eventSupplier) {
-        this.eventCollector.pushDelayGenerateEvent(eventSupplier);
+        this.eventCollector.collectDelayed(eventSupplier);
     }
 
     public List<IDomainEvent> getDomainEvents() {
-        return this.eventCollector.getEventList();
+        return this.eventCollector.getEvents();
     }
 
     /**
-     * 获取当前触发的 Action 编码。
-     * 默认返回 "UNKNOWN"，后续迭代与 Action 体系深度整合。
+     * 获取当前触发的 Operation 编码。
+     * 默认返回 "UNKNOWN"，后续迭代与 Operation 体系深度整合。
      */
-    protected String getCurrentActionCode() {
+    protected String getCurrentOperationCode() {
         return "UNKNOWN";
     }
 
@@ -100,27 +100,28 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         this.eventCollector.clear();
     }
 
-    protected void recordAction(EntityOperation action) {
-        this.getActionCollector().put(action);
+    protected void recordOperation(EntityOperation operation) {
+        this.triggeredOperations().put(operation);
     }
 
-    public boolean hasAction(EntityOperation action) {
-        return this.getActionCollector().containAction(action);
-    }
-    public boolean hasAllActions(EntityOperation... actions) {
-        return this.getActionCollector().containActions(actions);
+    public boolean hasOperation(EntityOperation operation) {
+        return this.triggeredOperations().contains(operation);
     }
 
-
-    public boolean hasAnyAction(EntityOperation... actions) {
-        return this.getActionCollector().containAnyAction(actions);
+    public boolean hasAllOperations(EntityOperation... operations) {
+        return this.triggeredOperations().containsAll(operations);
     }
 
-    private TriggeredOperations getActionCollector() {
-        if (this.actionCollector == null) {
-            this.actionCollector = new TriggeredOperations(this.entityActions());
+
+    public boolean hasAnyOperation(EntityOperation... operations) {
+        return this.triggeredOperations().containsAny(operations);
+    }
+
+    private TriggeredOperations triggeredOperations() {
+        if (this.triggeredOperations == null) {
+            this.triggeredOperations = new TriggeredOperations(this.entityOperations());
         }
-        return this.actionCollector;
+        return this.triggeredOperations;
     }
     public long getNewVersion() {
         if (!this.newVersionIsGenerate) {

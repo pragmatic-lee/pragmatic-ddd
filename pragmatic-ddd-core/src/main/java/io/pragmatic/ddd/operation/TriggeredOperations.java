@@ -5,56 +5,48 @@ import java.util.HashMap;
 
 /**
  * 实体已触发操作收集器（对应设计文档 3.2：替代原 {@code action.EntityActionCollector}）。
- * <p>对外 API（put / containAction / containActions / containAnyAction / notContainAction / clear）
- * 保持不变，仅构造参数与内部引用由 {@code EntityAction} / {@code Action} 切换为
- * {@link OperationRegistry} / {@link EntityOperation}。</p>
+ * <p>负责收集并校验实体在一次工作单元内已触发的 {@link EntityOperation}，
+ * 构造参数与内部引用基于 {@link OperationRegistry} / {@link EntityOperation}。</p>
  */
 public class TriggeredOperations {
 
-    private final HashMap<String, EntityOperation> actionHashMap = new HashMap<>();
+    private final HashMap<String, EntityOperation> triggeredMap = new HashMap<>();
     private final OperationRegistry operationRegistry;
 
     public TriggeredOperations(OperationRegistry operationRegistry) {
         this.operationRegistry = operationRegistry;
     }
 
-    public void put(EntityOperation action) {
-        if (!this.operationRegistry.operations().containsKey(action.code())) {
-            throw new OperationException("not find action in OperationRegistry");
+    public void put(EntityOperation operation) {
+        if (!this.operationRegistry.operations().containsKey(operation.code())) {
+            throw new OperationException("operation not found in OperationRegistry: " + operation.code());
         }
-        this.actionHashMap.put(action.code(), action);
+        this.triggeredMap.put(operation.code(), operation);
     }
 
     /**
      * 包含所有 Operation
      */
-    public boolean containActions(EntityOperation... actions) {
-        return actionHashMap.keySet().containsAll(Arrays.stream(actions).map(EntityOperation::code)
+    public boolean containsAll(EntityOperation... operations) {
+        return triggeredMap.keySet().containsAll(Arrays.stream(operations).map(EntityOperation::code)
                 .toList());
     }
 
     /**
      * 包含任何一个 Operation
      */
-    public boolean containAnyAction(EntityOperation... actions) {
-        return Arrays.stream(actions).anyMatch(this::containAction);
+    public boolean containsAny(EntityOperation... operations) {
+        return Arrays.stream(operations).anyMatch(this::contains);
     }
 
     /**
      * 包含指定的 Operation
      */
-    public boolean containAction(EntityOperation action) {
-        return actionHashMap.containsKey(action.code());
-    }
-
-    /**
-     * 不包含指定的 Operation
-     */
-    public boolean notContainAction(EntityOperation action) {
-        return !actionHashMap.containsKey(action.code());
+    public boolean contains(EntityOperation operation) {
+        return triggeredMap.containsKey(operation.code());
     }
 
     public void clear() {
-        this.actionHashMap.clear();
+        this.triggeredMap.clear();
     }
 }

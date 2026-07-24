@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.base.test2;
 
-import io.pragmatic.ddd.operation.PersonAction;
+import io.pragmatic.ddd.operation.PersonOperations;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonUpdateData;
 import io.pragmatic.ddd.base.test2.entity.Person;
@@ -35,7 +35,7 @@ public class PersonTest {
         Boolean validate = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
 
         assert !validate;
-        assert person.hasAction(PersonAction.UPDATE_ACTION);
+        assert person.hasOperation(PersonOperations.UPDATE);
 
     }
 
@@ -51,7 +51,7 @@ public class PersonTest {
 
 
         assert validate1;
-        assert person.hasAction(PersonAction.UPDATE_ACTION);
+        assert person.hasOperation(PersonOperations.UPDATE);
 
     }
 
@@ -66,7 +66,7 @@ public class PersonTest {
         Boolean validate1 = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
 
         assert !validate1;
-        assert person.hasAction(PersonAction.UPDATE_STATUS_ACTION);
+        assert person.hasOperation(PersonOperations.UPDATE_STATUS);
     }
 
     private Person mockData() {

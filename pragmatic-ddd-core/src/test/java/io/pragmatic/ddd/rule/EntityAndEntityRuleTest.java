@@ -362,7 +362,7 @@ public class EntityAndEntityRuleTest {
         }
 
         @Override
-        protected OperationRegistry entityActions() {
+        protected OperationRegistry entityOperations() {
             return null;
         }
 

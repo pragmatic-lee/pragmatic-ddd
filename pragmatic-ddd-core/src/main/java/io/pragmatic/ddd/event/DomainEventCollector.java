@@ -11,37 +11,37 @@ import java.util.stream.Collectors;
  */
 public class DomainEventCollector {
 
-    private final List<IDomainEvent> domainEventList = new ArrayList<>();
+    private final List<IDomainEvent> events = new ArrayList<>();
 
-    private final List<Supplier<IDomainEvent>> delayGenerateEventList = new ArrayList<>();
+    private final List<Supplier<IDomainEvent>> delayedEvents = new ArrayList<>();
 
-    public void pushEvent(IDomainEvent domainEvent) {
-        this.domainEventList.add(domainEvent);
+    public void collect(IDomainEvent domainEvent) {
+        this.events.add(domainEvent);
     }
 
-    public void pushDelayGenerateEvent(Supplier<IDomainEvent> supplier) {
-        this.delayGenerateEventList.add(supplier);
+    public void collectDelayed(Supplier<IDomainEvent> supplier) {
+        this.delayedEvents.add(supplier);
     }
 
-    public List<IDomainEvent> getEventList() {
+    public List<IDomainEvent> getEvents() {
 
-        List<IDomainEvent> delayDomainEventList = this.delayGenerateEventList
+        List<IDomainEvent> delayDomainEventList = this.delayedEvents
                 .stream()
                 .map(Supplier::get)
                 .toList();
 
-        List<IDomainEvent> returnedList = new ArrayList<>(this.domainEventList);
+        List<IDomainEvent> returnedList = new ArrayList<>(this.events);
         returnedList.addAll(delayDomainEventList);
 
         return returnedList;
     }
 
     public <T> void removeEvent(Class<T> cls) {
-        domainEventList.removeIf(s -> s.getClass().equals(cls));
+        events.removeIf(s -> s.getClass().equals(cls));
     }
 
     public void clear() {
-        this.domainEventList.clear();
-        this.delayGenerateEventList.clear();
+        this.events.clear();
+        this.delayedEvents.clear();
     }
 }

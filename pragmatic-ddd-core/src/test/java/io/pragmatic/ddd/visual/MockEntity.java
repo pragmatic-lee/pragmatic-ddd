@@ -2,7 +2,7 @@ package io.pragmatic.ddd.visual;
 
 import io.pragmatic.ddd.base.BrokenRuleMessage;
 import io.pragmatic.ddd.base.AbstractEntity;
-import io.pragmatic.ddd.operation.MockEntityActions;
+import io.pragmatic.ddd.operation.MockEntityOperations;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.visual.entity.EntityActionVisual;
 import io.pragmatic.ddd.visual.entity.EntityVisual;
@@ -72,8 +72,8 @@ public class MockEntity extends AbstractEntity<Long> {
     }
 
     @Override
-    public OperationRegistry entityActions() {
-        return MockEntityActions.action;
+    public OperationRegistry entityOperations() {
+        return MockEntityOperations.INSTANCE;
     }
 
     public Integer getAge() {

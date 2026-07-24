@@ -2,7 +2,7 @@ package io.pragmatic.ddd.base.test2.entity;
 
 import io.pragmatic.ddd.base.*;
 import io.pragmatic.ddd.operation.OperationRegistry;
-import io.pragmatic.ddd.operation.PersonAction;
+import io.pragmatic.ddd.operation.PersonOperations;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonCopyData;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonUpdateData;
@@ -34,7 +34,7 @@ public class Person extends AggregateRoot<Long> {
         this.setEntityId(personInitData.getId());
         this.setNewEntity(true);
         PersonSetter.init(this, personInitData);
-        this.recordAction(PersonAction.NEW);
+        this.recordOperation(PersonOperations.NEW);
         this.publishEvent(PersonInitEvent.build(this));
 
     }
@@ -44,7 +44,7 @@ public class Person extends AggregateRoot<Long> {
      */
     public void update(PersonUpdateData personUpdateData) {
         PersonSetter.updateSet(this, personUpdateData);
-        this.recordAction(PersonAction.UPDATE_ACTION);
+        this.recordOperation(PersonOperations.UPDATE);
         this.publishEvent(PersonUpdateEvent.build(this));
 
     }
@@ -55,7 +55,7 @@ public class Person extends AggregateRoot<Long> {
     public void updateStatus(Status status) {
         this.setStatus(status);
         this.setUpdatedTime(new Date());
-        this.recordAction(PersonAction.UPDATE_STATUS_ACTION);
+        this.recordOperation(PersonOperations.UPDATE_STATUS);
         this.publishEvent(PersonUpdateStatusEvent.build(this));
 
 
@@ -67,7 +67,7 @@ public class Person extends AggregateRoot<Long> {
     }
 
     @Override
-    protected OperationRegistry entityActions() {
-        return PersonAction.INSTANCE;
+    protected OperationRegistry entityOperations() {
+        return PersonOperations.INSTANCE;
     }
 }

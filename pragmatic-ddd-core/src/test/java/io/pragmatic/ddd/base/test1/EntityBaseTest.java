@@ -189,7 +189,7 @@ class TestData extends AggregateRoot<Long> {
     }
 
     @Override
-    protected OperationRegistry entityActions() {
+    protected OperationRegistry entityOperations() {
         return null;
     }
 

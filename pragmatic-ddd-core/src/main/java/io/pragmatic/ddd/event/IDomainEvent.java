@@ -13,7 +13,7 @@ import java.time.Instant;
  *   <li>{@link #getEventId()}        — 全局唯一标识，用于幂等去重</li>
  *   <li>{@link #getEntityId()}        — 实体身份标识，关联原始实体对象</li>
  *   <li>{@link #getOccurredOn()}      — 事件发生时间</li>
- *   <li>{@link #getActionName()}      — 触发该事件的实体 Action 编码</li>
+ *   <li>{@link #getOperationCode()}   — 触发该事件的实体 Operation 编码</li>
  *   <li>{@link #getVersion()}         — 聚合根版本号，由 EntityBase 自动设定</li>
  *   <li>{@link #getAggregateId()}     — 关联的聚合根标识（默认返回 entityId）</li>
  * </ul>
@@ -30,10 +30,10 @@ public interface IDomainEvent {
     Instant getOccurredOn();
 
     /**
-     * 触发该事件的实体 Action 编码。
+     * 触发该事件的实体 Operation 编码。
      * 由 {@code EntityBase.publishEvent()} 自动设置。
      */
-    String getActionName();
+    String getOperationCode();
 
     /**
      * 发布时刻的聚合根版本号。

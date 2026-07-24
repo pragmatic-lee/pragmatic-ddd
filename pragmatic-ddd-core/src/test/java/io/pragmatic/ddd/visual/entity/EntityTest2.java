@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.visual.entity;
 
 import io.pragmatic.ddd.base.*;
-import io.pragmatic.ddd.operation.EntityTest2Action;
+import io.pragmatic.ddd.operation.EntityTest2Operations;
 import io.pragmatic.ddd.operation.OperationRegistry;
 
 public class EntityTest2 extends AbstractEntity<Long> {
@@ -15,7 +15,7 @@ public class EntityTest2 extends AbstractEntity<Long> {
     }
 
     public void updateForUse(String newName) {
-        this.recordAction(EntityTest2Action.testAction);
+        this.recordOperation(EntityTest2Operations.TEST);
         this.setName(newName);
     }
 
@@ -25,8 +25,8 @@ public class EntityTest2 extends AbstractEntity<Long> {
     }
 
     @Override
-    public OperationRegistry entityActions() {
-        return new EntityTest2Action();
+    public OperationRegistry entityOperations() {
+        return new EntityTest2Operations();
     }
 
     public String getName() {
