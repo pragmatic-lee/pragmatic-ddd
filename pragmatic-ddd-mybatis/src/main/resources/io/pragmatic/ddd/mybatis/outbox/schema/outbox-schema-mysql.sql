@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS outbox_message (
     aggregate_id   VARCHAR(128)  NOT NULL,
     aggregate_type VARCHAR(255)  NOT NULL,
     event_type     VARCHAR(255)  NOT NULL,
-    business_id    VARCHAR(128),
+    entity_id    VARCHAR(128),
     payload        LONGTEXT      NOT NULL,
     status         VARCHAR(20)   NOT NULL,
     attempts       INT           NOT NULL DEFAULT 0,
