@@ -112,8 +112,8 @@ public class OrderPayedEvent extends BaseDomainEvent {
     private BigDecimal amount;
 
     public OrderPayedEvent(Order order) {
-        super(order.getId().toString());
-        this.orderId = order.getId();
+        super(order.getEntityId().toString());
+        this.orderId = order.getEntityId();
         this.amount = order.getTotalPrice();
     }
 }

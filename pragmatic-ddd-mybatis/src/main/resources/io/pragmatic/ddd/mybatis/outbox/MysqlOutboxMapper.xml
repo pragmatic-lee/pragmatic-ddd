@@ -8,7 +8,7 @@
         <result column="aggregate_id" property="aggregateId"/>
         <result column="aggregate_type" property="aggregateType"/>
         <result column="event_type" property="eventType"/>
-        <result column="business_id" property="businessId"/>
+        <result column="entity_id" property="entityId"/>
         <result column="payload" property="payload"/>
         <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
         <result column="attempts" property="attempts"/>
@@ -25,7 +25,7 @@
              aggregate_id,
              aggregate_type,
              event_type,
-             business_id,
+             entity_id,
              payload,
              status,
              attempts,
@@ -40,7 +40,7 @@
              #{m.aggregateId},
              #{m.aggregateType},
              #{m.eventType},
-             #{m.businessId},
+             #{m.entityId},
              #{m.payload},
              #{m.status},
              #{m.attempts},

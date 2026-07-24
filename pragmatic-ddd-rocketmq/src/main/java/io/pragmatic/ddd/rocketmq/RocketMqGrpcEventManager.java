@@ -195,7 +195,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
         MessageBuilder builder = provider.newMessageBuilder()
                 .setTopic(topic)
                 .setTag(this.environmentName)
-                .setKeys(obj.getBusinessId())
+                .setKeys(obj.getEntityId())
                 .setBody(body);
         if (s.getDeliveryPolicy() == DeliveryPolicy.DELAYED) {
             builder.setDeliveryTimestamp(
@@ -204,15 +204,15 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
         try {
             this.producer.send(builder.build());
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
-            log.info("事件发送成功(gRPC) topic={} eventType={} subscriber={} businessId={} latencyMs={}",
-                    topic, s.getRealEventName(), s.getName(), obj.getBusinessId(), latencyMs);
+            log.info("事件发送成功(gRPC) topic={} eventType={} subscriber={} entityId={} latencyMs={}",
+                    topic, s.getRealEventName(), s.getName(), obj.getEntityId(), latencyMs);
             metrics.recordPublish(topic, s.getRealEventName(), true, latencyMs);
         } catch (Exception e) {
             long latencyMs = (System.nanoTime() - startNs) / 1_000_000;
-            log.error("事件发送失败(gRPC) topic={} eventType={} subscriber={} businessId={} latencyMs={}",
-                    topic, s.getRealEventName(), s.getName(), obj.getBusinessId(), latencyMs, e);
+            log.error("事件发送失败(gRPC) topic={} eventType={} subscriber={} entityId={} latencyMs={}",
+                    topic, s.getRealEventName(), s.getName(), obj.getEntityId(), latencyMs, e);
             metrics.recordPublish(topic, s.getRealEventName(), false, latencyMs);
-            throw new PublishEventException(obj.getBusinessId(), e);
+            throw new PublishEventException(obj.getEntityId(), e);
         }
     }
 
