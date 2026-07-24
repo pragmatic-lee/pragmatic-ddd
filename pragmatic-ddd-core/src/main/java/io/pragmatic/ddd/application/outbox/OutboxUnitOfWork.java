@@ -97,7 +97,7 @@ public class OutboxUnitOfWork extends AbstractUnitOfWork {
         m.setAggregateId(e.getAggregateId());
         m.setAggregateType(aggregateType.getName());
         m.setEventType(e.getClass().getName());
-        m.setBusinessId(e.getBusinessId());
+        m.setEntityId(e.getEntityId());
         m.setPayload(serializer.serialize(e));
         m.setStatus(OutboxStatus.PENDING);
         m.setAttempts(0);

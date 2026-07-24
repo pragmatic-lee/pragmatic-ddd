@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.afull.domain.order.model;
 
-import io.pragmatic.ddd.action.EntityAction;
 import io.pragmatic.ddd.afull.domain.order.event.OrderCreatedEvent;
+import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.afull.domain.order.event.OrderPayedEvent;
 import io.pragmatic.ddd.afull.domain.order.param.OrderInitParam;
 import io.pragmatic.ddd.base.AggregateRoot;
@@ -25,14 +25,14 @@ public class Order extends AggregateRoot<Long> {
 
 
     public Order(OrderInitParam orderInitParam) {
-        this.setId(orderInitParam.getOrderId());
+        this.setEntityId(orderInitParam.getOrderId());
         this.totalPrice = orderInitParam.getTotalPrice();
         this.comment = orderInitParam.getComment();
         this.pin = orderInitParam.getPin();
         this.orderItemList = orderInitParam.getOrderItemList();
         this.created = LocalDateTime.now();
         //事件收集
-        this.publishEvent(() -> new OrderCreatedEvent(this.getId()));
+        this.publishEvent(() -> new OrderCreatedEvent(this.getEntityId()));
     }
 
 
@@ -42,7 +42,7 @@ public class Order extends AggregateRoot<Long> {
     }
 
     @Override
-    protected EntityAction entityActions() {
+    protected OperationRegistry entityActions() {
         return null;
     }
 
@@ -68,7 +68,7 @@ public class Order extends AggregateRoot<Long> {
     public void payment() {
         this.status = 3;
         //事件收集
-        this.publishEvent(new OrderPayedEvent(this.getId()));
+        this.publishEvent(new OrderPayedEvent(this.getEntityId()));
 
     }
 

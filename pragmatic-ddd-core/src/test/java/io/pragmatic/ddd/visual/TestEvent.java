@@ -6,8 +6,8 @@ import io.pragmatic.ddd.visual.event.DomainEventVisual;
 @DomainEventVisual(description = "测试事件描述")
 public class TestEvent extends BaseDomainEvent {
 
-    public TestEvent(String businessId) {
-        super(businessId);
+    public TestEvent(String entityId) {
+        super(entityId);
     }
 
     protected TestEvent() {

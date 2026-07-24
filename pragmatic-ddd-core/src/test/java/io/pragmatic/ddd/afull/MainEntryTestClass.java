@@ -51,7 +51,7 @@ public class MainEntryTestClass implements IOrderService {
 
         Order order = this.repository.findByOrderId(orderId);
 
-        Assert.assertEquals(orderId, order.getId().longValue());
+        Assert.assertEquals(orderId, order.getEntityId().longValue());
     }
 
     @Override

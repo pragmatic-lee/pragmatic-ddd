@@ -48,7 +48,7 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
      * 子类将 SubscribeData 包装为 MQ 特定消息并发送。
      *
      * @param data  订阅数据（含序列化事件体、订阅者名、投递策略）
-     * @param event 原始事件（子类可获取 businessId 等）
+     * @param event 原始事件（子类可获取 entityId 等）
      * @param topic 目标 topic
      */
     protected abstract <T extends IDomainEvent> void sendMessage(

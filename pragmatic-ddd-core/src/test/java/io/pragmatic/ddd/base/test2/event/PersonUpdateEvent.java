@@ -9,8 +9,8 @@ public class PersonUpdateEvent extends BaseDomainEvent {
     private final Long id;
     private final String name;
 
-    public PersonUpdateEvent(String businessId, Long id, String name) {
-        super(businessId);
+    public PersonUpdateEvent(String entityId, Long id, String name) {
+        super(entityId);
         this.id = id;
         this.name = name;
     }
@@ -21,6 +21,6 @@ public class PersonUpdateEvent extends BaseDomainEvent {
     }
 
     public static PersonUpdateEvent build(Person person) {
-        return new PersonUpdateEvent(String.valueOf(person.getId()), person.getId(), person.getName());
+        return new PersonUpdateEvent(String.valueOf(person.getEntityId()), person.getEntityId(), person.getName());
     }
 }

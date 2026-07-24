@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.base.test1;
 
-import io.pragmatic.ddd.action.EntityAction;
 import io.pragmatic.ddd.base.*;
+import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.repository.*;
 import org.junit.Test;
 
@@ -189,7 +189,7 @@ class TestData extends AggregateRoot<Long> {
     }
 
     @Override
-    protected EntityAction entityActions() {
+    protected OperationRegistry entityActions() {
         return null;
     }
 

@@ -5,7 +5,7 @@
  *
  * <h3>实体核心抽象</h3>
  * <ul>
- *   <li>{@link io.pragmatic.ddd.base.AbstractEntity EntityBase} — 实体基类，提供主键标识、事件收集、动作追踪、乐观锁版本控制等能力</li>
+ *   <li>{@link io.pragmatic.ddd.base.AbstractEntity EntityBase} — 实体基类，提供实体身份标识、事件收集、动作追踪、乐观锁版本控制等能力</li>
  *   <li>{@link io.pragmatic.ddd.base.DomainEntity @DomainEntity} — 标记领域实体的注解，含聚合根、限界上下文等元数据</li>
  *   <li>{@link io.pragmatic.ddd.base.IEntity IEntity} — 实体标识接口</li>
  *   <li>{@link io.pragmatic.ddd.base.AggregateRoot AggregateRoot} — 聚合根基类，继承 EntityBase，IRepository 编译期约束入口</li>
@@ -35,7 +35,7 @@
  * <h2>典型的实体继承链</h2>
  * <pre>{@code
  * BrokenRuleObject                  ← 规则违反收集能力
- *   └── EntityBase<T>              ← 主键 + 事件/动作收集 + 乐观锁
+ *   └── EntityBase<T>              ← 实体身份 + 事件/动作收集 + 乐观锁
  *         └── YourEntity           ← 具体领域实体
  * }</pre>
  *

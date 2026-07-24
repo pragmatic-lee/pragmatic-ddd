@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.rule;
 
-import io.pragmatic.ddd.action.EntityAction;
 import io.pragmatic.ddd.base.*;
+import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.rules.*;
 import org.junit.Test;
 
@@ -151,7 +151,7 @@ public class EntityRuleWithOldEntityTest {
         private int status;
 
         public TestEntity() {
-            this.setId(1L);
+            this.setEntityId(1L);
         }
 
         public String getName() { return name; }
@@ -167,7 +167,7 @@ public class EntityRuleWithOldEntityTest {
         }
 
         @Override
-        protected EntityAction entityActions() {
+        protected OperationRegistry entityActions() {
             return null;
         }
     }

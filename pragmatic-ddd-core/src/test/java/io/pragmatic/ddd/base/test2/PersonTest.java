@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.base.test2;
 
-import io.pragmatic.ddd.base.test2.action.PersonAction;
+import io.pragmatic.ddd.operation.PersonAction;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonUpdateData;
 import io.pragmatic.ddd.base.test2.entity.Person;

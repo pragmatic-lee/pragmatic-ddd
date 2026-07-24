@@ -11,11 +11,11 @@ import java.time.Instant;
  * <p><b>元数据字段语义：</b></p>
  * <ul>
  *   <li>{@link #getEventId()}        — 全局唯一标识，用于幂等去重</li>
- *   <li>{@link #getBusinessId()}     — 业务标识，关联原始业务对象</li>
- *   <li>{@link #getOccurredOn()}     — 事件发生时间</li>
- *   <li>{@link #getActionName()}     — 触发该事件的实体 Action 编码</li>
- *   <li>{@link #getVersion()}        — 聚合根版本号，由 EntityBase 自动设定</li>
- *   <li>{@link #getAggregateId()}    — 关联的聚合根标识（默认返回 businessId）</li>
+ *   <li>{@link #getEntityId()}        — 实体身份标识，关联原始实体对象</li>
+ *   <li>{@link #getOccurredOn()}      — 事件发生时间</li>
+ *   <li>{@link #getActionName()}      — 触发该事件的实体 Action 编码</li>
+ *   <li>{@link #getVersion()}         — 聚合根版本号，由 EntityBase 自动设定</li>
+ *   <li>{@link #getAggregateId()}     — 关联的聚合根标识（默认返回 entityId）</li>
  * </ul>
  */
 public interface IDomainEvent {
@@ -23,8 +23,8 @@ public interface IDomainEvent {
     /** 事件全局唯一标识 */
     String getEventId();
 
-    /** 业务标识 */
-    String getBusinessId();
+    /** 实体身份标识 */
+    String getEntityId();
 
     /** 事件发生时间 */
     Instant getOccurredOn();
@@ -41,8 +41,8 @@ public interface IDomainEvent {
      */
     long getVersion();
 
-    /** 关联的聚合根标识，默认返回 {@code getBusinessId()} */
+    /** 关联的聚合根标识，默认返回 {@code getEntityId()} */
     default String getAggregateId() {
-        return getBusinessId();
+        return getEntityId();
     }
 }

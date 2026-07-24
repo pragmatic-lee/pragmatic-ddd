@@ -1,9 +1,9 @@
 package io.pragmatic.ddd.base;
 
 
-import io.pragmatic.ddd.action.Action;
-import io.pragmatic.ddd.action.EntityAction;
-import io.pragmatic.ddd.action.EntityActionCollector;
+import io.pragmatic.ddd.operation.EntityOperation;
+import io.pragmatic.ddd.operation.OperationRegistry;
+import io.pragmatic.ddd.operation.TriggeredOperations;
 import io.pragmatic.ddd.event.BaseDomainEvent;
 import io.pragmatic.ddd.event.DomainEventCollector;
 import io.pragmatic.ddd.event.IDomainEvent;
@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 @Setter(value = AccessLevel.PROTECTED)
 public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEntity<T> {
 
-    private T id;
+    private T entityId;
 
     private boolean entityDelete;
     private boolean isNewEntity = false;
@@ -40,12 +40,12 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     private String updatedBy;
 
     private final DomainEventCollector eventCollector = new DomainEventCollector();
-    private EntityActionCollector actionCollector;
+    private TriggeredOperations actionCollector;
 
     @Override
     protected abstract BrokenRuleMessage getBrokenRuleMessages();
 
-    protected abstract EntityAction entityActions();
+    protected abstract OperationRegistry entityActions();
 
     protected <V> V setAndReturnOld(Consumer<V> set, Supplier<V> getOld, V newValue) {
         V old = getOld.get();
@@ -69,8 +69,8 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         this.eventCollector.pushEvent(event);
     }
 
-    protected void publishEvent(BaseDomainEvent event, Action triggerAction) {
-        event.actionName = triggerAction.getActionCode();
+    protected void publishEvent(BaseDomainEvent event, EntityOperation triggerAction) {
+        event.actionName = triggerAction.code();
         event.version = this.getNewVersion();
         this.eventCollector.pushEvent(event);
     }
@@ -100,25 +100,25 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         this.eventCollector.clear();
     }
 
-    protected void recordAction(Action action) {
+    protected void recordAction(EntityOperation action) {
         this.getActionCollector().put(action);
     }
 
-    public boolean hasAction(Action action) {
+    public boolean hasAction(EntityOperation action) {
         return this.getActionCollector().containAction(action);
     }
-    public boolean hasAllActions(Action... actions) {
+    public boolean hasAllActions(EntityOperation... actions) {
         return this.getActionCollector().containActions(actions);
     }
 
 
-    public boolean hasAnyAction(Action... actions) {
+    public boolean hasAnyAction(EntityOperation... actions) {
         return this.getActionCollector().containAnyAction(actions);
     }
 
-    private EntityActionCollector getActionCollector() {
+    private TriggeredOperations getActionCollector() {
         if (this.actionCollector == null) {
-            this.actionCollector = new EntityActionCollector(this.entityActions());
+            this.actionCollector = new TriggeredOperations(this.entityActions());
         }
         return this.actionCollector;
     }
@@ -168,8 +168,8 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         if (!(o instanceof AbstractEntity<?> that)) {
             return false;
         }
-        T thisId = this.getId();
-        Object thatId = that.getId();
+        T thisId = this.getEntityId();
+        Object thatId = that.getEntityId();
         if (thisId != null && thatId != null) {
             return thisId.equals(thatId);
         }
@@ -178,12 +178,12 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
 
     @Override
     public int hashCode() {
-        T thisId = this.getId();
+        T thisId = this.getEntityId();
         return thisId != null ? thisId.hashCode() : super.hashCode();
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{id=" + getId() + "}";
+        return getClass().getSimpleName() + "{id=" + getEntityId() + "}";
     }
 }

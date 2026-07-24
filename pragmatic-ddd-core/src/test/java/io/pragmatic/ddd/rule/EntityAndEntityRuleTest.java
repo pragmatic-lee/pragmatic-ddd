@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.rule;
 
-import io.pragmatic.ddd.action.EntityAction;
 import io.pragmatic.ddd.base.*;
+import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.rules.*;
 import org.junit.Assert;
 import org.junit.Test;
@@ -27,7 +27,7 @@ public class EntityAndEntityRuleTest {
 
         BrokenRuleException brokenRuleException = data.exceptionCause();
 
-        Assert.assertEquals(brokenRuleException.getEntityInfo(), data.getId().toString());
+        Assert.assertEquals(brokenRuleException.getEntityInfo(), data.getEntityId().toString());
 
     }
 
@@ -345,7 +345,7 @@ public class EntityAndEntityRuleTest {
         private DataExtension dataExtension;
 
         public Data() {
-            this.setId(10000L);
+            this.setEntityId(10000L);
         }
 
         public Boolean getBoolInfo() {
@@ -362,7 +362,7 @@ public class EntityAndEntityRuleTest {
         }
 
         @Override
-        protected EntityAction entityActions() {
+        protected OperationRegistry entityActions() {
             return null;
         }
 

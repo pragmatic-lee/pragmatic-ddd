@@ -19,13 +19,13 @@ public class OrderRepository implements IOrderRepository {
 
     @Override
     public Order findByOrderId(long orderId) {
-        return this.memoryDataList.stream().filter(s -> s.getId().equals(orderId)).findFirst().orElse(null);
+        return this.memoryDataList.stream().filter(s -> s.getEntityId().equals(orderId)).findFirst().orElse(null);
     }
 
     @Override
     public void update(Order order) {
         for (int i = 0; i < this.memoryDataList.size(); i++) {
-            if (this.memoryDataList.get(i).getId().equals(order.getId())) {
+            if (this.memoryDataList.get(i).getEntityId().equals(order.getEntityId())) {
                 this.memoryDataList.set(i, order);
             }
         }

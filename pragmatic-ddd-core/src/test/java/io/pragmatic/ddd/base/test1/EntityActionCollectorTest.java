@@ -1,8 +1,8 @@
 package io.pragmatic.ddd.base.test1;
 
-import io.pragmatic.ddd.action.Action;
-import io.pragmatic.ddd.action.EntityAction;
-import io.pragmatic.ddd.action.EntityActionCollector;
+import io.pragmatic.ddd.operation.EntityOperation;
+import io.pragmatic.ddd.operation.OperationRegistry;
+import io.pragmatic.ddd.operation.TriggeredOperations;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,11 +11,11 @@ import org.junit.Test;
 public class EntityActionCollectorTest {
 
 
-    private EntityActionCollector entityActionCollector;
+    private TriggeredOperations entityActionCollector;
 
     @Before
     public void init() {
-        entityActionCollector = new EntityActionCollector(new TestAction());
+        entityActionCollector = new TriggeredOperations(new TestAction());
     }
 
 
@@ -59,17 +59,10 @@ public class EntityActionCollectorTest {
     }
 }
 
-class TestAction extends EntityAction {
+class TestAction extends OperationRegistry {
 
-    public static final Action actionA = Action.build("actionA");
-    public static final Action actionB = Action.build("actionB");
-    public static final Action actionC = Action.build("actionC");
+    public static final EntityOperation actionA = EntityOperation.of("actionA");
+    public static final EntityOperation actionB = EntityOperation.of("actionB");
+    public static final EntityOperation actionC = EntityOperation.of("actionC");
 
-    @Override
-    protected void registerActions() {
-        this.register(actionA);
-        this.register(actionB);
-        this.register(actionC);
-
-    }
 }

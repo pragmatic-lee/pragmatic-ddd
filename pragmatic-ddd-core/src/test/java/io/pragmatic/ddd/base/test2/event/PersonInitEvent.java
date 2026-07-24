@@ -9,8 +9,8 @@ public class PersonInitEvent extends BaseDomainEvent {
     private final Long id;
     private final String name;
 
-    public PersonInitEvent(String businessId, Long id, String name) {
-        super(businessId);
+    public PersonInitEvent(String entityId, Long id, String name) {
+        super(entityId);
         this.id = id;
         this.name = name;
     }
@@ -21,6 +21,6 @@ public class PersonInitEvent extends BaseDomainEvent {
     }
 
     public static PersonInitEvent build(Person person) {
-        return new PersonInitEvent(String.valueOf(person.getId()), person.getId(), person.getName());
+        return new PersonInitEvent(String.valueOf(person.getEntityId()), person.getEntityId(), person.getName());
     }
 }

@@ -212,7 +212,7 @@ public class ThreadPoolEventManagerUseKeyTest {
             System.out.println(1);
 
             //需要满足IExecuteCondition 条件才能执行
-        }, evt -> evt.getBusinessId().equals("1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
+        }, evt -> evt.getEntityId().equals("1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
         manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
             countDownLatch.countDown();
@@ -247,7 +247,7 @@ public class ThreadPoolEventManagerUseKeyTest {
         manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
                     countDownLatch.countDown();
                     System.out.println("sub2");
-                }, evt -> evt.getBusinessId().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP
+                }, evt -> evt.getEntityId().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP
         );
         //发布事件 name=100 执行 sub2 ,sub1
         manager.publish(new TestDomainEvent("100"));

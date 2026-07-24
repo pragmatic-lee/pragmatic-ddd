@@ -218,7 +218,7 @@ public class ThreadPoolEventManagerTest {
             System.out.println(1);
 
             //需要满足IExecuteCondition 条件才能执行
-        }, (IExecuteCondition<TestDomainEvent>) evt -> evt.getBusinessId().equals("1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
+        }, (IExecuteCondition<TestDomainEvent>) evt -> evt.getEntityId().equals("1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
         manager.registerSubscriber("sub2", TestDomainEvent.class, s -> {
             countDownLatch.countDown();
@@ -253,7 +253,7 @@ public class ThreadPoolEventManagerTest {
         manager.registerSubscriber("sub2", TestDomainEvent.class, s -> {
                     countDownLatch.countDown();
                     System.out.println("sub2");
-                }, (IExecuteCondition<TestDomainEvent>) evt -> evt.getBusinessId().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP
+                }, (IExecuteCondition<TestDomainEvent>) evt -> evt.getEntityId().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP
         );
         //发布事件 name=100 执行 sub2 ,sub1
         manager.publish(new TestDomainEvent("100"));

@@ -36,11 +36,11 @@ import lombok.Getter;
  *     private final BigDecimal totalPrice;
  *
  *     public static OrderCreatedEvent from(Order order) {
- *         return new OrderCreatedEvent(String.valueOf(order.getId()), order.getId(), order.getTotalPrice());
+ *         return new OrderCreatedEvent(String.valueOf(order.getEntityId()), order.getEntityId(), order.getTotalPrice());
  *     }
  *
- *     public OrderCreatedEvent(String businessId, long orderId, BigDecimal totalPrice) {
- *         super(businessId);
+ *     public OrderCreatedEvent(String entityId, long orderId, BigDecimal totalPrice) {
+ *         super(entityId);
  *         this.orderId = orderId;
  *         this.totalPrice = totalPrice;
  *     }
@@ -53,7 +53,7 @@ import lombok.Getter;
 public abstract class BaseDomainEvent implements IDomainEvent {
 
     private final String eventId;
-    private final String businessId;
+    private final String entityId;
     private final Instant occurredOn;
 
     /** 由 EntityBase.publishEvent() / Fastjson2 反序列化设置，子类不应主动赋值 */
@@ -61,21 +61,21 @@ public abstract class BaseDomainEvent implements IDomainEvent {
     public long version;
 
     /** 常规构造：自动生成 eventId + 记录当前时间 */
-    protected BaseDomainEvent(String businessId) {
-        this(businessId, UUID.randomUUID().toString(), Instant.now());
+    protected BaseDomainEvent(String entityId) {
+        this(entityId, UUID.randomUUID().toString(), Instant.now());
     }
 
-    /** 事件重放构造：指定 businessId + eventId + 时间 */
-    protected BaseDomainEvent(String businessId, String eventId, Instant occurredOn) {
+    /** 事件重放构造：指定 entityId + eventId + 时间 */
+    protected BaseDomainEvent(String entityId, String eventId, Instant occurredOn) {
         this.eventId = eventId;
-        this.businessId = businessId;
+        this.entityId = entityId;
         this.occurredOn = occurredOn;
     }
 
     /** Fastjson2 Feature.FieldBased 反序列化入口 */
     protected BaseDomainEvent() {
         this.eventId = null;
-        this.businessId = null;
+        this.entityId = null;
         this.occurredOn = null;
     }
 }
