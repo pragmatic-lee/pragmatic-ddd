@@ -1,0 +1,73 @@
+package io.pragmatic.ddd.base.test2.entity;
+
+import io.pragmatic.ddd.action.EntityAction;
+import io.pragmatic.ddd.base.*;
+import io.pragmatic.ddd.base.test2.action.PersonAction;
+import io.pragmatic.ddd.base.test2.boxvalueobject.PersonCopyData;
+import io.pragmatic.ddd.base.test2.boxvalueobject.PersonInitData;
+import io.pragmatic.ddd.base.test2.boxvalueobject.PersonUpdateData;
+import io.pragmatic.ddd.base.test2.entity.enums.Status;
+import io.pragmatic.ddd.base.test2.event.PersonInitEvent;
+import io.pragmatic.ddd.base.test2.event.PersonUpdateEvent;
+import io.pragmatic.ddd.base.test2.event.PersonUpdateStatusEvent;
+import io.pragmatic.ddd.base.test2.rule.PersonBrokeRuleMessage;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.Date;
+
+@Getter
+@Setter(AccessLevel.PROTECTED)
+public class Person extends AggregateRoot<Long> {
+
+    private String name;
+    private String age;
+    private String email;
+    private String phone;
+    private Status status;
+    private Date createdTime;
+    private Date updatedTime;
+
+
+    public Person(PersonInitData personInitData) {
+        this.setId(personInitData.getId());
+        this.setNewEntity(true);
+        PersonSetter.init(this, personInitData);
+        this.recordAction(PersonAction.NEW);
+        this.publishEvent(PersonInitEvent.build(this));
+
+    }
+
+    /**
+     * 更新基础信息
+     */
+    public void update(PersonUpdateData personUpdateData) {
+        PersonSetter.updateSet(this, personUpdateData);
+        this.recordAction(PersonAction.UPDATE_ACTION);
+        this.publishEvent(PersonUpdateEvent.build(this));
+
+    }
+
+    /**
+     * 更新状态
+     */
+    public void updateStatus(Status status) {
+        this.setStatus(status);
+        this.setUpdatedTime(new Date());
+        this.recordAction(PersonAction.UPDATE_STATUS_ACTION);
+        this.publishEvent(PersonUpdateStatusEvent.build(this));
+
+
+    }
+
+    @Override
+    protected BrokenRuleMessage getBrokenRuleMessages() {
+        return PersonBrokeRuleMessage.INSTANCE;
+    }
+
+    @Override
+    protected EntityAction entityActions() {
+        return PersonAction.INSTANCE;
+    }
+}

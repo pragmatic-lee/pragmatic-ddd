@@ -1,0 +1,36 @@
+package io.pragmatic.ddd.afull.domain.order.model;
+
+import io.pragmatic.ddd.rules.ActiveStatus;
+import io.pragmatic.ddd.rules.EntityRule;
+import org.apache.commons.lang3.StringUtils;
+
+import java.math.BigDecimal;
+
+/**
+ * @author lixiaojing
+ * @date 2021/3/1 5:30 下午
+ */
+public class OrderEntityRule extends EntityRule<Order> {
+
+    public OrderEntityRule() {
+        this.init();
+    }
+
+    @Override
+    protected Order supplyOldEntity() {
+        return null;
+    }
+
+    @Override
+    public void init() {
+        this.addRule(model -> !StringUtils.isBlank(model.getPin()),
+                OrderBrokenRuleMessages.PIN_IS_EMPTY);
+
+        this.addRule(model -> model.getTotalPrice().compareTo(BigDecimal.ZERO) > 0,
+                OrderBrokenRuleMessages.TOTAL_PRICE_ERROR);
+
+        this.addRule(model -> !model.getOrderItemList().isEmpty() && model.getOrderItemList().size() < 100,
+                OrderBrokenRuleMessages.ORDER_ITEM_ERROR,
+                model -> ActiveStatus.ACTIVE);
+    }
+}
