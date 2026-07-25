@@ -25,7 +25,7 @@ public class RuleTest {
 
                 ArrayList<EntityRule<?>> classes = new ArrayList<>();
                 classes.add(new MockEntityRule());
-                return new RuleFinderObject(classes, MockEntityBrokenRuleMessage.message);
+                return new RuleFinderObject(classes, MockEntityBrokenRuleMessage.INSTANCE);
             }
         });
 

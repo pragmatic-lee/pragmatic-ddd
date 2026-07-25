@@ -38,7 +38,7 @@ public class Order extends AggregateRoot<Long> {
 
     @Override
     protected BrokenRuleMessage getBrokenRuleMessages() {
-        return new OrderBrokenRuleMessages();
+        return OrderBrokenRuleMessages.INSTANCE;
     }
 
     @Override

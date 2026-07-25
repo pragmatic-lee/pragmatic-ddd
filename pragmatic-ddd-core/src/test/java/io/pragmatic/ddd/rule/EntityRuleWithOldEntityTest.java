@@ -163,7 +163,7 @@ public class EntityRuleWithOldEntityTest {
 
         @Override
         protected BrokenRuleMessage getBrokenRuleMessages() {
-            return new TestBrokenRuleMessage();
+            return TestBrokenRuleMessage.INSTANCE;
         }
 
         @Override
@@ -174,16 +174,11 @@ public class EntityRuleWithOldEntityTest {
 
     static class TestBrokenRuleMessage extends BrokenRuleMessage {
 
-        static final String NAME_ERROR = "NAME_ERROR";
-        static final String CODE_ERROR = "CODE_ERROR";
-        static final String BOTH_ERROR = "BOTH_ERROR";
+        public static final MessageCode NAME_ERROR = MessageCode.of("NAME_ERROR", "名字错误");
+        public static final MessageCode CODE_ERROR = MessageCode.of("CODE_ERROR", "代号错误");
+        public static final MessageCode BOTH_ERROR = MessageCode.of("BOTH_ERROR", "旧值与新值不一致");
 
-        @Override
-        protected void populateMessage() {
-            getMessages().put(NAME_ERROR, "名字错误");
-            getMessages().put(CODE_ERROR, "代号错误");
-            getMessages().put(BOTH_ERROR, "旧值与新值不一致");
-        }
+        public static final TestBrokenRuleMessage INSTANCE = new TestBrokenRuleMessage();
     }
 
     // ==================== 测试用 EntityRule 子类 ====================

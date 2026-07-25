@@ -68,7 +68,7 @@ public class MockEntity extends AbstractEntity<Long> {
 
     @Override
     protected BrokenRuleMessage getBrokenRuleMessages() {
-        return MockEntityBrokenRuleMessage.message;
+        return MockEntityBrokenRuleMessage.INSTANCE;
     }
 
     @Override

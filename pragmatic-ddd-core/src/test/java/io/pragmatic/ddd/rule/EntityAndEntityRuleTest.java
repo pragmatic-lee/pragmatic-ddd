@@ -61,12 +61,12 @@ public class EntityAndEntityRuleTest {
         Data data = new Data();
 
         DataEntityRule dataEntityRule = new DataEntityRule();
-        IRule<Data> clsRule = dataEntityRule.findRuleByMessageKey(PRICE_ZERO_ERROR);
+        IRule<Data> clsRule = dataEntityRule.findRuleByMessageCode(PRICE_ZERO_ERROR);
 
         boolean satisfy = clsRule.satisfiesRule(data);
         Assert.assertFalse(satisfy);
 
-        IRule<Data> propertyRule = dataEntityRule.findRuleByMessageKey(DataBrokenRuleMessage.NAME_EMPTY_ERROR);
+        IRule<Data> propertyRule = dataEntityRule.findRuleByMessageCode(DataBrokenRuleMessage.NAME_EMPTY_ERROR);
 
         boolean satisfy1 = propertyRule.satisfiesRule(data);
         Assert.assertFalse(satisfy1);
@@ -114,7 +114,7 @@ public class EntityAndEntityRuleTest {
         Assert.assertFalse(satisfy);
 
         BrokenRule brokenRule = data.getBrokenRules().get(0);
-        Assert.assertEquals(brokenRule.getName(), DataBrokenRuleMessage.NAME_EMPTY_ERROR);
+        Assert.assertEquals(brokenRule.getName(), DataBrokenRuleMessage.NAME_EMPTY_ERROR.code());
 
         data.clearBrokenRules();
 
@@ -293,25 +293,14 @@ public class EntityAndEntityRuleTest {
 
     static class DataBrokenRuleMessage extends BrokenRuleMessage {
 
-        public static final String NAME_EMPTY_ERROR = "NAME_EMPTY_ERROR";
-        public static final String NAME_USED_ERROR = "NAME_USED_ERROR";
-        public static final String PRICE_ZERO_ERROR = "PRICE_ZERO_ERROR";
-        public static final String PRICE_ZERO_1_ERROR = "PRICE_ZERO_1_ERROR";
-        public static final String price_equal_error = "price_equal_error";
-        public static final String BOOLEAN_INFO_ERROR = "BOOLEAN_INFO_ERROR";
+        public static final MessageCode NAME_EMPTY_ERROR = MessageCode.of("NAME_EMPTY_ERROR", "名字不能为空");
+        public static final MessageCode NAME_USED_ERROR = MessageCode.of("NAME_USED_ERROR", "%s这个名字已经使用");
+        public static final MessageCode PRICE_ZERO_ERROR = MessageCode.of("PRICE_ZERO_ERROR", "价格不能是0");
+        public static final MessageCode PRICE_ZERO_1_ERROR = MessageCode.of("PRICE_ZERO_1_ERROR", "价格必须小于0");
+        public static final MessageCode price_equal_error = MessageCode.of("price_equal_error", "price_equal_error");
+        public static final MessageCode BOOLEAN_INFO_ERROR = MessageCode.of("BOOLEAN_INFO_ERROR", "must be TRUE");
 
-        @Override
-        protected void populateMessage() {
-
-            this.getMessages().put(NAME_EMPTY_ERROR, "名字不能为空");
-
-            this.getMessages().put(NAME_USED_ERROR, "%s这个名字已经使用");
-            this.getMessages().put(PRICE_ZERO_ERROR, "价格不能是0");
-            this.getMessages().put(PRICE_ZERO_1_ERROR, "价格必须小于0");
-            this.getMessages().put(BOOLEAN_INFO_ERROR, "must be TRUE");
-            this.getMessages().put(price_equal_error, "price_equal_error");
-
-        }
+        public static final DataBrokenRuleMessage INSTANCE = new DataBrokenRuleMessage();
     }
 
 
@@ -358,7 +347,7 @@ public class EntityAndEntityRuleTest {
 
         @Override
         protected BrokenRuleMessage getBrokenRuleMessages() {
-            return new DataBrokenRuleMessage();
+            return DataBrokenRuleMessage.INSTANCE;
         }
 
         @Override

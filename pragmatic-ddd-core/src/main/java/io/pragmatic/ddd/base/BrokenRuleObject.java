@@ -10,8 +10,6 @@ public abstract class BrokenRuleObject {
     private final List<BrokenRule> brokenRules;
     private final BrokenRuleMessage brokenRuleMessage;
 
-    private static final EmptyBrokenRule emptyBrokenRule = new EmptyBrokenRule();
-
 
     public BrokenRuleObject() {
         this.brokenRules = new ArrayList<>();
@@ -52,58 +50,15 @@ public abstract class BrokenRuleObject {
         return Collections.unmodifiableList(this.brokenRules);
     }
 
-    public void addBrokenRule(String messageKey) {
-        String message = this.brokenRuleMessage.getRuleDescription(messageKey);
-        BrokenRule rule = new BrokenRule(messageKey, message);
-        this.brokenRules.add(rule);
+    public void addBrokenRule(MessageCode code) {
+        this.brokenRules.add(new BrokenRule(code.code(),
+                this.brokenRuleMessage.getRuleDescription(code.code())));
     }
 
-    public void addBrokenRule(String messageKey, String property) {
-        String message = this.brokenRuleMessage.getRuleDescription(messageKey);
-        BrokenRule rule = new BrokenRule(messageKey, message, property);
-        this.brokenRules.add(rule);
-    }
-
-    public void addBrokenRule(String messageKey, String property, String alias) {
-        String message = this.brokenRuleMessage.getRuleDescription(messageKey);
-        BrokenRule rule = new BrokenRule(messageKey, message, property, alias, null);
-        this.brokenRules.add(rule);
-    }
-
-    public void addParamBrokenRule(String messageKey, Object[] params, boolean isAutoFormat) {
-        this.addParamBrokenRule(messageKey, "", params, "", isAutoFormat);
-    }
-
-    public void addParamBrokenRule(String messageKey, String property, Object[] params,
-                                   String alias,
-                                   boolean isAutoFormat) {
-
-        final String message = this.brokenRuleMessage.getRuleDescription(messageKey);
-        String realMessage;
-
-        if (isAutoFormat) {
-            realMessage = String.format(message, params);
-        } else {
-            realMessage = message;
-        }
-        final BrokenRule rule = new BrokenRule(messageKey, realMessage, property, alias, params);
-        this.brokenRules.add(rule);
-
-
-    }
-
-    public BrokenRule findBrokenRule(String property) {
-        BrokenRule rule = null;
-        for (BrokenRule b : this.brokenRules) {
-            if (b.getProperty().equals(property)) {
-                rule = b;
-                break;
-            }
-        }
-        if (rule == null) {
-            return emptyBrokenRule;
-        }
-        return rule;
+    public void addParamBrokenRule(MessageCode code, Object[] params, boolean isAutoFormat) {
+        String message = this.brokenRuleMessage.getRuleDescription(code.code());
+        String realMessage = isAutoFormat ? String.format(message, params) : message;
+        this.brokenRules.add(new BrokenRule(code.code(), realMessage, params));
     }
 
     public void throwBrokenRuleException() {

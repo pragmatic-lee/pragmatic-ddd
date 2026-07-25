@@ -21,7 +21,7 @@ public class EntityTest2 extends AbstractEntity<Long> {
 
     @Override
     protected BrokenRuleMessage getBrokenRuleMessages() {
-        return new EntityTest2BrokenRuleMessage();
+        return EntityTest2BrokenRuleMessage.INSTANCE;
     }
 
     @Override

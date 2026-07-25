@@ -73,7 +73,7 @@ public class Order extends EntityBase<Long> {
 
     @Override
     public BrokenRuleMessage getBrokenRuleMessages() {
-        return new OrderBrokenRuleMessages();
+        return OrderBrokenRuleMessages.INSTANCE;
     }
 
     @Override

@@ -1,26 +1,24 @@
 package io.pragmatic.ddd.rules;
 
 import io.pragmatic.ddd.base.IRule;
+import io.pragmatic.ddd.base.MessageCode;
 
 public class RuleItem<T> {
     private IRule<T> rule;
     private IParamRule<T> paramRule;
     private final IActiveRuleCondition<T> condition;
-    private final String messageKey;
-    private final String alias;
+    private final MessageCode messageCode;
 
 
-    public RuleItem(IRule<T> rule, String messageKey, String alias, IActiveRuleCondition<T> condition) {
+    public RuleItem(IRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
         this.rule = rule;
-        this.messageKey = messageKey;
-        this.alias = alias;
+        this.messageCode = messageCode;
         this.condition = condition;
     }
 
-    public RuleItem(IParamRule<T> paramRule, String messageKey, String alias, IActiveRuleCondition<T> condition) {
+    public RuleItem(IParamRule<T> paramRule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
         this.paramRule = paramRule;
-        this.messageKey = messageKey;
-        this.alias = alias;
+        this.messageCode = messageCode;
         this.condition = condition;
     }
 
@@ -35,11 +33,8 @@ public class RuleItem<T> {
     public IActiveRuleCondition<T> getCondition() {
         return this.condition;
     }
-    public String getMessageKey() {
-        return messageKey;
-    }
 
-    public String getAlias() {
-        return alias;
+    public MessageCode getMessageCode() {
+        return messageCode;
     }
 }

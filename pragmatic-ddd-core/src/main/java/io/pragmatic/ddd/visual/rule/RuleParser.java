@@ -48,8 +48,8 @@ public class RuleParser {
             List<? extends RuleItem<?>> ruleItems = entityRule.allRuleItems();
 
             List<RuleDescriptor> collect = ruleItems.stream().map(r -> {
-                String ruleDescription = brokenRuleMessage.getRuleDescription(r.getMessageKey());
-                return new RuleDescriptor(r.getMessageKey(),
+                String ruleDescription = brokenRuleMessage.getRuleDescription(r.getMessageCode().code());
+                return new RuleDescriptor(r.getMessageCode().code(),
                         ruleDescription,
                         !(r.getCondition() instanceof AlwaysActiveRuleCondition));
 

@@ -2,6 +2,7 @@ package io.pragmatic.ddd.rules;
 
 import io.pragmatic.ddd.base.BrokenRuleObject;
 import io.pragmatic.ddd.base.IRule;
+import io.pragmatic.ddd.base.MessageCode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +15,7 @@ import java.util.Optional;
  * 每条规则通过 {@link IRule#satisfiesRule} 对模型进行校验，
  * 违规信息通过 {@code BrokenRuleObject} 收集。</p>
  *
- * <p>规则可以通过 messageKey 进行运行时增删改（append / replace / remove），
+ * <p>规则通过 MessageCode 进行运行时增删改（append / replace / remove），
  * 支持 failFast（遇第一条失败即停止）和全量校验两种模式。</p>
  *
  * @param <T> 被校验的模型类型，必须继承 BrokenRuleObject
@@ -82,18 +83,18 @@ public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>
         return new ArrayList<>(this.rules);
     }
 
-    public IRule<T> findRuleByMessageKey(String messageKey) {
+    public IRule<T> findRuleByMessageCode(MessageCode messageCode) {
         return rules.stream()
-                .filter(r -> r.getMessageKey().equals(messageKey))
+                .filter(r -> r.getMessageCode().equals(messageCode))
                 .findFirst()
                 .map(RuleItem::getRule)
                 .orElse(null);
     }
 
-    public List<IRule<T>> findRulesByMessageKey(String... messageKeys) {
+    public List<IRule<T>> findRulesByMessageCode(MessageCode... messageCodes) {
         List<IRule<T>> result = new ArrayList<>();
-        for (String messageKey : messageKeys) {
-            IRule<T> rule = this.findRuleByMessageKey(messageKey);
+        for (MessageCode messageCode : messageCodes) {
+            IRule<T> rule = this.findRuleByMessageCode(messageCode);
             if (rule != null) {
                 result.add(rule);
             }
@@ -103,66 +104,66 @@ public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>
 
     // ========== addRule ==========
 
-    public void addRule(IRule<T> rule, String messageKey) {
-        this.addRule(rule, messageKey, this.defaultCondition);
+    public void addRule(IRule<T> rule, MessageCode messageCode) {
+        this.addRule(rule, messageCode, this.defaultCondition);
     }
 
-    public void addRule(IRule<T> rule, String messageKey, IActiveRuleCondition<T> condition) {
-        this.rules.add(new RuleItem<>(rule, messageKey, "", condition));
+    public void addRule(IRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
+        this.rules.add(new RuleItem<>(rule, messageCode, condition));
     }
 
-    public void addRule(BaseRuleValidator<T> rule, String messageKey) {
+    public void addRule(BaseRuleValidator<T> rule, MessageCode messageCode) {
         IActiveRuleCondition<T> condition =
                 Optional.ofNullable(rule.ruleCondition()).orElse(defaultCondition);
-        this.rules.add(new RuleItem<>(rule.rule(), messageKey, "", condition));
+        this.rules.add(new RuleItem<>(rule.rule(), messageCode, condition));
     }
 
     // ========== addParamRule ==========
 
-    public void addParamRule(IParamRule<T> paramRule, String messageKey,
+    public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode,
                              IActiveRuleCondition<T> condition) {
-        this.rules.add(new RuleItem<>(paramRule, messageKey, "", condition));
+        this.rules.add(new RuleItem<>(paramRule, messageCode, condition));
     }
 
-    public void addParamRule(IParamRule<T> paramRule, String messageKey) {
-        this.addParamRule(paramRule, messageKey, this.defaultCondition);
+    public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode) {
+        this.addParamRule(paramRule, messageCode, this.defaultCondition);
     }
 
-    public void addParamRule(IParamRuleBuilder<T> paramRule, String messageKey) {
+    public void addParamRule(IParamRuleBuilder<T> paramRule, MessageCode messageCode) {
         IActiveRuleCondition<T> condition =
                 Optional.ofNullable(paramRule.ruleCondition()).orElse(defaultCondition);
-        this.rules.add(new RuleItem<>(paramRule.rule(), messageKey, "", condition));
+        this.rules.add(new RuleItem<>(paramRule.rule(), messageCode, condition));
     }
 
     // ========== appendRule ==========
 
     public void appendRule(IRule<T> rule,
-                           String appendMessageKey,
-                           String relativeMessageKey,
+                           MessageCode appendMessageCode,
+                           MessageCode relativeMessageCode,
                            RulePosition position,
                            IActiveRuleCondition<T> condition) {
-        RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageKey, "",
+        RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageCode,
                 Optional.ofNullable(condition).orElse(this.defaultCondition));
-        this.appendRule(this.rules, tRuleItem, relativeMessageKey, position);
+        this.appendRule(this.rules, tRuleItem, relativeMessageCode, position);
     }
 
     public void appendParamRule(IParamRule<T> rule,
-                                    String appendMessageKey,
-                                    String relativeMessageKey,
+                                    MessageCode appendMessageCode,
+                                    MessageCode relativeMessageCode,
                                     RulePosition position,
                                     IActiveRuleCondition<T> condition) {
-        RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageKey, "",
+        RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageCode,
                 Optional.ofNullable(condition).orElse(this.defaultCondition));
-        this.appendRule(this.rules, tRuleItem, relativeMessageKey, position);
+        this.appendRule(this.rules, tRuleItem, relativeMessageCode, position);
     }
 
     private void appendRule(List<RuleItem<T>> rules, RuleItem<T> rule,
-                            String relativeMessageKey, RulePosition position) {
+                            MessageCode relativeMessageCode, RulePosition position) {
         if (position == RulePosition.LAST) {
             rules.add(rule);
         } else {
             for (int i = 0; i < rules.size(); i++) {
-                if (rules.get(i).getMessageKey().equals(relativeMessageKey)) {
+                if (rules.get(i).getMessageCode().equals(relativeMessageCode)) {
                     if (position == RulePosition.BEFORE) {
                         rules.add(i, rule);
                     } else {
@@ -176,40 +177,40 @@ public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>
 
     // ========== replaceRule ==========
 
-    public void replaceRule(IRule<T> rule, String replaceMessageKey, String newMessageKey) {
-        this.replaceRule(rule, replaceMessageKey, newMessageKey, this.defaultCondition);
+    public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode, MessageCode newMessageCode) {
+        this.replaceRule(rule, replaceMessageCode, newMessageCode, this.defaultCondition);
     }
 
-    public void replaceRule(IRule<T> rule, String replaceMessageKey,
-                            String newMessageKey, IActiveRuleCondition<T> condition) {
+    public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode,
+                            MessageCode newMessageCode, IActiveRuleCondition<T> condition) {
         for (int i = 0; i < this.rules.size(); i++) {
-            if (this.rules.get(i).getMessageKey().equals(replaceMessageKey)) {
-                this.rules.set(i, new RuleItem<>(rule, newMessageKey, "", condition));
+            if (this.rules.get(i).getMessageCode().equals(replaceMessageCode)) {
+                this.rules.set(i, new RuleItem<>(rule, newMessageCode, condition));
                 break;
             }
         }
     }
 
     public void replaceParamRule(IParamRule<T> paramRule,
-                                     String replaceMessageKey, String newMessageKey,
+                                     MessageCode replaceMessageCode, MessageCode newMessageCode,
                                      IActiveRuleCondition<T> condition) {
         for (int i = 0; i < this.rules.size(); i++) {
-            if (this.rules.get(i).getMessageKey().equals(replaceMessageKey)) {
-                this.rules.set(i, new RuleItem<>(paramRule, newMessageKey, "", condition));
+            if (this.rules.get(i).getMessageCode().equals(replaceMessageCode)) {
+                this.rules.set(i, new RuleItem<>(paramRule, newMessageCode, condition));
                 break;
             }
         }
     }
 
     public void replaceParamRule(IParamRule<T> paramRule,
-                                     String replaceMessageKey, String newMessageKey) {
-        this.replaceParamRule(paramRule, replaceMessageKey, newMessageKey, this.defaultCondition);
+                                     MessageCode replaceMessageCode, MessageCode newMessageCode) {
+        this.replaceParamRule(paramRule, replaceMessageCode, newMessageCode, this.defaultCondition);
     }
 
     // ========== removeRule ==========
 
-    public void removeRule(String messageKey) {
-        this.rules.removeIf(r -> r.getMessageKey().equals(messageKey));
+    public void removeRule(MessageCode messageCode) {
+        this.rules.removeIf(r -> r.getMessageCode().equals(messageCode));
     }
 
     // ========== satisfiesRule ==========
@@ -230,8 +231,7 @@ public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>
                 RuleCheckResult result = rule.getParamRule().isSatisfy(model);
                 if (!result.isSatisfy()) {
                     isValid = false;
-                    model.addParamBrokenRule(rule.getMessageKey(), "",
-                            result.getParams(), rule.getAlias(), result.isAutoFormat());
+                    model.addParamBrokenRule(rule.getMessageCode(), result.getParams(), result.isAutoFormat());
                     if (this.failFast) {
                         break;
                     }
@@ -239,7 +239,7 @@ public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>
             } else if (rule.getRule() != null) {
                 if (!rule.getRule().satisfiesRule(model)) {
                     isValid = false;
-                    model.addBrokenRule(rule.getMessageKey(), rule.getAlias());
+                    model.addBrokenRule(rule.getMessageCode());
                     if (this.failFast) {
                         break;
                     }

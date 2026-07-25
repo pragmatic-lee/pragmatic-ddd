@@ -49,7 +49,7 @@ public class DomainModelVisualManagerTest {
         public <T extends AbstractEntity<?>> RuleFinderObject findEntityRuleList(Class<T> cls) {
             ArrayList<EntityRule<?>> classes = new ArrayList<>();
             classes.add(new MockEntityRule());
-            return new RuleFinderObject(classes, MockEntityBrokenRuleMessage.message);
+            return new RuleFinderObject(classes, MockEntityBrokenRuleMessage.INSTANCE);
         }
     }
 

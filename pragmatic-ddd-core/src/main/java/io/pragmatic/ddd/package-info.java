@@ -26,7 +26,7 @@
  *
  *     @Override
  *     public BrokenRuleMessage getBrokenRuleMessages() {
- *         return new OrderBrokenRuleMessages();
+ *         return OrderBrokenRuleMessages.INSTANCE;
  *     }
  *
  *     @Override

@@ -10,7 +10,7 @@ import io.pragmatic.ddd.base.test2.entity.enums.Status;
 import io.pragmatic.ddd.base.test2.event.PersonInitEvent;
 import io.pragmatic.ddd.base.test2.event.PersonUpdateEvent;
 import io.pragmatic.ddd.base.test2.event.PersonUpdateStatusEvent;
-import io.pragmatic.ddd.base.test2.rule.PersonBrokeRuleMessage;
+import io.pragmatic.ddd.base.test2.rule.PersonBrokenRuleMessage;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -63,7 +63,7 @@ public class Person extends AggregateRoot<Long> {
 
     @Override
     protected BrokenRuleMessage getBrokenRuleMessages() {
-        return PersonBrokeRuleMessage.INSTANCE;
+        return PersonBrokenRuleMessage.INSTANCE;
     }
 
     @Override
