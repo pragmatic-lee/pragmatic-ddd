@@ -23,13 +23,26 @@
  *   <li>{@link io.pragmatic.ddd.base.BrokenRuleObject BrokenRuleObject} — 规则违反的收集、查询与异常抛出，提供 validate(IRule) 校验入口</li>
  *   <li>{@link io.pragmatic.ddd.base.BrokenRuleRegistry BrokenRuleRegistry} — 规则消息注册表：子类声明 public static final MessageCode 常量，构造时反射自动注册（messageCode.code() → 描述）</li>
  *   <li>{@link io.pragmatic.ddd.base.MessageCode MessageCode} — 规则违反消息码（Java 17 record 值对象，非枚举），作为消息表 key 与异常 code</li>
- *   <li>{@link io.pragmatic.ddd.base.BrokenRuleException BrokenRuleException} — 单条规则违反时抛出的运行时异常</li>
- *   <li>{@link io.pragmatic.ddd.base.BrokenRuleAggregateException BrokenRuleAggregateException} — 多条规则违反时聚合抛出的异常</li>
+ *   <li>{@link io.pragmatic.ddd.base.BrokenRuleException BrokenRuleException} — 单条规则违反时抛出，继承 {@link io.pragmatic.ddd.base.RuleException RuleException}</li>
+ *   <li>{@link io.pragmatic.ddd.base.BrokenRuleAggregateException BrokenRuleAggregateException} — 多条规则违反时聚合抛出的异常，继承 {@link io.pragmatic.ddd.base.RuleException RuleException}</li>
  * </ul>
  *
  * <h3>实体辅助工具</h3>
  * <ul>
  *   <li>{@link io.pragmatic.ddd.base.CompareAndSetInfo CompareAndSetInfo} — CAS 比较结果封装</li>
+ * </ul>
+ *
+ * <h3>领域事件订阅者 Key 抽象</h3>
+ * <ul>
+ *   <li>{@link io.pragmatic.ddd.base.AbstractSubscriberKey AbstractSubscriberKey} — 领域事件订阅者 Key 的抽象基类，子类通过 populateKeys() 声明订阅所需 Key 的描述与合并策略（{@code KeySetting}），用于领域事件订阅配置</li>
+ * </ul>
+ *
+ * <h3>异常体系</h3>
+ * <p>框架统一的异常基类，遵循 {@code HibernateException} / {@code JacksonException} 的命名惯例，
+ * 方便在 stack trace 中快速识别来源，并支持 {@code catch (PragmaticException e)} 统一兜底捕获。</p>
+ * <ul>
+ *   <li>{@link io.pragmatic.ddd.base.PragmaticException PragmaticException} — 框架所有业务异常的抽象基类（{@code RuntimeException}）</li>
+ *   <li>{@link io.pragmatic.ddd.base.RuleException RuleException} — 业务规则校验类异常的抽象基类，所有通过 EntityRule 触发的校验失败异常均继承此类</li>
  * </ul>
  *
  * <h2>典型的实体继承链</h2>
