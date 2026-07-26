@@ -11,6 +11,7 @@
  *   <li>{@link io.pragmatic.ddd.base.AggregateRoot AggregateRoot} — 聚合根基类，继承 EntityBase，IRepository 编译期约束入口</li>
  *   <li>{@link io.pragmatic.ddd.base.IDomainService IDomainService} — 领域服务标记接口</li>
  *   <li>{@link io.pragmatic.ddd.base.IValueObject IValueObject} — 值对象标记接口</li>
+ *   <li>{@link io.pragmatic.ddd.base.ValueObject ValueObject} — 值对象基类（可选继承），基于 equalityComponents() 提供结构相等性</li>
  *   <li>{@link io.pragmatic.ddd.base.IParamObject IParamObject} — 参数对象标记接口</li>
  *   <li>{@link io.pragmatic.ddd.base.IEnumValue IEnumValue} — 枚举值对象标记接口，承载业务 code(getValue)、展示名(getName)与描述(getDesc)</li>
  * </ul>
