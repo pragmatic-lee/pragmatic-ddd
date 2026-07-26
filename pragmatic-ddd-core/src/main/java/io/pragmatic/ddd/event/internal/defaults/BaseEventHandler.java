@@ -5,7 +5,6 @@ import io.pragmatic.ddd.event.internal.model.DeliveryPolicy;
 import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import io.pragmatic.ddd.event.spi.IEventRegistry;
 import io.pragmatic.ddd.event.spi.IExecuteCondition;
-import io.pragmatic.ddd.event.spi.IHandle;
 
 public abstract class BaseEventHandler<T extends IDomainEvent> {
 

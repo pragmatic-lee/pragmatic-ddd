@@ -5,7 +5,6 @@ import io.pragmatic.ddd.application.ICommandExecutor;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
 import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.repository.IRepository;
@@ -13,7 +12,6 @@ import io.pragmatic.ddd.repository.IRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**

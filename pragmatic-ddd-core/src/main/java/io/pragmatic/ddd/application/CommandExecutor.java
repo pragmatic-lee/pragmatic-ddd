@@ -1,11 +1,8 @@
 package io.pragmatic.ddd.application;
 
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.repository.IRepository;
-
-import java.util.function.Consumer;
 
 /**
  * 命令执行器，封装"规则校验 → 领域逻辑 → 持久化 → 事件发布 → 事件清空"的标准流程。

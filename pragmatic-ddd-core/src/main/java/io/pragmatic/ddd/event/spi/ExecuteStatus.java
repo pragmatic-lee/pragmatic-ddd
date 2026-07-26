@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.event.spi;
 
-import io.pragmatic.ddd.event.IDomainEvent;
+
 
 /**
  * 事件订阅执行状态 —— 表达某个订阅者对于给定的领域事件是否应当被执行。

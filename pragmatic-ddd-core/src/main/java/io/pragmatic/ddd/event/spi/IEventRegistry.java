@@ -2,7 +2,6 @@ package io.pragmatic.ddd.event.spi;
 
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.internal.model.DeliveryPolicy;
-import io.pragmatic.ddd.event.spi.IExecuteCondition;
 
 public interface IEventRegistry {
 
