@@ -2,6 +2,7 @@ package io.pragmatic.ddd.base;
 
 
 import io.pragmatic.ddd.operation.EntityOperation;
+import io.pragmatic.ddd.operation.OperationException;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.operation.TriggeredOperations;
 import io.pragmatic.ddd.event.BaseDomainEvent;
@@ -42,6 +43,9 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     private final DomainEventCollector eventCollector = new DomainEventCollector();
     private TriggeredOperations triggeredOperations;
 
+    /** 最近一次 recordOperation 记录的操作（因果归属用，单值指针） */
+    private EntityOperation lastRecordedOperation;
+
     @Override
     protected abstract BrokenRuleMessage getBrokenRuleMessages();
 
@@ -63,20 +67,38 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     }
 
 
+    /**
+     * 路径①：默认取最近一次 recordOperation 的操作作为成因。
+     */
     protected void publishEvent(BaseDomainEvent event) {
-        event.operationCode = this.getCurrentOperationCode();
+        event.operationCode = this.resolveOperationCode();
         event.version = this.getNewVersion();
         this.eventCollector.collect(event);
     }
 
+    /**
+     * 路径②：显式指定成因操作，优先级最高（保持不变）。
+     */
     protected void publishEvent(BaseDomainEvent event, EntityOperation triggerOperation) {
         event.operationCode = triggerOperation.code();
         event.version = this.getNewVersion();
         this.eventCollector.collect(event);
     }
 
+    /**
+     * 路径③：延迟事件——发布时刻捕获成因，物化时回填 operationCode + version。
+     * <p>归属"当下最近一次操作"（与路径①语义一致），version 因 getNewVersion() 幂等，物化时回填与发布时取值一致。</p>
+     */
     protected void publishEvent(Supplier<IDomainEvent> eventSupplier) {
-        this.eventCollector.collectDelayed(eventSupplier);
+        String capturedCode = this.resolveOperationCode();
+        this.eventCollector.collectDelayed(() -> {
+            IDomainEvent e = eventSupplier.get();
+            if (e instanceof BaseDomainEvent base) {
+                base.operationCode = capturedCode;
+                base.version = this.getNewVersion();
+            }
+            return e;
+        });
     }
 
     public List<IDomainEvent> getDomainEvents() {
@@ -84,24 +106,48 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     }
 
     /**
-     * 获取当前触发的 Operation 编码。
-     * 默认返回 "UNKNOWN"，后续迭代与 Operation 体系深度整合。
+     * 解析当前事件应归属的 operationCode。
+     * <ul>
+     *   <li>已 recordOperation → 返回最近一次操作编码；</li>
+     *   <li>启用了 operation 体系（entityOperations() 非 null）却未 record → fail-fast 抛异常；</li>
+     *   <li>未启用 operation 体系（entityOperations() 为 null）→ 返回 null（不参与归属）。</li>
+     * </ul>
      */
-    protected String getCurrentOperationCode() {
-        return "UNKNOWN";
+    private String resolveOperationCode() {
+        if (this.lastRecordedOperation != null) {
+            return this.lastRecordedOperation.code();
+        }
+        if (this.entityOperations() != null) {
+            throw new OperationException(
+                    "发布事件前必须先 recordOperation，或使用 publishEvent(event, operation) 显式指定成因操作："
+                            + this.getClass().getSimpleName());
+        }
+        return null;
+    }
+
+    /**
+     * 清空一次工作单元的全部临时状态：领域事件 + 已触发操作 + 因果指针。
+     * <p>应用层在事件分发完成后调用，防止同一实体实例被复用时状态残留。</p>
+     */
+    public void clearWorkUnitState() {
+        this.eventCollector.clear();
+        if (this.triggeredOperations != null) {
+            this.triggeredOperations.clear();
+        }
+        this.lastRecordedOperation = null;
     }
 
     /**
      * 清空已收集的领域事件。
-     * <p>应用层在事件分发完成后调用，防止同一实体实例被多次操作时事件残留。
-     * 正常单次工作单元模式下实体实例用完即弃，此方法的核心价值是架构约束——明确"事件已消费"的边界。</p>
+     * @deprecated 语义已并入 {@link #clearWorkUnitState()}，保留仅为调用点平滑过渡，建议改用后者。
      */
     public void clearDomainEvents() {
-        this.eventCollector.clear();
+        this.clearWorkUnitState();
     }
 
     protected void recordOperation(EntityOperation operation) {
-        this.triggeredOperations().put(operation);
+        this.triggeredOperations().put(operation);   // 多值收集：不变
+        this.lastRecordedOperation = operation;       // 新增：更新因果指针
     }
 
     public boolean hasOperation(EntityOperation operation) {
@@ -119,7 +165,13 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
 
     private TriggeredOperations triggeredOperations() {
         if (this.triggeredOperations == null) {
-            this.triggeredOperations = new TriggeredOperations(this.entityOperations());
+            OperationRegistry registry = this.entityOperations();
+            if (registry == null) {
+                throw new OperationException(
+                        "实体未启用 operation 体系（entityOperations() 返回 null），不可调用 recordOperation/hasOperation："
+                                + this.getClass().getSimpleName());
+            }
+            this.triggeredOperations = new TriggeredOperations(registry);
         }
         return this.triggeredOperations;
     }

@@ -4,6 +4,7 @@ import io.pragmatic.ddd.operation.PersonOperations;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.base.test2.boxvalueobject.PersonUpdateData;
 import io.pragmatic.ddd.base.test2.entity.Person;
+import io.pragmatic.ddd.base.test2.event.PersonUpdateEvent;
 import io.pragmatic.ddd.base.test2.entity.enums.Status;
 import io.pragmatic.ddd.base.test2.rule.PersonEntityRule;
 import io.pragmatic.ddd.base.test2.rule.validator.BasePersonGradeValidator;
@@ -67,6 +68,21 @@ public class PersonTest {
 
         assert !validate1;
         assert person.hasOperation(PersonOperations.UPDATE_STATUS);
+    }
+
+    @Test
+    public void testOperationCodeAligned() {
+        Person person = this.mockData();
+        person.update(new PersonUpdateData());
+
+        PersonUpdateEvent event = person.getDomainEvents()
+                .stream()
+                .filter(e -> e instanceof PersonUpdateEvent)
+                .map(e -> (PersonUpdateEvent) e)
+                .findFirst()
+                .orElseThrow();
+
+        assert PersonOperations.UPDATE.code().equals(event.operationCode);
     }
 
     private Person mockData() {
