@@ -97,7 +97,7 @@ public abstract class BrokenRuleObject {
         return null;
     }
 
-    public void throwBrokeRuleAggregateException() {
+    public void throwBrokenRuleAggregateException() {
         BrokenRuleAggregateException brokenRuleAggregateException = this.aggregateExceptionCause();
         if (brokenRuleAggregateException != null) {
             throw brokenRuleAggregateException;
