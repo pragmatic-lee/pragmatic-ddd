@@ -24,13 +24,13 @@ public class OrderEntityRule extends EntityRule<Order> {
     @Override
     public void init() {
         this.addRule(model -> !StringUtils.isBlank(model.getPin()),
-                OrderBrokenRuleMessages.PIN_IS_EMPTY);
+                OrderBrokenRuleRegistry.PIN_IS_EMPTY);
 
         this.addRule(model -> model.getTotalPrice().compareTo(BigDecimal.ZERO) > 0,
-                OrderBrokenRuleMessages.TOTAL_PRICE_ERROR);
+                OrderBrokenRuleRegistry.TOTAL_PRICE_ERROR);
 
         this.addRule(model -> !model.getOrderItemList().isEmpty() && model.getOrderItemList().size() < 100,
-                OrderBrokenRuleMessages.ORDER_ITEM_ERROR,
+                OrderBrokenRuleRegistry.ORDER_ITEM_ERROR,
                 model -> ActiveStatus.ACTIVE);
     }
 }

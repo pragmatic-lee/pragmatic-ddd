@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.base.test2;
 
 import io.pragmatic.ddd.base.AbstractEntity;
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.event.BaseDomainEvent;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.operation.EntityOperation;
@@ -29,12 +29,12 @@ public class EntityOperationCodeTest {
         }
 
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
-            return BrokenRuleMessage.of();
+        protected BrokenRuleRegistry brokenRuleRegistry() {
+            return BrokenRuleRegistry.of();
         }
 
         @Override
-        protected OperationRegistry entityOperations() {
+        protected OperationRegistry operationRegistry() {
             return registry;
         }
 
@@ -62,12 +62,12 @@ public class EntityOperationCodeTest {
     /** 未启用 operation 体系的实体（entityOperations() 返回 null） */
     public static final class NoOpEntity extends AbstractEntity<Long> {
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
-            return BrokenRuleMessage.of();
+        protected BrokenRuleRegistry brokenRuleRegistry() {
+            return BrokenRuleRegistry.of();
         }
 
         @Override
-        protected OperationRegistry entityOperations() {
+        protected OperationRegistry operationRegistry() {
             return null;
         }
 

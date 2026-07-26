@@ -72,8 +72,8 @@ public class Order extends EntityBase<Long> {
     }
 
     @Override
-    public BrokenRuleMessage getBrokenRuleMessages() {
-        return OrderBrokenRuleMessages.INSTANCE;
+    public BrokenRuleRegistry brokenRuleRegistry() {
+        return OrderBrokenRuleRegistry.INSTANCE;
     }
 
     @Override
@@ -90,13 +90,13 @@ import io.pragmatic.ddd.rules.*;
 
 public class OrderEntityRule extends EntityRule<Order> {
     public OrderEntityRule() {
-        this.isBlank("pin", OrderBrokenRuleMessages.PIN_IS_EMPTY);
+        this.isBlank("pin", OrderBrokenRuleRegistry.PIN_IS_EMPTY);
         this.numberShouldGreaterThan("totalPrice", BigDecimal.ZERO,
-            OrderBrokenRuleMessages.TOTAL_PRICE_ERROR);
+            OrderBrokenRuleRegistry.TOTAL_PRICE_ERROR);
 
         // Custom rule with activation condition
         this.addRule(order -> order.getItems().size() < 100,
-            OrderBrokenRuleMessages.ITEM_COUNT_ERROR);
+            OrderBrokenRuleRegistry.ITEM_COUNT_ERROR);
     }
 }
 ```

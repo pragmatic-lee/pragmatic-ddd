@@ -38,7 +38,7 @@ public @interface BusinessRule {
 
     /**
      * The error code used when this rule is broken.
-     * <p>Corresponds to a key in the entity's {@code BrokenRuleMessage} class.</p>
+     * <p>Corresponds to a key in the entity's {@code BrokenRuleRegistry} class.</p>
      *
      * @return the error code
      */

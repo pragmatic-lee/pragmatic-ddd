@@ -47,9 +47,9 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     private EntityOperation lastRecordedOperation;
 
     @Override
-    protected abstract BrokenRuleMessage getBrokenRuleMessages();
+    protected abstract BrokenRuleRegistry brokenRuleRegistry();
 
-    protected abstract OperationRegistry entityOperations();
+    protected abstract OperationRegistry operationRegistry();
 
     protected <V> V setAndReturnOld(Consumer<V> set, Supplier<V> getOld, V newValue) {
         V old = getOld.get();
@@ -117,7 +117,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         if (this.lastRecordedOperation != null) {
             return this.lastRecordedOperation.code();
         }
-        if (this.entityOperations() != null) {
+        if (this.operationRegistry() != null) {
             throw new OperationException(
                     "发布事件前必须先 recordOperation，或使用 publishEvent(event, operation) 显式指定成因操作："
                             + this.getClass().getSimpleName());
@@ -156,7 +156,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
 
     private TriggeredOperations triggeredOperations() {
         if (this.triggeredOperations == null) {
-            OperationRegistry registry = this.entityOperations();
+            OperationRegistry registry = this.operationRegistry();
             if (registry == null) {
                 throw new OperationException(
                         "实体未启用 operation 体系（entityOperations() 返回 null），不可调用 recordOperation/hasOperation："

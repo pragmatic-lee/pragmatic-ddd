@@ -5,7 +5,7 @@ import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.afull.domain.order.event.OrderPayedEvent;
 import io.pragmatic.ddd.afull.domain.order.param.OrderInitParam;
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,12 +37,12 @@ public class Order extends AggregateRoot<Long> {
 
 
     @Override
-    protected BrokenRuleMessage getBrokenRuleMessages() {
-        return OrderBrokenRuleMessages.INSTANCE;
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return OrderBrokenRuleRegistry.INSTANCE;
     }
 
     @Override
-    protected OperationRegistry entityOperations() {
+    protected OperationRegistry operationRegistry() {
         return null;
     }
 

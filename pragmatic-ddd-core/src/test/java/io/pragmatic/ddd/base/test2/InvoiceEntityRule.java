@@ -3,7 +3,7 @@ package io.pragmatic.ddd.base.test2;
 import io.pragmatic.ddd.rules.EntityRule;
 import org.apache.commons.lang3.StringUtils;
 
-import static io.pragmatic.ddd.base.test2.InvoiceBrokenRuleMessage.*;
+import static io.pragmatic.ddd.base.test2.InvoiceBrokenRuleRegistry.*;
 
 public class InvoiceEntityRule extends EntityRule<Invoice> {
 

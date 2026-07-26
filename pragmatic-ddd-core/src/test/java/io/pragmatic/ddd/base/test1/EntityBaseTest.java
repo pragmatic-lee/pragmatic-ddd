@@ -184,12 +184,12 @@ class TestData extends AggregateRoot<Long> {
     }
 
     @Override
-    protected BrokenRuleMessage getBrokenRuleMessages() {
+    protected BrokenRuleRegistry brokenRuleRegistry() {
         return null;
     }
 
     @Override
-    protected OperationRegistry entityOperations() {
+    protected OperationRegistry operationRegistry() {
         return null;
     }
 

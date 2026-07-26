@@ -8,15 +8,15 @@ import java.util.List;
 public abstract class BrokenRuleObject {
 
     private final List<BrokenRule> brokenRules;
-    private final BrokenRuleMessage brokenRuleMessage;
+    private final BrokenRuleRegistry brokenRuleRegistry;
 
 
     public BrokenRuleObject() {
         this.brokenRules = new ArrayList<>();
-        this.brokenRuleMessage = this.getBrokenRuleMessages();
+        this.brokenRuleRegistry = this.brokenRuleRegistry();
     }
 
-    protected abstract BrokenRuleMessage getBrokenRuleMessages();
+    protected abstract BrokenRuleRegistry brokenRuleRegistry();
 
 
     /**
@@ -52,11 +52,11 @@ public abstract class BrokenRuleObject {
 
     public void addBrokenRule(MessageCode code) {
         this.brokenRules.add(new BrokenRule(code.code(),
-                this.brokenRuleMessage.getRuleDescription(code.code())));
+                this.brokenRuleRegistry.getRuleDescription(code.code())));
     }
 
     public void addParamBrokenRule(MessageCode code, Object[] params, boolean isAutoFormat) {
-        String message = this.brokenRuleMessage.getRuleDescription(code.code());
+        String message = this.brokenRuleRegistry.getRuleDescription(code.code());
         String realMessage = isAutoFormat ? String.format(message, params) : message;
         this.brokenRules.add(new BrokenRule(code.code(), realMessage, params));
     }

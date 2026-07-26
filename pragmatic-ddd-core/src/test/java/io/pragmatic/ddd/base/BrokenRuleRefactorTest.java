@@ -6,13 +6,13 @@ import org.junit.Test;
 
 /**
  * 验证本次重构后的核心行为：
- * 1. BrokenRuleMessage 构造时反射自动注册 static MessageCode 字段；
+ * 1. BrokenRuleRegistry 构造时反射自动注册 static MessageCode 字段；
  * 2. BrokenRuleObject 仅接受 MessageCode 的 addBrokenRule / addParamBrokenRule；
  * 3. BrokenRule 不再承载 property / alias。
  */
 public class BrokenRuleRefactorTest {
 
-    static class SampleMessage extends BrokenRuleMessage {
+    static class SampleMessage extends BrokenRuleRegistry {
         public static final MessageCode NAME_ERROR = MessageCode.of("NAME_ERROR", "名称不能为空");
         public static final MessageCode AGE_ERROR = MessageCode.of("AGE_ERROR", "年龄不合法:%s");
         public static final SampleMessage INSTANCE = new SampleMessage();
@@ -24,12 +24,12 @@ public class BrokenRuleRefactorTest {
         }
 
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
+        protected BrokenRuleRegistry brokenRuleRegistry() {
             return SampleMessage.INSTANCE;
         }
 
         @Override
-        protected OperationRegistry entityOperations() {
+        protected OperationRegistry operationRegistry() {
             return null;
         }
     }
@@ -70,7 +70,7 @@ public class BrokenRuleRefactorTest {
 
     @Test
     public void ofInlineFactoryRegistersCodes() {
-        BrokenRuleMessage inline = BrokenRuleMessage.of(MessageCode.of("INLINE", "内联"));
+        BrokenRuleRegistry inline = BrokenRuleRegistry.of(MessageCode.of("INLINE", "内联"));
         Assert.assertEquals("内联", inline.getRuleDescription("INLINE"));
     }
 }

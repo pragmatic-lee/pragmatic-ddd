@@ -21,7 +21,7 @@
  *   <li>{@link io.pragmatic.ddd.base.IRule IRule} — 规则接口，核心校验合约</li>
  *   <li>{@link io.pragmatic.ddd.base.BrokenRule BrokenRule} — 单条规则违反的值对象（名称、描述、扩展数据）</li>
  *   <li>{@link io.pragmatic.ddd.base.BrokenRuleObject BrokenRuleObject} — 规则违反的收集、查询与异常抛出，提供 validate(IRule) 校验入口</li>
- *   <li>{@link io.pragmatic.ddd.base.BrokenRuleMessage BrokenRuleMessage} — 规则消息注册表：子类声明 public static final MessageCode 常量，构造时反射自动注册（messageCode.code() → 描述）</li>
+ *   <li>{@link io.pragmatic.ddd.base.BrokenRuleRegistry BrokenRuleRegistry} — 规则消息注册表：子类声明 public static final MessageCode 常量，构造时反射自动注册（messageCode.code() → 描述）</li>
  *   <li>{@link io.pragmatic.ddd.base.MessageCode MessageCode} — 规则违反消息码（Java 17 record 值对象，非枚举），作为消息表 key 与异常 code</li>
  *   <li>{@link io.pragmatic.ddd.base.BrokenRuleException BrokenRuleException} — 单条规则违反时抛出的运行时异常</li>
  *   <li>{@link io.pragmatic.ddd.base.BrokenRuleAggregateException BrokenRuleAggregateException} — 多条规则违反时聚合抛出的异常</li>

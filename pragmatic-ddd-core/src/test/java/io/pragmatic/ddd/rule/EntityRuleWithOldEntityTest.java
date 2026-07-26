@@ -162,23 +162,23 @@ public class EntityRuleWithOldEntityTest {
         public void setStatus(int status) { this.status = status; }
 
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
-            return TestBrokenRuleMessage.INSTANCE;
+        protected BrokenRuleRegistry brokenRuleRegistry() {
+            return TestBrokenRuleRegistry.INSTANCE;
         }
 
         @Override
-        protected OperationRegistry entityOperations() {
+        protected OperationRegistry operationRegistry() {
             return null;
         }
     }
 
-    static class TestBrokenRuleMessage extends BrokenRuleMessage {
+    static class TestBrokenRuleRegistry extends BrokenRuleRegistry {
 
         public static final MessageCode NAME_ERROR = MessageCode.of("NAME_ERROR", "名字错误");
         public static final MessageCode CODE_ERROR = MessageCode.of("CODE_ERROR", "代号错误");
         public static final MessageCode BOTH_ERROR = MessageCode.of("BOTH_ERROR", "旧值与新值不一致");
 
-        public static final TestBrokenRuleMessage INSTANCE = new TestBrokenRuleMessage();
+        public static final TestBrokenRuleRegistry INSTANCE = new TestBrokenRuleRegistry();
     }
 
     // ==================== 测试用 EntityRule 子类 ====================
@@ -197,7 +197,7 @@ public class EntityRuleWithOldEntityTest {
 
         @Override
         public void init() {
-            this.addRule(e -> e.getName() != null, TestBrokenRuleMessage.NAME_ERROR);
+            this.addRule(e -> e.getName() != null, TestBrokenRuleRegistry.NAME_ERROR);
         }
     }
 
@@ -222,13 +222,13 @@ public class EntityRuleWithOldEntityTest {
             this.addRule(e -> {
                 TestEntity old = this.getOldEntity();
                 return old == null || e.getName().equals(old.getName());
-            }, TestBrokenRuleMessage.NAME_ERROR);
+            }, TestBrokenRuleRegistry.NAME_ERROR);
 
             // 规则2：也使用旧状态（应走缓存）
             this.addRule(e -> {
                 TestEntity old = this.getOldEntity();
                 return old == null || e.getCode() != null;
-            }, TestBrokenRuleMessage.CODE_ERROR);
+            }, TestBrokenRuleRegistry.CODE_ERROR);
         }
     }
 
@@ -255,7 +255,7 @@ public class EntityRuleWithOldEntityTest {
                 TestEntity second = this.getOldEntity();
                 sameCacheInstance = (first == second);
                 return true;
-            }, TestBrokenRuleMessage.NAME_ERROR);
+            }, TestBrokenRuleRegistry.NAME_ERROR);
         }
     }
 
@@ -273,7 +273,7 @@ public class EntityRuleWithOldEntityTest {
             this.addRule(e -> {
                 oldEntityWasNull = (this.getOldEntity() == null);
                 return true;
-            }, TestBrokenRuleMessage.NAME_ERROR);
+            }, TestBrokenRuleRegistry.NAME_ERROR);
         }
     }
 
@@ -292,7 +292,7 @@ public class EntityRuleWithOldEntityTest {
 
         @Override
         public void init() {
-            this.addRule(e -> true, TestBrokenRuleMessage.NAME_ERROR,
+            this.addRule(e -> true, TestBrokenRuleRegistry.NAME_ERROR,
                     model -> model.getStatus() == 1
                             ? ActiveStatus.ACTIVE
                             : ActiveStatus.INACTIVE);
@@ -317,12 +317,12 @@ public class EntityRuleWithOldEntityTest {
         @Override
         public void init() {
             // 规则1：不需要旧状态
-            this.addRule(e -> e.getName() != null, TestBrokenRuleMessage.NAME_ERROR);
+            this.addRule(e -> e.getName() != null, TestBrokenRuleRegistry.NAME_ERROR);
             // 规则2：需要旧状态
             this.addRule(e -> {
                 TestEntity old = this.getOldEntity();
                 return old == null || e.getName().equals(old.getName());
-            }, TestBrokenRuleMessage.BOTH_ERROR);
+            }, TestBrokenRuleRegistry.BOTH_ERROR);
         }
     }
 
@@ -348,12 +348,12 @@ public class EntityRuleWithOldEntityTest {
         @Override
         public void init() {
             // 第一条规则就会失败
-            this.addRule(e -> false, TestBrokenRuleMessage.NAME_ERROR);
+            this.addRule(e -> false, TestBrokenRuleRegistry.NAME_ERROR);
             // 第二条规则不应执行（failFast）
             this.addRule(e -> {
                 TestEntity old = this.getOldEntity();
                 return old != null;
-            }, TestBrokenRuleMessage.CODE_ERROR);
+            }, TestBrokenRuleRegistry.CODE_ERROR);
         }
     }
 
@@ -379,7 +379,7 @@ public class EntityRuleWithOldEntityTest {
                 satisfyCount++;
                 TestEntity old = this.getOldEntity();
                 return old != null;
-            }, TestBrokenRuleMessage.NAME_ERROR);
+            }, TestBrokenRuleRegistry.NAME_ERROR);
         }
     }
 
@@ -406,7 +406,7 @@ public class EntityRuleWithOldEntityTest {
                     return RuleCheckResult.fail(new Object[]{old.getName(), e.getName()});
                 }
                 return RuleCheckResult.pass();
-            }, TestBrokenRuleMessage.BOTH_ERROR);
+            }, TestBrokenRuleRegistry.BOTH_ERROR);
         }
     }
 
@@ -430,7 +430,7 @@ public class EntityRuleWithOldEntityTest {
             this.addRule(e -> {
                 this.getOldEntity();
                 return true;
-            }, TestBrokenRuleMessage.NAME_ERROR);
+            }, TestBrokenRuleRegistry.NAME_ERROR);
         }
     }
 }

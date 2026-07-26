@@ -10,7 +10,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.Objects;
 
-import static io.pragmatic.ddd.base.test2.rule.PersonBrokenRuleMessage.*;
+import static io.pragmatic.ddd.base.test2.rule.PersonBrokenRuleRegistry.*;
 
 public class PersonEntityRule extends EntityRule<Person> {
 

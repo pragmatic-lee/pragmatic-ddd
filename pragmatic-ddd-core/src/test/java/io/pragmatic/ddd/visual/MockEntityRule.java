@@ -22,6 +22,6 @@ public class MockEntityRule extends EntityRule<MockEntity> {
 
             return t.showName() != null;
 
-        }, MockEntityBrokenRuleMessage.Name_Error);
+        }, MockEntityBrokenRuleRegistry.Name_Error);
     }
 }

@@ -9,7 +9,7 @@ import org.junit.Test;
 import java.util.Date;
 import java.util.Objects;
 
-import static io.pragmatic.ddd.rule.EntityAndEntityRuleTest.DataBrokenRuleMessage.*;
+import static io.pragmatic.ddd.rule.EntityAndEntityRuleTest.DataBrokenRuleRegistry.*;
 
 /**
  * @author lixiaojing
@@ -66,7 +66,7 @@ public class EntityAndEntityRuleTest {
         boolean satisfy = clsRule.satisfiesRule(data);
         Assert.assertFalse(satisfy);
 
-        IRule<Data> propertyRule = dataEntityRule.findRuleByMessageCode(DataBrokenRuleMessage.NAME_EMPTY_ERROR);
+        IRule<Data> propertyRule = dataEntityRule.findRuleByMessageCode(DataBrokenRuleRegistry.NAME_EMPTY_ERROR);
 
         boolean satisfy1 = propertyRule.satisfiesRule(data);
         Assert.assertFalse(satisfy1);
@@ -114,12 +114,12 @@ public class EntityAndEntityRuleTest {
         Assert.assertFalse(satisfy);
 
         BrokenRule brokenRule = data.getBrokenRules().get(0);
-        Assert.assertEquals(brokenRule.getName(), DataBrokenRuleMessage.NAME_EMPTY_ERROR.code());
+        Assert.assertEquals(brokenRule.getName(), DataBrokenRuleRegistry.NAME_EMPTY_ERROR.code());
 
         data.clearBrokenRules();
 
         //移除之后规则
-        dataEntityRule.removeRule(DataBrokenRuleMessage.NAME_EMPTY_ERROR);
+        dataEntityRule.removeRule(DataBrokenRuleRegistry.NAME_EMPTY_ERROR);
         boolean satisfy1 = dataEntityRule.satisfiesRule(data);
         Assert.assertTrue(satisfy1);
 
@@ -217,11 +217,11 @@ public class EntityAndEntityRuleTest {
             this.addRule(s -> !Objects.equals(s.getName(), ""), NAME_EMPTY_ERROR);
             this.addRule(s -> s.getPrice() > 0, PRICE_ZERO_ERROR);
             //在特定条件下，参与验证
-            this.addRule(Data::getBoolInfo, DataBrokenRuleMessage.BOOLEAN_INFO_ERROR,
+            this.addRule(Data::getBoolInfo, DataBrokenRuleRegistry.BOOLEAN_INFO_ERROR,
                     model -> model.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
             //带参数的方式验证
             this.addParamRule(model -> RuleCheckResult.fail(new Object[]{model.getName()}),
-                    DataBrokenRuleMessage.NAME_USED_ERROR,
+                    DataBrokenRuleRegistry.NAME_USED_ERROR,
                     model -> !model.getName().isEmpty() ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
         }
     }
@@ -243,7 +243,7 @@ public class EntityAndEntityRuleTest {
         public void init() {
             this.addRule(model -> model.getPrice() > 0, PRICE_ZERO_ERROR);
             //在特定条件下，参与验证
-            this.addRule(Data::getBoolInfo, DataBrokenRuleMessage.BOOLEAN_INFO_ERROR,
+            this.addRule(Data::getBoolInfo, DataBrokenRuleRegistry.BOOLEAN_INFO_ERROR,
                     model -> model.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
             //带参数的方式验证
             this.addParamRule(new TestRule(), NAME_USED_ERROR);
@@ -277,21 +277,21 @@ public class EntityAndEntityRuleTest {
         @Override
         public void init() {
             this.addRule(model -> !model.getName().isEmpty(),
-                    DataBrokenRuleMessage.NAME_EMPTY_ERROR);
+                    DataBrokenRuleRegistry.NAME_EMPTY_ERROR);
             this.addRule(model -> model.getPrice() > 0, PRICE_ZERO_ERROR);
             this.addRule(model -> Objects.equals(model.getPrice(), 2.0),
                     price_equal_error);
             //在特定条件下，参与验证
-            this.addRule(Data::getBoolInfo, DataBrokenRuleMessage.BOOLEAN_INFO_ERROR,
+            this.addRule(Data::getBoolInfo, DataBrokenRuleRegistry.BOOLEAN_INFO_ERROR,
                     model -> model.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
             //带参数的方式验证
             this.addParamRule(model -> RuleCheckResult.fail(new Object[]{model.getName()}),
-                    DataBrokenRuleMessage.NAME_USED_ERROR,
+                    DataBrokenRuleRegistry.NAME_USED_ERROR,
                     model -> !model.getName().isEmpty() ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
         }
     }
 
-    static class DataBrokenRuleMessage extends BrokenRuleMessage {
+    static class DataBrokenRuleRegistry extends BrokenRuleRegistry {
 
         public static final MessageCode NAME_EMPTY_ERROR = MessageCode.of("NAME_EMPTY_ERROR", "名字不能为空");
         public static final MessageCode NAME_USED_ERROR = MessageCode.of("NAME_USED_ERROR", "%s这个名字已经使用");
@@ -300,7 +300,7 @@ public class EntityAndEntityRuleTest {
         public static final MessageCode price_equal_error = MessageCode.of("price_equal_error", "price_equal_error");
         public static final MessageCode BOOLEAN_INFO_ERROR = MessageCode.of("BOOLEAN_INFO_ERROR", "must be TRUE");
 
-        public static final DataBrokenRuleMessage INSTANCE = new DataBrokenRuleMessage();
+        public static final DataBrokenRuleRegistry INSTANCE = new DataBrokenRuleRegistry();
     }
 
 
@@ -346,12 +346,12 @@ public class EntityAndEntityRuleTest {
         }
 
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
-            return DataBrokenRuleMessage.INSTANCE;
+        protected BrokenRuleRegistry brokenRuleRegistry() {
+            return DataBrokenRuleRegistry.INSTANCE;
         }
 
         @Override
-        protected OperationRegistry entityOperations() {
+        protected OperationRegistry operationRegistry() {
             return null;
         }
 

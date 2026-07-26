@@ -25,8 +25,8 @@
  *     }
  *
  *     @Override
- *     public BrokenRuleMessage getBrokenRuleMessages() {
- *         return OrderBrokenRuleMessages.INSTANCE;
+ *     public BrokenRuleRegistry brokenRuleRegistry() {
+ *         return OrderBrokenRuleRegistry.INSTANCE;
  *     }
  *
  *     @Override
@@ -38,9 +38,9 @@
  * // Define business rules
  * public class OrderEntityRule extends EntityRule<Order> {
  *     public OrderEntityRule() {
- *         this.isBlank("pin", OrderBrokenRuleMessages.PIN_IS_EMPTY);
+ *         this.isBlank("pin", OrderBrokenRuleRegistry.PIN_IS_EMPTY);
  *         this.numberShouldGreaterThan("totalPrice", BigDecimal.ZERO,
- *             OrderBrokenRuleMessages.TOTAL_PRICE_ERROR);
+ *             OrderBrokenRuleRegistry.TOTAL_PRICE_ERROR);
  *     }
  * }
  * }</pre>

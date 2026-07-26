@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.visual.rule;
 
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.AbstractEntity;
 import io.pragmatic.ddd.rules.AlwaysActiveRuleCondition;
 import io.pragmatic.ddd.rules.EntityRule;
@@ -28,12 +28,12 @@ public class RuleParser {
 
         return Optional.ofNullable(entityRuleInfo).map(IRuleFinder.RuleFinderObject::getEntityRuleCls)
                 .orElse(Collections.emptyList()).stream().map(s ->
-                        buildRuleDescriptor(entityRuleInfo.getBrokenRuleMessage(),s)
+                        buildRuleDescriptor(entityRuleInfo.getBrokenRuleRegistry(),s)
                 )
                 .collect(Collectors.toList());
     }
 
-    private RuleDescriptorGroup buildRuleDescriptor(BrokenRuleMessage brokenRuleMessage,
+    private RuleDescriptorGroup buildRuleDescriptor(BrokenRuleRegistry brokenRuleRegistry,
                                                     EntityRule<?> entityRule) {
 
         try {
@@ -48,7 +48,7 @@ public class RuleParser {
             List<? extends RuleItem<?>> ruleItems = entityRule.allRuleItems();
 
             List<RuleDescriptor> collect = ruleItems.stream().map(r -> {
-                String ruleDescription = brokenRuleMessage.getRuleDescription(r.getMessageCode().code());
+                String ruleDescription = brokenRuleRegistry.getRuleDescription(r.getMessageCode().code());
                 return new RuleDescriptor(r.getMessageCode().code(),
                         ruleDescription,
                         !(r.getCondition() instanceof AlwaysActiveRuleCondition));

@@ -19,7 +19,7 @@ public class EntityTest2EntityRule extends EntityRule<EntityTest2> {
 
             return true;
 
-        }, EntityTest2BrokenRuleMessage.testError);
+        }, EntityTest2BrokenRuleRegistry.testError);
 
     }
 }

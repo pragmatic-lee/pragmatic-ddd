@@ -57,7 +57,7 @@ mvn clean test
   - Entities: `<Name>` (e.g., `Order`)
   - Events: `<Entity><ActionPastTense>Event` (e.g., `OrderPayedEvent`)
   - Rules: `<Entity>EntityRule` (e.g., `OrderEntityRule`)
-  - Broken Rule Messages: `<Entity>BrokenRuleMessages`
+  - Broken Rule Messages: `<Entity>BrokenRuleRegistry`
 - **Annotations**: Use `@DomainEntity`, `@BusinessRule`, `@EventTrigger` where applicable
 - No `@Data` on entities — use explicit getters
 - No database operations in domain layer

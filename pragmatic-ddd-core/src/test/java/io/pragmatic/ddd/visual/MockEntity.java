@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.visual;
 
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.AbstractEntity;
 import io.pragmatic.ddd.operation.MockEntityOperations;
 import io.pragmatic.ddd.operation.OperationRegistry;
@@ -67,12 +67,12 @@ public class MockEntity extends AbstractEntity<Long> {
     }
 
     @Override
-    protected BrokenRuleMessage getBrokenRuleMessages() {
-        return MockEntityBrokenRuleMessage.INSTANCE;
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return MockEntityBrokenRuleRegistry.INSTANCE;
     }
 
     @Override
-    public OperationRegistry entityOperations() {
+    public OperationRegistry operationRegistry() {
         return MockEntityOperations.INSTANCE;
     }
 

@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.visual.rule;
 
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.AbstractEntity;
 import io.pragmatic.ddd.rules.EntityRule;
 
@@ -13,22 +13,22 @@ public interface IRuleFinder {
 
     class RuleFinderObject{
         private final List<EntityRule<?>> entityRuleCls;
-        private final BrokenRuleMessage brokenRuleMessage;
+        private final BrokenRuleRegistry brokenRuleRegistry;
 
         public List<EntityRule<?>> getEntityRuleCls() {
 
             return entityRuleCls;
         }
 
-        public BrokenRuleMessage getBrokenRuleMessage() {
-            return brokenRuleMessage;
+        public BrokenRuleRegistry getBrokenRuleRegistry() {
+            return brokenRuleRegistry;
         }
 
 
 
-        public RuleFinderObject(List<EntityRule<?>> entityRuleCls, BrokenRuleMessage brokenRuleMessage) {
+        public RuleFinderObject(List<EntityRule<?>> entityRuleCls, BrokenRuleRegistry brokenRuleRegistry) {
             this.entityRuleCls = entityRuleCls;
-            this.brokenRuleMessage = brokenRuleMessage;
+            this.brokenRuleRegistry = brokenRuleRegistry;
         }
     }
 }

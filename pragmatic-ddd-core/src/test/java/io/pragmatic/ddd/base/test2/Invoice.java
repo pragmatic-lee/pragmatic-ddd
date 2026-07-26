@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.base.test2;
 
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -15,13 +15,13 @@ public class Invoice extends AggregateRoot<Long> {
     private String no;
 
     @Override
-    protected BrokenRuleMessage getBrokenRuleMessages() {
-        return InvoiceBrokenRuleMessage.INSTANCE;
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return InvoiceBrokenRuleRegistry.INSTANCE;
     }
 
 
     @Override
-    protected OperationRegistry entityOperations() {
+    protected OperationRegistry operationRegistry() {
         return InvoiceOperationRegistry.INSTANCE;
     }
 }

@@ -20,12 +20,12 @@ public class EntityTest2 extends AbstractEntity<Long> {
     }
 
     @Override
-    protected BrokenRuleMessage getBrokenRuleMessages() {
-        return EntityTest2BrokenRuleMessage.INSTANCE;
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return EntityTest2BrokenRuleRegistry.INSTANCE;
     }
 
     @Override
-    public OperationRegistry entityOperations() {
+    public OperationRegistry operationRegistry() {
         return new EntityTest2Operations();
     }
 

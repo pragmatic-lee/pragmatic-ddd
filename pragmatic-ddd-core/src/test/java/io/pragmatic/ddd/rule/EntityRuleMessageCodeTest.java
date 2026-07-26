@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.rule;
 
 import io.pragmatic.ddd.base.BrokenRule;
-import io.pragmatic.ddd.base.BrokenRuleMessage;
+import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.BrokenRuleObject;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.base.MessageCode;
@@ -12,18 +12,18 @@ import org.junit.Test;
 
 import java.util.List;
 
-import static io.pragmatic.ddd.rule.EntityRuleMessageCodeTest.SampleBrokenRuleMessage.*;
+import static io.pragmatic.ddd.rule.EntityRuleMessageCodeTest.SampleBrokenRuleRegistry.*;
 
 /**
  * 对应设计文档阶段 6.4：EntityRule 全 MessageCode 化补充用例。
  */
 public class EntityRuleMessageCodeTest {
 
-    public static class SampleBrokenRuleMessage extends BrokenRuleMessage {
+    public static class SampleBrokenRuleRegistry extends BrokenRuleRegistry {
         public static final MessageCode R1 = MessageCode.of("R1", "规则1");
         public static final MessageCode R2 = MessageCode.of("R2", "规则2");
         public static final MessageCode R3 = MessageCode.of("R3", "规则3");
-        public static final SampleBrokenRuleMessage INSTANCE = new SampleBrokenRuleMessage();
+        public static final SampleBrokenRuleRegistry INSTANCE = new SampleBrokenRuleRegistry();
     }
 
     static class SampleEntity extends BrokenRuleObject {
@@ -32,8 +32,8 @@ public class EntityRuleMessageCodeTest {
         private boolean b3;
 
         @Override
-        protected BrokenRuleMessage getBrokenRuleMessages() {
-            return SampleBrokenRuleMessage.INSTANCE;
+        protected BrokenRuleRegistry brokenRuleRegistry() {
+            return SampleBrokenRuleRegistry.INSTANCE;
         }
 
         public boolean isB1() { return b1; }
