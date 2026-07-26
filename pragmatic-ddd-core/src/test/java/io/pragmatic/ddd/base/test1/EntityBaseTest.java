@@ -6,7 +6,6 @@ import io.pragmatic.ddd.repository.*;
 import org.junit.Test;
 
 import java.util.Comparator;
-import java.util.List;
 
 public class EntityBaseTest {
 
@@ -77,67 +76,10 @@ class TestDataRepository implements IRepository<Long, TestData> {
     }
 
     @Override
-    public void remove(TestData entityBase) {
-
-
+    public void removeById(Long aLong) {
+        // 测试桩：无实际操作
     }
 }
-
-class TestDataReadRepository implements
-        IIDByReadDAORepository<TestDataDAO, Long>,
-        IPageAndScrollByReadDAORepository<TestDataDAO, TestDataPageByQueryDAO, TestDataScrollByQueryDAO>,
-        IListByReadDAORepository<TestDataDAO, TestDataListByQueryDAO> {
-
-    @Override
-    public TestDataDAO queryById(Long orderId, String returnClassName) {
-        return null;
-    }
-
-    @Override
-    public List<TestDataDAO> queryByIdList(List<Long> orderIdList, String returnClassName) {
-        return IIDByReadDAORepository.super.queryByIdList(orderIdList, returnClassName);
-    }
-
-    @Override
-    public TestDataDAO queryOneBy(TestDataListByQueryDAO testDataListByQueryDAO, String returnClassName) {
-        return null;
-    }
-
-    @Override
-    public PageInfoDAO<TestDataDAO> queryPageBy(TestDataPageByQueryDAO orderPageQueryDTO,
-                                                PageNumberDAO pageNumber,
-                                                String returnClassName) {
-        return null;
-    }
-
-    @Override
-    public List<TestDataDAO> queryScrollBy(TestDataPageByQueryDAO orderPageQueryDTO,
-                                           TestDataScrollByQueryDAO scrollQueryDTO,
-                                           String returnClassName) {
-        return IPageAndScrollByReadDAORepository.super.queryScrollBy(orderPageQueryDTO,
-                scrollQueryDTO, returnClassName);
-    }
-}
-
-class TestDataDAO {
-
-}
-
-class TestDataListByQueryDAO {
-
-}
-
-class TestDataPageByQueryDAO {
-
-}
-
-class TestDataScrollByQueryDAO {
-
-}
-
-
-
-
 
 
 class TestData extends AggregateRoot<Long> {

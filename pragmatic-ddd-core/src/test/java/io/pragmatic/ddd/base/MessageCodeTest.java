@@ -25,6 +25,13 @@ public class MessageCodeTest {
         Assert.assertEquals("AGE_ERROR", code.localCode());
         Assert.assertEquals("", code.description());
     }
+    @Test
+    public void abc(){}
+
+    sealed interface  A permits OrderFindByOrderNo,OrderFindByUserIdAndStatus{}
+
+    public record OrderFindByOrderNo(String orderNo) implements A {}
+    public record OrderFindByUserIdAndStatus(String userId, Integer status) implements A {}
 
     @Test
     public void equals_byLocalCode() {

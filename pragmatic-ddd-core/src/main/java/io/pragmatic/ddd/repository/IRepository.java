@@ -18,5 +18,15 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
 
     T findById(ID id);
 
-    default void remove(T aggregateRoot){}
+    /**
+     * 按主键删除聚合。实现方必须提供真实删除逻辑（本方法不再有默认空实现）。
+     */
+    void removeById(ID id);
+
+    /**
+     * 判断主键是否存在。默认实现基于 {@link #findById(Object)} 是否为 null。
+     */
+    default boolean existsById(ID id) {
+        return findById(id) != null;
+    }
 }
