@@ -136,15 +136,6 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
         }
         this.lastRecordedOperation = null;
     }
-
-    /**
-     * 清空已收集的领域事件。
-     * @deprecated 语义已并入 {@link #clearWorkUnitState()}，保留仅为调用点平滑过渡，建议改用后者。
-     */
-    public void clearDomainEvents() {
-        this.clearWorkUnitState();
-    }
-
     protected void recordOperation(EntityOperation operation) {
         this.triggeredOperations().put(operation);   // 多值收集：不变
         this.lastRecordedOperation = operation;       // 新增：更新因果指针

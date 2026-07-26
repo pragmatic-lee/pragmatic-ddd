@@ -38,7 +38,7 @@ public abstract class AbstractCommandExecutor implements ICommandExecutor {
         persistAndDispatch(aggregateRoot, repository);
 
         // 5. 事件清空（分发完成后再清空，安全）
-        aggregateRoot.clearDomainEvents();
+        aggregateRoot.clearWorkUnitState();
 
         return aggregateRoot;
     }

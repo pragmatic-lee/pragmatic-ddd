@@ -65,7 +65,7 @@ public class UnitOfWork extends AbstractUnitOfWork implements IUnitOfWork {
         // 4. 收集事件
         collected.addAll(entry.aggregateRoot.getDomainEvents());
         // 5. 清空事件
-        entry.aggregateRoot.clearDomainEvents();
+        entry.aggregateRoot.clearWorkUnitState();
     }
 
     @Override

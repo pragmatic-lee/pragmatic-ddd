@@ -46,8 +46,8 @@ public class OrderApplicationService {
         boolean validate = order.satisfiesRule(new OrderEntityRule());
         if (validate) {
             this.orderRepository.create(order);
-            order.getDomainEvents().forEach(evt -> this.eventManager.publish(evt));
-            order.clearDomainEvents();
+            order.getDomainEvents().forEach(this.eventManager::publish);
+            order.clearWorkUnitState();
         } else {
             order.throwBrokenRuleException();
         }
@@ -60,8 +60,8 @@ public class OrderApplicationService {
             order.payment();
             if (order.satisfiesRule(new OrderEntityRule())) {
                 this.orderRepository.update(order);
-                order.getDomainEvents().forEach(evt -> this.eventManager.publish(evt));
-                order.clearDomainEvents();
+                order.getDomainEvents().forEach(this.eventManager::publish);
+                order.clearWorkUnitState();
             } else {
                 throw order.exceptionCause();
             }

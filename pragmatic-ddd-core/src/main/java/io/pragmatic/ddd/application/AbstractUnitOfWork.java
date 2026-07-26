@@ -59,7 +59,7 @@ public abstract class AbstractUnitOfWork implements IUnitOfWork {
     public void close() {
         if (!committed) {
             for (UnitOfWorkEntry<?, ?> entry : entries) {
-                entry.aggregateRoot.clearDomainEvents();
+                entry.aggregateRoot.clearWorkUnitState();
             }
         }
     }

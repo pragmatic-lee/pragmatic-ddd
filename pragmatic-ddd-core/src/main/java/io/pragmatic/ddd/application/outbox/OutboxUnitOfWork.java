@@ -81,7 +81,7 @@ public class OutboxUnitOfWork extends AbstractUnitOfWork {
                 .collect(Collectors.toList());
         collected.addAll(entry.aggregateRoot.getDomainEvents());
         // 5. 清空事件（事务内清空，与 UnitOfWork 语义等价）
-        entry.aggregateRoot.clearDomainEvents();
+        entry.aggregateRoot.clearWorkUnitState();
         return aggEntries;
     }
 
