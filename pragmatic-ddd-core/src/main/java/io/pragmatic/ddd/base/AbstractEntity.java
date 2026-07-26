@@ -6,8 +6,8 @@ import io.pragmatic.ddd.operation.OperationException;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.operation.TriggeredOperations;
 import io.pragmatic.ddd.event.BaseDomainEvent;
-import io.pragmatic.ddd.event.DomainEventCollector;
 import io.pragmatic.ddd.event.IDomainEvent;
+import io.pragmatic.ddd.event.TriggeredEvents;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,7 +40,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     private String createdBy;
     private String updatedBy;
 
-    private final DomainEventCollector eventCollector = new DomainEventCollector();
+    private final TriggeredEvents triggeredEvents = new TriggeredEvents();
     private TriggeredOperations triggeredOperations;
 
     /** 最近一次 recordOperation 记录的操作（因果归属用，单值指针） */
@@ -73,7 +73,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     protected void publishEvent(BaseDomainEvent event) {
         event.operationCode = this.resolveOperationCode();
         event.version = this.getNewVersion();
-        this.eventCollector.collect(event);
+        this.triggeredEvents.collect(event);
     }
 
     /**
@@ -82,7 +82,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     protected void publishEvent(BaseDomainEvent event, EntityOperation triggerOperation) {
         event.operationCode = triggerOperation.code();
         event.version = this.getNewVersion();
-        this.eventCollector.collect(event);
+        this.triggeredEvents.collect(event);
     }
 
     /**
@@ -91,7 +91,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
      */
     protected void publishEvent(Supplier<IDomainEvent> eventSupplier) {
         String capturedCode = this.resolveOperationCode();
-        this.eventCollector.collectDelayed(() -> {
+        this.triggeredEvents.collectDelayed(() -> {
             IDomainEvent e = eventSupplier.get();
             if (e instanceof BaseDomainEvent base) {
                 base.operationCode = capturedCode;
@@ -102,7 +102,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
     }
 
     public List<IDomainEvent> getDomainEvents() {
-        return this.eventCollector.getEvents();
+        return this.triggeredEvents.getEvents();
     }
 
     /**
@@ -130,7 +130,7 @@ public abstract class AbstractEntity<T> extends BrokenRuleObject implements IEnt
      * <p>应用层在事件分发完成后调用，防止同一实体实例被复用时状态残留。</p>
      */
     public void clearWorkUnitState() {
-        this.eventCollector.clear();
+        this.triggeredEvents.clear();
         if (this.triggeredOperations != null) {
             this.triggeredOperations.clear();
         }
