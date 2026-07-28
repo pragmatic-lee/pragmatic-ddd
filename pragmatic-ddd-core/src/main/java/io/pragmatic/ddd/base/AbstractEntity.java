@@ -36,20 +36,6 @@ public abstract class AbstractEntity<T> implements IEntity<T> {
     private String createdBy;
     private String updatedBy;
 
-    protected <V> V setAndReturnOld(Consumer<V> set, Supplier<V> getOld, V newValue) {
-        V old = getOld.get();
-        set.accept(newValue);
-
-        return old;
-    }
-
-    protected <V> CompareAndSetInfo<V> compareAndSet(V newValue, V oldValue, Consumer<V> set) {
-        boolean equals = Objects.equals(newValue, oldValue);
-        if (!equals) {
-            set.accept(newValue);
-        }
-        return new CompareAndSetInfo<>(equals, newValue, oldValue);
-    }
 
     // ============ 审计时间戳 ============
 

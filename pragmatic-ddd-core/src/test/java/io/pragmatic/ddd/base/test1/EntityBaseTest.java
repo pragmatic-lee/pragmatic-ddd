@@ -14,25 +14,14 @@ public class EntityBaseTest {
     public void setAndReturnOldTest() {
         TestData testData = new TestData();
         testData.setData2(1);
-        Integer i = testData.updateData2Info(1000);
 
-        assert i == 1;
+
         assert 100 == testData.getData2();
 
 
     }
 
-    @Test
-    public void compareAndSetTest() {
-        TestData testData = new TestData();
 
-        testData.setData(false);
-
-        CompareAndSetInfo<Boolean> booleanCompareAndSetInfo = testData.updateData(true);
-
-        System.out.println(booleanCompareAndSetInfo);
-
-    }
 }
 
 
@@ -99,14 +88,8 @@ class TestData extends AggregateRoot<Long> {
             .thenComparing(ValueObject::getV1);
 
 
-    public Integer updateData2Info(Integer integer) {
 
-        return this.setAndReturnOld(this::setData2, this::getData2, integer);
-    }
 
-    public CompareAndSetInfo<Boolean> updateData(Boolean integer) {
-        return this.compareAndSet(integer, this.getData(), this::setData);
-    }
 
 
     public Boolean getData() {
