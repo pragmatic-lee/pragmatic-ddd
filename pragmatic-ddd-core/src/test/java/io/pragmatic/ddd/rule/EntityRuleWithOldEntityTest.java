@@ -144,7 +144,7 @@ public class EntityRuleWithOldEntityTest {
 
     // ==================== 辅助实体 ====================
 
-    static class TestEntity extends AbstractEntity<Long> {
+    static class TestEntity extends AggregateRoot<Long> {
 
         private String name;
         private String code;

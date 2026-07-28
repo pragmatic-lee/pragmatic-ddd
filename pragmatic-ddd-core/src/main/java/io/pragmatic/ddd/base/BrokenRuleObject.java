@@ -1,14 +1,24 @@
 package io.pragmatic.ddd.base;
 
 
+import lombok.Setter;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class BrokenRuleObject {
+/**
+ * 规则违反收集器（可组合、可继承）。
+ *
+ * <p>对应重构计划 3.1 节：去抽象化，改为可组合收集器。
+ * 既可被子类继承（覆盖 {@link #brokenRuleRegistry()} 提供注册表），
+ * 也可被 {@code AggregateRoot} 以组合方式持有（通过 {@link #setBrokenRuleRegistry} 注入注册表）。</p>
+ */
+public class BrokenRuleObject {
 
     private final List<BrokenRule> brokenRules;
-    private final BrokenRuleRegistry brokenRuleRegistry;
+    @Setter
+    private BrokenRuleRegistry brokenRuleRegistry;
 
 
     public BrokenRuleObject() {
@@ -16,33 +26,9 @@ public abstract class BrokenRuleObject {
         this.brokenRuleRegistry = this.brokenRuleRegistry();
     }
 
-    protected abstract BrokenRuleRegistry brokenRuleRegistry();
-
-
-    /**
-     * 使用指定的规则集合执行校验。
-     * 校验失败时，规则违反信息会通过 {@link #addBrokenRule} 收集到本对象中，
-     * 后续可通过 {@link #throwBrokenRuleException()} 或 {@link #exceptionCause()} 获取。
-     *
-     * <p>典型用法（Application Service 中注入规则）：</p>
-     * <pre>{@code
-     *   @Autowired
-     *   private OrderCreationRule creationRule;
-     *
-     *   public void createOrder(Order order) {
-     *       if (!order.validate(creationRule)) {
-     *           throw order.exceptionCause();
-     *       }
-     *       repository.save(order);
-     *   }
-     * }</pre>
-     *
-     * @param rule 满足 IRule 约束的规则对象（如 EntityRule），为 null 时视为校验通过
-     * @return true 表示通过校验，false 表示存在规则违反
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public boolean satisfiesRule(IRule<?> rule) {
-        return rule != null && ((IRule) rule).satisfiesRule(this);
+    /** 子类可覆盖以返回注册表；组合场景下由 {@link #setBrokenRuleRegistry} 注入。 */
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return this.brokenRuleRegistry;
     }
 
 

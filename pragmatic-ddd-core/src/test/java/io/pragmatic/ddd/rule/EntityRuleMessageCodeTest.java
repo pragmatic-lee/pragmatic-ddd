@@ -2,9 +2,10 @@ package io.pragmatic.ddd.rule;
 
 import io.pragmatic.ddd.base.BrokenRule;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
-import io.pragmatic.ddd.base.BrokenRuleObject;
+import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.base.MessageCode;
+import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.rules.EntityRule;
 import io.pragmatic.ddd.rules.RulePosition;
 import org.junit.Assert;
@@ -26,7 +27,7 @@ public class EntityRuleMessageCodeTest {
         public static final SampleBrokenRuleRegistry INSTANCE = new SampleBrokenRuleRegistry();
     }
 
-    static class SampleEntity extends BrokenRuleObject {
+    static class SampleEntity extends AggregateRoot<Long> {
         private boolean b1;
         private boolean b2;
         private boolean b3;
@@ -34,6 +35,11 @@ public class EntityRuleMessageCodeTest {
         @Override
         protected BrokenRuleRegistry brokenRuleRegistry() {
             return SampleBrokenRuleRegistry.INSTANCE;
+        }
+
+        @Override
+        protected OperationRegistry operationRegistry() {
+            return null;
         }
 
         public boolean isB1() { return b1; }

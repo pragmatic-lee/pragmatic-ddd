@@ -9,7 +9,7 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
     void update(T aggregateRoot);
 
     default void save(T aggregateRoot) {
-        if (aggregateRoot.isNewEntity()) {
+        if (aggregateRoot.isNew()) {
             insert(aggregateRoot);
         } else {
             update(aggregateRoot);
@@ -32,7 +32,7 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
 
     /**
      * 写模型当前版本；聚合不存在返回 -1（供 ORPHAN 判定）。
-     * 默认基于 findById 后取 oldVersion（AbstractEntity.getOldVersion()），
+     * 默认基于 findById 后取 oldVersion（AggregateRoot.getOldVersion()），
      * 高频对账可实现为只查版本列 / 读 outbox 最大版本。
      */
     default long currentVersion(ID id) {

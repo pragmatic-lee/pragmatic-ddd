@@ -32,7 +32,7 @@ public class Order extends AggregateRoot<Long> {
         this.orderItemList = orderInitParam.getOrderItemList();
         this.created = LocalDateTime.now();
         //事件收集
-        this.publishEvent(() -> new OrderCreatedEvent(this.getEntityId()));
+        this.collectEvent(() -> new OrderCreatedEvent(this.getEntityId()));
     }
 
 
@@ -68,7 +68,7 @@ public class Order extends AggregateRoot<Long> {
     public void payment() {
         this.status = 3;
         //事件收集
-        this.publishEvent(new OrderPayedEvent(this.getEntityId()));
+        this.collectEvent(new OrderPayedEvent(this.getEntityId()));
 
     }
 

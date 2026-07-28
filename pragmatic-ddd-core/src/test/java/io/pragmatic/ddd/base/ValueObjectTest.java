@@ -165,14 +165,6 @@ public class ValueObjectTest {
     }
 
     static final class TestEntity extends AbstractEntity<Long> {
-        @Override
-        protected BrokenRuleRegistry brokenRuleRegistry() {
-            return BrokenRuleRegistry.of();
-        }
-
-        @Override
-        protected io.pragmatic.ddd.operation.OperationRegistry operationRegistry() {
-            return null;
-        }
+        // AbstractEntity 已精简为纯数据容器（重构计划 3.2），无需实现规则/操作注册表
     }
 }

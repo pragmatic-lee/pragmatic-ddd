@@ -4,12 +4,12 @@ import io.pragmatic.ddd.base.*;
 import io.pragmatic.ddd.operation.EntityTest2Operations;
 import io.pragmatic.ddd.operation.OperationRegistry;
 
-public class EntityTest2 extends AbstractEntity<Long> {
+public class EntityTest2 extends AggregateRoot<Long> {
 
     private String name;
 
     public EntityTest2(Long id, String name) {
-        this.setNewEntity(true);
+        this.markNew();
         this.setEntityId(id);
         this.setName(name);
     }

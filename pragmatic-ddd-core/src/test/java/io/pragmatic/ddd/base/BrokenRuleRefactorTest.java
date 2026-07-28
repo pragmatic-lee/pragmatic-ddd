@@ -18,7 +18,7 @@ public class BrokenRuleRefactorTest {
         public static final SampleMessage INSTANCE = new SampleMessage();
     }
 
-    static class SampleEntity extends AbstractEntity<Long> {
+    static class SampleEntity extends AggregateRoot<Long> {
         SampleEntity() {
             this.setEntityId(1L);
         }

@@ -19,7 +19,7 @@ import java.lang.annotation.*;
  * )
  * public void payment() {
  *     this.status = OrderStatus.PAYED;
- *     publishEvent(new OrderPayedEvent(this));
+ *     collectEvent(new OrderPayedEvent(this));
  * }
  * }</pre>
  *

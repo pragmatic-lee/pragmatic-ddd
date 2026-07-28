@@ -31,13 +31,13 @@ public interface IDomainEvent {
 
     /**
      * 触发该事件的实体 Operation 编码。
-     * 由 {@code EntityBase.publishEvent()} 自动设置。
+     * 由 {@code AggregateRoot.collectEvent()} 自动设置。
      */
     String getOperationCode();
 
     /**
      * 发布时刻的聚合根版本号。
-     * 由 {@code EntityBase.publishEvent()} 设置为 {@code EntityBase.getNewVersion()} 的值。
+     * 由 {@code AggregateRoot.collectEvent()} 设置为 {@code AggregateRoot.getNewVersion()} 的值。
      */
     long getVersion();
 

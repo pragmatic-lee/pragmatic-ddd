@@ -323,7 +323,7 @@ public class EntityAndEntityRuleTest {
         }
     }
 
-    static class Data extends AbstractEntity<Long> {
+    static class Data extends AggregateRoot<Long> {
 
         private String name = "";
         private Double price;

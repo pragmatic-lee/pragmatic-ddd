@@ -21,7 +21,7 @@
  *
  *     public void payment() {
  *         // business logic
- *         publishEvent(new OrderPayedEvent(this));
+ *         collectEvent(new OrderPayedEvent(this));
  *     }
  *
  *     @Override

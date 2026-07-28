@@ -56,7 +56,7 @@ public abstract class BaseDomainEvent implements IDomainEvent {
     private final String entityId;
     private final Instant occurredOn;
 
-    /** 由 EntityBase.publishEvent() / Fastjson2 反序列化设置，子类不应主动赋值 */
+    /** 由 AggregateRoot.collectEvent() / Fastjson2 反序列化设置，子类不应主动赋值 */
     public String operationCode;
     public long version;
 

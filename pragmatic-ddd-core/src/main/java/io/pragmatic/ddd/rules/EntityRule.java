@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.rules;
 
-import io.pragmatic.ddd.base.BrokenRuleObject;
+import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.base.MessageCode;
 
@@ -18,9 +18,9 @@ import java.util.Optional;
  * <p>规则通过 MessageCode 进行运行时增删改（append / replace / remove），
  * 支持 failFast（遇第一条失败即停止）和全量校验两种模式。</p>
  *
- * @param <T> 被校验的模型类型，必须继承 BrokenRuleObject
+ * @param <T> 被校验的模型类型，必须继承 AggregateRoot
  */
-public abstract class EntityRule<T extends BrokenRuleObject> implements IRule<T>, IRuleBuild {
+public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>, IRuleBuild {
 
     private final List<RuleItem<T>> rules;
     private final AlwaysActiveRuleCondition<T> defaultCondition = new AlwaysActiveRuleCondition<>();

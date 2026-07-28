@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.base.test2;
 
-import io.pragmatic.ddd.base.AbstractEntity;
+import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.event.BaseDomainEvent;
 import io.pragmatic.ddd.event.IDomainEvent;
@@ -21,7 +21,7 @@ public class EntityOperationCodeTest {
     // ===================== 测试夹具 =====================
 
     /** 启用 operation 体系的实体 */
-    public static final class SampleOpEntity extends AbstractEntity<Long> {
+    public static final class SampleOpEntity extends AggregateRoot<Long> {
         private final OperationRegistry registry;
 
         public SampleOpEntity(OperationRegistry registry) {
@@ -44,23 +44,23 @@ public class EntityOperationCodeTest {
 
         public SampleEvent doPublish() {
             SampleEvent e = new SampleEvent("1");
-            this.publishEvent(e);
+            this.collectEvent(e);
             return e;
         }
 
         public SampleEvent doPublishExplicit(EntityOperation op) {
             SampleEvent e = new SampleEvent("1");
-            this.publishEvent(e, op);
+            this.collectEvent(e, op);
             return e;
         }
 
         public void doPublishDelayed(Supplier<IDomainEvent> supplier) {
-            this.publishEvent(supplier);
+            this.collectEvent(supplier);
         }
     }
 
     /** 未启用 operation 体系的实体（entityOperations() 返回 null） */
-    public static final class NoOpEntity extends AbstractEntity<Long> {
+    public static final class NoOpEntity extends AggregateRoot<Long> {
         @Override
         protected BrokenRuleRegistry brokenRuleRegistry() {
             return BrokenRuleRegistry.of();
@@ -77,7 +77,7 @@ public class EntityOperationCodeTest {
 
         public SampleEvent doPublish() {
             SampleEvent e = new SampleEvent("1");
-            this.publishEvent(e);
+            this.collectEvent(e);
             return e;
         }
     }
@@ -94,7 +94,7 @@ public class EntityOperationCodeTest {
 
     // ===================== 用例 =====================
 
-    /** T1 默认归属：record(A) → publishEvent(e) → operationCode == "A" */
+    /** T1 默认归属：record(A) → collectEvent(e) → operationCode == "A" */
     @Test
     public void testDefaultAttribution() {
         SampleOpEntity entity = new SampleOpEntity(new SampleRegistry());
@@ -103,7 +103,7 @@ public class EntityOperationCodeTest {
         assert "A".equals(e.operationCode);
     }
 
-    /** T2 多值收集不受影响：record(A) → record(B) → publishEvent(e) → 归属 B 且 hasAllOperations(A,B) */
+    /** T2 多值收集不受影响：record(A) → record(B) → collectEvent(e) → 归属 B 且 hasAllOperations(A,B) */
     @Test
     public void testMultiValueCollectionUnaffected() {
         SampleOpEntity entity = new SampleOpEntity(new SampleRegistry());
@@ -114,7 +114,7 @@ public class EntityOperationCodeTest {
         assert entity.hasAllOperations(SampleRegistry.A, SampleRegistry.B);
     }
 
-    /** T3 显式优先：record(A) → publishEvent(e, C) → operationCode == "C" */
+    /** T3 显式优先：record(A) → collectEvent(e, C) → operationCode == "C" */
     @Test
     public void testExplicitPriority() {
         SampleOpEntity entity = new SampleOpEntity(new SampleRegistry());
@@ -130,7 +130,7 @@ public class EntityOperationCodeTest {
         entity.doPublish();
     }
 
-    /** T5 宽松分支：entityOperations()==null 的实体 publishEvent → operationCode == null，不抛异常 */
+    /** T5 宽松分支：entityOperations()==null 的实体 collectEvent → operationCode == null，不抛异常 */
     @Test
     public void testLenientBranch() {
         NoOpEntity entity = new NoOpEntity();

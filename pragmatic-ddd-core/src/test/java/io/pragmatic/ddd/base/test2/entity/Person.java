@@ -32,10 +32,10 @@ public class Person extends AggregateRoot<Long> {
 
     public Person(PersonInitData personInitData) {
         this.setEntityId(personInitData.getId());
-        this.setNewEntity(true);
+        this.markNew();
         PersonSetter.init(this, personInitData);
         this.recordOperation(PersonOperations.NEW);
-        this.publishEvent(PersonInitEvent.build(this));
+        this.collectEvent(PersonInitEvent.build(this));
 
     }
 
@@ -45,7 +45,7 @@ public class Person extends AggregateRoot<Long> {
     public void update(PersonUpdateData personUpdateData) {
         PersonSetter.updateSet(this, personUpdateData);
         this.recordOperation(PersonOperations.UPDATE);
-        this.publishEvent(PersonUpdateEvent.build(this));
+        this.collectEvent(PersonUpdateEvent.build(this));
 
     }
 
@@ -56,7 +56,7 @@ public class Person extends AggregateRoot<Long> {
         this.setStatus(status);
         this.setUpdatedTime(new Date());
         this.recordOperation(PersonOperations.UPDATE_STATUS);
-        this.publishEvent(PersonUpdateStatusEvent.build(this));
+        this.collectEvent(PersonUpdateStatusEvent.build(this));
 
 
     }
