@@ -47,11 +47,12 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     private final transient BrokenRuleObject ruleValidator = new BrokenRuleObject();
 
-    /** 首次使用时惰性注入子类提供的规则注册表。 */
+    /** 首次使用时惰性注入子类提供的规则注册表与宿主聚合引用。 */
     private BrokenRuleObject ruleValidator() {
         if (this.ruleValidator.brokenRuleRegistry() == null) {
             this.ruleValidator.setBrokenRuleRegistry(this.brokenRuleRegistry());
         }
+        this.ruleValidator.setSource(this);
         return this.ruleValidator;
     }
 

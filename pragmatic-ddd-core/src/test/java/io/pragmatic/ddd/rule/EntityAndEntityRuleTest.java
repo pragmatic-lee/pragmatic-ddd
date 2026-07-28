@@ -27,7 +27,7 @@ public class EntityAndEntityRuleTest {
 
         BrokenRuleException brokenRuleException = data.exceptionCause();
 
-        Assert.assertEquals(brokenRuleException.getEntityInfo(), data.getEntityId().toString());
+        Assert.assertSame(data, brokenRuleException.getSource());
 
     }
 

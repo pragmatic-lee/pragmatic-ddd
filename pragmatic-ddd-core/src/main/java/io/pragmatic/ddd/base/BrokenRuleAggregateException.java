@@ -18,4 +18,9 @@ public class BrokenRuleAggregateException extends RuleException {
     public List<BrokenRuleException> getExceptions() {
         return exceptions;
     }
+
+    /** 便捷：返回首个子异常的 source（聚合场景下所有子异常 source 相同） */
+    public Object getSource() {
+        return exceptions.isEmpty() ? null : exceptions.get(0).getSource();
+    }
 }

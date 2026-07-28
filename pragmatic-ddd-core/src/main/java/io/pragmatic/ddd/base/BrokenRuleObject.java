@@ -19,6 +19,20 @@ public class BrokenRuleObject {
     private final List<BrokenRule> brokenRules;
     @Setter
     private BrokenRuleRegistry brokenRuleRegistry;
+    private Object source;
+
+    /** 设置触发异常的宿主聚合/实体（组合场景下由 AggregateRoot 注入自身）。 */
+    public void setSource(Object source) {
+        this.source = source;
+    }
+
+    /**
+     * 返回 source；未显式设置时回退为收集器自身
+     * （继承场景下 {@code this} 即实体本身，组合场景下由 AggregateRoot 注入宿主）。
+     */
+    private Object sourceObject() {
+        return this.source != null ? this.source : this;
+    }
 
 
     public BrokenRuleObject() {
@@ -60,8 +74,7 @@ public class BrokenRuleObject {
             BrokenRule brokenRule = this.getBrokenRules().get(0);
             return new BrokenRuleException(brokenRule.getName(),
                     brokenRule.getDescription(),
-                    null,
-                    brokenRule.getExtraData()
+                    this.sourceObject()
             );
         }
         return null;
@@ -74,7 +87,7 @@ public class BrokenRuleObject {
 
             for (BrokenRule message : this.getBrokenRules()) {
                 BrokenRuleException brokenRuleException = new BrokenRuleException(message.getName(),
-                        message.getDescription(), null, message.getExtraData());
+                        message.getDescription(), this.sourceObject());
 
                 brokenRuleExceptions.add(brokenRuleException);
             }

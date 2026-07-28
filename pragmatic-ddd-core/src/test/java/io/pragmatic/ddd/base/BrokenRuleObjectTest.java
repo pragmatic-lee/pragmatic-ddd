@@ -61,7 +61,7 @@ public class BrokenRuleObjectTest {
         Assert.assertNotNull(ex);
         Assert.assertEquals("NAME_ERROR", ex.getCode());
         Assert.assertEquals("名称:张三 不能为空", ex.getMessage());
-        Assert.assertArrayEquals(params, ex.getExtraData());
+        Assert.assertSame(entity, ex.getSource());
     }
 
     @Test

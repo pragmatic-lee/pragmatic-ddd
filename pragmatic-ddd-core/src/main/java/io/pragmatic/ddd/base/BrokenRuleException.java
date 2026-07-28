@@ -5,22 +5,15 @@ import lombok.Getter;
 @Getter
 public class BrokenRuleException extends RuleException {
     private final String code;
-    private final String entityInfo;
-    private final transient Object[] extraData;
-
+    private final transient Object source;
 
     public BrokenRuleException(String code, String message) {
-        this(code, message, "", new Object[0]);
+        this(code, message, null);
     }
 
-    public BrokenRuleException(String code, String message, String entityInfo, Object[] extraData) {
+    public BrokenRuleException(String code, String message, Object source) {
         super(message);
         this.code = code;
-        this.extraData = extraData;
-        this.entityInfo = entityInfo;
-    }
-
-    public BrokenRuleException(String code, String message, Object[] extraData) {
-        this(code, message, "", extraData);
+        this.source = source;
     }
 }
