@@ -29,4 +29,14 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
     default boolean existsById(ID id) {
         return findById(id) != null;
     }
+
+    /**
+     * 写模型当前版本；聚合不存在返回 -1（供 ORPHAN 判定）。
+     * 默认基于 findById 后取 oldVersion（AbstractEntity.getOldVersion()），
+     * 高频对账可实现为只查版本列 / 读 outbox 最大版本。
+     */
+    default long currentVersion(ID id) {
+        T agg = findById(id);
+        return agg != null ? agg.getOldVersion() : -1L;
+    }
 }
