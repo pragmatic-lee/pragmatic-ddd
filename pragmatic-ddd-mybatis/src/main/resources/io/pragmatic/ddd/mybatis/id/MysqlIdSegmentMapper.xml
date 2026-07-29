@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.pragmatic.ddd.mybatis.id.MysqlIdSegmentMapper">
+
+    <resultMap id="IdSegmentResult" type="io.pragmatic.ddd.mybatis.id.IdSegmentEntity">
+        <id column="biz_key" property="bizKey"/>
+        <result column="current_max_id" property="currentMaxId"/>
+        <result column="step" property="step"/>
+        <result column="version" property="version"/>
+        <result column="remark" property="remark"/>
+    </resultMap>
+
+    <select id="selectForUpdate" resultMap="IdSegmentResult">
+        SELECT biz_key, current_max_id, step, version, remark
+        FROM id_segment
+        WHERE biz_key = #{bizKey} FOR UPDATE
+    </select>
+
+    <update id="incrementMax">
+        UPDATE id_segment
+        SET current_max_id = #{newMax}, version = version + 1, updated_at = NOW()
+        WHERE biz_key = #{bizKey}
+    </update>
+
+</mapper>
