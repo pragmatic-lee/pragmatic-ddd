@@ -1,65 +1,59 @@
 package io.pragmatic.ddd.base;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * 对应设计文档阶段 6.1：MessageCode（record 值对象）单元测试。
  */
-public class MessageCodeTest {
+class MessageCodeTest {
 
     @Test
-    public void of_withDescription() {
+    void of_withDescription_accessors() {
         MessageCode code = MessageCode.of("NAME_ERROR", "名称不能为空");
-        Assert.assertEquals("NAME_ERROR", code.localCode());
-        Assert.assertEquals("名称不能为空", code.description());
-        Assert.assertEquals("NAME_ERROR", code.code());
+        assertThat(code.localCode()).isEqualTo("NAME_ERROR");
+        assertThat(code.description()).isEqualTo("名称不能为空");
+        assertThat(code.code()).isEqualTo("NAME_ERROR");
     }
 
     @Test
-    public void of_singleArg_descriptionEmpty() {
+    void of_singleArg_descriptionEmpty() {
         MessageCode code = MessageCode.of("AGE_ERROR");
-        Assert.assertEquals("AGE_ERROR", code.localCode());
-        Assert.assertEquals("", code.description());
+        assertThat(code.localCode()).isEqualTo("AGE_ERROR");
+        assertThat(code.description()).isEmpty();
     }
-    @Test
-    public void abc(){}
-
-    sealed interface  A permits OrderFindByOrderNo,OrderFindByUserIdAndStatus{}
-
-    public record OrderFindByOrderNo(String orderNo) implements A {}
-    public record OrderFindByUserIdAndStatus(String userId, Integer status) implements A {}
 
     @Test
-    public void equals_byLocalCode() {
+    void equals_onlyByLocalCode() {
         MessageCode a = MessageCode.of("X", "desc1");
         MessageCode b = MessageCode.of("X", "desc2");
         MessageCode c = MessageCode.of("Y", "desc1");
 
-        Assert.assertEquals(a, b);
-        Assert.assertNotEquals(a, c);
-        Assert.assertNotEquals(a, null);
-        Assert.assertNotEquals(a, "X");
-        Assert.assertEquals(a, a);
+        assertThat(a).isEqualTo(b);        // 同 code，异 description → 相等
+        assertThat(a).isNotEqualTo(c);     // 异 code → 不等
+        assertThat(a).isNotEqualTo(null);  // 与 null 不等
+        assertThat(a).isNotEqualTo("X");   // 异类型不等
+        assertThat(a).isEqualTo(a);        // 自反
     }
 
     @Test
-    public void hashCode_consistent() {
+    void hashCode_consistentWithEquals() {
         MessageCode a = MessageCode.of("X", "desc1");
         MessageCode b = MessageCode.of("X", "desc2");
-        Assert.assertEquals(a.hashCode(), b.hashCode());
+        assertThat(a.hashCode()).isEqualTo(b.hashCode());
 
         Map<MessageCode, String> map = new HashMap<>();
         map.put(a, "v");
-        Assert.assertEquals("v", map.get(b));
+        assertThat(map.get(b)).isEqualTo("v");
     }
 
     @Test
-    public void component_accessors_consistent() {
+    void code_equalsLocalCode() {
         MessageCode code = MessageCode.of("X", "d");
-        Assert.assertEquals(code.localCode(), code.code());
+        assertThat(code.code()).isEqualTo(code.localCode());
     }
 }

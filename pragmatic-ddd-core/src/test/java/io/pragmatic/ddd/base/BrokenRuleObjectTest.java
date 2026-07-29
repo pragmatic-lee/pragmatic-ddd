@@ -1,91 +1,127 @@
 package io.pragmatic.ddd.base;
 
-import org.junit.Assert;
-import org.junit.Test;
+import io.pragmatic.ddd.base.fixture.SampleMessages;
+import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 对应设计文档阶段 6.3：BrokenRuleObject（仅 MessageCode API）单元测试。
+ * 对应设计文档阶段 6.4：BrokenRuleObject（违规收集器）单元测试。
+ * 保留原有用例并迁 JUnit5 + AssertJ，补充新增用例。
  */
-public class BrokenRuleObjectTest {
-
-    public static class SampleBrokenRuleRegistry extends BrokenRuleRegistry {
-        public static final MessageCode NAME_ERROR = MessageCode.of("NAME_ERROR", "名称:%s 不能为空");
-        public static final MessageCode AGE_ERROR = MessageCode.of("AGE_ERROR", "年龄不合法");
-        public static final SampleBrokenRuleRegistry INSTANCE = new SampleBrokenRuleRegistry();
-    }
+class BrokenRuleObjectTest {
 
     static class SampleEntity extends BrokenRuleObject {
         @Override
         protected BrokenRuleRegistry brokenRuleRegistry() {
-            return SampleBrokenRuleRegistry.INSTANCE;
+            return SampleMessages.INSTANCE;
         }
     }
 
     @Test
-    public void addBrokenRule_messageCode() {
+    void addBrokenRule_messageCode() {
         SampleEntity entity = new SampleEntity();
-        entity.addBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR);
-        List<BrokenRule> rules = entity.getBrokenRules();
-        Assert.assertEquals(1, rules.size());
-        Assert.assertEquals("NAME_ERROR", rules.get(0).getName());
-        Assert.assertEquals("名称:%s 不能为空", rules.get(0).getDescription());
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        assertThat(entity.getBrokenRules()).hasSize(1);
+        assertThat(entity.getBrokenRules().get(0).getName()).isEqualTo("NAME_ERROR");
+        assertThat(entity.getBrokenRules().get(0).getDescription()).isEqualTo("名称:%s 不能为空");
     }
 
     @Test
-    public void addParamBrokenRule_format_true() {
+    void addParamBrokenRule_format_true() {
         SampleEntity entity = new SampleEntity();
         Object[] params = new Object[]{"张三"};
-        entity.addParamBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR, params, true);
-        BrokenRule rule = entity.getBrokenRules().get(0);
-        Assert.assertEquals("名称:张三 不能为空", rule.getDescription());
-        Assert.assertArrayEquals(params, rule.getExtraData());
+        entity.addParamBrokenRule(SampleMessages.NAME_ERROR, params, true);
+        assertThat(entity.getBrokenRules().get(0).getDescription()).isEqualTo("名称:张三 不能为空");
+        assertThat(entity.getBrokenRules().get(0).getExtraData()).containsExactly(params);
     }
 
     @Test
-    public void addParamBrokenRule_format_false() {
+    void addParamBrokenRule_format_false() {
         SampleEntity entity = new SampleEntity();
         Object[] params = new Object[]{"张三"};
-        entity.addParamBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR, params, false);
-        BrokenRule rule = entity.getBrokenRules().get(0);
-        Assert.assertEquals("名称:%s 不能为空", rule.getDescription());
+        entity.addParamBrokenRule(SampleMessages.NAME_ERROR, params, false);
+        assertThat(entity.getBrokenRules().get(0).getDescription()).isEqualTo("名称:%s 不能为空");
     }
 
     @Test
-    public void exceptionCause_passes_extraData() {
+    void exceptionCause_passes_extraData() {
         SampleEntity entity = new SampleEntity();
         Object[] params = new Object[]{"张三"};
-        entity.addParamBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR, params, true);
+        entity.addParamBrokenRule(SampleMessages.NAME_ERROR, params, true);
         BrokenRuleException ex = entity.exceptionCause();
-        Assert.assertNotNull(ex);
-        Assert.assertEquals("NAME_ERROR", ex.getCode());
-        Assert.assertEquals("名称:张三 不能为空", ex.getMessage());
-        Assert.assertSame(entity, ex.getSource());
+        assertThat(ex).isNotNull();
+        assertThat(ex.getCode()).isEqualTo("NAME_ERROR");
+        assertThat(ex.getMessage()).isEqualTo("名称:张三 不能为空");
+        assertThat(ex.getSource()).isSameAs(entity);
     }
 
     @Test
-    public void aggregateExceptionCause_size_matches() {
+    void aggregateExceptionCause_size_matches() {
         SampleEntity entity = new SampleEntity();
-        entity.addBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR);
-        entity.addBrokenRule(SampleBrokenRuleRegistry.AGE_ERROR);
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        entity.addBrokenRule(SampleMessages.AGE_ERROR);
         BrokenRuleAggregateException ex = entity.aggregateExceptionCause();
-        Assert.assertNotNull(ex);
-        Assert.assertEquals(2, ex.getExceptions().size());
+        assertThat(ex).isNotNull();
+        assertThat(ex.getExceptions()).hasSize(2);
     }
 
     @Test
-    public void clearBrokenRules_exceptionCause_null() {
+    void clearBrokenRules_exceptionCause_null() {
         SampleEntity entity = new SampleEntity();
-        entity.addBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR);
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
         entity.clearBrokenRules();
-        Assert.assertNull(entity.exceptionCause());
+        assertThat(entity.exceptionCause()).isNull();
     }
 
-    @Test(expected = UnsupportedOperationException.class)
-    public void getBrokenRules_immutable() {
+    @Test
+    void getBrokenRules_immutable() {
         SampleEntity entity = new SampleEntity();
-        entity.addBrokenRule(SampleBrokenRuleRegistry.NAME_ERROR);
-        entity.getBrokenRules().add(new BrokenRule("X", "x"));
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        assertThatThrownBy(() -> entity.getBrokenRules().add(new BrokenRule("X", "x")))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    // ===================== 新增用例 =====================
+
+    @Test
+    void throwBrokenRuleException_whenNoViolation_doesNotThrow() {
+        SampleEntity entity = new SampleEntity();
+        assertThatCode(entity::throwBrokenRuleException).doesNotThrowAnyException();
+    }
+
+    @Test
+    void throwBrokenRuleException_whenViolation_throwsFirst() {
+        SampleEntity entity = new SampleEntity();
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        assertThatThrownBy(entity::throwBrokenRuleException)
+                .isInstanceOf(BrokenRuleException.class)
+                .satisfies(ex -> assertThat(((BrokenRuleException) ex).getCode()).isEqualTo("NAME_ERROR"));
+    }
+
+    @Test
+    void throwBrokenRuleAggregateException_multiple() {
+        SampleEntity entity = new SampleEntity();
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        entity.addBrokenRule(SampleMessages.AGE_ERROR);
+        assertThatThrownBy(entity::throwBrokenRuleAggregateException)
+                .isInstanceOf(BrokenRuleAggregateException.class)
+                .satisfies(ex -> {
+                    BrokenRuleAggregateException agg = (BrokenRuleAggregateException) ex;
+                    assertThat(agg.getExceptions()).hasSize(2);
+                    assertThat(agg.getExceptions().get(0).getCode()).isEqualTo("NAME_ERROR");
+                    assertThat(agg.getExceptions().get(1).getCode()).isEqualTo("AGE_ERROR");
+                });
+    }
+
+    @Test
+    void setSource_passedToAggregateException() {
+        SampleEntity entity = new SampleEntity();
+        Object source = new Object();
+        entity.setSource(source);
+        entity.addBrokenRule(SampleMessages.NAME_ERROR);
+        assertThat(entity.aggregateExceptionCause().getSource()).isSameAs(source);
     }
 }

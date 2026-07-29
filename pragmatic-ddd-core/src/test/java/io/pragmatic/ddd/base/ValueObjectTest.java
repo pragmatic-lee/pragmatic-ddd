@@ -1,14 +1,13 @@
 package io.pragmatic.ddd.base;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import java.util.Objects;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ValueObject} 结构相等性单元测试。
+ * 对应设计文档阶段 6.7：ValueObject（值对象）结构相等性单元测试（迁 JUnit5 + AssertJ）。
  */
-public class ValueObjectTest {
+class ValueObjectTest {
 
     // ===================== 测试夹具 =====================
 
@@ -63,108 +62,114 @@ public class ValueObjectTest {
     // ===================== 相等性契约 =====================
 
     @Test
-    public void reflexivity() {
+    void reflexivity() {
         Money m = new Money(10, "USD");
-        Assert.assertEquals(m, m);
+        assertThat(m).isEqualTo(m);
     }
 
     @Test
-    public void symmetry() {
+    void symmetry() {
         Money a = new Money(10, "USD");
         Money b = new Money(10, "USD");
-        Assert.assertEquals(a, b);
-        Assert.assertEquals(b, a);
+        assertThat(a).isEqualTo(b);
+        assertThat(b).isEqualTo(a);
     }
 
     @Test
-    public void transitivity() {
+    void transitivity() {
         Money a = new Money(10, "USD");
         Money b = new Money(10, "USD");
         Money c = new Money(10, "USD");
-        Assert.assertEquals(a, b);
-        Assert.assertEquals(b, c);
-        Assert.assertEquals(a, c);
+        assertThat(a).isEqualTo(b);
+        assertThat(b).isEqualTo(c);
+        assertThat(a).isEqualTo(c);
     }
 
     @Test
-    public void consistency() {
+    void consistency() {
         Money a = new Money(10, "USD");
         Money b = new Money(10, "USD");
         for (int i = 0; i < 5; i++) {
-            Assert.assertEquals(a, b);
+            assertThat(a).isEqualTo(b);
         }
     }
 
     @Test
-    public void nullIsNotEqual() {
+    void nullIsNotEqual() {
         Money m = new Money(10, "USD");
-        Assert.assertNotEquals(m, null);
+        assertThat(m).isNotEqualTo(null);
     }
 
     @Test
-    public void differentTypeIsNotEqual() {
-        // 字段结构与 Money 相同，但类型不同 → 不应相等（运行时类型严格判断）
+    void differentTypeIsNotEqual() {
         Money money = new Money(10, "USD");
         Price price = new Price(10, "USD");
-        Assert.assertNotEquals(money, price);
+        assertThat(money).isNotEqualTo(price);
     }
 
     @Test
-    public void differentComponentsNotEqual() {
-        Assert.assertNotEquals(new Money(10, "USD"), new Money(10, "EUR"));
-        Assert.assertNotEquals(new Money(10, "USD"), new Money(20, "USD"));
+    void differentComponentsNotEqual() {
+        assertThat(new Money(10, "USD")).isNotEqualTo(new Money(10, "EUR"));
+        assertThat(new Money(10, "USD")).isNotEqualTo(new Money(20, "USD"));
     }
 
     @Test
-    public void nullComponentSafe() {
+    void nullComponentSafe() {
         Label a = new Label(null, "desc");
         Label b = new Label(null, "desc");
-        Assert.assertEquals(a, b);
-        Assert.assertNotEquals(a, new Label("x", "desc"));
+        assertThat(a).isEqualTo(b);
+        assertThat(a).isNotEqualTo(new Label("x", "desc"));
 
         Label c = new Label("name", null);
         Label d = new Label("name", null);
-        Assert.assertEquals(c, d);
+        assertThat(c).isEqualTo(d);
+    }
+
+    // ===================== 边界：空成分 =====================
+
+    @Test
+    void emptyComponents_sameTypeEqual() {
+        assertThat(new EmptyVo()).isEqualTo(new EmptyVo());
+    }
+
+    static final class EmptyVo extends ValueObject {
+        @Override
+        protected Object[] equalityComponents() {
+            return new Object[]{};
+        }
     }
 
     // ===================== hashCode 一致性 =====================
 
     @Test
-    public void hashCodeConsistentWithEquals() {
+    void hashCodeConsistentWithEquals() {
         Money a = new Money(10, "USD");
         Money b = new Money(10, "USD");
-        Assert.assertEquals(a.hashCode(), b.hashCode());
+        assertThat(a.hashCode()).isEqualTo(b.hashCode());
 
         Money c = new Money(20, "USD");
-        if (!a.equals(c)) {
-            // 不相等不强制 hash 不同，但相等必须 hash 相同；此处仅验证不抛异常
-            Assert.assertNotEquals(a, c);
-        }
+        assertThat(a).isNotEqualTo(c);
+        assertThat(a.hashCode()).isNotEqualTo(c.hashCode());
     }
 
     @Test
-    public void toStringContainsComponents() {
+    void toStringContainsComponents() {
         Money m = new Money(10, "USD");
         String s = m.toString();
-        Assert.assertTrue(s.contains("Money"));
-        Assert.assertTrue(s.contains("10"));
-        Assert.assertTrue(s.contains("USD"));
+        assertThat(s).contains("Money").contains("10").contains("USD");
     }
 
     // ===================== 与实体身份相等的区分 =====================
 
     @Test
-    public void valueObjectVsEntityEqualitySemanticsDiffer() {
-        // 值对象：结构相等（属性同即相等），不依赖 ID
-        Assert.assertEquals(new Money(10, "USD"), new Money(10, "USD"));
+    void valueObjectVsEntityEqualitySemanticsDiffer() {
+        assertThat(new Money(10, "USD")).isEqualTo(new Money(10, "USD"));
 
-        // 实体（AbstractEntity 子类）：未持久化（ID 为 null）互不相等
         TestEntity e1 = new TestEntity();
         TestEntity e2 = new TestEntity();
-        Assert.assertNotEquals(e1, e2);
+        assertThat(e1).isNotEqualTo(e2);
     }
 
     static final class TestEntity extends AbstractEntity<Long> {
-        // AbstractEntity 已精简为纯数据容器（重构计划 3.2），无需实现规则/操作注册表
     }
 }
