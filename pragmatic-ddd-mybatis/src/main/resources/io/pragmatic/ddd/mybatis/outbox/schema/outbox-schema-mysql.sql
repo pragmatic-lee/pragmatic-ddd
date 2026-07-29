@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS outbox_message (
+CREATE TABLE IF NOT EXISTS ${outboxTable} (
     id             VARCHAR(36)   NOT NULL,
     aggregate_id   VARCHAR(128)  NOT NULL,
     aggregate_type VARCHAR(255)  NOT NULL,

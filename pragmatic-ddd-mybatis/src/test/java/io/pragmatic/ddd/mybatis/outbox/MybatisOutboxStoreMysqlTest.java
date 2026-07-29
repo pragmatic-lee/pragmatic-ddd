@@ -7,10 +7,13 @@ import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -22,17 +25,22 @@ class MybatisOutboxStoreMysqlTest {
     private static SqlSessionFactory ssf;
     private SqlSession session;
     private MybatisOutboxStore store;
-    private MysqlOutboxMapper mapper;
+    private OutboxMapper mapper;
 
     @BeforeAll
     static void init() throws Exception {
+        Assumptions.assumeTrue(MysqlTestSupport.isAvailable(), "MySQL 不可用，跳过集成测试");
         ssf = MysqlTestSupport.sqlSessionFactory();
     }
 
     @BeforeEach
-    void open() {
+    void open() throws SQLException {
         session = ssf.openSession(true); // autoCommit，测试简单起见
-        mapper = session.getMapper(MysqlOutboxMapper.class);
+        // 每次用例前清空 outbox_message，保证跨运行/跨用例隔离（避免主键冲突）。
+        try (Statement st = session.getConnection().createStatement()) {
+            st.execute("DELETE FROM outbox_message");
+        }
+        mapper = session.getMapper(OutboxMapper.class);
         store = new MybatisOutboxStore(mapper, new NoopTransactionOperations());
     }
 
@@ -90,7 +98,8 @@ class MybatisOutboxStoreMysqlTest {
     @Test
     void release_returns_processing_back_to_pending() {
         store.store(List.of(newMessage("id-3")));
-        store.claimPending(10, Duration.ofMinutes(1));
+        // 消息默认 createdAt=now-10s，grace 取 1s（< 10s）才能被认领为 PROCESSING。
+        store.claimPending(10, Duration.ofSeconds(1));
         assertThat(mapper.selectById("id-3").getStatus()).isEqualTo(OutboxStatus.PROCESSING);
 
         store.release("id-3");

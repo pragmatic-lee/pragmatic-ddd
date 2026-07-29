@@ -1,63 +1,117 @@
 package io.pragmatic.ddd.mybatis;
 
 import com.mysql.cj.jdbc.MysqlDataSource;
-import io.pragmatic.ddd.mybatis.outbox.MysqlOutboxMapper;
+import io.pragmatic.ddd.mybatis.bootstrap.MybatisModuleBootstrap;
+import io.pragmatic.ddd.mybatis.bootstrap.MybatisModuleOptions;
+import io.pragmatic.ddd.mybatis.id.IdSegmentMapper;
+import io.pragmatic.ddd.mybatis.outbox.OutboxMapper;
+import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.Arrays;
 
 /**
- * 测试期 MySQL 连接与 {@link SqlSessionFactory} 构建支持。
+ * 测试期 MySQL 连接与 {@link SqlSessionFactory} 构建的通用支持类，
+ * 供 outbox / id-generator 等需要真实 MySQL 的集成测试复用。
  *
- * <p>仅用于 {@code test} scope（mysql-connector-j 不会进入框架产物）。连接信息通过
- * 系统属性 / 环境变量覆盖，默认值指向本地或 Docker 映射出的 3306：
+ * <p>连接信息通过系统属性或环境变量覆盖，默认值如下（可按需覆盖）：
  * <ul>
- *   <li>{@code MYSQL_HOST}   默认 {@code 127.0.0.1}</li>
- *   <li>{@code MYSQL_PORT}   默认 {@code 3306}</li>
- *   <li>{@code MYSQL_DB}     默认 {@code pragmatic_ddd_test}</li>
- *   <li>{@code MYSQL_USER}   默认 {@code root}</li>
- *   <li>{@code MYSQL_PASSWORD} 默认空</li>
+ *   <li>{@code MYSQL_HOST}       默认 127.0.0.1</li>
+ *   <li>{@code MYSQL_PORT}       默认 3306</li>
+ *   <li>{@code MYSQL_DB}         默认 pragmatic_ddb</li>
+ *   <li>{@code MYSQL_USER}       默认 root</li>
+ *   <li>{@code MYSQL_PASSWORD}   默认 mysqlxxl123</li>
  * </ul>
- * 每次构建都会重建 {@code outbox_message} 表，保证测试间相互隔离。</p>
+ *
+ * <p>使用方式：
+ * <pre>
+ *   &#64;BeforeAll static void init() {
+ *       Assumptions.assumeTrue(MysqlTestSupport.isAvailable(), "MySQL 不可用，跳过");
+ *       ssf = MysqlTestSupport.sessionFactory(".../xxx-schema-mysql.sql", XxxMapper.class);
+ *   }
+ * </pre>
+ *
+ * <p>装配统一交由 {@link MybatisModuleBootstrap} 完成：根据传入的契约接口决定模块开关，
+ * 注入表名变量并加载对应 SQL 实现 XML（契约接口随之被自动注册）。
+ * 并演示了「表名可配置 / 模块可关闭 / 多库 XML 切换」三特性的接线方式。</p>
+ *
+ * <p>无可达 MySQL 时 {@link #isAvailable()} 返回 false，测试应跳过以免构建失败。
+ * 仅用于 test scope，mysql-connector-j 不会进入框架产物。</p>
  */
 public final class MysqlTestSupport {
 
     private MysqlTestSupport() {
     }
 
-    public static SqlSessionFactory sqlSessionFactory() throws Exception {
-        MysqlDataSource serverDs = new MysqlDataSource();
-        serverDs.setUrl(baseUrl());
-        serverDs.setUser(user());
-        serverDs.setPassword(password());
-        try (Connection c = serverDs.getConnection();
+    /** 探测 MySQL 是否可达；不可达返回 false，供测试配合 Assumptions 跳过。 */
+    public static boolean isAvailable() {
+        try (Connection ignored = openConnection(baseUrl())) {
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 通用工厂：建库 + 执行 schema（带表名变量替换）+ 由 {@link MybatisModuleBootstrap} 装配 mapper，
+     * 返回 SqlSessionFactory。
+     *
+     * @param schemaResourcePath classpath 上的 schema SQL 路径（表名用 {@code ${idSegmentTable}} /
+     *                           {@code ${outboxTable}} 占位）
+     * @param mappers            需要启用的模块契约（{@link IdSegmentMapper} / {@link OutboxMapper}），
+     *                           据此决定模块开关
+     */
+    public static SqlSessionFactory sessionFactory(String schemaResourcePath, Class<?>... mappers)
+            throws Exception {
+        MybatisModuleOptions options = MybatisModuleOptions.defaults()
+                .idEnabled(contains(mappers, IdSegmentMapper.class))
+                .outboxEnabled(contains(mappers, OutboxMapper.class));
+        MybatisModuleBootstrap bootstrap = new MybatisModuleBootstrap(options);
+
+        // 1) 建库
+        try (Connection c = openConnection(baseUrl());
              Statement s = c.createStatement()) {
             s.execute("CREATE DATABASE IF NOT EXISTS " + db());
         }
 
-        MysqlDataSource ds = new MysqlDataSource();
-        ds.setUrl(url());
-        ds.setUser(user());
-        ds.setPassword(password());
-
-        try (Connection c = ds.getConnection();
-             Statement s = c.createStatement()) {
-            s.execute("DROP TABLE IF EXISTS outbox_message");
-            s.execute(readSchema());
+        // 2) 执行 schema（带表名变量替换，保证与 mapper XML 表名一致）
+        try (Connection c = openConnection(url());
+             Statement ignored = c.createStatement()) {
+            c.setAutoCommit(true);
+            bootstrap.runSchema(c, schemaResourcePath);
         }
 
-        Configuration cfg = new Configuration();
-        cfg.setEnvironment(new Environment("test", new JdbcTransactionFactory(), ds));
-        cfg.addMapper(MysqlOutboxMapper.class);
-        // 若后续测试用到自定义 type handler 的 mapper，在此统一注册
+        // 3) 构建 SqlSessionFactory 并装配：注入表名变量 + 加载 mapper XML（自动注册契约接口）
+        PooledDataSource ds = new PooledDataSource(
+                "com.mysql.cj.jdbc.Driver", url(), user(), password());
+        Configuration cfg = new Configuration(new Environment("test", new JdbcTransactionFactory(), ds));
+        bootstrap.configure(cfg);
         return new SqlSessionFactoryBuilder().build(cfg);
+    }
+
+    /** outbox 测试便捷方法：建 outbox_message 表并装配契约接口 OutboxMapper。 */
+    public static SqlSessionFactory sqlSessionFactory() throws Exception {
+        return sessionFactory(
+                "/io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql",
+                OutboxMapper.class);
+    }
+
+    private static boolean contains(Class<?>[] mappers, Class<?> target) {
+        return Arrays.asList(mappers).contains(target);
+    }
+
+    private static Connection openConnection(String jdbcUrl) throws Exception {
+        MysqlDataSource ds = new MysqlDataSource();
+        ds.setUrl(jdbcUrl);
+        ds.setUser(user());
+        ds.setPassword(password());
+        return ds.getConnection();
     }
 
     private static String baseUrl() {
@@ -68,16 +122,6 @@ public final class MysqlTestSupport {
     private static String url() {
         return "jdbc:mysql://" + host() + ":" + port() + "/" + db()
                 + "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true";
-    }
-
-    private static String readSchema() throws Exception {
-        try (InputStream in = MysqlTestSupport.class.getResourceAsStream(
-                "/io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql")) {
-            if (in == null) {
-                throw new IllegalStateException("outbox-schema-mysql.sql not found on test classpath");
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
     }
 
     private static String env(String key, String def) {
