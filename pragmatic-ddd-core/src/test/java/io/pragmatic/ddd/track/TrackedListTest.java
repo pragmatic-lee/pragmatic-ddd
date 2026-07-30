@@ -19,6 +19,11 @@ class TrackedListTest {
 
     // ===== 测试辅助 =====
 
+    /**
+     * 包级可见测试夹具：实现 ITrackable，按 id 判定相等（非 BrokenRuleRegistry 子类，无需 public）。
+     *
+     * @author wizard-lee
+     */
     static class TestItem implements ITrackable<String> {
         final String id;
         final String label;
@@ -61,10 +66,10 @@ class TrackedListTest {
         return new ArrayList<>(Arrays.asList(items));
     }
 
-    // ===== equals 兜底模式 =====
+    // ===== 构造器 + 变更 =====
 
     @Test
-    void initIsEmptyTrackedList() {
+    void emptyConstructor_appendThenClearAndAppend() {
         TrackedList<TestItem, String> list = new TrackedList<>();
 
         list.append(item("1", "a"));
@@ -80,7 +85,7 @@ class TrackedListTest {
     }
 
     @Test
-    void initNotEmptyTrackedList() {
+    void initWithList_appendThenGetAllItems() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
 
         list.append(item("3", "c"));
@@ -91,7 +96,7 @@ class TrackedListTest {
     }
 
     @Test
-    void testRemoveAll() {
+    void removeAll_movesInitToRemoveAndClearsAppend() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
 
         list.append(item("3", "c"));
@@ -104,7 +109,7 @@ class TrackedListTest {
     }
 
     @Test
-    void testRemoveItems() {
+    void removeItems_byIdRemovesFromInitAndAppend() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
 
         list.append(item("1", "a_dup")); // append 中也有 id=1
@@ -118,7 +123,7 @@ class TrackedListTest {
     }
 
     @Test
-    void testUpdate() {
+    void update_replacesInitItemAndAppendsNew() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b"), item("3", "c")));
 
         // 用新对象替换 id=2（只要求 id() 命中，label 随意）
@@ -134,14 +139,14 @@ class TrackedListTest {
     }
 
     @Test
-    void update_withNonExistingId_throws() {
+    void update_nonExistingId_throwsIllegalArgumentException() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a")));
         assertThatThrownBy(() -> list.update(item("99", "ghost"), item("99", "nobody")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void testClearAndAppend() {
+    void clearAndAppend_movesInitToRemoveAndAppendsNew() {
         TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
 
         list.clearAndAppend(items(item("3", "x"), item("4", "y")));
@@ -149,5 +154,109 @@ class TrackedListTest {
         assertThat(list.getRemovedItems()).hasSize(2);
         assertThat(list.getAllItems()).hasSize(2); // 仅含 append 项
         assertThat(list.getAppendedItems()).hasSize(2);
+    }
+
+    // ===== 读 API =====
+
+    @Test
+    void getInitItems_returnsBaselineSnapshot() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+
+        assertThat(list.getInitItems()).extracting(i -> i.id).containsExactly("1", "2");
+    }
+
+    @Test
+    void append_batchAddsAllToAppend() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a")));
+
+        list.append(items(item("2", "b"), item("3", "c")));
+
+        assertThat(list.getAppendedItems()).hasSize(2);
+        assertThat(list.getAppendedItems()).extracting(i -> i.id).containsExactly("2", "3");
+    }
+
+    // ===== 不可变契约 =====
+
+    @Test
+    void getAppendedItems_isImmutable() {
+        TrackedList<TestItem, String> list = new TrackedList<>();
+        list.append(item("1", "a"));
+        assertThatThrownBy(() -> list.getAppendedItems().add(item("2", "b")))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void getRemovedItems_isImmutable() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a")));
+        list.removeAll();
+        assertThatThrownBy(() -> list.getRemovedItems().add(item("1", "a")))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void getAllItems_isImmutable() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a")));
+        assertThatThrownBy(() -> list.getAllItems().add(item("2", "b")))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void getAllItems_preservesInitThenAppendOrder() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+        list.append(item("4", "d"));
+
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "2", "3", "4");
+    }
+
+    // ===== removeItems 分支 =====
+
+    @Test
+    void removeItems_onlyInAppend_dropsWithoutRemove() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
+        list.append(item("9", "extra")); // 仅 append，不在 init
+
+        List<TestItem> removed = list.removeItems(i -> i.id().equals("9"));
+
+        assertThat(removed).hasSize(1);
+        assertThat(list.getRemovedItems()).isEmpty();
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "2");
+    }
+
+    @Test
+    void removeItems_onlyInInit_movesToRemove() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+
+        List<TestItem> removed = list.removeItems(i -> i.id().equals("1"));
+
+        assertThat(removed).hasSize(1);
+        assertThat(list.getRemovedItems()).hasSize(1);
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("2", "3");
+    }
+
+    @Test
+    void removeItems_noMatch_returnsEmptyAndUnchanged() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+
+        List<TestItem> removed = list.removeItems(i -> false);
+
+        assertThat(removed).isEmpty();
+        assertThat(list.getRemovedItems()).isEmpty();
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "2", "3");
+    }
+
+    @Test
+    void update_thenAppendSameId_staysInAppend() {
+        TrackedList<TestItem, String> list = new TrackedList<>(items(item("1", "a"), item("2", "b"), item("3", "c")));
+
+        list.update(item("2", "whatever"), item("2", "b2"));
+        list.append(item("2", "b3")); // update 后再 append 同 id
+
+        assertThat(list.getRemovedItems()).hasSize(1);
+        assertThat(list.getAppendedItems()).hasSize(2);
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "3", "2", "2");
     }
 }
