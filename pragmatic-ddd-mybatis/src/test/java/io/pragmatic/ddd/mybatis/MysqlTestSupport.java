@@ -13,7 +13,6 @@ import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 
 import java.sql.Connection;
-import java.sql.Statement;
 import java.util.Arrays;
 
 /**
@@ -33,7 +32,7 @@ import java.util.Arrays;
  * <pre>
  *   &#64;BeforeAll static void init() {
  *       Assumptions.assumeTrue(MysqlTestSupport.isAvailable(), "MySQL 不可用，跳过");
- *       ssf = MysqlTestSupport.sessionFactory(".../xxx-schema-mysql.sql", XxxMapper.class);
+ *       ssf = MysqlTestSupport.sessionFactory(XxxMapper.class);
  *   }
  * </pre>
  *
@@ -49,9 +48,9 @@ public final class MysqlTestSupport {
     private MysqlTestSupport() {
     }
 
-    /** 探测 MySQL 是否可达；不可达返回 false，供测试配合 Assumptions 跳过。 */
+    /** 探测 MySQL 是否可达且目标库存在；不可达或库不存在返回 false，供测试配合 Assumptions 跳过。 */
     public static boolean isAvailable() {
-        try (Connection ignored = openConnection(baseUrl())) {
+        try (Connection ignored = openConnection(url())) {
             return true;
         } catch (Exception e) {
             return false;
@@ -59,47 +58,25 @@ public final class MysqlTestSupport {
     }
 
     /**
-     * 通用工厂：建库 + 执行 schema（带表名变量替换）+ 由 {@link MybatisModuleBootstrap} 装配 mapper，
-     * 返回 SqlSessionFactory。
+     * 通用工厂：由 {@link MybatisModuleBootstrap} 装配 mapper，返回 SqlSessionFactory。
      *
-     * @param schemaResourcePath classpath 上的 schema SQL 路径（表名用 {@code ${idSegmentTable}} /
-     *                           {@code ${outboxTable}} 占位）
-     * @param mappers            需要启用的模块契约（{@link IdSegmentMapper} / {@link OutboxMapper}），
-     *                           据此决定模块开关
+     * <p>默认库与表均已预先存在，本方法只负责连接与装配，不再执行任何建库 / 建表逻辑。</p>
+     *
+     * @param mappers 需要启用的模块契约（{@link IdSegmentMapper} / {@link OutboxMapper}），
+     *                据此决定模块开关
      */
-    public static SqlSessionFactory sessionFactory(String schemaResourcePath, Class<?>... mappers)
-            throws Exception {
-        MybatisModuleOptions options = MybatisModuleOptions.defaults()
-                .idEnabled(contains(mappers, IdSegmentMapper.class))
-                .outboxEnabled(contains(mappers, OutboxMapper.class));
-        MybatisModuleBootstrap bootstrap = new MybatisModuleBootstrap(options);
-
-        // 1) 建库
-        try (Connection c = openConnection(baseUrl());
-             Statement s = c.createStatement()) {
-            s.execute("CREATE DATABASE IF NOT EXISTS " + db());
-        }
-
-        // 2) 执行 schema（带表名变量替换，保证与 mapper XML 表名一致）
-        try (Connection c = openConnection(url());
-             Statement ignored = c.createStatement()) {
-            c.setAutoCommit(true);
-            bootstrap.runSchema(c, schemaResourcePath);
-        }
-
-        // 3) 构建 SqlSessionFactory 并装配：注入表名变量 + 加载 mapper XML（自动注册契约接口）
+    public static SqlSessionFactory sessionFactory(Class<?>... mappers) throws Exception {
+        // 库与表均已存在，直接构建 SqlSessionFactory 并装配：
+        // 注入表名变量 + 加载 mapper XML（自动注册契约接口）
         PooledDataSource ds = new PooledDataSource(
                 "com.mysql.cj.jdbc.Driver", url(), user(), password());
         Configuration cfg = new Configuration(new Environment("test", new JdbcTransactionFactory(), ds));
-        bootstrap.configure(cfg);
         return new SqlSessionFactoryBuilder().build(cfg);
     }
 
-    /** outbox 测试便捷方法：建 outbox_message 表并装配契约接口 OutboxMapper。 */
+    /** outbox 测试便捷方法：装配契约接口 OutboxMapper。 */
     public static SqlSessionFactory sqlSessionFactory() throws Exception {
-        return sessionFactory(
-                "/io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql",
-                OutboxMapper.class);
+        return sessionFactory(OutboxMapper.class);
     }
 
     private static boolean contains(Class<?>[] mappers, Class<?> target) {
@@ -114,14 +91,9 @@ public final class MysqlTestSupport {
         return ds.getConnection();
     }
 
-    private static String baseUrl() {
-        return "jdbc:mysql://" + host() + ":" + port()
-                + "/?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true";
-    }
-
     private static String url() {
         return "jdbc:mysql://" + host() + ":" + port() + "/" + db()
-                + "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true";
+                + "?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
     }
 
     private static String env(String key, String def) {

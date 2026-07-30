@@ -4,9 +4,8 @@
 <!--
   OutboxMapper 契约接口的 SQL 实现。
   namespace 必须等于被注册的契约接口全限定名，MyBatis 才能将 XML 中的语句绑定到该接口。
-  表名 outbox_message 通过 ${outboxTable} 占位符注入（由 MybatisModuleBootstrap 统一设置，
-  schema 建表脚本使用同一占位符），引用方已有同名业务表时改配置即可，无需改动本文件。
-  本文件即“当前数据库实现（MySQL）”，未来要支持其他数据库，只需提供同名
+  表名 outbox_message 写死于本文件（默认用法零配置，引用方无需关心任何变量）。
+  本文件即“当前数据库实现（MySQL）”，未来要支持其他数据库或自定义表名，只需提供同名
  （namespace 同为 io.pragmatic.ddd.mybatis.outbox.OutboxMapper）的 XML 替换即可，
   MybatisOutboxStore 等使用方代码无需任何改动。
 -->
@@ -29,7 +28,7 @@
     </resultMap>
 
     <insert id="insertBatch" parameterType="map">
-        INSERT INTO ${outboxTable}
+        INSERT INTO outbox_message
             (id,
              aggregate_id,
              aggregate_type,
@@ -62,15 +61,15 @@
     </insert>
 
     <select id="selectById" resultMap="OutboxMessageResult">
-        SELECT * FROM ${outboxTable} WHERE id = #{id}
+        SELECT * FROM outbox_message WHERE id = #{id}
     </select>
 
     <select id="selectAttempts" resultType="int">
-        SELECT attempts FROM ${outboxTable} WHERE id = #{id}
+        SELECT attempts FROM outbox_message WHERE id = #{id}
     </select>
 
     <update id="claim">
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET status = 'PROCESSING',
             claimed_at = #{claimedAt}
         WHERE id = #{id}
@@ -78,31 +77,31 @@
     </update>
 
     <select id="selectByClaimToken" resultMap="OutboxMessageResult" parameterType="map">
-        SELECT * FROM ${outboxTable} WHERE claim_token = #{token}
+        SELECT * FROM outbox_message WHERE claim_token = #{token}
     </select>
 
     <update id="markSent">
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET status = 'SENT',
             sent_at = CURRENT_TIMESTAMP
         WHERE id = #{id} AND status IN ('PENDING', 'PROCESSING')
     </update>
 
     <update id="release">
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET status = 'PENDING',
             claimed_at = NULL
         WHERE id = #{id} AND status = 'PROCESSING'
     </update>
 
     <update id="incrementAttempts">
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET attempts = attempts + 1
         WHERE id = #{id} AND status NOT IN ('SENT', 'FAILED')
     </update>
 
     <update id="markFailed">
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET status = 'FAILED'
         WHERE id = #{id} AND status != 'SENT'
     </update>
@@ -115,7 +114,7 @@
     -->
     <update id="claimPending" parameterType="map">
         <![CDATA[
-        UPDATE ${outboxTable}
+        UPDATE outbox_message
         SET status = 'PROCESSING', claimed_at = CURRENT_TIMESTAMP, claim_token = #{token}
         WHERE status = 'PENDING' AND created_at < #{cutoff}
         ORDER BY created_at ASC

@@ -38,6 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - `IApplication` and `BaseApplication` — deprecated, will be replaced in future version
 
+### MyBatis module — table-name strategy changed (breaking)
+- **Breaking**: Removed `MybatisModuleOptions.idSegmentTable(...)` / `outboxTable(...)` and
+  `MybatisModuleOptions.variables()`; the `${idSegmentTable}` / `${outboxTable}` placeholders are gone.
+- Default table names (`id_segment` / `outbox_message`) are now hard-coded directly in the built-in
+  `IdSegmentMapper.xml` / `OutboxMapper.xml`, so the default usage is **zero-config** (no `<properties>`
+  or variable injection needed).
+- Custom table names / databases now use the existing "write a same-namespace XML" mechanism via
+  `MybatisModuleOptions.idSegmentXml(...)` / `outboxXml(...)` (or Spring `<mappers>`), instead of a
+  one-line config. Framework schema SQL files (`*-schema-mysql.sql`) now also hard-code the table names
+  and serve purely as reference DDL.
+- **Migration**: if you previously used
+  `MybatisModuleOptions.defaults().idSegmentTable("x").outboxTable("y")`, replace it with a copy of
+  `IdSegmentMapper.xml` / `OutboxMapper.xml` whose namespace stays the same but table name is written
+  as your `x` / `y`, then point `idSegmentXml(...)` / `outboxXml(...)` at those files.
+
 ---
 
 For changes prior to v2.0.0, see the [easy-domain releases](https://github.com/lixiaojing/easy-domain/releases).

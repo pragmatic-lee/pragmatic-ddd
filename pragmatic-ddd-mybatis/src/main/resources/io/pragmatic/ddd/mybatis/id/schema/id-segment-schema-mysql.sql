@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS ${idSegmentTable} (
+CREATE TABLE IF NOT EXISTS id_segment (
     biz_key         VARCHAR(64)   NOT NULL,
     current_max_id  BIGINT        NOT NULL,
     step            INT           NOT NULL,

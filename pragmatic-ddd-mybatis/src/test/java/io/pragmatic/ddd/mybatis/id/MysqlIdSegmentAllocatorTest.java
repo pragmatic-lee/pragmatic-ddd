@@ -27,16 +27,13 @@ import java.util.concurrent.Executors;
  */
 class MysqlIdSegmentAllocatorTest {
 
-    private static final String SCHEMA_SQL =
-            "/io/pragmatic/ddd/mybatis/id/schema/id-segment-schema-mysql.sql";
-
     private static SqlSessionFactory sqlSessionFactory;
 
     @BeforeAll
     static void beforeAll() {
         Assumptions.assumeTrue(MysqlTestSupport.isAvailable(), "MySQL 不可用，跳过集成测试");
         try {
-            sqlSessionFactory = MysqlTestSupport.sessionFactory(SCHEMA_SQL, IdSegmentMapper.class);
+            sqlSessionFactory = MysqlTestSupport.sessionFactory(IdSegmentMapper.class);
         } catch (Exception e) {
             throw new IllegalStateException("构建 SqlSessionFactory 失败", e);
         }
