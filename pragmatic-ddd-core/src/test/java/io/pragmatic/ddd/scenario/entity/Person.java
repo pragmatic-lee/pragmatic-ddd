@@ -2,8 +2,7 @@ package io.pragmatic.ddd.scenario.entity;
 
 import io.pragmatic.ddd.base.*;
 import io.pragmatic.ddd.operation.OperationRegistry;
-import io.pragmatic.ddd.operation.PersonOperations;
-import io.pragmatic.ddd.scenario.boxvalueobject.PersonCopyData;
+import io.pragmatic.ddd.scenario.PersonOperations;
 import io.pragmatic.ddd.scenario.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.scenario.boxvalueobject.PersonUpdateData;
 import io.pragmatic.ddd.scenario.entity.enums.Status;

@@ -2,7 +2,6 @@ package io.pragmatic.ddd.visual;
 
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.operation.MockEntityOperations;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.visual.entity.EntityActionVisual;
 import io.pragmatic.ddd.visual.entity.EntityVisual;

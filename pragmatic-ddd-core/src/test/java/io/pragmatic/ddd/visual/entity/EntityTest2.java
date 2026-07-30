@@ -1,7 +1,6 @@
 package io.pragmatic.ddd.visual.entity;
 
 import io.pragmatic.ddd.base.*;
-import io.pragmatic.ddd.operation.EntityTest2Operations;
 import io.pragmatic.ddd.operation.OperationRegistry;
 
 public class EntityTest2 extends AggregateRoot<Long> {

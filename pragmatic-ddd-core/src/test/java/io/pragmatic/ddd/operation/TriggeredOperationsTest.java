@@ -4,58 +4,84 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * TriggeredOperations 已触发操作收集器测试。
+ *
+ * @author wizard-lee
+ */
 class TriggeredOperationsTest {
 
     private TriggeredOperations triggeredOperations;
 
     @BeforeEach
     void init() {
-        triggeredOperations = new TriggeredOperations(new TestOperations());
+        triggeredOperations = new TriggeredOperations(new SampleRegistry());
     }
 
     @Test
-    void testContainsAll() {
-        triggeredOperations.clear();
-        triggeredOperations.put(TestOperations.actionA);
-        boolean result = triggeredOperations.containsAll(TestOperations.actionA);
-        assertThat(result).isTrue();
+    void put_registeredOperation_thenContains() {
+        triggeredOperations.put(SampleRegistry.A);
+
+        assertThat(triggeredOperations.contains(SampleRegistry.A)).isTrue();
+        assertThat(triggeredOperations.contains(SampleRegistry.B)).isFalse();
     }
 
     @Test
-    void testContainsAny() {
-        triggeredOperations.clear();
-        triggeredOperations.put(TestOperations.actionA);
-        triggeredOperations.put(TestOperations.actionB);
+    void put_unregisteredOperation_throwsOperationException() {
+        EntityOperation unregistered = EntityOperation.of("UNREGISTERED");
 
-        boolean result = triggeredOperations.containsAny(TestOperations.actionA);
-        assertThat(result).isTrue();
-        boolean resultFalse = triggeredOperations.containsAny(TestOperations.actionC);
-        assertThat(resultFalse).isFalse();
+        assertThatThrownBy(() -> triggeredOperations.put(unregistered))
+                .isInstanceOf(OperationException.class)
+                .hasMessageContaining("UNREGISTERED");
     }
 
     @Test
-    void testContains() {
-        triggeredOperations.clear();
-        triggeredOperations.put(TestOperations.actionA);
+    void put_builtinNewAndDelete_thenContains() {
+        triggeredOperations.put(OperationRegistry.NEW);
+        triggeredOperations.put(OperationRegistry.DELETE);
 
-        boolean result = triggeredOperations.contains(TestOperations.actionA);
-        assertThat(result).isTrue();
+        assertThat(triggeredOperations.containsAll(OperationRegistry.NEW, OperationRegistry.DELETE)).isTrue();
     }
 
     @Test
-    void testNotContains() {
-        triggeredOperations.clear();
-        triggeredOperations.put(TestOperations.actionA);
-        boolean result = !triggeredOperations.contains(TestOperations.actionB);
-        assertThat(result).isTrue();
+    void containsAll_allTriggered_returnsTrue() {
+        triggeredOperations.put(SampleRegistry.A);
+        triggeredOperations.put(SampleRegistry.B);
+
+        assertThat(triggeredOperations.containsAll(SampleRegistry.A, SampleRegistry.B)).isTrue();
     }
-}
 
-class TestOperations extends OperationRegistry {
+    @Test
+    void containsAll_partialTriggered_returnsFalse() {
+        triggeredOperations.put(SampleRegistry.A);
 
-    public static final EntityOperation actionA = EntityOperation.of("actionA");
-    public static final EntityOperation actionB = EntityOperation.of("actionB");
-    public static final EntityOperation actionC = EntityOperation.of("actionC");
+        assertThat(triggeredOperations.containsAll(SampleRegistry.A, SampleRegistry.B)).isFalse();
+    }
 
+    @Test
+    void containsAny_anyTriggered_returnsTrue() {
+        triggeredOperations.put(SampleRegistry.A);
+
+        assertThat(triggeredOperations.containsAny(SampleRegistry.A, SampleRegistry.C)).isTrue();
+    }
+
+    @Test
+    void containsAny_noneTriggered_returnsFalse() {
+        triggeredOperations.put(SampleRegistry.A);
+
+        assertThat(triggeredOperations.containsAny(SampleRegistry.B, SampleRegistry.C)).isFalse();
+    }
+
+    @Test
+    void clear_thenNothingContained() {
+        triggeredOperations.put(SampleRegistry.A);
+        triggeredOperations.put(SampleRegistry.B);
+
+        triggeredOperations.clear();
+
+        assertThat(triggeredOperations.contains(SampleRegistry.A)).isFalse();
+        assertThat(triggeredOperations.contains(SampleRegistry.B)).isFalse();
+    }
 }

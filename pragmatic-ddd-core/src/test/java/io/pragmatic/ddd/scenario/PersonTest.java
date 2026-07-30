@@ -1,6 +1,5 @@
 package io.pragmatic.ddd.scenario;
 
-import io.pragmatic.ddd.operation.PersonOperations;
 import io.pragmatic.ddd.scenario.boxvalueobject.PersonInitData;
 import io.pragmatic.ddd.scenario.boxvalueobject.PersonUpdateData;
 import io.pragmatic.ddd.scenario.entity.Person;
@@ -52,7 +51,7 @@ public class PersonTest {
 
 
         assert validate1;
-        assert person.hasOperation(PersonOperations.UPDATE);
+        assert person.hasOperation(PersonOperations.UPDATE_STATUS);
 
     }
 
