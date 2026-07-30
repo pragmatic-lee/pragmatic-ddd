@@ -6,14 +6,9 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * Outbox 一条待发事件。
+ * Outbox 一条待发事件，含状态、重试次数、时间戳等可观测字段。
  *
- * <p>MVP 单库单表，必用字段：{@code id / aggregateId / eventType / payload / status / attempts / createdAt}；
- * {@code aggregateType / entityId / claimedAt / sentAt / lastError} 为可观测/排障预留；
- * {@code queue} 为后续并行队列扩展位（MVP 恒为 0）。</p>
- *
- * @author Li XiaoJing
- * @since 2.2.0
+ * @author wizard-lee
  */
 @Getter
 @Setter

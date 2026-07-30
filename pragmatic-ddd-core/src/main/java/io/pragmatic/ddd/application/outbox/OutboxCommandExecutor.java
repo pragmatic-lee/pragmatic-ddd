@@ -15,16 +15,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 新增<b>可选</b>命令执行器，与现有 {@code CommandExecutor} 并存，不替换后者。
+ * 可选命令执行器：同事务落聚合 + outbox（PENDING），提交后异步触发 EagerOutboxPublisher 推送，
+ * 失败时由 OutboxRelay 兜底；与默认 CommandExecutor 并存，零侵入。
  *
- * <p>继承 {@link AbstractCommandExecutor}，仅实现 {@link #persistAndDispatch} 钩子：
- * ① 同事务落聚合 + outbox（PENDING）；② 事务提交后异步触发
- * {@link EagerOutboxPublisher} 主动推送；推送失败/未执行时由 {@link OutboxRelay} 兜底。</p>
- *
- * <p>未启用 outbox 的应用服务仍使用原 {@code CommandExecutor}（save 后直接 publish），本类零侵入。</p>
- *
- * @author Li XiaoJing
- * @since 2.2.0
+ * @author wizard-lee
  */
 public class OutboxCommandExecutor extends AbstractCommandExecutor implements ICommandExecutor {
 
@@ -43,14 +37,7 @@ public class OutboxCommandExecutor extends AbstractCommandExecutor implements IC
         this.eagerPublisher = eagerPublisher;
     }
 
-    /**
-     * 同事务落库（聚合 + outbox PENDING）→ 提交后触发主动推送。
-     *
-     * @param aggregateRoot 已执行领域逻辑、已通过规则校验的聚合根
-     * @param repository    对应仓储
-     * @param <ID>          聚合根标识类型
-     * @param <T>           聚合根类型
-     */
+    /** 同事务落库（聚合 + outbox PENDING）→ 提交后触发主动推送。 */
     @Override
     protected <ID, T extends AggregateRoot<ID>> void persistAndDispatch(
             T aggregateRoot, IRepository<ID, T> repository) {

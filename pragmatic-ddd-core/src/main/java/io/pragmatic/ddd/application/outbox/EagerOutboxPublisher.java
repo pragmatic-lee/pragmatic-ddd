@@ -7,14 +7,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
- * 提交后主动推送器（eager 路径）。
+ * 提交后主动推送器（eager 路径）：事务提交后异步发送原始事件，
+ * 成功标记 SENT，失败/崩溃则不标记，保持 PENDING 交由 Relay 补偿。
  *
- * <p><b>关键点：eager 不认领</b>。直接发原始事件 → 成功 {@code markSent(PENDING→SENT)}；
- * 失败/崩溃则不标记，保持 PENDING，交由 Relay 补偿。极小概率重复由消费侧
- * {@code IDomainEvent.getEventId()} 幂等兜底（at-least-once）。</p>
- *
- * @author Li XiaoJing
- * @since 2.2.0
+ * @author wizard-lee
  */
 public class EagerOutboxPublisher {
 
@@ -30,10 +26,7 @@ public class EagerOutboxPublisher {
         this.pool = pool;
     }
 
-    /**
-     * 事务提交后调用：异步发送每一条原始事件。
-     * 铁律：markSent 为独立短事务，MQ 发送在事务外。
-     */
+    /** 事务提交后调用：异步发送每一条原始事件（markSent 为独立短事务，MQ 发送在事务外）。 */
     public void publishAfterCommit(List<OutboxEntry> entries) {
         for (OutboxEntry entry : entries) {
             pool.submit(() -> {

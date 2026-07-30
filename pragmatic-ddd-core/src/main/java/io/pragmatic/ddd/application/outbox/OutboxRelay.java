@@ -10,15 +10,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 兜底轮询器（Relay 路径，MVP 单队列）。
+ * 兜底轮询器（Relay 路径）：认领超时 PENDING 记录补偿重发，失败释放并递增重试，超限转死信。
  *
- * <p>认领 {@code age > grace} 的 PENDING 记录补偿重发；发送成功标记 SENT，失败释放回 PENDING
- * 并递增 attempts，超过 maxAttempts 转 FAILED（死信）。</p>
- *
- * <p>全部字段 {@code final}（含 {@link OutboxRelayConfig}），构造后不可变、线程安全。</p>
- *
- * @author Li XiaoJing
- * @since 2.2.0
+ * @author wizard-lee
  */
 public class OutboxRelay {
 
@@ -28,15 +22,7 @@ public class OutboxRelay {
     private final ScheduledExecutorService scheduler;
     private final OutboxRelayConfig config;
 
-    /**
-     * 通过构造函数一次性注入协作者与运行配置（不可变，线程安全）。
-     *
-     * @param outboxStore outbox 存储
-     * @param eventManager 事件投递（复用现有）
-     * @param serializer   事件反序列化
-     * @param scheduler    轮询调度器
-     * @param config       兜底轮询运行配置（见 {@link OutboxRelayConfig}）
-     */
+    /** 通过构造函数一次性注入协作者与运行配置（不可变，线程安全）。 */
     public OutboxRelay(IOutboxStore outboxStore,
                        IEventManager eventManager,
                        IEventSerializer serializer,

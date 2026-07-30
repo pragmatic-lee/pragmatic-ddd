@@ -15,15 +15,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * 新增<b>可选</b>工作单元，与现有 {@link io.pragmatic.ddd.application.UnitOfWork} 并存，不替换后者。
+ * 可选工作单元：同一事务内逐条 save + 整批落 outbox（PENDING），提交后异步触发 EagerOutboxPublisher 推送，
+ * 失败时由 OutboxRelay 兜底；与默认 UnitOfWork 并存，零侵入。
  *
- * <p>流程：① 同一事务内逐条 save + 整批落 outbox（PENDING）；② 事务提交后异步触发
- * {@link EagerOutboxPublisher} 主动推送；推送失败/未执行时由 {@link OutboxRelay} 兜底。</p>
- *
- * <p>未启用 outbox 的应用服务仍使用原 {@code UnitOfWork}（save 后统一 publishList），本类零侵入。</p>
- *
- * @author Li XiaoJing
- * @since 2.5.0
+ * @author wizard-lee
  */
 public class OutboxUnitOfWork extends AbstractUnitOfWork {
 
@@ -43,6 +38,7 @@ public class OutboxUnitOfWork extends AbstractUnitOfWork {
         this.eagerPublisher = eagerPublisher;
     }
 
+    /** 钩子实现：同一事务内逐条 save + 整批落 outbox。 */
     @Override
     protected void persistAndCollect(List<UnitOfWorkEntry<?, ?>> entries,
                                      List<IDomainEvent> collected) {
@@ -58,13 +54,6 @@ public class OutboxUnitOfWork extends AbstractUnitOfWork {
         });
     }
 
-    /**
-     * 处理单个注册条目（同事务内）：领域逻辑 → 规则校验 → save → 配对 outbox → 收集 → 清空。
-     *
-     * <p>抽取为泛型方法是为了让 {@code entry} 的 {@code ?} 通配符在调用处被统一捕获为 {@code <ID, T>，
-     * 使 {@code domainLogic.accept} / {@code repository.save} 共享同一个 {@code T}，消除嵌套通配符重新捕获
-     * 导致的"不兼容的类型"错误。</p>
-     */
     private <ID, T extends AggregateRoot<ID>> List<OutboxEntry> persistEntry(
             UnitOfWorkEntry<ID, T> entry, List<IDomainEvent> collected) {
         // 1. 领域逻辑
@@ -85,6 +74,7 @@ public class OutboxUnitOfWork extends AbstractUnitOfWork {
         return aggEntries;
     }
 
+    /** 钩子实现：事务提交后触发主动推送。 */
     @Override
     protected void dispatchEvents(List<IDomainEvent> allEvents) {
         // ② 事务已提交 → 安全触发主动推送（post-commit，规避"提交前误发"）
