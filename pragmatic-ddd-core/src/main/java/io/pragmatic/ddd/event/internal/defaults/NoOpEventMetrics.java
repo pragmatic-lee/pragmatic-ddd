@@ -3,7 +3,9 @@ package io.pragmatic.ddd.event.internal.defaults;
 import io.pragmatic.ddd.event.spi.IEventMetrics;
 
 /**
- * 默认 NOP 实现，所有指标采集为空操作。
+ * 默认空实现指标采集器，所有方法均为空操作。
+ *
+ * @author wizard-lee
  */
 public class NoOpEventMetrics implements IEventMetrics {
 

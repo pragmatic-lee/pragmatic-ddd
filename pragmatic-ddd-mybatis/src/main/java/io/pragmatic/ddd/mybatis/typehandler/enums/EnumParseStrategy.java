@@ -5,7 +5,6 @@ import io.pragmatic.ddd.base.IEnumValue;
 /**
  * 枚举解析策略——集中化反序列化的统一抽象。
  * 所有枚举不再自带 parse，反查统一委托给具体策略实现。
- * 对应设计文档 Step 6（提案 §5.0.6(1)）。
  */
 public interface EnumParseStrategy {
     /** 由原始列值反查枚举常量；未命中抛 {@link IllegalArgumentException}。entry 为启动期预建的索引条目。 */

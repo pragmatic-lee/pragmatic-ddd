@@ -4,8 +4,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 多生成器注册中心：一个 bizKey → 一个独立 IIdGenerator 实例。
- * 这就是「不是一个全局生成器」的落地处——每个渠道各持一个实例，互不干扰。
+ * 多生成器注册中心：一个 bizKey 对应一个独立的 IIdGenerator 实例，各渠道互不干扰。
+ *
+ * @author wizard-lee
  */
 public class IdGeneratorRegistry {
 

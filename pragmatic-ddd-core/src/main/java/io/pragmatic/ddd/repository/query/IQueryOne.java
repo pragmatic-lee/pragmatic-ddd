@@ -5,6 +5,8 @@ package io.pragmatic.ddd.repository.query;
  *
  * @param <PROJECTION>     投影类型
  * @param <QUERY_CRITERIA> 查询条件类型
+ *
+ * @author wizard-lee
  */
 public interface IQueryOne<PROJECTION, QUERY_CRITERIA> {
 

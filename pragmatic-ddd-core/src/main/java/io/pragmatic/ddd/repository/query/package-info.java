@@ -5,5 +5,7 @@
  * {@code IQueryList}/{@code IQueryPage}/{@code IQueryScroll}）、便捷组合接口
  * {@link io.pragmatic.ddd.repository.query.IAggregateQuery}、投影标记
  * {@link io.pragmatic.ddd.repository.query.IAggregateProjection}，以及分页/滚动值对象。</p>
+ *
+ * @author wizard-lee
  */
 package io.pragmatic.ddd.repository.query;

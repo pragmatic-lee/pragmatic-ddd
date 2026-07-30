@@ -10,6 +10,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 事件投递任务：封装订阅者与事件，执行时调用订阅者处理事件，
+ * 失败时按配置的最大重试次数进行延时重试。
+ *
+ * @author wizard-lee
+ */
 class Task<T extends IDomainEvent> implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(Task.class);
@@ -23,6 +29,7 @@ class Task<T extends IDomainEvent> implements Runnable {
     private final int retryDelayTime;
     private final ITaskCallback callback;
 
+    /** 创建投递任务，绑定订阅者、事件、重试参数与两个线程池。 */
     public Task(IEventListener<T> subscriber, T domainEvent, int maxRetryTimes, int retryDelayTime,
                 ScheduledExecutorService delayScheduler, ExecutorService taskExecutor,
                 ITaskCallback callback) {

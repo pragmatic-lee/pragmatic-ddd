@@ -1,6 +1,10 @@
 package io.pragmatic.ddd.repository.reconciliation;
 
-/** 对账去重：避免同一 (target, aggregateId) 在窗口内被重复补救。 */
+/**
+ * 对账去重：避免同一 (target, aggregateId) 在窗口内被重复补救。
+ *
+ * @author wizard-lee
+ */
 public interface IReconcileDedup {
     /** 返回 true 表示 (target, aggregateId) 在窗口内已处理过、可跳过。 */
     boolean shouldSkip(ReconciliationTarget target, Object aggregateId);

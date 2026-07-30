@@ -1,15 +1,11 @@
 package io.pragmatic.ddd.base;
 
 /**
- * 规则接口 — 核心抽象。
- *
- * <p>任何可以对模型执行校验并通过/失败判定的对象都是 IRule。
- * 此接口位于 base 层，EntityRule 等在 rules 层实现该接口，
- * 使核心抽象（BrokenRuleObject）可以依赖本接口而无需反向依赖 rules 包。</p>
+ * 规则接口，核心抽象。
+ * 任何可对模型执行校验并判定通过/失败的契约；位于 base 层，供 rules 包实现，避免核心反向依赖。
  *
  * @param <T> 校验目标类型
- * @see io.pragmatic.ddd.rules.EntityRule
- * @since 2.1.0
+ * @author wizard-lee
  */
 public interface IRule<T> {
 

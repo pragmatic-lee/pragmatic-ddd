@@ -1,8 +1,9 @@
 package io.pragmatic.ddd.event.spi;
 
 /**
- * 事件监控 SPI。
- * 通用接口，不绑定具体 MQ 类型，所有 MQ 实现（RocketMQ、Kafka、RabbitMQ 等）共用。
+ * 事件监控 SPI，通用接口，不绑定具体 MQ 类型。
+ *
+ * @author wizard-lee
  */
 public interface IEventMetrics {
 

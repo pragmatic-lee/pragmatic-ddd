@@ -7,13 +7,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 业务规则消息注册表基类（对齐 io.pragmatic.ddd.operation.OperationRegistry）。
- * 构造时反射扫描"本子类"声明的 static MessageCode 字段并自动注册，
- * 子类只需声明常量，无需 populateMessage() / register() 模板方法。
+ * 业务规则消息注册表基类。
+ * 构造时反射扫描子类声明的 static MessageCode 字段并自动注册，子类只需声明常量即可。
+ *
+ * @author wizard-lee
  */
 public abstract class BrokenRuleRegistry {
 
-    /** 对齐 OperationRegistry.operationMap：以局部码 code 为 key、MessageCode 为 value */
+    /** 以局部码 code 为 key、MessageCode 为 value 的规则映射表。 */
     private final Map<String, MessageCode> brokenRuleMap = new HashMap<>();
 
     public BrokenRuleRegistry() {
@@ -30,44 +31,37 @@ public abstract class BrokenRuleRegistry {
         }
     }
 
-    /**
-     * 将一组 MessageCode 注册到规则映射表，以局部码 code() 为 key。
-     * protected final，与 OperationRegistry.register(...) 同款。
-     */
+    /** 将一组 MessageCode 以局部码 code() 为 key 注册到规则映射表。 */
     protected final void register(MessageCode... codes) {
         for (MessageCode c : codes) {
             this.brokenRuleMap.put(c.code(), c);
         }
     }
 
-    /**
-     * 返回已注册的规则映射表（只读视图），对齐 OperationRegistry.operations()。
-     *
-     * @return 编码到 MessageCode 的可读映射，key 为局部码，value 为对应的 {@link MessageCode}
-     */
+    /** 返回已注册的规则映射表（只读视图）。 */
     Map<String, MessageCode> brokenRules() {
         return Collections.unmodifiableMap(this.brokenRuleMap);
     }
 
-    /**
-     * 内联便利工厂（极简场景：不想单独建消息类时）。
-     * 仍各自独立 INSTANCE，按实体隔离；主路径仍是"实体消息类 extends BrokenRuleRegistry + INSTANCE"。
-     */
+    /** 内联便利工厂：以一组 MessageCode 直接构建注册表实例。 */
     public static BrokenRuleRegistry of(MessageCode... codes) {
         return new BrokenRuleRegistry() {{
             register(codes);
         }};
     }
 
+    /** 按局部码返回规则描述，未注册时返回空串。 */
     public String getRuleDescription(String key) {
         MessageCode code = this.brokenRuleMap.get(key);
         return code != null ? code.description() : "";
     }
 
+    /** 按局部码构造规则违反异常。 */
     public BrokenRuleException createException(String key) {
         return new BrokenRuleException(key, getRuleDescription(key));
     }
 
+    /** 按局部码构造支持参数格式化的规则违反异常。 */
     public BrokenRuleException createExceptionWithParam(String key, Object... params) {
         return new BrokenRuleException(key, String.format(getRuleDescription(key), params));
     }

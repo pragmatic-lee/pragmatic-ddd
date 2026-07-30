@@ -5,16 +5,9 @@ import io.pragmatic.ddd.event.IDomainEvent;
 import java.util.Set;
 
 /**
- * Topic 解析器。
+ * Topic 解析器，负责获取全量 Topic 列表与按事件/订阅者解析目标 Topic。
  *
- * <p>承担两个职责：
- * <ol>
- *   <li>获取全量 Topic 列表——用于初始化 MQ Producer/Consumer 实例</li>
- *   <li>解析目标 Topic——根据事件或订阅者信息确定消息应发送的目标 topic</li>
- * </ol>
- *
- * <p>所有映射关系在应用启动前完成静态配置。
- * {@link #getAllTopics()} 保证返回准确、完整的全量 topic 列表。
+ * @author wizard-lee
  */
 public interface ITopicResolver {
 

@@ -1,8 +1,9 @@
 package io.pragmatic.ddd.base;
 
 /**
- * 用于标识数据容器对象
- * @author lixiaojing10
+ * 参数对象标记接口，用于标识数据容器对象。
+ *
+ * @author wizard-lee
  */
 public interface IParamObject {
 }

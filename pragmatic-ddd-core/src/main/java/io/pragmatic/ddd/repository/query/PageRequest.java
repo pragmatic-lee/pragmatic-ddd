@@ -2,6 +2,8 @@ package io.pragmatic.ddd.repository.query;
 
 /**
  * 分页请求（不可变值对象）。页码从 1 开始；页大小限定在 [1, 200]。
+ *
+ * @author wizard-lee
  */
 public final class PageRequest {
 

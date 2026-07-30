@@ -7,6 +7,8 @@ import java.util.HashMap;
  * 实体已触发操作收集器（对应设计文档 3.2：替代原 {@code action.EntityActionCollector}）。
  * <p>负责收集并校验实体在一次工作单元内已触发的 {@link EntityOperation}，
  * 构造参数与内部引用基于 {@link OperationRegistry} / {@link EntityOperation}。</p>
+ *
+ * @author wizard-lee
  */
 public class TriggeredOperations {
 
@@ -17,6 +19,7 @@ public class TriggeredOperations {
         this.operationRegistry = operationRegistry;
     }
 
+    /** 放入已触发操作；若不在注册表中则抛异常。 */
     public void put(EntityOperation operation) {
         if (!this.operationRegistry.operations().containsKey(operation.code())) {
             throw new OperationException("operation not found in OperationRegistry: " + operation.code());
@@ -46,6 +49,7 @@ public class TriggeredOperations {
         return triggeredMap.containsKey(operation.code());
     }
 
+    /** 清空已收集的操作。 */
     public void clear() {
         this.triggeredMap.clear();
     }

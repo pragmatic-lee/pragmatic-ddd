@@ -11,6 +11,8 @@ import java.util.Map;
  * <p>构造时先注册内置 {@link #NEW} / {@link #DELETE}，再反射扫描子类声明的
  * {@code static EntityOperation} 字段并自动注册，子类只需声明常量，
  * 无需 {@code registerActions()} / {@code register()} 模板方法。</p>
+ *
+ * @author wizard-lee
  */
 public abstract class OperationRegistry {
 

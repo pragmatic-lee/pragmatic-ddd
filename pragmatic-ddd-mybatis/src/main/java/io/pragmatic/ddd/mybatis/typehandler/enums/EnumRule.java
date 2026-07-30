@@ -8,7 +8,6 @@ package io.pragmatic.ddd.mybatis.typehandler.enums;
  *   <li>{@link #CODE} —— 存业务 code（{@code IEnumValue.getValue()}）</li>
  *   <li>{@link #LABEL} —— 存展示名（{@code IEnumValue.getName()}）</li>
  * </ul>
- * 对应设计文档 Step 3（提案 §5.2）。
  */
 public enum EnumRule {
     NAME, ORDINAL, CODE, LABEL

@@ -1,8 +1,19 @@
 package io.pragmatic.ddd.event.internal.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 /**
- * @author lixiaojing
+ * MQ 消息投递数据载体，封装订阅者名、序列化事件体与投递元信息。
+ *
+ * @author wizard-lee
  */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class SubscribeData {
 
     private String name;
@@ -10,55 +21,4 @@ public class SubscribeData {
     private String realEventName;
     private Boolean onlyThis;
     private DeliveryPolicy deliveryPolicy;
-
-    public SubscribeData(String name, String eventData, String realEventName, Boolean onlyThis, DeliveryPolicy deliveryPolicy) {
-        this.name = name;
-        this.eventData = eventData;
-        this.realEventName = realEventName;
-        this.onlyThis = onlyThis;
-        this.deliveryPolicy = deliveryPolicy;
-    }
-
-    public SubscribeData() {
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getEventData() {
-        return eventData;
-    }
-
-    public void setEventData(String eventData) {
-        this.eventData = eventData;
-    }
-
-    public String getRealEventName() {
-        return realEventName;
-    }
-
-    public void setRealEventName(String realEventName) {
-        this.realEventName = realEventName;
-    }
-
-    public Boolean getOnlyThis() {
-        return onlyThis;
-    }
-
-    public void setOnlyThis(Boolean onlyThis) {
-        this.onlyThis = onlyThis;
-    }
-
-    public DeliveryPolicy getDeliveryPolicy() {
-        return deliveryPolicy;
-    }
-
-    public void setDeliveryPolicy(DeliveryPolicy deliveryPolicy) {
-        this.deliveryPolicy = deliveryPolicy;
-    }
 }

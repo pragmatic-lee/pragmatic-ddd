@@ -7,6 +7,11 @@ import org.apache.commons.lang3.SystemUtils;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 实体可视化 Markdown 输出 —— 将实体描述符列表渲染为 Mermaid classDiagram。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownEntityVisualOutput implements IEntityVisualOutput {
 
     private static final String START = "```mermaid" + SystemUtils.LINE_SEPARATOR;
@@ -15,6 +20,7 @@ public class MarkdownEntityVisualOutput implements IEntityVisualOutput {
 
     private static final String CLASS_MARK_STRING = "classDiagram" + SystemUtils.LINE_SEPARATOR;
 
+    /** 将实体描述符列表渲染为 Mermaid classDiagram 文本。 */
     @Override
     public String output(List<EntityDescriptor> entityDescriptorList) {
 

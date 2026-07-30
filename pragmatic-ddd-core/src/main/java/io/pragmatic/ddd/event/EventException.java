@@ -9,7 +9,7 @@ import io.pragmatic.ddd.base.PragmaticException;
  *
  * @see PublishEventException
  * @see RegisterDomainEventException
- * @author lixiaojing10
+ * @author wizard-lee
  */
 public abstract class EventException extends PragmaticException {
 

@@ -20,6 +20,8 @@ package io.pragmatic.ddd.repository.query;
  * @param <ONE_QUERY>   queryOne 条件类型
  * @param <LIST_QUERY>  queryList 条件类型
  * @param <PAGE_QUERY>  queryPage / queryScroll 共享条件类型
+ *
+ * @author wizard-lee
  */
 public interface IAggregateQuery<ID, PROJECTION, ONE_QUERY, LIST_QUERY, PAGE_QUERY>
         extends IQueryById<ID, PROJECTION>,

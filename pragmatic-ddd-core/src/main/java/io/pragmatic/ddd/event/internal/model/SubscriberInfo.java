@@ -4,41 +4,48 @@ import io.pragmatic.ddd.event.spi.IExecuteCondition;
 import io.pragmatic.ddd.event.spi.ISubscriber;
 
 /**
- * 事件订阅对象
+ * 事件订阅对象，承载订阅者、别名、执行条件与投递策略。
  *
- * @author lixiaojing
+ * @author wizard-lee
  */
-public class SubscriberInfo {
+public record SubscriberInfo(ISubscriber subscriber, String alias, IExecuteCondition condition,
+                             DeliveryPolicy deliveryPolicy) {
 
-    private final ISubscriber subscriber;
-    private final String alias;
-    private final IExecuteCondition condition;
-    private final DeliveryPolicy deliveryPolicy;
-
-    public SubscriberInfo(ISubscriber subscriber, String alias,
-                          IExecuteCondition condition, DeliveryPolicy deliveryPolicy) {
-        this.subscriber = subscriber;
-        this.alias = alias;
-        this.condition = condition;
-        this.deliveryPolicy = deliveryPolicy;
-    }
-
-    public ISubscriber getSubscriber() {
+    /**
+     * 返回订阅者。
+     */
+    @Override
+    public ISubscriber subscriber() {
         return subscriber;
     }
 
-    public String getAlias() {
+    /**
+     * 返回别名。
+     */
+    @Override
+    public String alias() {
         return alias;
     }
 
-    public IExecuteCondition getCondition() {
+    /**
+     * 返回执行条件。
+     */
+    @Override
+    public IExecuteCondition condition() {
         return condition;
     }
 
-    public DeliveryPolicy getDeliveryPolicy() {
+    /**
+     * 返回投递策略。
+     */
+    @Override
+    public DeliveryPolicy deliveryPolicy() {
         return deliveryPolicy;
     }
 
+    /**
+     * 是否延时投递。
+     */
     public boolean isDelayed() {
         return deliveryPolicy == DeliveryPolicy.DELAYED;
     }

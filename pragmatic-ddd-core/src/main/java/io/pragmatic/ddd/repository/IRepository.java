@@ -2,10 +2,17 @@ package io.pragmatic.ddd.repository;
 
 import io.pragmatic.ddd.base.AggregateRoot;
 
+/**
+ * 聚合仓储契约（写模型持久化）。
+ *
+ * @author wizard-lee
+ */
 public interface IRepository<ID, T extends AggregateRoot<ID>> {
 
+    /** 插入聚合根。 */
     void insert(T aggregateRoot);
 
+    /** 更新聚合根。 */
     void update(T aggregateRoot);
 
     default void save(T aggregateRoot) {
@@ -16,6 +23,7 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
         }
     }
 
+    /** 按主键查询聚合根；未命中返回 null。 */
     T findById(ID id);
 
     /**

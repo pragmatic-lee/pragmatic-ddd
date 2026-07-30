@@ -19,6 +19,8 @@ import java.util.Optional;
  * 支持 failFast（遇第一条失败即停止）和全量校验两种模式。</p>
  *
  * @param <T> 被校验的模型类型，必须继承 AggregateRoot
+ *
+ * @author wizard-lee
  */
 public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>, IRuleBuild {
 
@@ -32,10 +34,12 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     private boolean oldEntityLoaded;
     private T validatingEntity;
 
+    /** 构造规则容器（默认 failFast=true）。 */
     public EntityRule() {
         this(true);
     }
 
+    /** 构造规则容器并指定是否 failFast（遇首条失败即停止）。 */
     public EntityRule(boolean failFast) {
         this.failFast = failFast;
         this.rules = new ArrayList<>();
@@ -79,10 +83,12 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== 查询 ==========
 
+    /** 返回全部规则项的副本。 */
     public List<RuleItem<T>> allRuleItems() {
         return new ArrayList<>(this.rules);
     }
 
+    /** 按消息码查找单条规则；未命中返回 null。 */
     public IRule<T> findRuleByMessageCode(MessageCode messageCode) {
         return rules.stream()
                 .filter(r -> r.getMessageCode().equals(messageCode))
@@ -91,6 +97,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
                 .orElse(null);
     }
 
+    /** 按多个消息码批量查找规则。 */
     public List<IRule<T>> findRulesByMessageCode(MessageCode... messageCodes) {
         List<IRule<T>> result = new ArrayList<>();
         for (MessageCode messageCode : messageCodes) {
@@ -104,14 +111,17 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== addRule ==========
 
+    /** 追加规则（使用默认激活条件）。 */
     public void addRule(IRule<T> rule, MessageCode messageCode) {
         this.addRule(rule, messageCode, this.defaultCondition);
     }
 
+    /** 追加规则并指定激活条件。 */
     public void addRule(IRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
         this.rules.add(new RuleItem<>(rule, messageCode, condition));
     }
 
+    /** 追加校验器规则（取其内部激活条件）。 */
     public void addRule(BaseRuleValidator<T> rule, MessageCode messageCode) {
         IActiveRuleCondition<T> condition =
                 Optional.ofNullable(rule.ruleCondition()).orElse(defaultCondition);
@@ -120,15 +130,18 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== addParamRule ==========
 
+    /** 追加参数规则并指定激活条件。 */
     public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode,
                              IActiveRuleCondition<T> condition) {
         this.rules.add(new RuleItem<>(paramRule, messageCode, condition));
     }
 
+    /** 追加参数规则（使用默认激活条件）。 */
     public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode) {
         this.addParamRule(paramRule, messageCode, this.defaultCondition);
     }
 
+    /** 追加参数规则构造器（取其内部激活条件）。 */
     public void addParamRule(IParamRuleBuilder<T> paramRule, MessageCode messageCode) {
         IActiveRuleCondition<T> condition =
                 Optional.ofNullable(paramRule.ruleCondition()).orElse(defaultCondition);
@@ -137,6 +150,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== appendRule ==========
 
+    /** 在参照规则指定位置插入规则。 */
     public void appendRule(IRule<T> rule,
                            MessageCode appendMessageCode,
                            MessageCode relativeMessageCode,
@@ -147,6 +161,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         this.appendRule(this.rules, tRuleItem, relativeMessageCode, position);
     }
 
+    /** 在参照规则指定位置插入参数规则。 */
     public void appendParamRule(IParamRule<T> rule,
                                     MessageCode appendMessageCode,
                                     MessageCode relativeMessageCode,
@@ -177,10 +192,12 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== replaceRule ==========
 
+    /** 替换规则的消息码（使用默认激活条件）。 */
     public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode, MessageCode newMessageCode) {
         this.replaceRule(rule, replaceMessageCode, newMessageCode, this.defaultCondition);
     }
 
+    /** 替换规则的消息码并指定激活条件。 */
     public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode,
                             MessageCode newMessageCode, IActiveRuleCondition<T> condition) {
         for (int i = 0; i < this.rules.size(); i++) {
@@ -191,6 +208,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         }
     }
 
+    /** 替换参数规则的消息码并指定激活条件。 */
     public void replaceParamRule(IParamRule<T> paramRule,
                                      MessageCode replaceMessageCode, MessageCode newMessageCode,
                                      IActiveRuleCondition<T> condition) {
@@ -202,6 +220,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         }
     }
 
+    /** 替换参数规则的消息码（使用默认激活条件）。 */
     public void replaceParamRule(IParamRule<T> paramRule,
                                      MessageCode replaceMessageCode, MessageCode newMessageCode) {
         this.replaceParamRule(paramRule, replaceMessageCode, newMessageCode, this.defaultCondition);
@@ -209,12 +228,14 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== removeRule ==========
 
+    /** 按消息码移除规则。 */
     public void removeRule(MessageCode messageCode) {
         this.rules.removeIf(r -> r.getMessageCode().equals(messageCode));
     }
 
     // ========== satisfiesRule ==========
 
+    /** 遍历全部规则对模型校验，支持 failFast 与参数化消息。 */
     @Override
     public boolean satisfiesRule(T model) {
         // 每次校验重置懒加载缓存
@@ -249,6 +270,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         return isValid;
     }
 
+    /** 清空规则并重新初始化。 */
     @Override
     public void reset() {
         this.rules.clear();

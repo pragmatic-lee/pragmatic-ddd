@@ -3,51 +3,27 @@ package io.pragmatic.ddd.rules;
 import java.lang.annotation.*;
 
 /**
- * Marks a method as a Business Rule within a domain entity or rule class.
+ * 标记领域实体或规则类中的方法为一条业务规则。
  *
- * <p>This annotation provides metadata about business rules that can be consumed
- * by AI coding assistants and the model visualization system. It helps document
- * the intent, error codes, and messages of each business rule.</p>
+ * <p>该注解承载业务规则的元信息，可被 AI 编码辅助与模型可视化系统消费，
+ * 用于记录每条规则的意图、错误码与消息。</p>
  *
- * <p>Usage:</p>
- * <pre>{@code
- * @BusinessRule(
- *     description = "订单总金额必须大于0",
- *     errorCode = "TOTAL_PRICE_ERROR",
- *     errorMessage = "订单总金额不能为0"
- * )
- * public boolean totalPriceValid(Order order) {
- *     return order.getTotalPrice().compareTo(BigDecimal.ZERO) > 0;
- * }
- * }</pre>
- *
- * @author Li XiaoJing
- * @since 2.0.0
+ * @author wizard-lee
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface BusinessRule {
 
-    /**
-     * A human-readable description of what this rule validates.
-     *
-     * @return the rule description
-     */
+    /** 规则校验内容的可读描述。 */
     String description() default "";
 
     /**
-     * The error code used when this rule is broken.
-     * <p>Corresponds to a key in the entity's {@code BrokenRuleRegistry} class.</p>
-     *
-     * @return the error code
+     * 规则被违反时使用的错误码。
+     * <p>对应实体 {@code BrokenRuleRegistry} 中的键。</p>
      */
     String errorCode() default "";
 
-    /**
-     * A human-readable error message shown when this rule is broken.
-     *
-     * @return the error message
-     */
+    /** 规则被违反时展示的可读错误消息。 */
     String errorMessage() default "";
 }

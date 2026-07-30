@@ -7,20 +7,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** 对账组件登记中心：汇聚各异构目标的 resolver / resyncer 与各聚合的 repository。 */
+/**
+ * 对账组件登记中心：汇聚各异构目标的 resolver / resyncer 与各聚合的 repository。
+ *
+ * @author wizard-lee
+ */
 public final class ReconciliationRegistry {
     private final Map<ReconciliationTarget, IReadModelVersionResolver<?>> resolvers = new ConcurrentHashMap<>();
     private final Map<ReconciliationTarget, IReadModelResynchronizer<?>> resyncers = new ConcurrentHashMap<>();
     private final Map<Class<?>, IRepository<?, ?>> repositories = new ConcurrentHashMap<>();
 
+    /** 登记某目标的版本解析器。 */
     public <ID> void registerResolver(ReconciliationTarget t, IReadModelVersionResolver<ID> r) {
         resolvers.put(t, r);
     }
 
+    /** 登记某目标的补同步器。 */
     public <ID> void registerResynchronizer(ReconciliationTarget t, IReadModelResynchronizer<ID> r) {
         resyncers.put(t, r);
     }
 
+    /** 登记聚合类型对应的仓储。 */
     public <ID, A extends AggregateRoot<ID>> void registerRepository(Class<A> type, IRepository<ID, A> repo) {
         repositories.put(type, repo);
     }
@@ -36,16 +43,19 @@ public final class ReconciliationRegistry {
         return result;
     }
 
+    /** 取目标对应的版本解析器。 */
     @SuppressWarnings("unchecked")
     public <ID> IReadModelVersionResolver<ID> resolverFor(ReconciliationTarget t) {
         return (IReadModelVersionResolver<ID>) resolvers.get(t);
     }
 
+    /** 取目标对应的补同步器。 */
     @SuppressWarnings("unchecked")
     public <ID> IReadModelResynchronizer<ID> resyncerFor(ReconciliationTarget t) {
         return (IReadModelResynchronizer<ID>) resyncers.get(t);
     }
 
+    /** 取聚合类型对应的仓储。 */
     @SuppressWarnings("unchecked")
     public <ID, A extends AggregateRoot<ID>> IRepository<ID, A> repositoryFor(Class<A> type) {
         return (IRepository<ID, A>) repositories.get(type);

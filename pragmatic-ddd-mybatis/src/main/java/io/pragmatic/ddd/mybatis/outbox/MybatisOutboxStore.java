@@ -13,27 +13,14 @@ import java.util.UUID;
 /**
  * {@link IOutboxStore} 的官方 MyBatis 实现（事件箱持久化）。
  *
- * <h2>铁律约束</h2>
  * <ul>
- *   <li><b>store 同事务</b>：{@link #store} 在<b>调用方事务</b>内执行（与聚合同事务落库）。
- *       本方法本身不开启任何事务，直接调用 {@link OutboxMapper#insertBatch}，依赖底层
- *       {@code SqlSession} 与聚合写在同一个 Spring 管理事务中。</li>
- *   <li><b>补偿操作独立短事务</b>：{@code claim / claimPending / markSent / release /
- *       incrementAttempts / markFailed} 各自包裹在注入的 {@link TransactionOperations} 内，
- *       作为<b>独立短事务</b>立即提交；在 Spring 场景该 {@code TransactionOperations} 由
- *       {@code TransactionTemplate(Propagation.REQUIRES_NEW)} 提供——<b>绝不</b>包裹 MQ 发送。</li>
- *   <li><b>markSent 幂等守卫</b>：{@code UPDATE ... SET status=SENT WHERE id=? AND status IN ('PENDING','PROCESSING')}，
- *       避免覆盖已被置为 {@code FAILED} / {@code SENT} 的行。</li>
+ *   <li><b>store 同事务</b>：{@link #store} 在调用方事务内执行，与聚合同事务落库，自身不开启事务。</li>
+ *   <li><b>补偿操作独立短事务</b>：claim / claimPending / markSent / release / incrementAttempts / markFailed
+ *       各自包裹在注入的 {@link TransactionOperations} 内作为独立短事务立即提交，绝不包裹 MQ 发送。</li>
+ *   <li><b>markSent 幂等守卫</b>：仅当状态为 PENDING 或 PROCESSING 时才置为 SENT，避免覆盖 FAILED/SENT 的行。</li>
  * </ul>
  *
- * <h2>与 markSent 铁律文本的差异说明</h2>
- * 提案 §7.1 文字写作 {@code WHERE status=PENDING}；但 {@link IOutboxStore} 接口 JavaDoc 与
- * {@code claimPending} 的 {@code PROCESSING} 翻转语义要求 markSent 也须接纳 {@code PROCESSING}。
- * 本实现以「<b>不覆盖 FAILED/SENT</b>」为唯一硬约束，故守卫写作
- * {@code IN ('PENDING','PROCESSING')}——既满足接口契约，又保留 PROCESSING→SENT 的合法路径。
- *
- * @author Li XiaoJing
- * @since 2.5.0
+ * @author wizard-lee
  */
 public class MybatisOutboxStore implements IOutboxStore {
 

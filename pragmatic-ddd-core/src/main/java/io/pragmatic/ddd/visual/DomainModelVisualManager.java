@@ -15,6 +15,11 @@ import io.pragmatic.ddd.visual.rule.RuleParser;
 import io.pragmatic.ddd.visual.service.DomainServiceParser;
 import io.pragmatic.ddd.visual.service.IDomainServiceFinder;
 
+/**
+ * 领域模型可视化管理器 —— 聚合各子包解析器，按实体类构建完整的可视化信息。
+ *
+ * @author wizard-lee
+ */
 public class DomainModelVisualManager {
 
     private final ApplicationServiceParser applicationServiceParser;
@@ -24,6 +29,7 @@ public class DomainModelVisualManager {
     private final DomainServiceParser domainServiceParser;
     private final EnumValueParser enumValueParser;
 
+    /** 构造管理器并初始化各子包解析器。 */
     public DomainModelVisualManager(IEventManager eventManager) {
         this.applicationServiceParser = new ApplicationServiceParser();
         this.entityParser = new EntityParser();
@@ -33,35 +39,42 @@ public class DomainModelVisualManager {
         this.enumValueParser = new EnumValueParser();
     }
 
+    /** 注册领域实体的字段查找器。 */
     public <T extends AbstractEntity<?>> void registerDomainEntity(Class<T> entityClass,
                                                                    IEntityFieldFinder finder) {
         this.entityParser.registerEntity(entityClass, finder);
     }
 
+    /** 注册枚举值查找器。 */
     public <T extends AbstractEntity<?>> void registerEnum(Class<T> entityClass, IEnumValueFinder finder) {
         this.enumValueParser.registerEnum(entityClass, finder);
     }
 
+    /** 注册应用服务查找器。 */
     public <T extends AbstractEntity<?>> void registerApplicationService(Class<T> entityClass,
                                                                          IApplicationServiceFinder finder) {
         this.applicationServiceParser.registerApplicationService(entityClass, finder);
     }
 
+    /** 注册领域事件查找器。 */
     public <T extends AbstractEntity<?>> void registerDomainEvent(Class<T> entityClass,
                                                                   IEventFinder finder) {
         this.eventParser.registerDomainEvent(entityClass, finder);
     }
 
+    /** 注册领域规则查找器。 */
     public <T extends AbstractEntity<?>> void registerDomainRule(Class<T> entityClass,
                                                                  IRuleFinder finder) {
         this.ruleParser.registerDomainRule(entityClass, finder);
     }
 
+    /** 注册领域服务查找器。 */
     public <T extends AbstractEntity<?>> void registerDomainService(Class<T> entityClass,
                                                                     IDomainServiceFinder finder) {
         this.domainServiceParser.registerDomainService(entityClass, finder);
     }
 
+    /** 按实体类收集并组装全部可视化描述符。 */
     public <T extends AbstractEntity<?>> DomainModelVisualInfo build(Class<T> entityClass) {
         DomainModelVisualInfo domainModelVisualInfo = new DomainModelVisualInfo();
         domainModelVisualInfo.setEntityDescriptorList(this.entityParser.parse(entityClass));

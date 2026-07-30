@@ -9,7 +9,13 @@ import org.apache.commons.lang3.SystemUtils;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 全景视图 Markdown 输出 —— 将完整领域模型渲染为 Mermaid flowchart。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownFullViewVisualOutput implements IFullViewVisualOutput {
+    /** 将完整领域模型信息渲染为 Mermaid flowchart 文本。 */
     @Override
     public String output(DomainModelVisualInfo domainModelVisualInfo) {
 

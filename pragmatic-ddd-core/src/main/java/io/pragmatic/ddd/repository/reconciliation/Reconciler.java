@@ -2,7 +2,11 @@ package io.pragmatic.ddd.repository.reconciliation;
 
 import io.pragmatic.ddd.repository.IRepository;
 
-/** 统一对账入口（目标无关）。 */
+/**
+ * 统一对账入口（目标无关）。
+ *
+ * @author wizard-lee
+ */
 public final class Reconciler {
 
     private Reconciler() {}

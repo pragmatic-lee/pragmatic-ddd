@@ -18,6 +18,11 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
+/**
+ * 事件管理器抽象基类，提供订阅者注册、发布与生命周期的通用骨架。
+ *
+ * @author wizard-lee
+ */
 public abstract class AbstractEventManager implements IEventManager {
 
     protected final String environmentName;
@@ -43,6 +48,7 @@ public abstract class AbstractEventManager implements IEventManager {
         return name;
     }
 
+    /** 返回某事件的根订阅者映射（排除存在前置依赖的非根订阅者）。 */
     protected Map<String, SubscriberInfo> filterSubscriberInfoMap(String eventName) {
         Map<String, SubscriberInfo> subscriberMap = this.subscribers.get(eventName);
         if (subscriberMap != null && this.orderManager != null) {
@@ -54,6 +60,7 @@ public abstract class AbstractEventManager implements IEventManager {
         return Optional.ofNullable(subscriberMap).orElse(new HashMap<>());
     }
 
+    /** 按别名查找某事件的订阅者信息，执行条件判定为跳过时返回 null。 */
     protected <T extends IDomainEvent> SubscriberInfo findSubscriberInfo(T obj, String subscriber, String eventName) {
         Map<String, SubscriberInfo> subscriberMap = this.subscribers.get(eventName);
         if (subscriberMap == null) {
@@ -63,13 +70,14 @@ public abstract class AbstractEventManager implements IEventManager {
         if (subscriberInfo == null) {
             return null;
         }
-        IExecuteCondition condition = subscriberInfo.getCondition();
+        IExecuteCondition condition = subscriberInfo.condition();
         if (this.executeCheck(obj, condition) == ExecuteStatus.SKIP) {
             return null;
         }
         return subscriberInfo;
     }
 
+    /** 执行条件判定：条件为空时回退默认条件，异常时视为跳过。 */
     protected ExecuteStatus executeCheck(final IDomainEvent t, IExecuteCondition iExecuteCondition) {
         try {
             return Optional.ofNullable(iExecuteCondition).orElse(defaultCondition).status(t);
@@ -88,7 +96,7 @@ public abstract class AbstractEventManager implements IEventManager {
         return this.subscribers.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey,
-                        v -> v.getValue().values().stream().map(SubscriberInfo::getAlias)
+                        v -> v.getValue().values().stream().map(SubscriberInfo::alias)
                                 .collect(toList()))
                 );
     }
@@ -123,6 +131,7 @@ public abstract class AbstractEventManager implements IEventManager {
         this.doRegister(alias, SubscriberFactory.build(cls, handle), condition, dependSubscriber, policy);
     }
 
+    /** 完成单个订阅者的注册与依赖登记。 */
     protected void doRegister(String alias, ISubscriber subscriber,
                               IExecuteCondition condition,
                               String dependSubscriber,

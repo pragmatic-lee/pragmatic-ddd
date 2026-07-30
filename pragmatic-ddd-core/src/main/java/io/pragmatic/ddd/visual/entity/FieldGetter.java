@@ -8,9 +8,15 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 字段读取器 —— 通过序列化 Lambda 解析 getter 对应的字段名、类型与归属类。
+ *
+ * @author wizard-lee
+ */
 public interface FieldGetter<T, R> extends Function<T, R>, Serializable {
     Pattern compile = Pattern.compile("\\(L(.+);\\)");
 
+    /** 解析读取器对应字段的名称、类型与归属类信息。 */
     default FieldInfo getFieldName(String description, boolean collection, Class<?> collectionType) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, ClassNotFoundException {
         Method method = this.getClass().getDeclaredMethod("writeReplace");
         method.setAccessible(true);

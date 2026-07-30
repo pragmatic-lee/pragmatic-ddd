@@ -21,8 +21,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 基于线程池的事件任务处理器。
- * <p>采用"调度器 + 执行器分离"架构：延时任务由调度器等待，到期后提交到执行器处理。</p>
+ * 基于线程池的本地事件管理器。
+ * 采用"调度器 + 执行器分离"架构：延时任务由调度器等待，到期后提交执行器处理。
+ *
+ * @author wizard-lee
  */
 public class ThreadPoolEventManager extends AbstractEventManager {
 
@@ -119,9 +121,9 @@ public class ThreadPoolEventManager extends AbstractEventManager {
         Map<String, SubscriberInfo> subscriberMap = this.filterSubscriberInfoMap(eventName);
 
         for (Map.Entry<String, SubscriberInfo> entry : subscriberMap.entrySet()) {
-            IEventListener<T> subscribedTo = (IEventListener<T>) entry.getValue().getSubscriber();
+            IEventListener<T> subscribedTo = (IEventListener<T>) entry.getValue().subscriber();
             if (subscribedTo != null
-                    && this.executeCheck(obj, entry.getValue().getCondition()) == ExecuteStatus.EXECUTE) {
+                    && this.executeCheck(obj, entry.getValue().condition()) == ExecuteStatus.EXECUTE) {
                 long delayMs = entry.getValue().isDelayed() ? this.deliveryDelayMs : 0;
                 this.submitTask(subscribedTo, obj, eventName, entry.getKey(), delayMs, false);
             }
@@ -141,16 +143,13 @@ public class ThreadPoolEventManager extends AbstractEventManager {
         if (info == null) {
             return;
         }
-        IEventListener<T> subscribedTo = (IEventListener<T>) info.getSubscriber();
+        IEventListener<T> subscribedTo = (IEventListener<T>) info.subscriber();
         long delayMs = info.isDelayed() ? this.deliveryDelayMs : 0;
         this.submitTask(subscribedTo, obj, eventName, subscriber, delayMs, onlyThis);
     }
 
     // ── submitTask ──
 
-    /**
-     * 提交任务：延时 → 走调度器；立即 → 直接入执行器。
-     */
     private <T extends IDomainEvent> void submitTask(
             IEventListener<T> subscriber, T event,
             String eventName, String alias,

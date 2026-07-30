@@ -3,6 +3,8 @@ package io.pragmatic.ddd.base.id;
 /**
  * 一段连续可用的标识区间 [current, max]，左闭右闭。
  * current 为下一个将分配的 ID；max 为本段上限。
+ *
+ * @author wizard-lee
  */
 public record IdSegment(long current, long max, long step) {
 

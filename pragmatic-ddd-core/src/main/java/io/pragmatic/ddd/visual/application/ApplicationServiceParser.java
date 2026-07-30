@@ -6,16 +6,23 @@ import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 应用服务解析器 —— 借助查找器扫描实体类，提取标注的可视化方法并构建描述符。
+ *
+ * @author wizard-lee
+ */
 public class ApplicationServiceParser {
 
 
     private final Map<Class<?>, IApplicationServiceFinder> applicationServiceFinderMap = new HashMap<>();
 
+    /** 注册某实体类的应用服务查找器。 */
     public <T extends AbstractEntity<?>> void registerApplicationService(Class<T> entityClass,
                                                                          IApplicationServiceFinder finder) {
         applicationServiceFinderMap.put(entityClass, finder);
     }
 
+    /** 解析实体类的全部应用服务方法，返回描述符列表。 */
     public <T extends AbstractEntity<?>> List<ApplicationDescriptor> parser(Class<T> cls) {
 
         List<Class<?>> list = Optional.ofNullable(this.applicationServiceFinderMap.get(cls))

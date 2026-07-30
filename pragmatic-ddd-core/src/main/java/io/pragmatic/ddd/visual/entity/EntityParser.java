@@ -13,11 +13,17 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 实体解析器 —— 借助字段查找器，将实体类解析为分组后的实体描述符列表。
+ *
+ * @author wizard-lee
+ */
 public class EntityParser {
 
     private final Map<Class<?>, IEntityFieldFinder> entityCls = new HashMap<>();
 
 
+    /** 注册某实体类及其字段查找器（重复注册抛异常）。 */
     public <T extends AbstractEntity<?>> void registerEntity(Class<T> entityClass, IEntityFieldFinder finder) {
 
         if (entityCls.containsKey(entityClass)) {
@@ -27,6 +33,7 @@ public class EntityParser {
     }
 
 
+    /** 解析实体类，返回实体描述符列表。 */
     public <T extends AbstractEntity<?>> List<EntityDescriptor> parse(Class<T> cls) {
         return this.privateParse(cls);
     }

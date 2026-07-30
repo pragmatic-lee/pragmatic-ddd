@@ -7,6 +7,8 @@ import java.util.Objects;
  * 对账目标的稳定标识：来源聚合类型 + 异构存储 ID。
  * 例如 ("Order", "es:orders")、("Order", "redis:order_kv")。
  * 作为 Registry 的 Map key，record 自动提供基于值的 equals/hashCode 与访问器。
+ *
+ * @author wizard-lee
  */
 public record ReconciliationTarget(
         Class<? extends AggregateRoot<?>> aggregateType,

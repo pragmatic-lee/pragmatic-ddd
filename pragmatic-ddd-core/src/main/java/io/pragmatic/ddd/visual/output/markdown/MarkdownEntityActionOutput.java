@@ -7,7 +7,13 @@ import org.apache.commons.lang3.SystemUtils;
 
 import java.util.List;
 
+/**
+ * 实体行为 Markdown 输出 —— 将实体行为描述符渲染为 Markdown 表格。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownEntityActionOutput implements IEntityActionOutput {
+    /** 将实体行为描述符渲染为 Markdown 文本。 */
     @Override
     public String output(EntityDescriptor entityDescriptor) {
 

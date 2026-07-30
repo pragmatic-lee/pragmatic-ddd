@@ -1,6 +1,10 @@
 package io.pragmatic.ddd.base.id;
 
-/** 产出带前缀 / 格式 String 标识的生成器，如 "ORD-00000001"。 */
+/**
+ * 产出带前缀 / 格式 String 标识的生成器，如 "ORD-00000001"。
+ *
+ * @author wizard-lee
+ */
 public class StringSegmentIdGenerator extends AbstractSegmentIdGenerator<String> {
 
     private final String format;

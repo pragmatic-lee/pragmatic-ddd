@@ -1,8 +1,6 @@
 package io.pragmatic.ddd.mybatis;
 
 import com.mysql.cj.jdbc.MysqlDataSource;
-import io.pragmatic.ddd.mybatis.bootstrap.MybatisModuleBootstrap;
-import io.pragmatic.ddd.mybatis.bootstrap.MybatisModuleOptions;
 import io.pragmatic.ddd.mybatis.id.IdSegmentMapper;
 import io.pragmatic.ddd.mybatis.outbox.OutboxMapper;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;

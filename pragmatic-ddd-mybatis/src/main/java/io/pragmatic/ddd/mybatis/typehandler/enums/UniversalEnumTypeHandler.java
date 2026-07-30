@@ -11,7 +11,6 @@ import java.sql.SQLException;
 
 /**
  * 通用枚举类型处理器——单个泛型类覆盖所有枚举，不再为每个枚举写 handler。
- * 对应设计文档 Step 9（提案 §5.1）。
  *
  * <p>实现 TypeHandler 的 4 个接口方法（序列化 setParameter + 三种 getResult 重载），
  * 避免 MyBatis 在带 jdbcType 场景退回默认 enum handler。

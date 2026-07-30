@@ -9,7 +9,13 @@ import org.apache.commons.lang3.SystemUtils;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 领域事件 Markdown 输出 —— 将事件描述符列表渲染为 Markdown 表格。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownEventVisualOutput implements IEventVisualOutput {
+    /** 将事件描述符列表渲染为 Markdown 文本（含事件来源）。 */
     @Override
     public String output(List<EventDescriptor> eventDescriptorList, EntityDescriptor entityDescriptor) {
 

@@ -13,6 +13,11 @@ import io.pragmatic.ddd.visual.event.IEventVisualOutput;
 import io.pragmatic.ddd.visual.rule.IEntityRuleVisualOutput;
 import org.apache.commons.lang3.SystemUtils;
 
+/**
+ * Markdown 可视化总输出 —— 聚合各子渲染器，输出完整的领域模型可视化文档。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownVisualOutput implements IVisualOutput {
 
     private final IApplicationServiceVisualOutput applicationServiceVisualOutput;
@@ -24,6 +29,7 @@ public class MarkdownVisualOutput implements IVisualOutput {
     private final IFullViewVisualOutput fullViewVisualOutput;
     private final IEntityActionOutput actionOutput;
 
+    /** 构造总输出并初始化各子渲染器。 */
     public MarkdownVisualOutput() {
 
         applicationServiceVisualOutput = new MarkdownApplicationServiceVisualOutput();
@@ -36,6 +42,7 @@ public class MarkdownVisualOutput implements IVisualOutput {
         enumValueVisualOutput = new MarkDownEnumValueVisualOutput();
     }
 
+    /** 组合各子渲染器，输出完整 Markdown 可视化文档。 */
     @Override
     public String output(DomainModelVisualInfo domainModelVisualInfo) {
 

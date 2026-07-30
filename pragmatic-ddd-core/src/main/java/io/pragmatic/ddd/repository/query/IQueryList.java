@@ -7,6 +7,8 @@ import java.util.List;
  *
  * @param <PROJECTION>     投影类型
  * @param <QUERY_CRITERIA> 查询条件类型
+ *
+ * @author wizard-lee
  */
 public interface IQueryList<PROJECTION, QUERY_CRITERIA> {
 

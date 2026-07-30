@@ -9,10 +9,16 @@ import org.apache.commons.lang3.SystemUtils;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 事件订阅 Markdown 输出 —— 将事件订阅描述符列表渲染为 Mermaid flowchart。
+ *
+ * @author wizard-lee
+ */
 public class MarkdownEventSubscriberVisualOutput implements IEventSubscriberVisualOutput {
     private static final String START = "```mermaid" + SystemUtils.LINE_SEPARATOR;
     private static final String END = "```" + SystemUtils.LINE_SEPARATOR;
 
+    /** 将事件订阅描述符列表渲染为 Mermaid flowchart 文本。 */
     @Override
     public String output(List<EventDescriptor> eventDescriptorList) {
 

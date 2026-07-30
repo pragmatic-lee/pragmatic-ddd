@@ -1,6 +1,10 @@
 package io.pragmatic.ddd.repository.reconciliation;
 
-/** 异构读存储与写模型的一致性状态（目标无关）。 */
+/**
+ * 异构读存储与写模型的一致性状态（目标无关）。
+ *
+ * @author wizard-lee
+ */
 public enum ReconciliationStatus {
     CONSISTENT,  // V' >= V，副本已最新
     STALE,       // V' < V，副本落后（需补同步）

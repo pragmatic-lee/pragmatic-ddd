@@ -6,6 +6,8 @@ package io.pragmatic.ddd.rocketmq;
  * nameServer 仅在框架自建 Producer/Consumer 时需要；
  * 如果外部注入 Producer，则 nameServer 可不配。
  * proxyAddr 仅在 gRPC 实现时需要（rocketmq-client-java 可选依赖）。
+ *
+ * @author wizard-lee
  */
 public class RocketMqConfig {
 

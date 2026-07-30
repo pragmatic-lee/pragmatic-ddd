@@ -1,8 +1,9 @@
 package io.pragmatic.ddd.event.internal.model;
 
 /**
- * 事件投递策略。
- * 各 MQ 实现根据此策略决定消息的投递方式，具体延时参数由实现内部决定。
+ * 事件投递策略，由各 MQ 实现决定具体投递方式。
+ *
+ * @author wizard-lee
  */
 public enum DeliveryPolicy {
 

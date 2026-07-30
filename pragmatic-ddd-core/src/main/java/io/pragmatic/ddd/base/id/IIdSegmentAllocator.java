@@ -3,6 +3,8 @@ package io.pragmatic.ddd.base.id;
 /**
  * 号段分配端口：向底层存储（数据库）申请下一段连续 ID。
  * 框架核心只定义契约，具体实现（DB）由 mybatis 模块提供。
+ *
+ * @author wizard-lee
  */
 public interface IIdSegmentAllocator {
 

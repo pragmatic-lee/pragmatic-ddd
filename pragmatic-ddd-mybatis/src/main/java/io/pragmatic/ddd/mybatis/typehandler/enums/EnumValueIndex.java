@@ -8,9 +8,8 @@ import java.util.Map;
 /**
  * 枚举常量索引构建器——在启动期集中注册时为每个枚举预建映射，
  * 结果存进 {@code EnumValueResolver.ResolverEntry}，运行期零反射、O(1) 查表。
- * 对应设计文档 Step 7（提案 §5.0.6(3)）。
  *
- * <p>重复 code / name 在构建期即 fail-fast（设计文档验证清单第 8 项）。
+ * <p>重复 code / name 在构建期即 fail-fast。</p>
  */
 final class EnumValueIndex {
 

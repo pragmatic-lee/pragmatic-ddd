@@ -6,6 +6,8 @@ import java.util.List;
  * 分页结果（不可变值对象）。{@code data} 为防御性拷贝的不可变列表。
  *
  * @param <T> 投影类型
+ *
+ * @author wizard-lee
  */
 public final class PageResult<T> {
 

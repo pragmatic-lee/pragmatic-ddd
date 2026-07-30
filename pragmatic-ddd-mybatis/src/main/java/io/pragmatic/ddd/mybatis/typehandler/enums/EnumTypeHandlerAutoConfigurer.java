@@ -10,7 +10,6 @@ import java.util.Map;
 /**
  * 手动注册器（无 Spring 依赖）：在 {@link SqlSessionFactory} 构建后批量注册枚举，
  * 并把 {@link UniversalEnumTypeHandler} 绑定进 MyBatis 的 {@code TypeHandlerRegistry}。
- * 对应设计文档 Step 10（提案 §5.3）。
  *
  * <p>调用方（非 Spring）在构建完 SqlSessionFactory 后调用一次即可；无码枚举也会被注册，
  * 其 rule 由 {@link EnumValueResolver} 的默认策略决定（通常 CODE / ORDINAL / NAME）。
@@ -57,12 +56,6 @@ public final class EnumTypeHandlerAutoConfigurer {
         }
     }
 
-    /**
-     * 泛型辅助：把枚举类与 handler 收敛到同一类型变量 {@code T}，
-     * 使 {@code et}（{@code Class<T>}）与 handler（{@code TypeHandler<T>}）满足
-     * MyBatis {@code <T> register(Class<T>, TypeHandler<? extends T>)} 的推断，规避通配符捕获间无法证明的 {@code <:} 关系。
-     * 唯一 unchecked 收敛于此：运行时枚举具体类型不可知。
-     */
     private static <T extends Enum<T>> void registerHandler(TypeHandlerRegistry reg,
                                                             EnumValueResolver resolver,
                                                             Class<?> t) {

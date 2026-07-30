@@ -10,6 +10,8 @@ package io.pragmatic.ddd.track;
  * <p>注意：{@link #id()} 是持久化层的行标识，与 {@code IEntity.getEntityId()}（领域身份）属于不同层次，不可混用。</p>
  *
  * @param <ID> 行标识类型
+ *
+ * @author wizard-lee
  */
 public interface ITrackable<ID> {
 

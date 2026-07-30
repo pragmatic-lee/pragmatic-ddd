@@ -18,6 +18,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 基于 MQ 的事件管理器抽象基类，扩展发布到消息中间件的能力。
+ *
+ * @author wizard-lee
+ */
 public abstract class AbstractMQEventManager extends AbstractEventManager {
 
     private final IEventSerializer serializer;
@@ -145,19 +150,21 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
     // 订阅数据构建
     // ══════════════════════════════════════════════
 
+    /** 为某事件的所有根订阅者构建投递数据列表（执行条件判定为跳过时过滤）。 */
     protected <T extends IDomainEvent> List<SubscribeData> buildSubscribeDataList(T obj) {
         String eventName = this.resolveEventName(obj.getClass());
         Map<String, SubscriberInfo> subscriberMap = this.filterSubscriberInfoMap(eventName);
         return subscriberMap.entrySet().stream().map(entry -> {
-            if (this.executeCheck(obj, entry.getValue().getCondition()) == ExecuteStatus.EXECUTE) {
+            if (this.executeCheck(obj, entry.getValue().condition()) == ExecuteStatus.EXECUTE) {
                 return this.createSubscribeData(obj,
                         entry.getKey(), eventName,
-                        false, entry.getValue().getDeliveryPolicy());
+                        false, entry.getValue().deliveryPolicy());
             }
             return null;
         }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
+    /** 为指定订阅者构建单条投递数据；订阅者不存在时返回 null。 */
     protected <T extends IDomainEvent> SubscribeData buildSubscribeData(final T obj,
                                                                         String subscriber,
                                                                         Boolean onlyThis) {
@@ -166,17 +173,13 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
         if (subscriberInfo == null) {
             return null;
         }
-        return this.createSubscribeData(obj, subscriber, eventName, onlyThis, subscriberInfo.getDeliveryPolicy());
+        return this.createSubscribeData(obj, subscriber, eventName, onlyThis, subscriberInfo.deliveryPolicy());
     }
 
     // ══════════════════════════════════════════════
     // 投递数据创建
     // ══════════════════════════════════════════════
 
-    /**
-     * 创建投递数据。
-     * 始终将事件名作为 realEventName 写入消息体（不再需要 useEventName() 判断）。
-     */
     private <T extends IDomainEvent> SubscribeData createSubscribeData(final T obj,
                                                                        String subscriber,
                                                                        String eventName,
@@ -203,7 +206,7 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
             return;
         }
         AbstractEventSubscriber<?> subscriber =
-                (AbstractEventSubscriber<?>) subscriberList.get(subscribeData.getName()).getSubscriber();
+                (AbstractEventSubscriber<?>) subscriberList.get(subscribeData.getName()).subscriber();
         if (subscriber != null) {
             // 用「管理器」serializer 一次性反序列化，类型来自订阅者声明
             Class<? extends IDomainEvent> eventType = subscriber.subscribedToEventType();

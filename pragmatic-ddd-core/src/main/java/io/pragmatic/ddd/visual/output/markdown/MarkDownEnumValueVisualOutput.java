@@ -7,7 +7,13 @@ import org.apache.commons.lang3.SystemUtils;
 
 import java.util.List;
 
+/**
+ * 枚举值 Markdown 输出 —— 将枚举信息描述符列表渲染为 Markdown 表格。
+ *
+ * @author wizard-lee
+ */
 public class MarkDownEnumValueVisualOutput implements IEnumValueVisualOutput {
+    /** 将枚举信息描述符列表渲染为 Markdown 文本。 */
     @Override
     public String output(List<EnumInfoDescriptor> enumInfoDescriptorList) {
 

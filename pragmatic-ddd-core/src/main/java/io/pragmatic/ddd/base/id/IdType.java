@@ -1,6 +1,10 @@
 package io.pragmatic.ddd.base.id;
 
-/** 生成器产出的标识类型。 */
+/**
+ * 生成器产出的标识类型。
+ *
+ * @author wizard-lee
+ */
 public enum IdType {
     /** 纯数字 Long。 */
     LONG,

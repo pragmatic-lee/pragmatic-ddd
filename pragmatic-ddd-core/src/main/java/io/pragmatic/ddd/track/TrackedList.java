@@ -33,6 +33,8 @@ import java.util.function.Predicate;
  *
  * @param <T>  元素类型，必须实现 {@link ITrackable}
  * @param <ID> 行标识类型
+ *
+ * @author wizard-lee
  */
 public class TrackedList<T extends ITrackable<ID>, ID> {
 

@@ -5,6 +5,8 @@ package io.pragmatic.ddd.repository.query;
  *
  * @param <ID>         聚合 ID 类型
  * @param <PROJECTION> 投影类型
+ *
+ * @author wizard-lee
  */
 public interface IQueryById<ID, PROJECTION> {
 

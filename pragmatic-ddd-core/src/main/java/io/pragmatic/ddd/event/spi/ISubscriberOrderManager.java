@@ -10,7 +10,7 @@ import java.util.List;
  * 才能被触发。事件管理器据此先触发根订阅者，待其完成后由其直接后继继续
  * 传播，形成一条顺序执行链。</p>
  *
- * @author lixiaojing10
+ * @author wizard-lee
  */
 public interface ISubscriberOrderManager {
 

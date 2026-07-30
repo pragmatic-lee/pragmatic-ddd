@@ -5,6 +5,8 @@ package io.pragmatic.ddd.rules;
  *
  * <p>取代原有的 {@code boolean} 返回值，消除 true/false 的隐式语义映射，
  * 使调用方代码可直读。</p>
+ *
+ * @author wizard-lee
  */
 public enum ActiveStatus {
 

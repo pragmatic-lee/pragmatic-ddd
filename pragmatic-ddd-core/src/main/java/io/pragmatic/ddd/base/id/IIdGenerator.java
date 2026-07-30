@@ -6,6 +6,7 @@ import java.util.List;
  * 唯一标识生成器端口。一个实例对应一个 bizKey（一个独立 ID 空间 / 一个渠道）。
  *
  * @param <T> 标识类型，通常为 Long 或带前缀的 String
+ * @author wizard-lee
  */
 public interface IIdGenerator<T> {
 

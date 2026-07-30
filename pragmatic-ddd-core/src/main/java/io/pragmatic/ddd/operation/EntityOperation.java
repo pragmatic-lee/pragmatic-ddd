@@ -7,6 +7,8 @@ import java.util.Objects;
  * <p>对应设计文档 3.2 推荐方案：替代原 {@code action.Action}，
  * 作为 {@link OperationRegistry} 反射自动注册的基本单元。
  * 与值对象枚举在结构上区分（见设计文档 3.2.0），避免与 VO 枚举混放。</p>
+ *
+ * @author wizard-lee
  */
 public final class EntityOperation implements IEntityOperation {
 
@@ -18,10 +20,12 @@ public final class EntityOperation implements IEntityOperation {
         this.description = description;
     }
 
+    /** 构造带描述的实体操作。 */
     public static EntityOperation of(String code, String description) {
         return new EntityOperation(code, description);
     }
 
+    /** 构造仅含编码的实体操作（描述为空）。 */
     public static EntityOperation of(String code) {
         return new EntityOperation(code, "");
     }

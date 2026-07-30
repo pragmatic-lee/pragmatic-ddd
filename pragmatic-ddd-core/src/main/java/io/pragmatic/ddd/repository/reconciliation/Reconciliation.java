@@ -4,6 +4,8 @@ package io.pragmatic.ddd.repository.reconciliation;
  * 对账结果（不可变值对象，目标无关）。
  * 用 record：天然不可变，自动生成组件访问器 status() / readVersion() / writeVersion()
  * 与基于值的 equals / hashCode，无需手写样板。
+ *
+ * @author wizard-lee
  */
 public record Reconciliation(
         ReconciliationStatus status,  // 判定状态

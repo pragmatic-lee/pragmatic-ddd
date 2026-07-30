@@ -5,9 +5,9 @@ import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import io.pragmatic.ddd.event.spi.IExecuteCondition;
 
 /**
- * 默认事件订阅执行条件
+ * 默认事件订阅执行条件，恒返回执行。
  *
- * @author lixiaojing
+ * @author wizard-lee
  */
 public class DefaultExecuteCondition<T extends IDomainEvent> implements IExecuteCondition<T> {
     @Override

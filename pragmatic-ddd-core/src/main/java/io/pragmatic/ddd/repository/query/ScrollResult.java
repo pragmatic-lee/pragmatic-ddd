@@ -6,6 +6,8 @@ import java.util.List;
  * 滚动结果（不可变值对象）。{@code nextCursor == null} 表示无更多数据。
  *
  * @param <T> 投影类型
+ *
+ * @author wizard-lee
  */
 public final class ScrollResult<T> {
 

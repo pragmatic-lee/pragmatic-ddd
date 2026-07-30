@@ -11,6 +11,8 @@ import java.util.logging.Logger;
  * 对账统一管理入口（框架提供）。
  * 屏蔽"取组件 + 循环各目标 + 去重 + 告警"等样板，
  * 业务方只需声明目标与实现 SPI，调用方一行 reconcile(type, id)。
+ *
+ * @author wizard-lee
  */
 public final class ReconciliationManager {
     private static final Logger log = Logger.getLogger(ReconciliationManager.class.getName());

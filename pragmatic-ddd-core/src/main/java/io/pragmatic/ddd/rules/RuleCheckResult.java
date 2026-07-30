@@ -10,6 +10,8 @@ package io.pragmatic.ddd.rules;
  *   <li>{@link #fail(Object[])} — 校验失败，携带消息参数</li>
  *   <li>{@link #fail(Object[], boolean)} — 校验失败，可控制是否自动格式化</li>
  * </ul>
+ *
+ * @author wizard-lee
  */
 public class RuleCheckResult {
 
@@ -46,14 +48,17 @@ public class RuleCheckResult {
         return new RuleCheckResult(false, params, enableFormat);
     }
 
+    /** 是否校验通过。 */
     public boolean isSatisfy() {
         return isSatisfy;
     }
 
+    /** 校验失败时的动态消息参数。 */
     public Object[] getParams() {
         return params;
     }
 
+    /** 是否自动格式化消息参数。 */
     public boolean isAutoFormat() {
         return enableFormat;
     }

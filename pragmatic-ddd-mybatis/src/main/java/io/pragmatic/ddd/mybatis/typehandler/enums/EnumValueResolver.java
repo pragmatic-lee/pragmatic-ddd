@@ -11,9 +11,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * 集中化枚举解析注册表——所有枚举在启动时统一 register，反序列化只查表。
  * 取代"各枚举自带静态 parse"与"运行时按类型懒反射"两种非标做法。
- * 对应设计文档 Step 8（提案 §5.0.6(4)）。
  *
- * <p>本实现严格遵循本计划文件清单：不引入提案中的 {@code EnumCodecProvider}，
  * 直接持有默认 {@link DefaultEnumCodec} 实例。无码枚举仅构建 ordinal 索引，
  * 启动期集中登记即完成索引预建与冲突校验。
  */

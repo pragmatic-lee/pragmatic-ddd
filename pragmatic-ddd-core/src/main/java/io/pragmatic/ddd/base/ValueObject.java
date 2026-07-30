@@ -3,22 +3,10 @@ package io.pragmatic.ddd.base;
 import java.util.Arrays;
 
 /**
- * 值对象基类（可选继承）。
+ * 值对象基类（可选继承），基于 equalityComponents() 提供结构相等性。
+ * 不可变性等由使用者通过全参构造器 + 构造期校验保证；本基类完全可选。
  *
- * <p>仅解决值对象最本质的"结构相等性"问题：两个值对象在
- * {@link #equalityComponents()} 返回的成分全相等时即视为相等。
- * 不可变性、自校验等由使用者通过"全参构造器 + 构造期校验"的惯用法保证，
- * 框架不强行约束。</p>
- *
- * <p>不需要值对象能力的场景（如纯 POJO）可仅实现 {@link IValueObject} 标记接口，
- * 或什么都不实现——本基类为完全可选（opt-in）。</p>
- *
- * <p>相等性采用运行时类型严格判断（{@code getClass() != o.getClass()}），
- * 避免值对象因继承产生的相等性对称破坏；若未来需要跨子类相等，可升级为
- * Bloch 推荐的 {@code canEqual} 模式。</p>
- *
- * @see IValueObject
- * @since 2.2.0
+ * @author wizard-lee
  */
 public abstract class ValueObject implements IValueObject {
 

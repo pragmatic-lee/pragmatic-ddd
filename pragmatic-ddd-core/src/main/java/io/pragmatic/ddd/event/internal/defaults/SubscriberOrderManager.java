@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentMap;
  * {@link ISubscriberOrderManager} 的默认内存实现。
  * 以「事件名 → 依赖边集合（并发安全）」维护订阅者顺序图，并在注册时检测循环依赖。
  *
- * @author lixiaojing10
+ * @author wizard-lee
  */
 public class SubscriberOrderManager implements ISubscriberOrderManager {
 

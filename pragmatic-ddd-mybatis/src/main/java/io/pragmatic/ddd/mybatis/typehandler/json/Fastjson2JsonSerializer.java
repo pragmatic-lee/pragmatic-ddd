@@ -32,7 +32,7 @@ import java.util.Map;
  * 私有配置以 Provider 包进 {@link JSONWriter.Context}/{@link JSONReader.Context} 实现。）
  *
  * <p>同时实现 core 的 {@link IEventSerializer}，确保 Outbox 事件与 JSON 列共用同一套 JSON 行为
- * （与 rocketmq {@code Fastjson2EventSerializer} 同栈，提案 §13）。
+ * （与 rocketmq {@code Fastjson2EventSerializer} 同栈）。
  */
 public final class Fastjson2JsonSerializer implements JsonSerializer, IEventSerializer {
 
@@ -128,7 +128,6 @@ public final class Fastjson2JsonSerializer implements JsonSerializer, IEventSeri
         return JSON.parseObject(text, type, readContext);
     }
 
-    /** 把 getObject 读回的任意 JSON 形态规整为文本：放行 String，PGobject 取其内部 JSON 文本。 */
     private String toJsonText(Object json) {
         if (json instanceof String s) return s;
         // PostgreSQL 的 PGobject：取其内部 JSON 文本，避免把 {type,value} 当 JSON（无硬依赖，按类名反射）

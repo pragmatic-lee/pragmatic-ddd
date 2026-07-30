@@ -5,18 +5,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * 实体已触发领域事件收集器（对应 {@code TriggeredOperations} 的事件侧对等物）。
+ * 实体已触发领域事件收集器。
+ * 区分即时事件与延迟事件（Supplier 惰性求值），保证多次读取幂等，单线程使用、非线程安全。
  *
- * <p>持有两类事件：</p>
- * <ul>
- *   <li><b>即时事件</b>：通过 {@link #collect(IDomainEvent)} 直接加入；</li>
- *   <li><b>延迟事件</b>：通过 {@link #collectDelayed(Supplier)} 以 Supplier 形式登记，
- *       在 {@link #getEvents()} / {@link #drain()} 被调用时才惰性求值，
- *       用于捕获 flush 时刻的最新实体状态。</li>
- * </ul>
- *
- * <p>延迟事件只会被求值一次，求值后即并入即时列表，保证多次读取的幂等性。
- * 本类假设被单个实体在单线程环境下使用，非线程安全。</p>
+ * @author wizard-lee
  */
 public class TriggeredEvents {
 

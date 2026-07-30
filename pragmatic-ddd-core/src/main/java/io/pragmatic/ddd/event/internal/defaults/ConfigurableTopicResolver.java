@@ -10,24 +10,9 @@ import java.util.Set;
 
 /**
  * 三层次可配置 Topic 解析器。
+ * 按优先级从高到低匹配：订阅者级别 → 事件级别 → 全局默认。
  *
- * <p>按优先级从高到低依次匹配：
- * <ol>
- *   <li>订阅者级别 — 特定事件的特定订阅者走独立 topic</li>
- *   <li>事件级别   — 特定事件类型的所有订阅者走独立 topic</li>
- *   <li>全局默认   — 所有未匹配的事件走统一 topic</li>
- * </ol>
- *
- * <p>配置 key 使用事件类名 {@link Class#getSimpleName()}。
- *
- * <p>用法示例：
- * <pre>{@code
- * ITopicResolver resolver = ConfigurableTopicResolver.builder()
- *     .globalDefaultTopic("app-events")
- *     .eventTopic("OrderPaidEvent", "order-payment-topic")
- *     .subscriberTopic("OrderPaidEvent", "auditSubscriber", "audit-topic")
- *     .build();
- * }</pre>
+ * @author wizard-lee
  */
 public class ConfigurableTopicResolver implements ITopicResolver {
 

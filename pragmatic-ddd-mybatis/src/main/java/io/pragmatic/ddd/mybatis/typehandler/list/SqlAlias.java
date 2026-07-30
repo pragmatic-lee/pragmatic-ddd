@@ -6,10 +6,6 @@ package io.pragmatic.ddd.mybatis.typehandler.list;
  * <p>多表同名列冲突的根因是"结果集出现两个同名 label"，MyBatis 无法区分。
  * 隔离方案 = SQL 中对每列 {@code AS} 出表作用域别名，本类给出与配置一致的标签，
  * 使"SQL 别名"与"handler 查表键"严格对齐（见 {@link CollectionMapping} 与 {@link ListTypeHandler}）。
- *
- * <p>示例：ORDER 表与 PRODUCT 表都有 {@code tags} 列，分别标注
- * {@code o.tags AS order_tags}、{@code p.tags AS product_tags}，
- * 配置 table="order"/"product" 即自动得到 {@code order_tags}/{@code product_tags}。
  */
 public final class SqlAlias {
 

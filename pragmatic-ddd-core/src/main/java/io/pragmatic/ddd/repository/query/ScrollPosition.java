@@ -2,6 +2,8 @@ package io.pragmatic.ddd.repository.query;
 
 /**
  * 滚动游标（不可变值对象）。游标为不透明字符串，由实现层编解码。
+ *
+ * @author wizard-lee
  */
 public final class ScrollPosition {
 

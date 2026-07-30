@@ -39,6 +39,8 @@ import java.util.Set;
  * 延时消息：gRPC 使用 setDeliveryTimestamp 替代 setDelayTimeLevel；
  * 消费确认：MessageListener 返回 ConsumeResult.SUCCESS/FAILURE 替代 ConsumeConcurrentlyStatus；
  * Producer / Consumer 通过 ClientServiceProvider 工厂创建。
+ *
+ * @author wizard-lee
  */
 public class RocketMqGrpcEventManager extends AbstractMQEventManager {
 
@@ -61,12 +63,16 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     // Builder
     // ══════════════════════════════════════════════
 
-    /** @return new Builder */
+    /**
+     * 创建 RocketMqGrpcEventManager 构建器。
+     */
     public static Builder builder() {
         return new Builder();
     }
 
-    /** Builder for RocketMqGrpcEventManager. */
+    /**
+     * RocketMqGrpcEventManager 的构建器。
+     */
     public static class Builder {
         private RocketMqConfig config;
         private String environmentName;
@@ -76,22 +82,38 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
         private IEventSerializer serializer;
         private IEventMetrics metrics;
 
-        /** @param c RocketMQ configuration */
+        /**
+         * 设置 RocketMQ 配置。
+         */
         public Builder config(RocketMqConfig c) { this.config = c; return this; }
-        /** @param s environment name */
+        /**
+         * 设置环境名（用于消息 Tag 隔离）。
+         */
         public Builder environmentName(String s) { this.environmentName = s; return this; }
-        /** @param r topic resolver */
+        /**
+         * 设置主题解析器。
+         */
         public Builder topicResolver(ITopicResolver r) { this.topicResolver = r; return this; }
-        /** @param p gRPC producer (optional) */
+        /**
+         * 设置外部注入的 gRPC Producer（可选）。
+         */
         public Builder producer(Producer p) { this.producer = p; return this; }
-        /** @param m subscriber order manager (optional) */
+        /**
+         * 设置订阅顺序管理器（可选）。
+         */
         public Builder orderManager(ISubscriberOrderManager m) { this.orderManager = m; return this; }
-        /** @param s event serializer (optional) */
+        /**
+         * 设置事件序列化器（可选）。
+         */
         public Builder serializer(IEventSerializer s) { this.serializer = s; return this; }
-        /** @param m event metrics (optional) */
+        /**
+         * 设置事件指标采集器（可选）。
+         */
         public Builder metrics(IEventMetrics m) { this.metrics = m; return this; }
 
-        /** @return new RocketMqGrpcEventManager instance */
+        /**
+         * 构建并返回 RocketMqGrpcEventManager 实例。
+         */
         public RocketMqGrpcEventManager build() {
             Objects.requireNonNull(config, "RocketMqConfig required");
             Objects.requireNonNull(environmentName, "environmentName required");
@@ -117,6 +139,9 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     // 通道初始化
     // ══════════════════════════════════════════════
 
+    /**
+     * 初始化各 Topic 对应的 gRPC Producer 与 PushConsumer。
+     */
     @Override
     protected void initializeTopics(Set<String> topics) {
         // 1. Producer — gRPC 客户端，注入优先，未注入则自建
@@ -188,6 +213,9 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     // 发送
     // ══════════════════════════════════════════════
 
+    /**
+     * 发送领域事件消息到指定 Topic（gRPC）。
+     */
     @Override
     protected <T extends IDomainEvent> void sendMessage(SubscribeData s, T obj, String topic) {
         long startNs = System.nanoTime();
@@ -228,6 +256,9 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     // 优雅关闭
     // ══════════════════════════════════════════════
 
+    /**
+     * 关闭管理器，释放 Producer 与 Consumer 资源。
+     */
     @Override
     public void shutdown() {
         log.info("RocketMqGrpcEventManager shutting down...");

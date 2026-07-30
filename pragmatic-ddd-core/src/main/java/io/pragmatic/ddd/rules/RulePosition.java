@@ -5,6 +5,8 @@ package io.pragmatic.ddd.rules;
  *
  * <p>取代原有的 int 魔术数字（0=last, 1=before, 2=after），
  * 使调用方代码可直读。</p>
+ *
+ * @author wizard-lee
  */
 public enum RulePosition {
 

@@ -6,6 +6,12 @@ import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import io.pragmatic.ddd.event.spi.IEventRegistry;
 import io.pragmatic.ddd.event.spi.IExecuteCondition;
 
+/**
+ * 订阅者处理基类，以流式 API 声明执行条件、依赖与投递策略，并一次性注册到注册表。
+ *
+ * @param <T> 领域事件类型
+ * @author wizard-lee
+ */
 public abstract class BaseEventHandler<T extends IDomainEvent> {
 
     private final Class<T> cls;
@@ -17,8 +23,10 @@ public abstract class BaseEventHandler<T extends IDomainEvent> {
         this.cls = cls;
     }
 
+    /** 子类实现：处理事件。 */
     protected abstract void handle(T event);
 
+    /** 默认执行条件，子类可覆盖。 */
     protected ExecuteStatus runCondition(T event) {
         return ExecuteStatus.EXECUTE;
     }

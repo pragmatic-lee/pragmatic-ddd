@@ -7,47 +7,9 @@ import lombok.Getter;
 
 /**
  * 领域事件不可变基类。
+ * 所有字段通过构造函数注入，不提供 setter，由 Lombok 的 @Getter 生成全部 getter。
  *
- * <p>所有字段通过构造函数注入，不提供任何 setter。
- * 使用 Lombok {@code @Getter} 自动生成所有 getter。</p>
- *
- * <p><b>子类模式（字段少时用构造器）：</b></p>
- * <pre>{@code
- * @EventName("OrderPayedEvent")
- * public class OrderPayedEvent extends BaseDomainEvent {
- *     private final long orderId;
- *
- *     public OrderPayedEvent(long orderId) {
- *         super(String.valueOf(orderId));
- *         this.orderId = orderId;
- *     }
- *
- *     protected OrderPayedEvent() { }
- *
- *     public long getOrderId() { return orderId; }
- * }
- * }</pre>
- *
- * <p><b>子类模式（字段多时用静态工厂）：</b></p>
- * <pre>{@code
- * @EventName("OrderCreatedEvent")
- * public class OrderCreatedEvent extends BaseDomainEvent {
- *     private final long orderId;
- *     private final BigDecimal totalPrice;
- *
- *     public static OrderCreatedEvent from(Order order) {
- *         return new OrderCreatedEvent(String.valueOf(order.getEntityId()), order.getEntityId(), order.getTotalPrice());
- *     }
- *
- *     public OrderCreatedEvent(String entityId, long orderId, BigDecimal totalPrice) {
- *         super(entityId);
- *         this.orderId = orderId;
- *         this.totalPrice = totalPrice;
- *     }
- *
- *     protected OrderCreatedEvent() { }
- * }
- * }</pre>
+ * @author wizard-lee
  */
 @Getter
 public abstract class BaseDomainEvent implements IDomainEvent {

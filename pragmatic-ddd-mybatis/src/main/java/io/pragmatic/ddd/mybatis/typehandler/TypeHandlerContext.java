@@ -20,16 +20,6 @@ import java.util.Map;
  * 共用同一份 resolver / serializer / jdbcJsonValue，杜绝两配置器重复传参导致的策略漂移。
  * 调用方构建完 {@link SqlSessionFactory} 后，调用一次 {@link #registerInto(SqlSessionFactory)} 即可。
  *
- * <p>示例（PG 场景把 {@link JdbcJsonValue#DEFAULT} 换成 PGobject-based 实现即可）：
- * <pre>{@code
- *   EnumValueResolver resolver = new EnumValueResolver();
- *   Map<Class<?>, EnumRule> enumRules = Map.of(OrderStatus.class, EnumRule.CODE);
- *   JsonSerializer serializer = new Fastjson2JsonSerializer(resolver, enumRules);
- *   TypeHandlerContext ctx = new TypeHandlerContext(resolver, serializer,
- *           JdbcJsonValue.DEFAULT, enumRules, voTypes);
- *   ctx.registerInto(sqlSessionFactory);
- * }</pre>
- *
  * <p>零 Spring 依赖：纯手动装配，便于非 Spring 使用；Spring Boot 自动配置只需注入同一个
  * {@code TypeHandlerContext} 并调用 {@code registerInto}。
  */

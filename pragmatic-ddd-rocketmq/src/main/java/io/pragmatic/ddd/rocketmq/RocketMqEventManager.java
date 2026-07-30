@@ -46,6 +46,7 @@ import java.util.Set;
  * </ul>
  *
  * @see io.pragmatic.ddd.event.spi.IEventManager
+ * @author wizard-lee
  */
 public class RocketMqEventManager extends AbstractMQEventManager
         implements MessageListenerConcurrently {
@@ -67,11 +68,16 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // Builder
     // ══════════════════════════════════════════════
 
+    /**
+     * 创建 RocketMqEventManager 构建器。
+     */
     public static Builder builder() {
         return new Builder();
     }
 
-    /** Builder for RocketMqEventManager. */
+    /**
+     * RocketMqEventManager 的构建器。
+     */
     public static class Builder {
         private RocketMqConfig config;
         private String environmentName;
@@ -81,22 +87,38 @@ public class RocketMqEventManager extends AbstractMQEventManager
         private IEventSerializer serializer;
         private IEventMetrics metrics;
 
-        /** @param c RocketMQ configuration */
+        /**
+         * 设置 RocketMQ 配置。
+         */
         public Builder config(RocketMqConfig c) { this.config = c; return this; }
-        /** @param s environment name */
+        /**
+         * 设置环境名（用于消息 Tag 隔离）。
+         */
         public Builder environmentName(String s) { this.environmentName = s; return this; }
-        /** @param r topic resolver */
+        /**
+         * 设置主题解析器。
+         */
         public Builder topicResolver(ITopicResolver r) { this.topicResolver = r; return this; }
-        /** @param p external producer (optional) */
+        /**
+         * 设置外部注入的 Producer（可选）。
+         */
         public Builder producer(MQProducer p) { this.producer = p; return this; }
-        /** @param m subscriber order manager (optional) */
+        /**
+         * 设置订阅顺序管理器（可选）。
+         */
         public Builder orderManager(ISubscriberOrderManager m) { this.orderManager = m; return this; }
-        /** @param s event serializer (optional) */
+        /**
+         * 设置事件序列化器（可选）。
+         */
         public Builder serializer(IEventSerializer s) { this.serializer = s; return this; }
-        /** @param m event metrics (optional) */
+        /**
+         * 设置事件指标采集器（可选）。
+         */
         public Builder metrics(IEventMetrics m) { this.metrics = m; return this; }
 
-        /** @return new RocketMqEventManager instance */
+        /**
+         * 构建并返回 RocketMqEventManager 实例。
+         */
         public RocketMqEventManager build() {
             Objects.requireNonNull(config, "RocketMqConfig required");
             Objects.requireNonNull(environmentName, "environmentName required");
@@ -122,6 +144,9 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // 生命周期：通道初始化
     // ══════════════════════════════════════════════
 
+    /**
+     * 初始化各 Topic 对应的 Producer 与 Consumer。
+     */
     @Override
     protected void initializeTopics(Set<String> topics) {
         // 1. Producer — 外部注入优先，未注入则自建（懒初始化，单实例复用）
@@ -164,6 +189,9 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // 发送
     // ══════════════════════════════════════════════
 
+    /**
+     * 发送领域事件消息到指定 Topic。
+     */
     @Override
     protected <T extends IDomainEvent> void sendMessage(SubscribeData s, T obj, String topic) {
         long startNs = System.nanoTime();
@@ -191,6 +219,9 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // 消费
     // ══════════════════════════════════════════════
 
+    /**
+     * 并发消费消息，逐条派发领域事件。
+     */
     @Override
     public ConsumeConcurrentlyStatus consumeMessage(List<MessageExt> msgList,
                                                      ConsumeConcurrentlyContext context) {
@@ -240,6 +271,9 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // 优雅关闭
     // ══════════════════════════════════════════════
 
+    /**
+     * 关闭管理器，释放 Producer 与 Consumer 资源。
+     */
     @Override
     public void shutdown() {
         log.info("RocketMqEventManager shutting down...");
