@@ -49,6 +49,15 @@ public abstract class AbstractApplicationService {
         return commandExecutor.execute(aggregateRoot, rule, repository, domainLogic);
     }
 
+    /** 试跑单聚合根命令，不产生任何副作用，返回结构化校验结果。 */
+    protected <ID, T extends AggregateRoot<ID>> DryRunResult tryExecute(
+            T aggregateRoot,
+            IRule<?> rule,
+            IRepository<ID, T> repository,
+            Consumer<T> domainLogic) {
+        return commandExecutor.tryExecute(aggregateRoot, rule, repository, domainLogic);
+    }
+
     /** 创建新的工作单元（用于跨聚合根事务编排）。 */
     protected IUnitOfWork beginUnitOfWork() {
         return unitOfWorkFactory.get();
