@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link EntityRule} 综合单元测试：增删改、激活条件、参数规则、failFast、旧状态懒加载与 reset。
+ * {@link EntityRule} 综合单元测试：增删改、激活条件、参数规则、failFast、无状态旧实体加载与 reset。
  *
  * @author wizard-lee
  */
@@ -73,22 +73,17 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
-        }
-
-        @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(e.getName() != null && !e.getName().isEmpty()), Registry.NAME_EMPTY);
-            this.addRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice() > 0), Registry.PRICE_ZERO);
-            this.addRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)), Registry.PRICE_EQUAL);
-            this.addRule(e -> RuleCheckResult.of(e.getStatus() == 1), Registry.STATUS_ERROR,
-                    m -> m.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
-            this.addRule(e -> e.getName().equals("allowed")
+            this.addRule((e, old) -> RuleCheckResult.of(e.getName() != null && !e.getName().isEmpty()), Registry.NAME_EMPTY);
+            this.addRule((e, old) -> RuleCheckResult.of(e.getPrice() != null && e.getPrice() > 0), Registry.PRICE_ZERO);
+            this.addRule((e, old) -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)), Registry.PRICE_EQUAL);
+            this.addRule((e, old) -> RuleCheckResult.of(e.getStatus() == 1), Registry.STATUS_ERROR,
+                    (m, old) -> m.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
+            this.addRule((e, old) -> e.getName().equals("allowed")
                             ? RuleCheckResult.pass()
                             : RuleCheckResult.fail(new Object[]{e.getName()}),
                     Registry.NAME_USED,
-                    m -> !m.getName().isEmpty() ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
+                    (m, old) -> !m.getName().isEmpty() ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
         }
     }
 
@@ -100,13 +95,8 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
-        }
-
-        @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(false), Registry.SKIP_CODE, m -> ActiveStatus.INACTIVE);
+            this.addRule((e, old) -> RuleCheckResult.of(false), Registry.SKIP_CODE, (m, old) -> ActiveStatus.INACTIVE);
         }
     }
 
@@ -116,13 +106,8 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
-        }
-
-        @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(false), Registry.SKIP_CODE, m -> ActiveStatus.ACTIVE);
+            this.addRule((e, old) -> RuleCheckResult.of(false), Registry.SKIP_CODE, (m, old) -> ActiveStatus.ACTIVE);
         }
     }
 
@@ -130,7 +115,7 @@ class EntityRuleTest {
 
     static class NotEmptyNameValidator extends BaseRuleValidator<SampleEntity> {
         @Override
-        protected boolean validate(SampleEntity model) {
+        protected boolean validate(SampleEntity model, SampleEntity oldModel) {
             return model.getName() != null && !model.getName().isEmpty();
         }
     }
@@ -138,11 +123,6 @@ class EntityRuleTest {
     static class ValidatorRule extends EntityRule<SampleEntity> {
         ValidatorRule() {
             this.init();
-        }
-
-        @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
         }
 
         @Override
@@ -154,25 +134,20 @@ class EntityRuleTest {
     static class NameUsedBuilder implements ICheckRuleBuilder<SampleEntity> {
         @Override
         public ICheckRule<SampleEntity> rule() {
-            return en -> en.getName().equals("used")
+            return (en, old) -> en.getName().equals("used")
                     ? RuleCheckResult.fail(new Object[]{en.getName()})
                     : RuleCheckResult.pass();
         }
 
         @Override
         public IActiveRuleCondition<SampleEntity> ruleCondition() {
-            return m -> m.getName().isEmpty() ? ActiveStatus.INACTIVE : ActiveStatus.ACTIVE;
+            return (m, old) -> m.getName().isEmpty() ? ActiveStatus.INACTIVE : ActiveStatus.ACTIVE;
         }
     }
 
     static class BuilderRule extends EntityRule<SampleEntity> {
         BuilderRule() {
             this.init();
-        }
-
-        @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
         }
 
         @Override
@@ -190,13 +165,8 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
-        }
-
-        @Override
         public void init() {
-            this.addRule(en -> RuleCheckResult.fail(new Object[]{en.getName()}, autoFormat), Registry.NAME_USED);
+            this.addRule((en, old) -> RuleCheckResult.fail(new Object[]{en.getName()}, autoFormat), Registry.NAME_USED);
         }
     }
 
@@ -208,19 +178,14 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            return null;
-        }
-
-        @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(true), Registry.R1);
-            this.addRule(e -> RuleCheckResult.of(true), Registry.R2);
-            this.addRule(e -> RuleCheckResult.of(true), Registry.R3);
+            this.addRule((e, old) -> RuleCheckResult.of(true), Registry.R1);
+            this.addRule((e, old) -> RuleCheckResult.of(true), Registry.R2);
+            this.addRule((e, old) -> RuleCheckResult.of(true), Registry.R3);
         }
     }
 
-    // ==================== 旧状态懒加载 ====================
+    // ==================== 无状态旧实体加载 ====================
 
     static class OldEntityRule extends EntityRule<SampleEntity> {
         final AtomicInteger supplyCount = new AtomicInteger(0);
@@ -233,19 +198,24 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
+        protected boolean requireOldEntity() {
+            return true;
+        }
+
+        @Override
+        protected SampleEntity supplyOldEntity(SampleEntity currentModel) {
             supplyCount.incrementAndGet();
             return null;
         }
 
         @Override
         public void init() {
-            this.addRule(e -> {
-                SampleEntity first = this.getOldEntity();
-                SampleEntity second = this.getOldEntity();
+            this.addRule((e, old) -> {
+                SampleEntity first = old;
+                SampleEntity second = old;
                 sameInstance = (first == second);
                 oldIsNull = (first == null);
-                capturedCurrent = this.currentEntity();
+                capturedCurrent = e;
                 return RuleCheckResult.of(true);
             }, Registry.NAME_EMPTY);
         }
@@ -259,14 +229,13 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            supplyCount.incrementAndGet();
-            return null;
+        protected boolean requireOldEntity() {
+            return false;
         }
 
         @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(true), Registry.NAME_EMPTY, m -> ActiveStatus.INACTIVE);
+            this.addRule((e, old) -> RuleCheckResult.of(true), Registry.NAME_EMPTY, (m, old) -> ActiveStatus.INACTIVE);
         }
     }
 
@@ -279,18 +248,14 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
-            supplyCount.incrementAndGet();
-            return null;
+        protected boolean requireOldEntity() {
+            return false;
         }
 
         @Override
         public void init() {
-            this.addRule(e -> RuleCheckResult.of(false), Registry.NAME_EMPTY);
-            this.addRule(e -> {
-                this.getOldEntity();
-                return RuleCheckResult.of(true);
-            }, Registry.PRICE_ZERO);
+            this.addRule((e, old) -> RuleCheckResult.of(false), Registry.NAME_EMPTY);
+            this.addRule((e, old) -> RuleCheckResult.of(true), Registry.PRICE_ZERO);
         }
     }
 
@@ -302,7 +267,12 @@ class EntityRuleTest {
         }
 
         @Override
-        protected SampleEntity supplyOldEntity() {
+        protected boolean requireOldEntity() {
+            return true;
+        }
+
+        @Override
+        protected SampleEntity supplyOldEntity(SampleEntity currentModel) {
             supplyCount.incrementAndGet();
             SampleEntity old = new SampleEntity();
             old.setName("old");
@@ -311,8 +281,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> {
-                SampleEntity old = this.getOldEntity();
+            this.addRule((e, old) -> {
                 if (old != null && !e.getName().equals(old.getName())) {
                     return RuleCheckResult.fail(new Object[]{old.getName(), e.getName()});
                 }
@@ -418,7 +387,7 @@ class EntityRuleTest {
     @Test
     void appendRule_last_addsAtEnd() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_LAST", "x"),
+        rule.appendRule((e, old) -> RuleCheckResult.of(true), MessageCode.of("APPEND_LAST", "x"),
                 Registry.R2, RulePosition.LAST, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -428,7 +397,7 @@ class EntityRuleTest {
     @Test
     void appendRule_before_insertsBeforeRelative() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_BEFORE", "x"),
+        rule.appendRule((e, old) -> RuleCheckResult.of(true), MessageCode.of("APPEND_BEFORE", "x"),
                 Registry.R2, RulePosition.BEFORE, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -440,7 +409,7 @@ class EntityRuleTest {
     @Test
     void appendRule_after_insertsAfterRelative() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_AFTER", "x"),
+        rule.appendRule((e, old) -> RuleCheckResult.of(true), MessageCode.of("APPEND_AFTER", "x"),
                 Registry.R2, RulePosition.AFTER, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -452,7 +421,7 @@ class EntityRuleTest {
     @Test
     void appendRule_relativeNotFound_notInserted() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_X", "x"),
+        rule.appendRule((e, old) -> RuleCheckResult.of(true), MessageCode.of("APPEND_X", "x"),
                 MessageCode.of("NOPE", "x"), RulePosition.BEFORE, null);
         assertThat(rule.allRuleItems()).hasSize(3);
     }
@@ -461,7 +430,7 @@ class EntityRuleTest {
     void replaceRule_byCode_changesCode() {
         EntityRule<SampleEntity> rule = new FullRule();
         assertThat(rule.findRuleByMessageCode(Registry.PRICE_EQUAL)).isNotNull();
-        rule.replaceRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)),
+        rule.replaceRule((e, old) -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)),
                 Registry.PRICE_EQUAL, Registry.R1_NEW);
         assertThat(rule.findRuleByMessageCode(Registry.PRICE_EQUAL)).isNull();
         assertThat(rule.findRuleByMessageCode(Registry.R1_NEW)).isNotNull();
@@ -472,7 +441,7 @@ class EntityRuleTest {
         EntityRule<SampleEntity> rule = new FullRule();
         assertThat(rule.allRuleItems()).extracting(item -> item.getMessageCode().code())
                 .contains(Registry.NAME_USED.code());
-        rule.replaceRule(e -> RuleCheckResult.pass(),
+        rule.replaceRule((e, old) -> RuleCheckResult.pass(),
                 Registry.NAME_USED, Registry.R1_NEW);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).extracting(item -> item.getMessageCode().code())
@@ -527,7 +496,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void getOldEntity_lazyLoadedAndCalledOnce() {
+    void oldEntity_loadedOncePerValidation() {
         OldEntityRule rule = new OldEntityRule();
         SampleEntity entity = new SampleEntity();
         assertThat(rule.satisfiesRule(entity)).isTrue();
@@ -536,7 +505,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void getOldEntity_nullForCreate() {
+    void oldEntity_nullForCreate() {
         OldEntityRule rule = new OldEntityRule();
         SampleEntity entity = new SampleEntity();
         rule.satisfiesRule(entity);
@@ -560,7 +529,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void multipleValidationRuns_cacheResetsEachTime() {
+    void multipleValidationRuns_loadResetsEachTime() {
         OldEntityRule rule = new OldEntityRule();
         SampleEntity entity = new SampleEntity();
         rule.satisfiesRule(entity);
@@ -587,5 +556,41 @@ class EntityRuleTest {
         ParamOldRule rule = new ParamOldRule();
         rule.satisfiesRule(entity);
         assertThat(rule.supplyCount.get()).isEqualTo(1);
+    }
+
+    // ==================== 单例并发安全 ====================
+
+    @Test
+    void singletonInstance_concurrentSatisfiesRule_isSafe() throws InterruptedException {
+        // 共享同一单例 EntityRule，多个线程并发校验不同实体，验证无状态、结果正确
+        FullRule sharedRule = new FullRule();
+
+        SampleEntity passEntity = new SampleEntity();
+        passEntity.setName("allowed");
+        passEntity.setPrice(2.0);
+
+        SampleEntity failEntity = new SampleEntity();
+
+        int threadCount = 20;
+        Thread[] threads = new Thread[threadCount];
+        boolean[] results = new boolean[threadCount];
+
+        for (int i = 0; i < threadCount; i++) {
+            final int index = i;
+            final SampleEntity entity = (i % 2 == 0) ? passEntity : failEntity;
+            threads[i] = new Thread(() -> results[index] = sharedRule.satisfiesRule(entity));
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        for (int i = 0; i < threadCount; i++) {
+            boolean expectPass = (i % 2 == 0);
+            assertThat(results[i]).isEqualTo(expectPass);
+        }
     }
 }

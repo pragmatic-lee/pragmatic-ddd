@@ -9,7 +9,7 @@ package io.pragmatic.ddd.rules;
  */
 public class AlwaysActiveRuleCondition<T> implements IActiveRuleCondition<T> {
     @Override
-    public ActiveStatus status(T model) {
+    public ActiveStatus status(T newModel, T oldModel) {
         return ActiveStatus.ACTIVE;
     }
 }

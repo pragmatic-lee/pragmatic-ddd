@@ -9,6 +9,7 @@ import io.pragmatic.ddd.base.RuleCheckResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * 实体规则容器 —— 业务不变量的集合。
@@ -20,6 +21,10 @@ import java.util.Optional;
  * <p>规则通过 MessageCode 进行运行时增删改（append / replace / remove），
  * 支持 failFast（遇第一条失败即停止）和全量校验两种模式。</p>
  *
+ * <p>校验项接收「新模型」与「旧模型」双参数，EntityRule 自身不持有任何
+ * per-call 可变状态，因此实例可作为单例（如 Spring Bean）在多线程环境下安全共享。
+ * 需要新旧对比的子类覆盖 {@link #requireOldEntity()} 与 {@link #supplyOldEntity(AggregateRoot)}。</p>
+ *
  * @param <T> 被校验的模型类型，必须继承 AggregateRoot
  *
  * @author wizard-lee
@@ -29,12 +34,6 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     private final List<RuleItem<T>> rules;
     private final AlwaysActiveRuleCondition<T> defaultCondition = new AlwaysActiveRuleCondition<>();
     private final boolean failFast;
-
-    // ========== 旧状态懒加载缓存 ==========
-
-    private T cachedOldEntity;
-    private boolean oldEntityLoaded;
-    private T validatingEntity;
 
     /** 构造规则容器（默认 failFast=true）。 */
     public EntityRule() {
@@ -47,40 +46,32 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         this.rules = new ArrayList<>();
     }
 
-    // ========== 旧状态懒加载 ==========
+    // ========== 单参数适配 ==========
+
+    /** 将单参数校验逻辑适配为双参数校验项，用于不关心旧实体的规则。 */
+    public static <T> ICheckRule<T> of(Function<T, RuleCheckResult> singleArgRule) {
+        return (newModel, oldModel) -> singleArgRule.apply(newModel);
+    }
+
+    // ========== 旧实体供应 ==========
 
     /**
-     * 获取旧实体数据。
-     * <p>规则在 {@link #init()} 中通过 {@code this.getOldEntity()} 按需调用。</p>
-     * <p>首次调用触发 {@link #supplyOldEntity()}，后续返回缓存值。</p>
-     *
-     * @return 修改前的实体快照，不存在时（如创建操作）为 null
+     * 是否需要加载旧实体。
+     * <p>默认 false，即不触发任何旧实体查询。存在新旧对比规则的子类需覆盖为 true。</p>
      */
-    protected T getOldEntity() {
-        if (!this.oldEntityLoaded) {
-            this.cachedOldEntity = this.supplyOldEntity();
-            this.oldEntityLoaded = true;
-        }
-        return this.cachedOldEntity;
+    protected boolean requireOldEntity() {
+        return false;
     }
 
     /**
      * 供应旧实体数据。
-     * <p>由 {@link #getOldEntity()} 懒加载触发。子类必须实现。</p>
-     * <p>可通过 {@link #currentEntity()} 获取当前被校验的实体。</p>
+     * <p>仅在 {@link #requireOldEntity()} 返回 true 时，由每次 satisfiesRule 调用一次。</p>
      *
+     * @param currentModel 当前被校验的模型
      * @return 修改前的实体快照，不存在时返回 null
      */
-    protected abstract T supplyOldEntity();
-
-    /**
-     * 获取当前被校验的实体。
-     * <p>子类在 {@link #supplyOldEntity()} 中通过此方法获取当前实体。</p>
-     *
-     * @return 当前正在被校验的实体
-     */
-    protected T currentEntity() {
-        return this.validatingEntity;
+    protected T supplyOldEntity(T currentModel) {
+        return null;
     }
 
     // ========== 查询 ==========
@@ -198,17 +189,15 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     /** 遍历全部校验项对模型校验，支持 failFast 与参数化消息。 */
     @Override
     public boolean satisfiesRule(T model) {
-        // 每次校验重置懒加载缓存
-        this.validatingEntity = model;
-        this.cachedOldEntity = null;
-        this.oldEntityLoaded = false;
+        // per-call 状态：局部变量，天然线程隔离
+        T oldModel = this.loadOldEntity(model);
 
         boolean isValid = true;
         for (RuleItem<T> rule : this.rules) {
-            if (rule.getCondition().status(model) == ActiveStatus.INACTIVE) {
+            if (rule.getCondition().status(model, oldModel) == ActiveStatus.INACTIVE) {
                 continue;
             }
-            RuleCheckResult result = rule.getRule().check(model);
+            RuleCheckResult result = rule.getRule().check(model, oldModel);
             if (!result.isSatisfy()) {
                 isValid = false;
                 if (result.hasParams()) {
@@ -222,6 +211,13 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
             }
         }
         return isValid;
+    }
+
+    private T loadOldEntity(T model) {
+        if (!this.requireOldEntity()) {
+            return null;
+        }
+        return this.supplyOldEntity(model);
     }
 
     /** 清空规则并重新初始化。 */

@@ -12,14 +12,9 @@ public class MockEntityRule extends EntityRule<MockEntity> {
     }
 
     @Override
-    protected MockEntity supplyOldEntity() {
-        return null;
-    }
-
-    @Override
     public void init() {
 
-        this.addRule(t -> {
+        this.addRule((t, old) -> {
 
             return RuleCheckResult.of(t.showName() != null);
 

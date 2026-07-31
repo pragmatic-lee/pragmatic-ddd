@@ -15,11 +15,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RuleItemTest {
 
     static final MessageCode CODE = MessageCode.of("C1", "desc");
-    static final IActiveRuleCondition<Object> CONDITION = model -> ActiveStatus.ACTIVE;
+    static final IActiveRuleCondition<Object> CONDITION = (model, old) -> ActiveStatus.ACTIVE;
 
     static class SimpleRule implements ICheckRule<Object> {
         @Override
-        public RuleCheckResult check(Object model) {
+        public RuleCheckResult check(Object newModel, Object oldModel) {
             return RuleCheckResult.pass();
         }
     }

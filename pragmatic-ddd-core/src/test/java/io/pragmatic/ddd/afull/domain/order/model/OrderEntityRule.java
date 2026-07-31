@@ -18,20 +18,15 @@ public class OrderEntityRule extends EntityRule<Order> {
     }
 
     @Override
-    protected Order supplyOldEntity() {
-        return null;
-    }
-
-    @Override
     public void init() {
-        this.addRule(model -> RuleCheckResult.of(!StringUtils.isBlank(model.getPin())),
+        this.addRule((model, old) -> RuleCheckResult.of(!StringUtils.isBlank(model.getPin())),
                 OrderBrokenRuleRegistry.PIN_IS_EMPTY);
 
-        this.addRule(model -> RuleCheckResult.of(model.getTotalPrice().compareTo(BigDecimal.ZERO) > 0),
+        this.addRule((model, old) -> RuleCheckResult.of(model.getTotalPrice().compareTo(BigDecimal.ZERO) > 0),
                 OrderBrokenRuleRegistry.TOTAL_PRICE_ERROR);
 
-        this.addRule(model -> RuleCheckResult.of(!model.getOrderItemList().isEmpty() && model.getOrderItemList().size() < 100),
+        this.addRule((model, old) -> RuleCheckResult.of(!model.getOrderItemList().isEmpty() && model.getOrderItemList().size() < 100),
                 OrderBrokenRuleRegistry.ORDER_ITEM_ERROR,
-                model -> ActiveStatus.ACTIVE);
+                (model, old) -> ActiveStatus.ACTIVE);
     }
 }

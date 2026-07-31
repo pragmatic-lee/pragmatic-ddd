@@ -104,7 +104,7 @@ public class PersonTest {
         return new BasePersonGradeValidator(){
 
             @Override
-            protected boolean validate(Person model) {
+            protected boolean validate(Person model, Person oldModel) {
                 return true;
             }
 
@@ -115,7 +115,7 @@ public class PersonTest {
         return new BasePersonScoreValidator(){
 
             @Override
-            protected boolean validate(Person model) {
+            protected boolean validate(Person model, Person oldModel) {
                 return true;
             }
 

@@ -21,16 +21,11 @@ public class PersonEntityRule extends EntityRule<Person> {
 
         super(false);
 
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getName())), NAME_ERROR);
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getAge())), AGE_ERROR);
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getEmail())), EMAIL_ERROR);
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getPhone())), PHONE_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getName())), NAME_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getAge())), AGE_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getEmail())), EMAIL_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNoneEmpty(s.getPhone())), PHONE_ERROR);
         this.addRule(personScoreValidator, PERSON_SCORE_ERROR);
         this.addRule(personGradeValidator, PERSON_SCORE_ERROR);
-    }
-
-    @Override
-    protected Person supplyOldEntity() {
-        return null;
     }
 }

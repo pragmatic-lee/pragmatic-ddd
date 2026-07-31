@@ -10,13 +10,8 @@ public class EntityTest2EntityRule extends EntityRule<EntityTest2> {
     }
 
     @Override
-    protected EntityTest2 supplyOldEntity() {
-        return null;
-    }
-
-    @Override
     public void init() {
-        this.addRule(s -> {
+        this.addRule((s, old) -> {
 
             return RuleCheckResult.of(true);
 

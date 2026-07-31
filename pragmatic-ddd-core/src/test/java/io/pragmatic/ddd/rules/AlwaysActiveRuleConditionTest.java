@@ -19,12 +19,12 @@ class AlwaysActiveRuleConditionTest {
     void status_alwaysActive_forAnyModel() {
         IActiveRuleCondition<Sample> condition = new AlwaysActiveRuleCondition<>();
         Sample sample = new Sample();
-        assertThat(condition.status(sample)).isEqualTo(ActiveStatus.ACTIVE);
+        assertThat(condition.status(sample, null)).isEqualTo(ActiveStatus.ACTIVE);
     }
 
     @Test
     void status_alwaysActive_forNullModel() {
         IActiveRuleCondition<Sample> condition = new AlwaysActiveRuleCondition<>();
-        assertThat(condition.status(null)).isEqualTo(ActiveStatus.ACTIVE);
+        assertThat(condition.status(null, null)).isEqualTo(ActiveStatus.ACTIVE);
     }
 }

@@ -9,12 +9,7 @@ import static io.pragmatic.ddd.scenario.InvoiceBrokenRuleRegistry.*;
 public class InvoiceEntityRule extends EntityRule<Invoice> {
 
     public InvoiceEntityRule() {
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getTitle())), TITLE_IS_EMPTY_ERROR);
-        this.addRule(s -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getNo())), NO_IS_EMPTY_ERROR);
-    }
-
-    @Override
-    protected Invoice supplyOldEntity() {
-        return null;
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getTitle())), TITLE_IS_EMPTY_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getNo())), NO_IS_EMPTY_ERROR);
     }
 }
