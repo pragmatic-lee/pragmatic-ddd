@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Maven plugins upgraded to latest stable versions
 - License changed from Mulan PSL 2.0 to Apache License 2.0
 - `application` package renamed to `subscriber`
+- **Breaking**: `ICheckRule.check(T)` → `check(T newModel, T oldModel)`（旧实体提升为方法参数，使规则无状态化、可单例）；移除 `satisfiesRule(T)` 默认方法
+- **Breaking**: `IActiveRuleCondition.status(T)` → `status(T newModel, T oldModel)`；新增 `of(Function)`（不需要旧实体）与 `of(BiFunction)`（需要旧实体）两个静态适配器
+- **Breaking**: `BaseRuleValidator.validate(T)` → `validate(T newModel, T oldModel)`
+- `EntityRule` 去除 `cachedOldEntity` / `oldEntityLoaded` / `validatingEntity` 三个 per-call 可变字段，改为 `satisfiesRule` 内的局部变量；`supplyOldEntity()` 由无参 abstract 改为有参非 abstract（默认返回 null），新增 `requireOldEntity()` 钩子与静态 `of(Function)` 单参数适配器；删除 `getOldEntity()` / `currentEntity()`
 
 ### Removed
 - `IApplication` and `BaseApplication` — deprecated, will be replaced in future version
