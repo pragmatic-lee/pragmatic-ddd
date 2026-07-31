@@ -3,8 +3,9 @@ package io.pragmatic.ddd.rules;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRule;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
-import io.pragmatic.ddd.base.IRule;
+import io.pragmatic.ddd.base.ICheckRule;
 import io.pragmatic.ddd.base.MessageCode;
+import io.pragmatic.ddd.base.RuleCheckResult;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import lombok.Data;
 import org.junit.jupiter.api.Test;
@@ -78,12 +79,12 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> e.getName() != null && !e.getName().isEmpty(), Registry.NAME_EMPTY);
-            this.addRule(e -> e.getPrice() != null && e.getPrice() > 0, Registry.PRICE_ZERO);
-            this.addRule(e -> e.getPrice() != null && e.getPrice().equals(2.0), Registry.PRICE_EQUAL);
-            this.addRule(e -> e.getStatus() == 1, Registry.STATUS_ERROR,
+            this.addRule(e -> RuleCheckResult.of(e.getName() != null && !e.getName().isEmpty()), Registry.NAME_EMPTY);
+            this.addRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice() > 0), Registry.PRICE_ZERO);
+            this.addRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)), Registry.PRICE_EQUAL);
+            this.addRule(e -> RuleCheckResult.of(e.getStatus() == 1), Registry.STATUS_ERROR,
                     m -> m.getStatus() == 1 ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
-            this.addParamRule(e -> e.getName().equals("allowed")
+            this.addRule(e -> e.getName().equals("allowed")
                             ? RuleCheckResult.pass()
                             : RuleCheckResult.fail(new Object[]{e.getName()}),
                     Registry.NAME_USED,
@@ -105,7 +106,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> false, Registry.SKIP_CODE, m -> ActiveStatus.INACTIVE);
+            this.addRule(e -> RuleCheckResult.of(false), Registry.SKIP_CODE, m -> ActiveStatus.INACTIVE);
         }
     }
 
@@ -121,11 +122,11 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> false, Registry.SKIP_CODE, m -> ActiveStatus.ACTIVE);
+            this.addRule(e -> RuleCheckResult.of(false), Registry.SKIP_CODE, m -> ActiveStatus.ACTIVE);
         }
     }
 
-    // ==================== BaseRuleValidator / IParamRuleBuilder ====================
+    // ==================== BaseRuleValidator / ICheckRuleBuilder ====================
 
     static class NotEmptyNameValidator extends BaseRuleValidator<SampleEntity> {
         @Override
@@ -150,9 +151,9 @@ class EntityRuleTest {
         }
     }
 
-    static class NameUsedBuilder implements IParamRuleBuilder<SampleEntity> {
+    static class NameUsedBuilder implements ICheckRuleBuilder<SampleEntity> {
         @Override
-        public IParamRule<SampleEntity> rule() {
+        public ICheckRule<SampleEntity> rule() {
             return en -> en.getName().equals("used")
                     ? RuleCheckResult.fail(new Object[]{en.getName()})
                     : RuleCheckResult.pass();
@@ -176,7 +177,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addParamRule(new NameUsedBuilder(), Registry.NAME_USED);
+            this.addRule(new NameUsedBuilder(), Registry.NAME_USED);
         }
     }
 
@@ -195,7 +196,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addParamRule(en -> RuleCheckResult.fail(new Object[]{en.getName()}, autoFormat), Registry.NAME_USED);
+            this.addRule(en -> RuleCheckResult.fail(new Object[]{en.getName()}, autoFormat), Registry.NAME_USED);
         }
     }
 
@@ -213,9 +214,9 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> true, Registry.R1);
-            this.addRule(e -> true, Registry.R2);
-            this.addRule(e -> true, Registry.R3);
+            this.addRule(e -> RuleCheckResult.of(true), Registry.R1);
+            this.addRule(e -> RuleCheckResult.of(true), Registry.R2);
+            this.addRule(e -> RuleCheckResult.of(true), Registry.R3);
         }
     }
 
@@ -245,7 +246,7 @@ class EntityRuleTest {
                 sameInstance = (first == second);
                 oldIsNull = (first == null);
                 capturedCurrent = this.currentEntity();
-                return true;
+                return RuleCheckResult.of(true);
             }, Registry.NAME_EMPTY);
         }
     }
@@ -265,7 +266,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> true, Registry.NAME_EMPTY, m -> ActiveStatus.INACTIVE);
+            this.addRule(e -> RuleCheckResult.of(true), Registry.NAME_EMPTY, m -> ActiveStatus.INACTIVE);
         }
     }
 
@@ -285,10 +286,10 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(e -> false, Registry.NAME_EMPTY);
+            this.addRule(e -> RuleCheckResult.of(false), Registry.NAME_EMPTY);
             this.addRule(e -> {
                 this.getOldEntity();
-                return true;
+                return RuleCheckResult.of(true);
             }, Registry.PRICE_ZERO);
         }
     }
@@ -310,7 +311,7 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addParamRule(e -> {
+            this.addRule(e -> {
                 SampleEntity old = this.getOldEntity();
                 if (old != null && !e.getName().equals(old.getName())) {
                     return RuleCheckResult.fail(new Object[]{old.getName(), e.getName()});
@@ -369,7 +370,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void addParamRule_autoFormatTrue_formatsMessage() {
+    void addRule_autoFormatTrue_formatsMessage() {
         SampleEntity entity = new SampleEntity();
         entity.setName("bob");
         EntityRule<SampleEntity> rule = new ParamAutoFormatRule(true);
@@ -381,7 +382,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void addParamRule_autoFormatFalse_keepsRawMessage() {
+    void addRule_autoFormatFalse_keepsRawMessage() {
         SampleEntity entity = new SampleEntity();
         entity.setName("bob");
         EntityRule<SampleEntity> rule = new ParamAutoFormatRule(false);
@@ -402,7 +403,7 @@ class EntityRuleTest {
     }
 
     @Test
-    void addParamRule_withBuilder_usesInternalCondition() {
+    void addRule_withBuilder_usesInternalCondition() {
         SampleEntity empty = new SampleEntity();
         EntityRule<SampleEntity> skipRule = new BuilderRule();
         assertThat(skipRule.satisfiesRule(empty)).isTrue();
@@ -417,7 +418,7 @@ class EntityRuleTest {
     @Test
     void appendRule_last_addsAtEnd() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> true, MessageCode.of("APPEND_LAST", "x"),
+        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_LAST", "x"),
                 Registry.R2, RulePosition.LAST, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -427,7 +428,7 @@ class EntityRuleTest {
     @Test
     void appendRule_before_insertsBeforeRelative() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> true, MessageCode.of("APPEND_BEFORE", "x"),
+        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_BEFORE", "x"),
                 Registry.R2, RulePosition.BEFORE, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -439,7 +440,7 @@ class EntityRuleTest {
     @Test
     void appendRule_after_insertsAfterRelative() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> true, MessageCode.of("APPEND_AFTER", "x"),
+        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_AFTER", "x"),
                 Registry.R2, RulePosition.AFTER, null);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).hasSize(4);
@@ -451,27 +452,27 @@ class EntityRuleTest {
     @Test
     void appendRule_relativeNotFound_notInserted() {
         AppendBaseRule rule = new AppendBaseRule();
-        rule.appendRule(e -> true, MessageCode.of("APPEND_X", "x"),
+        rule.appendRule(e -> RuleCheckResult.of(true), MessageCode.of("APPEND_X", "x"),
                 MessageCode.of("NOPE", "x"), RulePosition.BEFORE, null);
         assertThat(rule.allRuleItems()).hasSize(3);
     }
 
     @Test
-    void replaceRule_changesMessageCode() {
+    void replaceRule_byCode_changesCode() {
         EntityRule<SampleEntity> rule = new FullRule();
         assertThat(rule.findRuleByMessageCode(Registry.PRICE_EQUAL)).isNotNull();
-        rule.replaceRule(e -> e.getPrice() != null && e.getPrice().equals(2.0),
+        rule.replaceRule(e -> RuleCheckResult.of(e.getPrice() != null && e.getPrice().equals(2.0)),
                 Registry.PRICE_EQUAL, Registry.R1_NEW);
         assertThat(rule.findRuleByMessageCode(Registry.PRICE_EQUAL)).isNull();
         assertThat(rule.findRuleByMessageCode(Registry.R1_NEW)).isNotNull();
     }
 
     @Test
-    void replaceParamRule_changesMessageCode() {
+    void replaceRule_changesMessageCode() {
         EntityRule<SampleEntity> rule = new FullRule();
         assertThat(rule.allRuleItems()).extracting(item -> item.getMessageCode().code())
                 .contains(Registry.NAME_USED.code());
-        rule.replaceParamRule(e -> RuleCheckResult.pass(),
+        rule.replaceRule(e -> RuleCheckResult.pass(),
                 Registry.NAME_USED, Registry.R1_NEW);
         List<RuleItem<SampleEntity>> items = rule.allRuleItems();
         assertThat(items).extracting(item -> item.getMessageCode().code())
@@ -502,7 +503,7 @@ class EntityRuleTest {
     @Test
     void findRulesByMessageCode_varargs() {
         EntityRule<SampleEntity> rule = new FullRule();
-        List<IRule<SampleEntity>> list = rule.findRulesByMessageCode(
+        List<ICheckRule<SampleEntity>> list = rule.findRulesByMessageCode(
                 Registry.NAME_EMPTY, Registry.PRICE_ZERO, MessageCode.of("NOPE"));
         assertThat(list).hasSize(2);
     }

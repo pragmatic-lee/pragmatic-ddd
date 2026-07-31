@@ -1,8 +1,10 @@
 package io.pragmatic.ddd.rules;
 
 import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.base.ICheckRule;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.base.MessageCode;
+import io.pragmatic.ddd.base.RuleCheckResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +14,7 @@ import java.util.Optional;
  * 实体规则容器 —— 业务不变量的集合。
  *
  * <p>EntityRule 是一个一维的规则列表，不区分"属性级"与"类级"规则。
- * 每条规则通过 {@link IRule#satisfiesRule} 对模型进行校验，
+ * 每条校验项通过 {@link ICheckRule#check} 对模型进行校验，
  * 违规信息通过 {@code BrokenRuleObject} 收集。</p>
  *
  * <p>规则通过 MessageCode 进行运行时增删改（append / replace / remove），
@@ -89,7 +91,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     }
 
     /** 按消息码查找单条规则；未命中返回 null。 */
-    public IRule<T> findRuleByMessageCode(MessageCode messageCode) {
+    public ICheckRule<T> findRuleByMessageCode(MessageCode messageCode) {
         return rules.stream()
                 .filter(r -> r.getMessageCode().equals(messageCode))
                 .findFirst()
@@ -98,26 +100,26 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     }
 
     /** 按多个消息码批量查找规则。 */
-    public List<IRule<T>> findRulesByMessageCode(MessageCode... messageCodes) {
-        List<IRule<T>> result = new ArrayList<>();
+    public List<ICheckRule<T>> findRulesByMessageCode(MessageCode... messageCodes) {
+        List<ICheckRule<T>> result = new ArrayList<>();
         for (MessageCode messageCode : messageCodes) {
-            IRule<T> rule = this.findRuleByMessageCode(messageCode);
-            if (rule != null) {
-                result.add(rule);
-            }
+            rules.stream()
+                    .filter(r -> r.getMessageCode().equals(messageCode))
+                    .findFirst()
+                    .ifPresent(r -> result.add(r.getRule()));
         }
         return result;
     }
 
     // ========== addRule ==========
 
-    /** 追加规则（使用默认激活条件）。 */
-    public void addRule(IRule<T> rule, MessageCode messageCode) {
+    /** 追加校验项（使用默认激活条件）。 */
+    public void addRule(ICheckRule<T> rule, MessageCode messageCode) {
         this.addRule(rule, messageCode, this.defaultCondition);
     }
 
-    /** 追加规则并指定激活条件。 */
-    public void addRule(IRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
+    /** 追加校验项并指定激活条件。 */
+    public void addRule(ICheckRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition) {
         this.rules.add(new RuleItem<>(rule, messageCode, condition));
     }
 
@@ -128,45 +130,21 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         this.rules.add(new RuleItem<>(rule.rule(), messageCode, condition));
     }
 
-    // ========== addParamRule ==========
-
-    /** 追加参数规则并指定激活条件。 */
-    public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode,
-                             IActiveRuleCondition<T> condition) {
-        this.rules.add(new RuleItem<>(paramRule, messageCode, condition));
-    }
-
-    /** 追加参数规则（使用默认激活条件）。 */
-    public void addParamRule(IParamRule<T> paramRule, MessageCode messageCode) {
-        this.addParamRule(paramRule, messageCode, this.defaultCondition);
-    }
-
-    /** 追加参数规则构造器（取其内部激活条件）。 */
-    public void addParamRule(IParamRuleBuilder<T> paramRule, MessageCode messageCode) {
+    /** 追加校验项构造器（取其内部激活条件）。 */
+    public void addRule(ICheckRuleBuilder<T> rule, MessageCode messageCode) {
         IActiveRuleCondition<T> condition =
-                Optional.ofNullable(paramRule.ruleCondition()).orElse(defaultCondition);
-        this.rules.add(new RuleItem<>(paramRule.rule(), messageCode, condition));
+                Optional.ofNullable(rule.ruleCondition()).orElse(defaultCondition);
+        this.rules.add(new RuleItem<>(rule.rule(), messageCode, condition));
     }
 
     // ========== appendRule ==========
 
-    /** 在参照规则指定位置插入规则。 */
-    public void appendRule(IRule<T> rule,
+    /** 在参照规则指定位置插入校验项。 */
+    public void appendRule(ICheckRule<T> rule,
                            MessageCode appendMessageCode,
                            MessageCode relativeMessageCode,
                            RulePosition position,
                            IActiveRuleCondition<T> condition) {
-        RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageCode,
-                Optional.ofNullable(condition).orElse(this.defaultCondition));
-        this.appendRule(this.rules, tRuleItem, relativeMessageCode, position);
-    }
-
-    /** 在参照规则指定位置插入参数规则。 */
-    public void appendParamRule(IParamRule<T> rule,
-                                    MessageCode appendMessageCode,
-                                    MessageCode relativeMessageCode,
-                                    RulePosition position,
-                                    IActiveRuleCondition<T> condition) {
         RuleItem<T> tRuleItem = new RuleItem<>(rule, appendMessageCode,
                 Optional.ofNullable(condition).orElse(this.defaultCondition));
         this.appendRule(this.rules, tRuleItem, relativeMessageCode, position);
@@ -193,12 +171,12 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
     // ========== replaceRule ==========
 
     /** 替换规则的消息码（使用默认激活条件）。 */
-    public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode, MessageCode newMessageCode) {
+    public void replaceRule(ICheckRule<T> rule, MessageCode replaceMessageCode, MessageCode newMessageCode) {
         this.replaceRule(rule, replaceMessageCode, newMessageCode, this.defaultCondition);
     }
 
     /** 替换规则的消息码并指定激活条件。 */
-    public void replaceRule(IRule<T> rule, MessageCode replaceMessageCode,
+    public void replaceRule(ICheckRule<T> rule, MessageCode replaceMessageCode,
                             MessageCode newMessageCode, IActiveRuleCondition<T> condition) {
         for (int i = 0; i < this.rules.size(); i++) {
             if (this.rules.get(i).getMessageCode().equals(replaceMessageCode)) {
@@ -206,24 +184,6 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
                 break;
             }
         }
-    }
-
-    /** 替换参数规则的消息码并指定激活条件。 */
-    public void replaceParamRule(IParamRule<T> paramRule,
-                                     MessageCode replaceMessageCode, MessageCode newMessageCode,
-                                     IActiveRuleCondition<T> condition) {
-        for (int i = 0; i < this.rules.size(); i++) {
-            if (this.rules.get(i).getMessageCode().equals(replaceMessageCode)) {
-                this.rules.set(i, new RuleItem<>(paramRule, newMessageCode, condition));
-                break;
-            }
-        }
-    }
-
-    /** 替换参数规则的消息码（使用默认激活条件）。 */
-    public void replaceParamRule(IParamRule<T> paramRule,
-                                     MessageCode replaceMessageCode, MessageCode newMessageCode) {
-        this.replaceParamRule(paramRule, replaceMessageCode, newMessageCode, this.defaultCondition);
     }
 
     // ========== removeRule ==========
@@ -235,7 +195,7 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
     // ========== satisfiesRule ==========
 
-    /** 遍历全部规则对模型校验，支持 failFast 与参数化消息。 */
+    /** 遍历全部校验项对模型校验，支持 failFast 与参数化消息。 */
     @Override
     public boolean satisfiesRule(T model) {
         // 每次校验重置懒加载缓存
@@ -248,22 +208,16 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
             if (rule.getCondition().status(model) == ActiveStatus.INACTIVE) {
                 continue;
             }
-            if (rule.getParamRule() != null) {
-                RuleCheckResult result = rule.getParamRule().isSatisfy(model);
-                if (!result.isSatisfy()) {
-                    isValid = false;
+            RuleCheckResult result = rule.getRule().check(model);
+            if (!result.isSatisfy()) {
+                isValid = false;
+                if (result.hasParams()) {
                     model.addParamBrokenRule(rule.getMessageCode(), result.getParams(), result.isAutoFormat());
-                    if (this.failFast) {
-                        break;
-                    }
-                }
-            } else if (rule.getRule() != null) {
-                if (!rule.getRule().satisfiesRule(model)) {
-                    isValid = false;
+                } else {
                     model.addBrokenRule(rule.getMessageCode());
-                    if (this.failFast) {
-                        break;
-                    }
+                }
+                if (this.failFast) {
+                    break;
                 }
             }
         }

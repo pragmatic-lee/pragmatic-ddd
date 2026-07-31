@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.rules;
 
-import io.pragmatic.ddd.base.IRule;
+import io.pragmatic.ddd.base.ICheckRule;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,9 +22,9 @@ class BaseRuleValidatorTest {
     @Test
     void rule_delegatesToValidate() {
         EvenValidator validator = new EvenValidator();
-        IRule<Integer> rule = validator.rule();
-        assertThat(rule.satisfiesRule(4)).isTrue();
-        assertThat(rule.satisfiesRule(3)).isFalse();
+        ICheckRule<Integer> rule = validator.rule();
+        assertThat(rule.check(4).isSatisfy()).isTrue();
+        assertThat(rule.check(3).isSatisfy()).isFalse();
     }
 
     @Test

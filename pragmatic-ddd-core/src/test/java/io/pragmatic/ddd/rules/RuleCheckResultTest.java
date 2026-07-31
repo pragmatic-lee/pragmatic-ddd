@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.rules;
 
+import io.pragmatic.ddd.base.RuleCheckResult;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

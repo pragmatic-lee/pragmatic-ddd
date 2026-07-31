@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.visual;
 
+import io.pragmatic.ddd.base.RuleCheckResult;
 import io.pragmatic.ddd.rules.EntityRule;
 import io.pragmatic.ddd.visual.rule.EntityRuleVisual;
 
@@ -20,7 +21,7 @@ public class MockEntityRule extends EntityRule<MockEntity> {
 
         this.addRule(t -> {
 
-            return t.showName() != null;
+            return RuleCheckResult.of(t.showName() != null);
 
         }, MockEntityBrokenRuleRegistry.Name_Error);
     }
