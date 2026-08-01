@@ -1,11 +1,17 @@
 package io.pragmatic.ddd.afull.application.order;
 
 import io.pragmatic.ddd.afull.api.order.OrderDto;
-import io.pragmatic.ddd.afull.domain.order.event.OrderCreatedEvent;
-import io.pragmatic.ddd.afull.domain.order.event.OrderPayedEvent;
-import io.pragmatic.ddd.afull.domain.order.service.OrderIdGenerateService;
-import io.pragmatic.ddd.afull.domain.order.service.OrderTotalPriceCalculateService;
+import io.pragmatic.ddd.afull.application.order.config.OrderEventSubscriberBootstrap;
+import io.pragmatic.ddd.afull.application.order.service.OrderIdGenerator;
+import io.pragmatic.ddd.afull.application.order.service.OrderTotalPriceCalculator;
+import io.pragmatic.ddd.afull.application.order.service.UserValidityRule;
+import io.pragmatic.ddd.afull.application.order.service.CreditLimitRule;
 import io.pragmatic.ddd.afull.domain.order.param.OrderInitParam;
+import io.pragmatic.ddd.afull.domain.order.service.IOrderIdGenerator;
+import io.pragmatic.ddd.afull.domain.order.service.IOrderTotalPriceCalculator;
+import io.pragmatic.ddd.afull.domain.order.service.IUserValidityRule;
+import io.pragmatic.ddd.afull.domain.order.service.ICreditLimitRule;
+import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.afull.domain.order.model.IOrderRepository;
 import io.pragmatic.ddd.afull.domain.order.model.Order;
@@ -17,25 +23,52 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class OrderApplicationService {
+/**
+ * 订单应用服务。
+ *
+ * @author wizard-lee
+ */
+public class OrderApplicationService extends AbstractApplicationService {
 
     private final IOrderRepository orderRepository;
-    private final OrderIdGenerateService orderIdGenerateService = new OrderIdGenerateService();
-    private final OrderTotalPriceCalculateService orderTotalPriceCalculateService = new OrderTotalPriceCalculateService();
-    private final IEventManager eventManager;
+    private final IOrderIdGenerator orderIdGenerator;
+    private final IOrderTotalPriceCalculator orderTotalPriceCalculator;
+    private final OrderEntityRule orderEntityRule;
 
     public OrderApplicationService(IOrderRepository orderRepository) {
-        this.orderRepository = orderRepository;
-        this.eventManager = new ThreadPoolEventManager();
-        this.initSubscriber();
+        this(orderRepository,
+                new ThreadPoolEventManager(),
+                new OrderIdGenerator(),
+                new OrderTotalPriceCalculator(),
+                new UserValidityRule(),
+                new CreditLimitRule(),
+                new OrderEntityRule(new UserValidityRule(), new CreditLimitRule()));
     }
 
+    public OrderApplicationService(IOrderRepository orderRepository,
+                                   IEventManager eventManager,
+                                   IOrderIdGenerator orderIdGenerator,
+                                   IOrderTotalPriceCalculator orderTotalPriceCalculator,
+                                   IUserValidityRule userValidityRule,
+                                   ICreditLimitRule creditLimitRule,
+                                   OrderEntityRule orderEntityRule) {
+        super(eventManager);
+        this.orderRepository = orderRepository;
+        this.orderIdGenerator = orderIdGenerator;
+        this.orderTotalPriceCalculator = orderTotalPriceCalculator;
+        this.orderEntityRule = orderEntityRule;
+        OrderEventSubscriberBootstrap.register(this.eventManager);
+    }
+
+    /**
+     * 创建订单。
+     */
     public long createOrder(OrderDto orderDto) {
         List<OrderItem> orderItemList = orderDto.orderItemDtoList.stream()
                 .map(s -> new OrderItem(s.skuId, s.number, s.price))
                 .collect(Collectors.toList());
-        BigDecimal totalPrice = this.orderTotalPriceCalculateService.totalPrice(orderItemList, orderDto.pin);
-        long newOrderId = this.orderIdGenerateService.genOrderId();
+        BigDecimal totalPrice = this.orderTotalPriceCalculator.calculate(orderItemList, orderDto.pin);
+        long newOrderId = this.orderIdGenerator.generate();
         OrderInitParam param = new OrderInitParam();
         param.setOrderId(newOrderId);
         param.setTotalPrice(totalPrice);
@@ -43,43 +76,20 @@ public class OrderApplicationService {
         param.setPin(orderDto.pin);
         param.setOrderItemList(orderItemList);
         Order order = new Order(param);
-        boolean validate = order.satisfiesRule(new OrderEntityRule());
-        if (validate) {
-            this.orderRepository.create(order);
-            order.getDomainEvents().forEach(this.eventManager::publish);
-            order.clearWorkUnitState();
-        } else {
-            order.throwBrokenRuleException();
-        }
+
+        this.execute(order, orderEntityRule, orderRepository, o -> { /* 无额外领域逻辑 */ });
+
         return newOrderId;
     }
 
+    /**
+     * 订单支付。
+     */
     public void payment(long orderId) {
         Order order = this.orderRepository.findByOrderId(orderId);
         if (order != null) {
-            order.payment();
-            if (order.satisfiesRule(new OrderEntityRule())) {
-                this.orderRepository.update(order);
-                order.getDomainEvents().forEach(this.eventManager::publish);
-                order.clearWorkUnitState();
-            } else {
-                throw order.exceptionCause();
-            }
+            this.execute(order, orderEntityRule, orderRepository, Order::payment);
         }
     }
 
-    private void initSubscriber() {
-
-        this.eventManager.registerSubscriber("sendSMS", OrderCreatedEvent.class,
-                aDomainEvent -> System.out.println("sendSMS"));
-        this.eventManager.registerSubscriber("noticeWarehouse", OrderCreatedEvent.class,
-                aDomainEvent -> System.out.println("noticeWarehouse"));
-
-        this.eventManager.registerSubscriber("sendSMS", OrderPayedEvent.class,
-                aDomainEvent -> {
-                });
-        this.eventManager.registerSubscriber("noticeWarehouse", OrderPayedEvent.class,
-                aDomainEvent -> {
-                });
-    }
 }
