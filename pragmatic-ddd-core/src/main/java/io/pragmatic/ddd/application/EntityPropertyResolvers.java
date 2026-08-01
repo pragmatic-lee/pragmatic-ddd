@@ -1,22 +1,31 @@
 package io.pragmatic.ddd.application;
 
+import io.pragmatic.ddd.base.IEntityPropertyCalculator;
+
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
- * EntityPropertyResolver 适配器工厂：将同一个 EntityPropertyCalculator 适配到不同 Command DTO / 实体组合，一处定义多处复用。
+ * IEntityPropertyResolver 适配器工厂：将同一个实体属性计算领域服务适配到不同场景的 Command DTO，一处定义多处复用。
  *
  * @author wizard-lee
  */
 public final class EntityPropertyResolvers {
 
-    private EntityPropertyResolvers() {}
+    private EntityPropertyResolvers() {
+    }
 
-    /** 从 Command DTO + 实体提取数据并计算，生成类型安全的 EntityPropertyResolver。 */
-    public static <C, E, T, R> EntityPropertyResolver<C, E, R> from(
-            Class<C> dtoType,
-            Class<E> entityType,
-            EntityPropertyCalculator<T, E, R> calculator,
+    /** 取数需同时依赖 Command 与实体现状时使用。 */
+    public static <C, E, T, R> IEntityPropertyResolver<C, E, R> of(
+            IEntityPropertyCalculator<T, E, R> calculator,
             BiFunction<C, E, T> extractor) {
         return (command, entity) -> calculator.calculate(extractor.apply(command, entity), entity);
+    }
+
+    /** 取数仅依赖 Command 时使用。 */
+    public static <C, E, T, R> IEntityPropertyResolver<C, E, R> of(
+            IEntityPropertyCalculator<T, E, R> calculator,
+            Function<C, T> extractor) {
+        return (command, entity) -> calculator.calculate(extractor.apply(command), entity);
     }
 }
