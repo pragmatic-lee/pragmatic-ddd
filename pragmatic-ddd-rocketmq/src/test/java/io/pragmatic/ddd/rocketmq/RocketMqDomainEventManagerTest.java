@@ -26,20 +26,21 @@ public class RocketMqDomainEventManagerTest {
 
     private static final String NAME_SERVER = "localhost:9876";
 
-    private RocketMqEventManager createManager(String env, ITopicResolver topicResolver) {
+    private RocketMqEventManager createManager( ITopicResolver topicResolver) {
         return RocketMqEventManager.builder()
-                .config(new RocketMqConfig().setNameServer(NAME_SERVER))
-                .environmentName(env)
+                .config(new RocketMqConfig().setNameServer(NAME_SERVER)
+                        .setConsumerGroup("RocketMqDomainEventManagerTest"))
+
                 .topicResolver(topicResolver)
                 .serializer(new Fastjson2EventSerializer())
                 .build();
     }
 
-    private RocketMqEventManager createManager(String env, ITopicResolver topicResolver,
+    private RocketMqEventManager createManager(ITopicResolver topicResolver,
                                                 SubscriberOrderManager pm) {
         return RocketMqEventManager.builder()
-                .config(new RocketMqConfig().setNameServer(NAME_SERVER))
-                .environmentName(env)
+                .config(new RocketMqConfig().setNameServer(NAME_SERVER)
+                        .setConsumerGroup("RocketMqDomainEventManagerTest"))
                 .topicResolver(topicResolver)
                 .orderManager(pm)
                 .build();
@@ -52,20 +53,20 @@ public class RocketMqDomainEventManagerTest {
     public void topicUseClassName() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(2);
         ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
+                .globalDefaultTopic("test_event111")
                 .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager("", topicResolver);
+        RocketMqEventManager rocketMqDomainEventManager = createManager( topicResolver);
 
         rocketMqDomainEventManager.initTopics();
         rocketMqDomainEventManager.registerSubscriber("test1", MyDomainEvent.class, s -> {
-            System.out.println(s.name + "test1");
+            System.out.println(s.getName() + "test1");
             countDownLatch.countDown();
         });
         rocketMqDomainEventManager.registerSubscriber("test2", MyDomainEvent.class, s -> {
-            System.out.println(s.name + "test2");
+            System.out.println(s.getName() + "test2");
             countDownLatch.countDown();
         });
-        rocketMqDomainEventManager.publish(new MyDomainEvent("abc"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("abc", "abc"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -81,18 +82,18 @@ public class RocketMqDomainEventManagerTest {
         ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
                 .globalDefaultTopic("test_event")
                 .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager("", topicResolver);
+        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
         rocketMqDomainEventManager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "shareTest1");
+            System.out.println(s.getName() + "shareTest1");
         });
         rocketMqDomainEventManager.registerSubscriber("shareTest2", ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "shareTest2");
+            System.out.println(s.getName() + "shareTest2");
         });
-        rocketMqDomainEventManager.publish(new ShareDomainEvent("100", "share"));
+        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "share"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -108,20 +109,20 @@ public class RocketMqDomainEventManagerTest {
         ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
                 .globalDefaultTopic("test_event")
                 .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager("prod", topicResolver);
+        RocketMqEventManager rocketMqDomainEventManager = createManager( topicResolver);
 
         rocketMqDomainEventManager.initTopics();
         rocketMqDomainEventManager.registerSubscriber("test1", ShareDomainEvent.class, s -> {
             System.out.println("test1");
             countDownLatch.countDown();
-        }, evt -> evt.name.equals("test1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
+        }, evt -> evt.getName().equals("test1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
         rocketMqDomainEventManager.registerSubscriber("test2", ShareDomainEvent.class, s -> {
             System.out.println("test2");
             countDownLatch.countDown();
-        }, evt -> evt.name.equals("test2") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
+        }, evt -> evt.getName().equals("test2") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
-        rocketMqDomainEventManager.publish(new ShareDomainEvent("100", "test1"));
-        rocketMqDomainEventManager.publish(new ShareDomainEvent("100", "test2"));
+        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "test1"));
+        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "test2"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -137,7 +138,7 @@ public class RocketMqDomainEventManagerTest {
         ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
                 .globalDefaultTopic("test_event")
                 .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager("", topicResolver,
+        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver,
                 new SubscriberOrderManager());
 
         rocketMqDomainEventManager.initTopics();
@@ -158,7 +159,7 @@ public class RocketMqDomainEventManagerTest {
             System.out.println(3);
         }, DELAYED);
 
-        rocketMqDomainEventManager.publish(new MyDomainEvent("100"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(60000);
@@ -173,7 +174,7 @@ public class RocketMqDomainEventManagerTest {
         ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
                 .globalDefaultTopic("test_event")
                 .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager("", topicResolver,
+        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver,
                 new SubscriberOrderManager());
 
         rocketMqDomainEventManager.initTopics();
@@ -181,7 +182,7 @@ public class RocketMqDomainEventManagerTest {
         rocketMqDomainEventManager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
             if (countDownLatch.getCount() > 0) {
                 countDownLatch.countDown();
-                System.out.println(s.name + "run error " + countDownLatch.getCount());
+                System.out.println(s.getName() + "run error " + countDownLatch.getCount());
                 throw new RuntimeException("test exception");
             }
             System.out.println("run ok");
@@ -190,7 +191,7 @@ public class RocketMqDomainEventManagerTest {
             System.out.println("run ok sub2");
         });
 
-        rocketMqDomainEventManager.publish(new MyDomainEvent("100"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(60000);

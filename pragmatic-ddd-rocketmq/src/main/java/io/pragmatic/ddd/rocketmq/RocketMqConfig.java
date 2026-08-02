@@ -25,6 +25,8 @@ public class RocketMqConfig {
 
     // ── Consumer 配置 ──
     private int maxReconsumeTimes = 16;
+    /** Consumer Group（框架自建 consumer 时使用，全局唯一，禁止与 topic 同名以免 rebalance 抢队列） */
+    private String consumerGroup = "PRAGMATIC_DDD_RMQ_CONSUMER";
 
     // ── getters / setters ──
 
@@ -52,4 +54,7 @@ public class RocketMqConfig {
 
     public int getMaxReconsumeTimes() { return maxReconsumeTimes; }
     public RocketMqConfig setMaxReconsumeTimes(int maxReconsumeTimes) { this.maxReconsumeTimes = maxReconsumeTimes; return this; }
+
+    public String getConsumerGroup() { return consumerGroup; }
+    public RocketMqConfig setConsumerGroup(String consumerGroup) { this.consumerGroup = consumerGroup; return this; }
 }

@@ -24,7 +24,6 @@ public class RocketMqDomainEventOrderedManagerTest {
     private RocketMqEventManager createManager(ITopicResolver topicResolver) {
         return RocketMqEventManager.builder()
                 .config(new RocketMqConfig().setNameServer(NAME_SERVER))
-                .environmentName("")
                 .topicResolver(topicResolver)
                 .orderManager(new SubscriberOrderManager())
                 .build();
@@ -55,8 +54,8 @@ public class RocketMqDomainEventOrderedManagerTest {
             countDownLatch.countDown();
             System.out.println("r3");
         });
-        rocketMqDomainEventManager.publish(new MyDomainEvent("全部执行"));
-        rocketMqDomainEventManager.publish(new MyDomainEvent("指定执行r3"), "r3");
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("全部执行", "全部执行"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("指定执行r3", "指定执行r3"), "r3");
 
         Thread.sleep(30000);
         Assertions.assertEquals(0L, countDownLatch.getCount());
@@ -86,9 +85,9 @@ public class RocketMqDomainEventOrderedManagerTest {
             countDownLatch.countDown();
             System.out.println(3);
         });
-        rocketMqDomainEventManager.publish(new MyDomainEvent("执行全部事件订阅"));
-        rocketMqDomainEventManager.publish(new MyDomainEvent("执行指定的事件订阅，不执行依赖当前订阅的订阅"), MyDomainEventSubscriberKey.R2, true);
-        rocketMqDomainEventManager.publish(new MyDomainEvent("执行指定的事件订阅，同时执行依赖当前订阅的订阅"), MyDomainEventSubscriberKey.R2, false);
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行全部事件订阅", "执行全部事件订阅"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，不执行依赖当前订阅的订阅", "执行指定的事件订阅，不执行依赖当前订阅的订阅"), MyDomainEventSubscriberKey.R2, true);
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，同时执行依赖当前订阅的订阅", "执行指定的事件订阅，同时执行依赖当前订阅的订阅"), MyDomainEventSubscriberKey.R2, false);
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -109,18 +108,18 @@ public class RocketMqDomainEventOrderedManagerTest {
         rocketMqDomainEventManager.initTopics();
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R1, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "r1");
+            System.out.println(s.getName() + "r1");
         }, null, ShareDomainEventSubscriberKey.R2);
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R2, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "r2");
+            System.out.println(s.getName() + "r2");
         });
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R3, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "r3");
+            System.out.println(s.getName() + "r3");
         }, null, ShareDomainEventSubscriberKey.R2);
 
-        rocketMqDomainEventManager.publish(new ShareDomainEvent("100", "share"));
+        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "share"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -152,19 +151,19 @@ public class RocketMqDomainEventOrderedManagerTest {
 
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R1, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "ShareDomainEvent r1");
+            System.out.println(s.getName() + "ShareDomainEvent r1");
         });
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R2, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "ShareDomainEvent r2");
+            System.out.println(s.getName() + "ShareDomainEvent r2");
         });
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R3, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
-            System.out.println(s.name + "ShareDomainEvent r3");
+            System.out.println(s.getName() + "ShareDomainEvent r3");
         }, null, ShareDomainEventSubscriberKey.R1);
 
-        rocketMqDomainEventManager.publish(new ShareDomainEvent("100", "share"));
-        rocketMqDomainEventManager.publish(new MyDomainEvent("100"));
+        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "share"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(30000);
@@ -187,10 +186,10 @@ public class RocketMqDomainEventOrderedManagerTest {
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R2, MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println("2");
-        }, evt -> evt.name.equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
+        }, evt -> evt.getName().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
-        rocketMqDomainEventManager.publish(new MyDomainEvent("100"));
-        rocketMqDomainEventManager.publish(new MyDomainEvent("200"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("200", "200"));
 
         Thread.sleep(30000);
         Assertions.assertEquals(0L, countDownLatch.getCount());
@@ -211,7 +210,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             if (countDownLatch.getCount() > 0) {
                 countDownLatch.countDown();
-                System.out.println(s.name + "run error " + countDownLatch.getCount());
+                System.out.println(s.getName() + "run error " + countDownLatch.getCount());
                 throw new RuntimeException("test exception");
             }
             System.out.println("run ok");
@@ -220,7 +219,7 @@ public class RocketMqDomainEventOrderedManagerTest {
             System.out.println("run ok r2");
         }, null, MyDomainEventSubscriberKey.R1);
 
-        rocketMqDomainEventManager.publish(new MyDomainEvent("100"));
+        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
 
         countDownLatch.await(30000, TimeUnit.SECONDS);
         Thread.sleep(60000);

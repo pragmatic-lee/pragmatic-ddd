@@ -74,7 +74,7 @@ public class ThreadPoolEventManager extends AbstractEventManager {
             int corePoolSize, int maxPoolSize, int queueCapacity,
             int maxRetryTimes, int retryDelayMs, int deliveryDelayMs,
             ISubscriberOrderManager orderManager) {
-        super("", orderManager);
+        super( orderManager);
         this.maxRetryTimes = maxRetryTimes;
         this.retryDelayMs = retryDelayMs;
         this.deliveryDelayMs = deliveryDelayMs;
@@ -117,7 +117,7 @@ public class ThreadPoolEventManager extends AbstractEventManager {
     @SuppressWarnings("unchecked")
     @Override
     public <T extends IDomainEvent> void publish(T obj) {
-        String eventName = this.resolveEventName(obj.getClass());
+        String eventName = obj.getClass().getSimpleName();
         Map<String, SubscriberInfo> subscriberMap = this.filterSubscriberInfoMap(eventName);
 
         for (Map.Entry<String, SubscriberInfo> entry : subscriberMap.entrySet()) {
@@ -138,7 +138,7 @@ public class ThreadPoolEventManager extends AbstractEventManager {
     @SuppressWarnings("unchecked")
     @Override
     public <T extends IDomainEvent> void publish(T obj, String subscriber, boolean onlyThis) {
-        String eventName = this.resolveEventName(obj.getClass());
+        String eventName = obj.getClass().getSimpleName();
         SubscriberInfo info = this.findSubscriberInfo(obj, subscriber, eventName);
         if (info == null) {
             return;

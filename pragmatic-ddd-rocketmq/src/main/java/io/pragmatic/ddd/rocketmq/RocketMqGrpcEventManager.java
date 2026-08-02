@@ -75,7 +75,6 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
      */
     public static class Builder {
         private RocketMqConfig config;
-        private String environmentName;
         private ITopicResolver topicResolver;
         private Producer producer;
         private ISubscriberOrderManager orderManager;
@@ -86,10 +85,6 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
          * 设置 RocketMQ 配置。
          */
         public Builder config(RocketMqConfig c) { this.config = c; return this; }
-        /**
-         * 设置环境名（用于消息 Tag 隔离）。
-         */
-        public Builder environmentName(String s) { this.environmentName = s; return this; }
         /**
          * 设置主题解析器。
          */
@@ -116,14 +111,13 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
          */
         public RocketMqGrpcEventManager build() {
             Objects.requireNonNull(config, "RocketMqConfig required");
-            Objects.requireNonNull(environmentName, "environmentName required");
             Objects.requireNonNull(topicResolver, "topicResolver required");
             return new RocketMqGrpcEventManager(this);
         }
     }
 
     private RocketMqGrpcEventManager(Builder b) {
-        super(b.environmentName,
+        super(
                 b.orderManager != null ? b.orderManager : new SubscriberOrderManager(),
                 b.serializer != null ? b.serializer : new Fastjson2EventSerializer(),
                 b.topicResolver);
@@ -222,7 +216,6 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
         byte[] body = this.serializeSubscribeData(s);
         MessageBuilder builder = provider.newMessageBuilder()
                 .setTopic(topic)
-                .setTag(this.environmentName)
                 .setKeys(obj.getEntityId())
                 .setBody(body);
         if (s.getDeliveryPolicy() == DeliveryPolicy.DELAYED) {

@@ -9,6 +9,8 @@ import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.event.spi.ISubscriberOrderManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -25,15 +27,17 @@ import java.util.stream.Collectors;
  */
 public abstract class AbstractMQEventManager extends AbstractEventManager {
 
+    private static final Logger log = LoggerFactory.getLogger(AbstractMQEventManager.class);
+
     private final IEventSerializer serializer;
     private final ITopicResolver topicResolver;
     private final Set<String> initializedTopics = new HashSet<>();
 
-    protected AbstractMQEventManager(String environmentName,
+    protected AbstractMQEventManager(
                                      ISubscriberOrderManager orderManager,
                                      IEventSerializer serializer,
                                      ITopicResolver topicResolver) {
-        super(environmentName, orderManager);
+        super(orderManager);
         this.serializer = serializer;
         this.topicResolver = topicResolver;
     }
@@ -152,7 +156,7 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
 
     /** 为某事件的所有根订阅者构建投递数据列表（执行条件判定为跳过时过滤）。 */
     protected <T extends IDomainEvent> List<SubscribeData> buildSubscribeDataList(T obj) {
-        String eventName = this.resolveEventName(obj.getClass());
+        String eventName = obj.getClass().getSimpleName();
         Map<String, SubscriberInfo> subscriberMap = this.filterSubscriberInfoMap(eventName);
         return subscriberMap.entrySet().stream().map(entry -> {
             if (this.executeCheck(obj, entry.getValue().condition()) == ExecuteStatus.EXECUTE) {
@@ -168,7 +172,7 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
     protected <T extends IDomainEvent> SubscribeData buildSubscribeData(final T obj,
                                                                         String subscriber,
                                                                         Boolean onlyThis) {
-        String eventName = this.resolveEventName(obj.getClass());
+        String eventName =obj.getClass().getSimpleName();
         SubscriberInfo subscriberInfo = this.findSubscriberInfo(obj, subscriber, eventName);
         if (subscriberInfo == null) {
             return null;
@@ -203,6 +207,7 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
         String event = subscribeData.getRealEventName();
         Map<String, SubscriberInfo> subscriberList = this.subscribers.get(event);
         if (subscriberList == null) {
+            log.warn("消费消息未找到事件类型订阅者 event={} topic={}，消息将被忽略", event, mqTopic);
             return;
         }
         AbstractEventSubscriber<?> subscriber =

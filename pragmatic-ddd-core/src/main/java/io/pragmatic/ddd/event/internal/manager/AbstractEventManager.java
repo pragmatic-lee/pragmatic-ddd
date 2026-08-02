@@ -25,27 +25,13 @@ import static java.util.stream.Collectors.toMap;
  */
 public abstract class AbstractEventManager implements IEventManager {
 
-    protected final String environmentName;
     protected final ConcurrentHashMap<String, Map<String, SubscriberInfo>> subscribers = new ConcurrentHashMap<>();
     private final IExecuteCondition<IDomainEvent> defaultCondition = new DefaultExecuteCondition<>();
 
     protected final ISubscriberOrderManager orderManager;
 
-    protected AbstractEventManager(String environmentName, ISubscriberOrderManager orderManager) {
-        this.environmentName = environmentName;
+    protected AbstractEventManager(ISubscriberOrderManager orderManager) {
         this.orderManager = orderManager;
-    }
-
-    /**
-     * 解析事件名：类名 + 环境前缀。
-     * 替代原有的 getEventName() 方法，不再读取 @EventName 注解。
-     */
-    protected String resolveEventName(Class<?> eventType) {
-        String name = eventType.getSimpleName();
-        if (StringUtils.isNotBlank(this.environmentName)) {
-            name = this.environmentName + "_" + name;
-        }
-        return name;
     }
 
     /** 返回某事件的根订阅者映射（排除存在前置依赖的非根订阅者）。 */
@@ -136,7 +122,7 @@ public abstract class AbstractEventManager implements IEventManager {
                               IExecuteCondition condition,
                               String dependSubscriber,
                               DeliveryPolicy policy) {
-        String eventName = resolveEventName(subscriber.subscribedToEventType());
+        String eventName = subscriber.subscribedToEventType().getSimpleName();
         if (this.subscribers.containsKey(eventName)) {
             Map<String, SubscriberInfo> stringISubscriberMap = this.subscribers.get(eventName);
             if (stringISubscriberMap.containsKey(alias)) {

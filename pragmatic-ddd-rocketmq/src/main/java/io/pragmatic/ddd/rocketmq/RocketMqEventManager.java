@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.rocketmq;
 
+import com.google.common.base.Charsets;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.PublishEventException;
 import io.pragmatic.ddd.event.RegisterDomainEventException;
@@ -24,6 +25,7 @@ import org.apache.rocketmq.common.message.MessageExt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,7 +82,6 @@ public class RocketMqEventManager extends AbstractMQEventManager
      */
     public static class Builder {
         private RocketMqConfig config;
-        private String environmentName;
         private ITopicResolver topicResolver;
         private MQProducer producer;
         private ISubscriberOrderManager orderManager;
@@ -91,10 +92,6 @@ public class RocketMqEventManager extends AbstractMQEventManager
          * 设置 RocketMQ 配置。
          */
         public Builder config(RocketMqConfig c) { this.config = c; return this; }
-        /**
-         * 设置环境名（用于消息 Tag 隔离）。
-         */
-        public Builder environmentName(String s) { this.environmentName = s; return this; }
         /**
          * 设置主题解析器。
          */
@@ -121,14 +118,13 @@ public class RocketMqEventManager extends AbstractMQEventManager
          */
         public RocketMqEventManager build() {
             Objects.requireNonNull(config, "RocketMqConfig required");
-            Objects.requireNonNull(environmentName, "environmentName required");
             Objects.requireNonNull(topicResolver, "topicResolver required");
             return new RocketMqEventManager(this);
         }
     }
 
     private RocketMqEventManager(Builder b) {
-        super(b.environmentName,
+        super(
                 b.orderManager != null ? b.orderManager : new SubscriberOrderManager(),
                 b.serializer != null ? b.serializer : new Fastjson2EventSerializer(),
                 b.topicResolver);
@@ -171,7 +167,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
         // 2. Consumer — 每 topic 独立实例，始终框架内部创建
         for (String topic : topics) {
             try {
-                DefaultMQPushConsumer c = new DefaultMQPushConsumer(topic);
+                DefaultMQPushConsumer c = new DefaultMQPushConsumer(config.getConsumerGroup());
                 c.setNamesrvAddr(config.getNameServer());
                 c.setMaxReconsumeTimes(config.getMaxReconsumeTimes());
                 c.subscribe(topic, "*");
@@ -196,7 +192,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
     protected <T extends IDomainEvent> void sendMessage(SubscribeData s, T obj, String topic) {
         long startNs = System.nanoTime();
         byte[] body = this.serializeSubscribeData(s);
-        Message msg = new Message(topic, this.environmentName, obj.getEntityId(), body);
+        Message msg = new Message(topic,null,obj.getEntityId(),body);
         if (s.getDeliveryPolicy() == DeliveryPolicy.DELAYED) {
             msg.setDelayTimeLevel(config.getDefaultDelayLevel());
         }
