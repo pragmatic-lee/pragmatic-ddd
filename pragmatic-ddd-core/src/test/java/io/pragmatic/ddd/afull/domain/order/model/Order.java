@@ -3,7 +3,6 @@ package io.pragmatic.ddd.afull.domain.order.model;
 import io.pragmatic.ddd.afull.domain.order.event.OrderCreatedEvent;
 import io.pragmatic.ddd.operation.OperationRegistry;
 import io.pragmatic.ddd.afull.domain.order.event.OrderPayedEvent;
-import io.pragmatic.ddd.afull.domain.order.param.OrderInitParam;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
 
@@ -12,7 +11,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author lixiaojing
+ * 订单聚合根。
+ *
+ * @author wizard-lee
  */
 public class Order extends AggregateRoot<Long> {
 
@@ -24,15 +25,24 @@ public class Order extends AggregateRoot<Long> {
     private final LocalDateTime created;
 
 
-    public Order(OrderInitParam orderInitParam) {
-        this.setEntityId(orderInitParam.getOrderId());
-        this.totalPrice = orderInitParam.getTotalPrice();
-        this.comment = orderInitParam.getComment();
-        this.pin = orderInitParam.getPin();
-        this.orderItemList = orderInitParam.getOrderItemList();
+    private Order(long orderId, String pin, String comment, List<OrderItem> orderItemList, BigDecimal totalPrice) {
+        this.setEntityId(orderId);
+        this.totalPrice = totalPrice;
+        this.comment = comment;
+        this.pin = pin;
+        this.orderItemList = orderItemList;
         this.created = LocalDateTime.now();
+        this.markNew();
         //事件收集
         this.collectEvent(() -> new OrderCreatedEvent(this.getEntityId()));
+    }
+
+    /**
+     * 创建订单：由属性计算领域服务先算出的总价在此赋值，聚合根守护创建不变量。
+     */
+    public static Order place(long orderId, String pin, String comment,
+                              List<OrderItem> orderItemList, BigDecimal totalPrice) {
+        return new Order(orderId, pin, comment, orderItemList, totalPrice);
     }
 
 
