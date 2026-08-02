@@ -145,6 +145,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
                     try {
                         ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
                                 .setEndpoints(config.getProxyAddr())
+                                .enableSsl(false)
                                 .build();
                         this.producer = provider.newProducerBuilder()
                                 .setClientConfiguration(clientConfig)
@@ -167,7 +168,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
                 subscription.put(topic, FilterExpression.SUB_ALL);
                 PushConsumer consumer = provider.newPushConsumerBuilder()
                         .setClientConfiguration(clientConfig)
-                        .setConsumerGroup(topic)
+                        .setConsumerGroup(config.getConsumerGroup())
                         .setSubscriptionExpressions(subscription)
                         .setMessageListener(messageView -> {
                             ByteBuffer bodyBuffer = messageView.getBody();
