@@ -7,6 +7,7 @@ import io.pragmatic.ddd.application.EntityPropertyResolvers;
 import io.pragmatic.ddd.application.IEntityPropertyResolver;
 import io.pragmatic.ddd.afull.domain.order.model.Order;
 import io.pragmatic.ddd.afull.domain.order.model.OrderItem;
+import io.pragmatic.ddd.afull.domain.order.param.OrderCreateData;
 import io.pragmatic.ddd.afull.domain.order.model.TotalPriceContext;
 import io.pragmatic.ddd.afull.domain.order.service.IOrderIdGenerator;
 import io.pragmatic.ddd.afull.domain.order.service.IOrderTotalPriceCalculator;
@@ -41,7 +42,8 @@ public class OrderFactory implements EntityFactory<Order, OrderDto> {
         long orderId = orderIdGenerator.generate();
         BigDecimal totalPrice = totalPriceResolver.resolve(command);
         List<OrderItem> orderItemList = toOrderItems(command.orderItemDtoList);
-        return Order.place(orderId, command.pin, command.comment, orderItemList, totalPrice);
+        return new Order(new OrderCreateData(orderId, command.pin, command.comment,
+                orderItemList, totalPrice));
     }
 
     private List<OrderItem> toOrderItems(List<OrderItemDto> dtos) {
