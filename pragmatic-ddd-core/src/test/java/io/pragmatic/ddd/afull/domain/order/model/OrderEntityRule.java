@@ -2,9 +2,11 @@ package io.pragmatic.ddd.afull.domain.order.model;
 
 import io.pragmatic.ddd.afull.domain.order.service.ICreditLimitRule;
 import io.pragmatic.ddd.afull.domain.order.service.IUserValidityRule;
+import io.pragmatic.ddd.base.MessageCode;
 import io.pragmatic.ddd.base.RuleCheckResult;
 import io.pragmatic.ddd.rules.ActiveStatus;
 import io.pragmatic.ddd.rules.EntityRule;
+import io.pragmatic.ddd.rules.IActiveRuleCondition;
 import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
