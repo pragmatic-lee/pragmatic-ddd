@@ -194,6 +194,11 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
 
         boolean isValid = true;
         for (RuleItem<T> rule : this.rules) {
+            // 第一重：code 级开关（外部动态配置决定是否启用该规则）
+            if (rule.getCondition().switchStatus(rule.getMessageCode()) == ActiveStatus.INACTIVE) {
+                continue;
+            }
+            // 第二重：模型级条件（基于模型内容 / 新旧对比决定是否参与校验）
             if (rule.getCondition().status(model, oldModel) == ActiveStatus.INACTIVE) {
                 continue;
             }

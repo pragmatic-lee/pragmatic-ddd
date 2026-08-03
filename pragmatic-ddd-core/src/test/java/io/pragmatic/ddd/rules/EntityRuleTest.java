@@ -36,6 +36,7 @@ class EntityRuleTest {
         public static final MessageCode R2 = MessageCode.of("R2", "r2");
         public static final MessageCode R3 = MessageCode.of("R3", "r3");
         public static final MessageCode R1_NEW = MessageCode.of("R1_NEW", "r1new");
+        public static final MessageCode SWITCH_CODE = MessageCode.of("SWITCH_CODE", "开关控制码");
         public static final Registry INSTANCE = new Registry();
     }
 
@@ -153,6 +154,64 @@ class EntityRuleTest {
         @Override
         public void init() {
             this.addRule(new NameUsedBuilder(), Registry.NAME_USED);
+        }
+    }
+
+    // ==================== code 级开关 ====================
+
+    static class CodeSwitchOffRule extends EntityRule<SampleEntity> {
+        CodeSwitchOffRule() {
+            this.init();
+        }
+
+        @Override
+        public void init() {
+            this.addRule((e, old) -> RuleCheckResult.of(false), Registry.SWITCH_CODE,
+                    new CodeSwitchCondition<>(ActiveStatus.INACTIVE));
+        }
+    }
+
+    static class CodeSwitchOnRule extends EntityRule<SampleEntity> {
+        CodeSwitchOnRule() {
+            this.init();
+        }
+
+        @Override
+        public void init() {
+            this.addRule((e, old) -> RuleCheckResult.of(false), Registry.SWITCH_CODE,
+                    new CodeSwitchCondition<>(ActiveStatus.ACTIVE));
+        }
+    }
+
+    static class CodeSwitchOffCheckCountRule extends EntityRule<SampleEntity> {
+        final AtomicInteger checkCount = new AtomicInteger(0);
+
+        CodeSwitchOffCheckCountRule() {
+            this.init();
+        }
+
+        @Override
+        public void init() {
+            this.addRule((e, old) -> {
+                checkCount.incrementAndGet();
+                return RuleCheckResult.of(false);
+            }, Registry.SWITCH_CODE, new CodeSwitchCondition<>(ActiveStatus.INACTIVE));
+        }
+    }
+
+    /**
+     * 按 code 返回固定开关状态的条件；模型级条件保持 ACTIVE。
+     */
+    static class CodeSwitchCondition<T> extends AlwaysActiveRuleCondition<T> {
+        private final ActiveStatus codeStatus;
+
+        CodeSwitchCondition(ActiveStatus codeStatus) {
+            this.codeStatus = codeStatus;
+        }
+
+        @Override
+        public ActiveStatus switchStatus(MessageCode messageCode) {
+            return codeStatus;
         }
     }
 
@@ -592,5 +651,33 @@ class EntityRuleTest {
             boolean expectPass = (i % 2 == 0);
             assertThat(results[i]).isEqualTo(expectPass);
         }
+    }
+
+    // ==================== code 级开关 ====================
+
+    @Test
+    void codeSwitch_off_skipsFailingRule() {
+        SampleEntity entity = new SampleEntity();
+        EntityRule<SampleEntity> rule = new CodeSwitchOffRule();
+        assertThat(rule.satisfiesRule(entity)).isTrue();
+        assertThat(entity.getBrokenRules()).isEmpty();
+    }
+
+    @Test
+    void codeSwitch_on_runsFailingRule() {
+        SampleEntity entity = new SampleEntity();
+        EntityRule<SampleEntity> rule = new CodeSwitchOnRule();
+        assertThat(rule.satisfiesRule(entity)).isFalse();
+        assertThat(entity.getBrokenRules()).hasSize(1);
+        assertThat(entity.getBrokenRules().get(0).getName()).isEqualTo(Registry.SWITCH_CODE.code());
+    }
+
+    @Test
+    void codeSwitch_off_doesNotExecuteCheck() {
+        SampleEntity entity = new SampleEntity();
+        CodeSwitchOffCheckCountRule rule = new CodeSwitchOffCheckCountRule();
+        assertThat(rule.satisfiesRule(entity)).isTrue();
+        assertThat(rule.checkCount.get()).isEqualTo(0);
+        assertThat(entity.getBrokenRules()).isEmpty();
     }
 }
