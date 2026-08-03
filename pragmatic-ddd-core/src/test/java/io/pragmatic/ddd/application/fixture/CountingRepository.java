@@ -25,7 +25,7 @@ public class CountingRepository implements IRepository<Long, DryRunAggregate> {
     }
 
     @Override
-    public void removeById(Long id) {
+    public void remove(DryRunAggregate aggregateRoot) {
         // 试跑测试不涉及删除
     }
 

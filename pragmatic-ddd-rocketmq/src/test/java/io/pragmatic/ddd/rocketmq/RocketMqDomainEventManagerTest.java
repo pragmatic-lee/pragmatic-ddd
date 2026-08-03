@@ -58,6 +58,7 @@ public class RocketMqDomainEventManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager( topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber("test1", MyDomainEvent.class, s -> {
             System.out.println(s.getName() + "test1");
             countDownLatch.countDown();
@@ -85,6 +86,7 @@ public class RocketMqDomainEventManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(s.getName() + "shareTest1");
@@ -112,6 +114,7 @@ public class RocketMqDomainEventManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager( topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber("test1", ShareDomainEvent.class, s -> {
             System.out.println("test1");
             countDownLatch.countDown();
@@ -142,6 +145,7 @@ public class RocketMqDomainEventManagerTest {
                 new SubscriberOrderManager());
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber("sub0", MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(0);
@@ -178,6 +182,7 @@ public class RocketMqDomainEventManagerTest {
                 new SubscriberOrderManager());
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         CountDownLatch countDownLatch = new CountDownLatch(3);
         rocketMqDomainEventManager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
             if (countDownLatch.getCount() > 0) {

@@ -60,6 +60,7 @@ public class RocketMqGrpcEventManagerTest {
         RocketMqGrpcEventManager manager = createManager(topicResolver);
 
         manager.initTopics();
+        manager.start();
         manager.registerSubscriber("test1", MyDomainEvent.class, s -> {
             System.out.println(s.getName() + "test1");
             countDownLatch.countDown();
@@ -91,6 +92,7 @@ public class RocketMqGrpcEventManagerTest {
         RocketMqGrpcEventManager manager = createManager(topicResolver);
 
         manager.initTopics();
+        manager.start();
         manager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(s.getName() + "shareTest1");
@@ -122,6 +124,7 @@ public class RocketMqGrpcEventManagerTest {
         RocketMqGrpcEventManager manager = createManager(topicResolver);
 
         manager.initTopics();
+        manager.start();
         IExecuteCondition<ShareDomainEvent> test1Condition = evt ->
                 evt.getName().equals("test1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP;
         IExecuteCondition<ShareDomainEvent> test2Condition = evt ->
@@ -159,6 +162,7 @@ public class RocketMqGrpcEventManagerTest {
         RocketMqGrpcEventManager manager = createManager(topicResolver, new SubscriberOrderManager());
 
         manager.initTopics();
+        manager.start();
         manager.registerSubscriber("sub0", MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(0);
@@ -198,6 +202,7 @@ public class RocketMqGrpcEventManagerTest {
         RocketMqGrpcEventManager manager = createManager(topicResolver, new SubscriberOrderManager());
 
         manager.initTopics();
+        manager.start();
         CountDownLatch countDownLatch = new CountDownLatch(3);
         manager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
             if (countDownLatch.getCount() > 0) {

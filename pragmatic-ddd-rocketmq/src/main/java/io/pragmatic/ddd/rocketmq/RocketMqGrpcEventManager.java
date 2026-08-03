@@ -15,7 +15,9 @@ import org.apache.rocketmq.client.apis.ClientConfiguration;
 import org.apache.rocketmq.client.apis.ClientServiceProvider;
 import org.apache.rocketmq.client.apis.consumer.ConsumeResult;
 import org.apache.rocketmq.client.apis.consumer.FilterExpression;
+import org.apache.rocketmq.client.apis.consumer.MessageListener;
 import org.apache.rocketmq.client.apis.consumer.PushConsumer;
+import org.apache.rocketmq.client.apis.message.MessageView;
 import org.apache.rocketmq.client.apis.producer.Producer;
 import org.apache.rocketmq.client.apis.message.MessageBuilder;
 import org.slf4j.Logger;
@@ -42,7 +44,7 @@ import java.util.Set;
  *
  * @author wizard-lee
  */
-public class RocketMqGrpcEventManager extends AbstractMQEventManager {
+public class RocketMqGrpcEventManager extends AbstractMQEventManager implements MessageListener {
 
     private static final Logger log = LoggerFactory.getLogger(RocketMqGrpcEventManager.class);
 
@@ -57,7 +59,11 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     private final ClientServiceProvider provider;
     private Producer producer;
     private final List<PushConsumer> consumerList = new ArrayList<>();
+    private final List<String> pendingConsumerTopics = new ArrayList<>();
     private final IEventMetrics metrics;
+
+    // ── 生命周期状态 ──
+    private volatile boolean started = false;
 
     // ══════════════════════════════════════════════
     // Builder
@@ -68,6 +74,33 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
      */
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public ConsumeResult consume(MessageView messageView) {
+        ByteBuffer bodyBuffer = messageView.getBody();
+        byte[] bytes = new byte[bodyBuffer.remaining()];
+        bodyBuffer.get(bytes);
+        String data = new String(bytes, StandardCharsets.UTF_8);
+        try {
+            handleEvent(data, messageView.getTopic());
+            log.debug("gRPC 消费成功 topic={} msgId={} attempt={}",
+                    messageView.getTopic(), messageView.getMessageId(),
+                    messageView.getDeliveryAttempt());
+            metrics.recordConsume(messageView.getTopic(), "unknown", true,
+                    messageView.getDeliveryAttempt() - 1);
+            return ConsumeResult.SUCCESS;
+        } catch (Exception e) {
+            log.error("gRPC 消费异常 topic={} msgId={} attempt={}",
+                    messageView.getTopic(), messageView.getMessageId(),
+                    messageView.getDeliveryAttempt(), e);
+            metrics.recordConsume(messageView.getTopic(), "unknown", false,
+                    messageView.getDeliveryAttempt() - 1);
+            if (messageView.getDeliveryAttempt() > config.getMaxReconsumeTimes()) {
+                metrics.recordDlq(messageView.getTopic(), e.getClass().getSimpleName());
+            }
+            return ConsumeResult.FAILURE;
+        }
     }
 
     /**
@@ -134,73 +167,17 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
     // ══════════════════════════════════════════════
 
     /**
-     * 初始化各 Topic 对应的 gRPC Producer 与 PushConsumer。
+     * 初始化各 Topic 对应的 gRPC 通道。
+     * <p>
+     * gRPC 的 Producer/Consumer 在 SDK 中 build 即连接，因此此处仅收集待消费的 topic，
+     * 不创建任何客户端、不建立连接；真正的 build（即 start）由 {@link #start()} 受控触发。
      */
     @Override
     protected void initializeTopics(Set<String> topics) {
-        // 1. Producer — gRPC 客户端，注入优先，未注入则自建
-        if (this.producer == null) {
-            synchronized (this) {
-                if (this.producer == null) {
-                    try {
-                        ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
-                                .setEndpoints(config.getProxyAddr())
-                                .enableSsl(false)
-                                .build();
-                        this.producer = provider.newProducerBuilder()
-                                .setClientConfiguration(clientConfig)
-                                .setTopics(topics.toArray(new String[0]))
-                                .build();
-                        log.info("gRPC Producer created, proxy={}", config.getProxyAddr());
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to create gRPC Producer", e);
-                    }
-                }
-            }
-        }
-        // 2. Consumer — gRPC PushConsumer，每 topic 独立实例
+        // 仅收集 topic，延迟到 start() 才 build Producer/Consumer
         for (String topic : topics) {
-            try {
-                ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
-                        .setEndpoints(config.getProxyAddr())
-                        .build();
-                Map<String, FilterExpression> subscription = new HashMap<>();
-                subscription.put(topic, FilterExpression.SUB_ALL);
-                PushConsumer consumer = provider.newPushConsumerBuilder()
-                        .setClientConfiguration(clientConfig)
-                        .setConsumerGroup(config.getConsumerGroup())
-                        .setSubscriptionExpressions(subscription)
-                        .setMessageListener(messageView -> {
-                            ByteBuffer bodyBuffer = messageView.getBody();
-                            byte[] bytes = new byte[bodyBuffer.remaining()];
-                            bodyBuffer.get(bytes);
-                            String data = new String(bytes, StandardCharsets.UTF_8);
-                            try {
-                                handleEvent(data, messageView.getTopic());
-                                log.debug("gRPC 消费成功 topic={} msgId={} attempt={}",
-                                        messageView.getTopic(), messageView.getMessageId(),
-                                        messageView.getDeliveryAttempt());
-                                metrics.recordConsume(topic, "unknown", true,
-                                        messageView.getDeliveryAttempt() - 1);
-                                return ConsumeResult.SUCCESS;
-                            } catch (Exception e) {
-                                log.error("gRPC 消费异常 topic={} msgId={} attempt={}",
-                                        messageView.getTopic(), messageView.getMessageId(),
-                                        messageView.getDeliveryAttempt(), e);
-                                metrics.recordConsume(topic, "unknown", false,
-                                        messageView.getDeliveryAttempt() - 1);
-                                if (messageView.getDeliveryAttempt() > config.getMaxReconsumeTimes()) {
-                                    metrics.recordDlq(topic, e.getClass().getSimpleName());
-                                }
-                                return ConsumeResult.FAILURE;
-                            }
-                        })
-                        .build();
-                this.consumerList.add(consumer);
-                log.info("gRPC Consumer created and started, topic={}", topic);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to create gRPC Consumer for topic: " + topic, e);
-            }
+            this.pendingConsumerTopics.add(topic);
+            log.info("gRPC topic collected, topic={}", topic);
         }
     }
 
@@ -237,13 +214,59 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
             throw new PublishEventException(obj.getEntityId(), e);
         }
     }
-
-    // ══════════════════════════════════════════════
-    // 延时等级转换
-    // ══════════════════════════════════════════════
-
     private static long delayLevelToMillis(int level) {
         return DELAY_LEVEL_TO_MILLIS[Math.max(0, Math.min(level, DELAY_LEVEL_TO_MILLIS.length - 1))];
+    }
+    /**
+     * 受控启动：在通道初始化完成后，真正 build Producer 与 Consumer，建立连接并开始收发。
+     * <p>
+     * gRPC 的 build 即连接/启动，因此此处才创建客户端；应用应待自身全部依赖就绪后再调用。
+     */
+    @Override
+    public void start() {
+        if (this.started) {
+            log.warn("RocketMqGrpcEventManager already started, ignore");
+            return;
+        }
+        // 1. Producer 受控 build（未注入时）
+        if (this.producer == null) {
+            try {
+                ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
+                        .setEndpoints(config.getProxyAddr())
+                        .enableSsl(false)
+                        .build();
+                this.producer = provider.newProducerBuilder()
+                        .setClientConfiguration(clientConfig)
+                        .setTopics(pendingConsumerTopics.toArray(new String[0]))
+                        .build();
+                log.info("gRPC Producer started, proxy={}", config.getProxyAddr());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to start gRPC Producer", e);
+            }
+        }
+        // 2. Consumer 受控 build（即连接/启动）
+        for (String topic : pendingConsumerTopics) {
+            try {
+                ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
+                        .setEndpoints(config.getProxyAddr())
+                        .build();
+                Map<String, FilterExpression> subscription = new HashMap<>();
+                subscription.put(topic, FilterExpression.SUB_ALL);
+                PushConsumer consumer = provider.newPushConsumerBuilder()
+                        .setClientConfiguration(clientConfig)
+                        .setConsumerGroup(config.getConsumerGroup())
+                        .setSubscriptionExpressions(subscription)
+                        .setMessageListener(this)
+                        .build();
+                this.consumerList.add(consumer);
+                log.info("gRPC Consumer started, topic={}", topic);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to start gRPC Consumer for topic: " + topic, e);
+            }
+        }
+        this.pendingConsumerTopics.clear();
+        this.started = true;
+        log.info("RocketMqGrpcEventManager started");
     }
 
     // ══════════════════════════════════════════════
@@ -272,6 +295,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager {
                 log.error("gRPC Producer close error", e);
             }
         }
+        this.started = false;
         log.info("RocketMqGrpcEventManager shutdown complete.");
     }
 }

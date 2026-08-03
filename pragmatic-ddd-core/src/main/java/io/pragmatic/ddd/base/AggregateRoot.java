@@ -52,6 +52,7 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     // ============ 新建标记 ============
 
+    @Getter
     private boolean isNew = false;
 
     // ============ 领域事件与操作追踪 ============
@@ -149,6 +150,16 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
         return this.triggeredEvents.getEvents();
     }
 
+    /**
+     * 数据同步钩子：由持久化仓储在 insert / update / remove 落库前统一调用，
+     * 供聚合根在此收集"聚合自身"异构事件（如同步读模型 / 宽表 / 缓存）。
+     * 默认空实现 = 不发异构事件；子类按需覆写。
+     * 触发时业务方法已执行完毕，operationCode / version 均已就绪，可直接复用。
+     */
+    public void triggerDataSyncHook() {
+        // 默认空实现：不发异构事件
+    }
+
     private String resolveOperationCode() {
         if (this.lastRecordedOperation != null) {
             return this.lastRecordedOperation.code();
@@ -208,7 +219,6 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
         return this.triggeredOperations;
     }
 
-    // ============ 版本号 ============
 
     /** 返回递增后的新版本号（幂等）。 */
     public long getNewVersion() {
@@ -219,14 +229,6 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
         }
         return this.newVersion;
     }
-
-    // ============ 新建标记 ============
-
-    /** 判断该聚合根是否为新建状态。 */
-    public boolean isNew() {
-        return this.isNew;
-    }
-
     /** 标记为新建状态。 */
     public void markNew() {
         this.isNew = true;

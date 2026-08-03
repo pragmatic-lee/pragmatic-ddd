@@ -42,6 +42,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println("r1");
@@ -73,6 +74,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(1);
@@ -106,6 +108,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber(ShareDomainEventSubscriberKey.R1, ShareDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println(s.getName() + "r1");
@@ -138,6 +141,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
 
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             System.out.println("MyDomainEvent r1");
@@ -179,6 +183,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             countDownLatch.countDown();
             System.out.println("r1");
@@ -206,6 +211,7 @@ public class RocketMqDomainEventOrderedManagerTest {
         RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
 
         rocketMqDomainEventManager.initTopics();
+        rocketMqDomainEventManager.start();
         CountDownLatch countDownLatch = new CountDownLatch(2);
         rocketMqDomainEventManager.registerSubscriber(MyDomainEventSubscriberKey.R1, MyDomainEvent.class, s -> {
             if (countDownLatch.getCount() > 0) {
