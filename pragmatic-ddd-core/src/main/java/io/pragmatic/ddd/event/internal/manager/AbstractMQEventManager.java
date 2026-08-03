@@ -159,12 +159,17 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
         String eventName = obj.getClass().getSimpleName();
         Map<String, SubscriberInfo> subscriberMap = this.filterSubscriberInfoMap(eventName);
         return subscriberMap.entrySet().stream().map(entry -> {
-            if (this.executeCheck(obj, entry.getValue().condition()) == ExecuteStatus.EXECUTE) {
-                return this.createSubscribeData(obj,
-                        entry.getKey(), eventName,
-                        false, entry.getValue().deliveryPolicy());
+            String alias = entry.getKey();
+            SubscriberInfo info = entry.getValue();
+            // 第一重：订阅者级开关（外部动态配置决定是否启用该订阅者）
+            if (this.switchCheck(alias, info.condition()) == ExecuteStatus.SKIP) {
+                return null;
             }
-            return null;
+            // 第二重：事件级条件（基于事件内容决定是否执行）
+            if (this.executeCheck(obj, info.condition()) == ExecuteStatus.SKIP) {
+                return null;
+            }
+            return this.createSubscribeData(obj, alias, eventName, false, info.deliveryPolicy());
         }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 

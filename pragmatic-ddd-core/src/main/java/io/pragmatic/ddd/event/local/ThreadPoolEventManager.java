@@ -122,10 +122,16 @@ public class ThreadPoolEventManager extends AbstractEventManager {
 
         for (Map.Entry<String, SubscriberInfo> entry : subscriberMap.entrySet()) {
             IEventListener<T> subscribedTo = (IEventListener<T>) entry.getValue().subscriber();
+            String alias = entry.getKey();
+            // 第一重：订阅者级开关（外部动态配置决定是否启用该订阅者）
+            if (this.switchCheck(alias, entry.getValue().condition()) == ExecuteStatus.SKIP) {
+                continue;
+            }
+            // 第二重：事件级条件（基于事件内容决定是否执行）
             if (subscribedTo != null
                     && this.executeCheck(obj, entry.getValue().condition()) == ExecuteStatus.EXECUTE) {
                 long delayMs = entry.getValue().isDelayed() ? this.deliveryDelayMs : 0;
-                this.submitTask(subscribedTo, obj, eventName, entry.getKey(), delayMs, false);
+                this.submitTask(subscribedTo, obj, eventName, alias, delayMs, false);
             }
         }
     }

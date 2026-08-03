@@ -56,6 +56,11 @@ public abstract class AbstractEventManager implements IEventManager {
         if (subscriberInfo == null) {
             return null;
         }
+        // 第一重：订阅者级开关（别名即入参 subscriber）
+        if (this.switchCheck(subscriber, subscriberInfo.condition()) == ExecuteStatus.SKIP) {
+            return null;
+        }
+        // 第二重：事件级条件（基于事件内容决定是否执行）
         IExecuteCondition condition = subscriberInfo.condition();
         if (this.executeCheck(obj, condition) == ExecuteStatus.SKIP) {
             return null;
@@ -67,6 +72,15 @@ public abstract class AbstractEventManager implements IEventManager {
     protected ExecuteStatus executeCheck(final IDomainEvent t, IExecuteCondition iExecuteCondition) {
         try {
             return Optional.ofNullable(iExecuteCondition).orElse(defaultCondition).status(t);
+        } catch (Exception ex) {
+            return ExecuteStatus.SKIP;   // 异常时视为不执行
+        }
+    }
+
+    /** 订阅者级开关判定：条件为空时回退默认条件，异常时视为跳过。 */
+    protected ExecuteStatus switchCheck(final String alias, IExecuteCondition iExecuteCondition) {
+        try {
+            return Optional.ofNullable(iExecuteCondition).orElse(defaultCondition).switchStatus(alias);
         } catch (Exception ex) {
             return ExecuteStatus.SKIP;   // 异常时视为不执行
         }
