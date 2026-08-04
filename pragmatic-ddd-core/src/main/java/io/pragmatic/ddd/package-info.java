@@ -8,7 +8,6 @@
  *   <li>{@code event} — Domain event publishing and subscription infrastructure</li>
  *   <li>{@code subscriber} — Event subscriber and ordered execution management</li>
  *   <li>{@code repository} — Repository abstractions for data access</li>
- *   <li>{@code visual} — Domain model visualization and metadata export</li>
  * </ul>
  *
  * <h2>Quick Start</h2>

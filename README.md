@@ -20,7 +20,6 @@
   - [定义领域事件](#定义领域事件)
   - [发布与订阅事件](#发布与订阅事件)
   - [MyBatis 集成](#mybatis-集成)
-  - [领域模型可视化](#领域模型可视化)
 - [设计理念](#设计理念)
 - [AI 辅助开发](#ai-辅助开发)
 - [文档](#文档)
@@ -42,7 +41,6 @@
 | **操作追踪** | `OperationRegistry` / `recordOperation`，事件自动归因到触发操作与版本号 |
 | **仓储与查询** | `IRepository`、`AbstractRepository`，内置查询对象与对账（reconciliation）能力 |
 | **应用层** | `AbstractApplicationService`、`UnitOfWork`、命令执行器与 Outbox 可靠事件 |
-| **模型可视化** | `DomainModelVisualManager` 导出领域模型为 Markdown / JSON Schema，用于文档与 AI 上下文 |
 | **AI 友好注解** | `@DomainEntity`、`@BusinessRule`、`@EventTrigger` 为 AI 编程助手提供语义元数据 |
 
 ---
@@ -257,18 +255,7 @@ IOutboxStore outboxStore = new MybatisOutboxStore(outboxMapper, transactionOpera
 outboxStore.store(outboxMessages); // 在调用方事务内批量落库
 ```
 
-### 领域模型可视化
-
-```java
-import io.pragmatic.ddd.visual.DomainModelVisualManager;
-
-// 构造可视化管理器需传入事件管理器（用于解析事件订阅关系）
-DomainModelVisualManager visualManager = new DomainModelVisualManager(eventManager);
-
-// 按实体类收集并组装完整可视化描述符
-DomainModelVisualInfo info = visualManager.build(Order.class);
-// info 可导出为 Markdown 或 JSON Schema，用于文档生成与 AI 上下文注入
-```
+> 注：原"领域模型可视化"（`io.pragmatic.ddd.visual`）能力已在当前版本移除。静态结构文档建议直接由 AI 编程助手基于源码生成；运行期调用链路可观测性能力将在后续版本以独立包（如 `observability`）提供。详见 `docs/design/core/visual/`。
 
 ---
 
@@ -293,7 +280,7 @@ Pragmatic DDD 从设计之初就考虑了与 AI 编程助手的无缝协作：
 
 - **`@DomainEntity` / `@BusinessRule` / `@EventTrigger`** 注解提供语义元数据，便于 AI 理解领域结构。
 - **标准化命名约定** 帮助 AI 生成正确的脚手架代码。
-- **模型可视化 API** 可将领域元数据导出并注入 AI 上下文，提升生成质量。
+- **AI 友好注解**（`@DomainEntity` / `@BusinessRule` / `@EventTrigger`）提供的语义元数据可直接注入 AI 上下文，提升生成质量。
 
 > 可参考 [CodeBuddy Skill](./docs/pragmatic-ddd-skill.md) 获取 AI 辅助 DDD 开发指引。
 

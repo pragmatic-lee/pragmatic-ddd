@@ -16,7 +16,7 @@
     <packaging>jar</packaging>
 
     <name>Pragmatic DDD Core</name>
-    <description>Core library for Pragmatic DDD — entities, value objects, domain rules, domain events, and model visualization</description>
+    <description>Core library for Pragmatic DDD — entities, value objects, domain rules, domain events, and runtime observability</description>
 
     <dependencies>
         <!-- JSON -->

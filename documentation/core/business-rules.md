@@ -351,7 +351,7 @@ orderRule.appendRule(newRule, RuleCode.NEW, RuleCode.EXISTING, RulePosition.BEFO
 
 ## 8. `@BusinessRule` 注解（仅标记，不参与运行期校验）
 
-`@BusinessRule` 是方法级注解，承载规则元信息，供 **AI 编码辅助**与**模型可视化系统**消费，用于记录每条规则的意图、错误码与消息：
+`@BusinessRule` 是方法级注解，承载规则元信息，供 **AI 编码辅助**消费，用于记录每条规则的意图、错误码与消息：
 
 ```java
 @BusinessRule(
@@ -366,7 +366,7 @@ public void validateAmount() {
 
 三个属性：`description`（规则可读描述）、`errorCode`（对应 `BrokenRuleRegistry` 中的键）、`errorMessage`（违反时展示的可读消息）。
 
-> ⚠️ **重要**：`@BusinessRule` **仅作标记**，不参与运行期校验。它被可视化解析器反射消费，产出规则图谱（见 [模型可视化](./model-visualization.md)）。真正的运行期校验必须依赖上述 `ICheckRule` / `EntityRule` 机制。
+> ⚠️ **重要**：`@BusinessRule` **仅作标记**，不参与运行期校验。原 `visual` 包的可视化解析器会反射消费它以产出规则图谱，但该包已在当前版本移除；如需规则图谱，后续将由可观测性方向（如 `observability` 包）重新提供。真正的运行期校验必须依赖上述 `ICheckRule` / `EntityRule` 机制。
 
 ## 9. 与聚合根 `satisfiesRule` 的协作
 
@@ -415,4 +415,4 @@ List<BrokenRule> brokenRules = order.getBrokenRules();
 
 - [领域事件](./domain-events.md)：规则通过后的事件触发
 - [应用服务](./application-service.md)：校验在命令执行模板中的位置
-- [模型可视化](./model-visualization.md)：`@BusinessRule` 的可视化消费
+- [领域建模](./domain-modeling.md)：聚合根与实体的建模约定
