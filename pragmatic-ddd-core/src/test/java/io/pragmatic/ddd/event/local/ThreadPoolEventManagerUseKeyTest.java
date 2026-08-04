@@ -20,11 +20,22 @@ class ThreadPoolEventManagerUseKeyTest {
 
     private ThreadPoolEventManager manager;
 
+    private static void logSubscriber(String alias, Object event) {
+        String line = "============================================================";
+        System.err.println(line);
+        System.err.println(">>> [SUBSCRIBER TRIGGERED] alias=" + alias
+                + " | thread=" + Thread.currentThread().getName());
+        System.err.println(">>> event: " + event);
+        System.err.println(line);
+        System.err.flush();
+    }
+
     @AfterEach
     void tearDown() {
         if (manager != null) {
             manager.shutdown();
         }
+        System.err.flush();
     }
 
     @Test
@@ -32,7 +43,10 @@ class ThreadPoolEventManagerUseKeyTest {
         manager = new ThreadPoolEventManager(4, 4, 10, 3, 100, 1, new SubscriberOrderManager());
 
         AtomicBoolean handled = new AtomicBoolean(false);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> handled.set(true));
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            handled.set(true);
+        });
 
         manager.publish(new TestDomainEvent(), "not-exist");
 
@@ -46,9 +60,14 @@ class ThreadPoolEventManagerUseKeyTest {
 
         CountDownLatch aHandled = new CountDownLatch(1);
         AtomicBoolean bHandled = new AtomicBoolean(false);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> aHandled.countDown());
-        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> bHandled.set(true),
-                (io.pragmatic.ddd.event.spi.IExecuteCondition<TestDomainEvent>) null, "sub-a");
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            aHandled.countDown();
+        });
+        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> {
+            logSubscriber("sub-b", e);
+            bHandled.set(true);
+        }, (io.pragmatic.ddd.event.spi.IExecuteCondition<TestDomainEvent>) null, "sub-a");
 
         manager.publish(new TestDomainEvent(), "sub-a", true);
 
@@ -63,8 +82,14 @@ class ThreadPoolEventManagerUseKeyTest {
 
         AtomicBoolean aHandled = new AtomicBoolean(false);
         CountDownLatch bHandled = new CountDownLatch(1);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> aHandled.set(true));
-        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> bHandled.countDown());
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            aHandled.set(true);
+        });
+        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> {
+            logSubscriber("sub-b", e);
+            bHandled.countDown();
+        });
 
         manager.publish(new TestDomainEvent(), "sub-b");
 

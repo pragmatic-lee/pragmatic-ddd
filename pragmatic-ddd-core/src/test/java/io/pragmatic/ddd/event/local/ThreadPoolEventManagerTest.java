@@ -20,11 +20,22 @@ class ThreadPoolEventManagerTest {
 
     private ThreadPoolEventManager manager;
 
+    private static void logSubscriber(String alias, Object event) {
+        String line = "============================================================";
+        System.err.println(line);
+        System.err.println(">>> [SUBSCRIBER TRIGGERED] alias=" + alias
+                + " | thread=" + Thread.currentThread().getName());
+        System.err.println(">>> event: " + event);
+        System.err.println(line);
+        System.err.flush();
+    }
+
     @AfterEach
     void tearDown() {
         if (manager != null) {
             manager.shutdown();
         }
+        System.err.flush();
     }
 
     @Test
@@ -32,7 +43,10 @@ class ThreadPoolEventManagerTest {
         manager = new ThreadPoolEventManager(2, 4, 10, 3, 100, 1, new SubscriberOrderManager());
 
         CountDownLatch handled = new CountDownLatch(1);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> handled.countDown());
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            handled.countDown();
+        });
 
         manager.publish(new TestDomainEvent());
 
@@ -45,8 +59,14 @@ class ThreadPoolEventManagerTest {
 
         AtomicBoolean aHandled = new AtomicBoolean(false);
         CountDownLatch bHandled = new CountDownLatch(1);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> aHandled.set(true));
-        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> bHandled.countDown());
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            aHandled.set(true);
+        });
+        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> {
+            logSubscriber("sub-b", e);
+            bHandled.countDown();
+        });
 
         manager.publish(new TestDomainEvent(), "sub-b");
 
@@ -60,9 +80,14 @@ class ThreadPoolEventManagerTest {
 
         CountDownLatch aHandled = new CountDownLatch(1);
         CountDownLatch bHandled = new CountDownLatch(1);
-        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> aHandled.countDown());
-        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> bHandled.countDown(),
-                (io.pragmatic.ddd.event.spi.IExecuteCondition<TestDomainEvent>) null, "sub-a");
+        manager.registerSubscriber("sub-a", TestDomainEvent.class, e -> {
+            logSubscriber("sub-a", e);
+            aHandled.countDown();
+        });
+        manager.registerSubscriber("sub-b", TestDomainEvent.class, e -> {
+            logSubscriber("sub-b", e);
+            bHandled.countDown();
+        }, (io.pragmatic.ddd.event.spi.IExecuteCondition<TestDomainEvent>) null, "sub-a");
 
         manager.publish(new TestDomainEvent());
 
