@@ -51,7 +51,7 @@ public class OrderApplicationService extends AbstractApplicationService {
      */
     public long createOrder(OrderDto orderDto) {
         Order order = orderFactory.create(orderDto);
-        this.execute(order, orderEntityRule, orderRepository, o -> { /* 无额外领域逻辑 */ });
+        Order execute = this.execute(order, orderEntityRule, orderRepository, o -> { /* 无额外领域逻辑 */ });
         return order.getEntityId();
     }
 
