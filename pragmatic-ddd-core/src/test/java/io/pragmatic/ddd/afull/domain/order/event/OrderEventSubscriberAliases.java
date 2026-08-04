@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.afull.domain.order.event;
 
 /**
- * 订单领域事件订阅者别名常量。
+ * 订单领域事件订阅者场景常量，声明各订阅者执行场景的 code。
  *
  * @author wizard-lee
  */

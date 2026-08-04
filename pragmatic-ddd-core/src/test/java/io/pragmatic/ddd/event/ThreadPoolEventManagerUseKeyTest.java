@@ -19,6 +19,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ThreadPoolEventManagerUseKeyTest {
 
+    /** 测试用订阅者场景常量，声明 sub1/sub2/sub3 场景 code。 */
+    public static final class TestKeys {
+        public static final String SUB1 = "sub1";
+        public static final String SUB2 = "sub2";
+        public static final String SUB3 = "sub3";
+    }
+
     /**
      * 验证发布事件，执行指定订阅，并执行指定订阅的依赖的订阅
      * 执行 sub2 -> sub1
@@ -32,22 +39,22 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         ThreadPoolEventManager manager = new ThreadPoolEventManager();
 
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(1);
 
-        }, null, SubscriberKey.SUB2);
+        }, null, TestKeys.SUB2);
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(2);
-        }, null, SubscriberKey.SUB3);
+        }, null, TestKeys.SUB3);
 
-        manager.registerSubscriber(SubscriberKey.SUB3, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB3, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -74,22 +81,22 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         ThreadPoolEventManager manager = new ThreadPoolEventManager();
 
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(1);
 
-        }, null, SubscriberKey.SUB2);
+        }, null, TestKeys.SUB2);
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(2);
-        }, null, SubscriberKey.SUB3);
+        }, null, TestKeys.SUB3);
 
-        manager.registerSubscriber(SubscriberKey.SUB3, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB3, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -115,22 +122,22 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         ThreadPoolEventManager manager = new ThreadPoolEventManager();
 
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(1);
 
-        }, null, SubscriberKey.SUB2);
+        }, null, TestKeys.SUB2);
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(2);
-        }, null, SubscriberKey.SUB3);
+        }, null, TestKeys.SUB3);
 
-        manager.registerSubscriber(SubscriberKey.SUB3, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB3, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -157,7 +164,7 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         ThreadPoolEventManager manager = new ThreadPoolEventManager();
 
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -166,7 +173,7 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         });
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -176,7 +183,7 @@ public class ThreadPoolEventManagerUseKeyTest {
 
         });
 
-        manager.registerSubscriber(SubscriberKey.SUB3, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB3, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -205,7 +212,7 @@ public class ThreadPoolEventManagerUseKeyTest {
         AtomicInteger atomicInteger = new AtomicInteger(0);
 
         ThreadPoolEventManager manager = new ThreadPoolEventManager();
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
 
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
@@ -214,7 +221,7 @@ public class ThreadPoolEventManagerUseKeyTest {
             //需要满足IExecuteCondition 条件才能执行
         }, evt -> evt.getEntityId().equals("1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(2);
@@ -238,13 +245,13 @@ public class ThreadPoolEventManagerUseKeyTest {
         ThreadPoolEventManager manager = new ThreadPoolEventManager(2, 4, 100, 3, 200, 1000, new SubscriberOrderManager());
 
 
-        manager.registerSubscriber(SubscriberKey.SUB1, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB1, TestDomainEvent.class, s -> {
                     countDownLatch.countDown();
                     System.out.println("sub1");
-                }, null, SubscriberKey.SUB2
+                }, null, TestKeys.SUB2
         );
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
                     countDownLatch.countDown();
                     System.out.println("sub2");
                 }, evt -> evt.getEntityId().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP
@@ -274,7 +281,7 @@ public class ThreadPoolEventManagerUseKeyTest {
         //最大重试次数，不算首次调用
         ThreadPoolEventManager manager = new ThreadPoolEventManager(2, 4, 100, 3, 200, 1000, new SubscriberOrderManager());
 
-        manager.registerSubscriber(SubscriberKey.SUB2, TestDomainEvent.class, s -> {
+        manager.registerSubscriber(TestKeys.SUB2, TestDomainEvent.class, s -> {
             countDownLatch.countDown();
             atomicInteger.incrementAndGet();
             System.out.println(1);

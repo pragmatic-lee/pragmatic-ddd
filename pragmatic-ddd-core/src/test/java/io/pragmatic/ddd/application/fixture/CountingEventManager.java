@@ -43,36 +43,36 @@ public class CountingEventManager implements IEventManager {
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle) {
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle) {
         // 试跑测试不涉及订阅注册
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle,
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle,
                                                             IExecuteCondition<T> condition) {
         // 试跑测试不涉及订阅注册
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle,
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle,
                                                             DeliveryPolicy policy) {
         // 试跑测试不涉及订阅注册
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle,
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle,
                                                             IExecuteCondition<T> condition, String dependSubscriber) {
         // 试跑测试不涉及订阅注册
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle,
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle,
                                                             IExecuteCondition<T> condition, DeliveryPolicy policy) {
         // 试跑测试不涉及订阅注册
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle,
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle,
                                                             IExecuteCondition<T> condition, String dependSubscriber,
                                                             DeliveryPolicy policy) {
         // 试跑测试不涉及订阅注册

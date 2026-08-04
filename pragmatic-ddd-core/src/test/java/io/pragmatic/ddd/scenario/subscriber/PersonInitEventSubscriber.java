@@ -11,9 +11,9 @@ public class PersonInitEventSubscriber {
                                         IScoreHandler iScoreHandler,
                                         IGradeHandler gradeHandler) {
 
-        evtManager.registerSubscriber(PersonSubscriberKey.updateScore,
+        evtManager.registerSubscriber(PersonSubscriberRegistry.UPDATE_SCORE,
                 PersonInitEvent.class, iScoreHandler::eventHandler);
-        evtManager.registerSubscriber(PersonSubscriberKey.updateGrade,
+        evtManager.registerSubscriber(PersonSubscriberRegistry.UPDATE_GRADE,
                 PersonInitEvent.class, gradeHandler::eventHandler);
     }
 }

@@ -102,40 +102,42 @@ public abstract class AbstractEventManager implements IEventManager {
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), defaultCondition, "", DeliveryPolicy.IMMEDIATE);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), defaultCondition, null, DeliveryPolicy.IMMEDIATE);
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), condition, "", DeliveryPolicy.IMMEDIATE);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), condition, null, DeliveryPolicy.IMMEDIATE);
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle, DeliveryPolicy policy) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), defaultCondition, "", policy);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle, DeliveryPolicy policy) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), defaultCondition, null, policy);
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, String dependSubscriber) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), condition, dependSubscriber, DeliveryPolicy.IMMEDIATE);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, String dependSubscriber) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), condition, dependSubscriber, DeliveryPolicy.IMMEDIATE);
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, DeliveryPolicy policy) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), condition, "", policy);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, DeliveryPolicy policy) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), condition, null, policy);
     }
 
     @Override
-    public <T extends IDomainEvent> void registerSubscriber(String alias, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, String dependSubscriber, DeliveryPolicy policy) {
-        this.doRegister(alias, SubscriberFactory.build(cls, handle), condition, dependSubscriber, policy);
+    public <T extends IDomainEvent> void registerSubscriber(String subscriberCode, Class<T> cls, IHandle<T> handle, IExecuteCondition<T> condition, String dependSubscriber, DeliveryPolicy policy) {
+        this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), condition, dependSubscriber, policy);
     }
 
     /** 完成单个订阅者的注册与依赖登记。 */
-    protected void doRegister(String alias, ISubscriber subscriber,
+    protected void doRegister(String subscriberCode, ISubscriber subscriber,
                               IExecuteCondition condition,
                               String dependSubscriber,
                               DeliveryPolicy policy) {
+        String alias = subscriberCode;
+        String dependAlias = dependSubscriber == null ? "" : dependSubscriber;
         String eventName = subscriber.subscribedToEventType().getSimpleName();
         if (this.subscribers.containsKey(eventName)) {
             Map<String, SubscriberInfo> stringISubscriberMap = this.subscribers.get(eventName);
@@ -151,7 +153,7 @@ public abstract class AbstractEventManager implements IEventManager {
         }
         if (this.orderManager != null) {
             this.orderManager.registerDependency(eventName, alias,
-                    StringUtils.isBlank(dependSubscriber) ? ISubscriberOrderManager.ROOT_ALIAS : dependSubscriber);
+                    StringUtils.isBlank(dependAlias) ? ISubscriberOrderManager.ROOT_ALIAS : dependAlias);
         }
     }
 

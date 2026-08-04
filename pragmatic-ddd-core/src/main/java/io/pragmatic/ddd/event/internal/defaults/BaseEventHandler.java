@@ -50,10 +50,10 @@ public abstract class BaseEventHandler<T extends IDomainEvent> {
     }
 
     /** 适应新注册 API:用 cls + handle + 内部元数据 一次性注册。 */
-    public void register(IEventRegistry registry, String alias) {
+    public void register(IEventRegistry registry, String subscriberCode) {
         IExecuteCondition<T> cond = condition != null
                 ? condition
                 : SubscriberFactory.buildCondition(cls, this::runCondition);
-        registry.registerSubscriber(alias, cls, this::handle, cond, dependSubscriber, policy);
+        registry.registerSubscriber(subscriberCode, cls, this::handle, cond, dependSubscriber, policy);
     }
 }
