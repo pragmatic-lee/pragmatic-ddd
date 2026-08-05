@@ -115,4 +115,36 @@ class AbstractRepositoryHookTest {
         assertThat(repository.insertCount.get()).isEqualTo(1);
         assertThat(repository.updateCount.get()).isEqualTo(0);
     }
+
+    @Test
+    void hookAggregate_save_notNew_invokesUpdateOnly() {
+        HookRepository repository = new HookRepository();
+        HeteroSampleAggregate aggregate = new HeteroSampleAggregate();
+        repository.save(aggregate);
+        assertThat(aggregate.getDomainEvents()).hasSize(1);
+        assertThat(repository.updateCount.get()).isEqualTo(1);
+        assertThat(repository.insertCount.get()).isEqualTo(0);
+    }
+
+    @Test
+    void hookAggregate_remove_plainEntity_triggersHook() {
+        HookRepository repository = new HookRepository();
+        HeteroSampleAggregate aggregate = new HeteroSampleAggregate();
+        repository.remove(aggregate);
+        assertThat(aggregate.getDomainEvents()).hasSize(1);
+        assertThat(repository.removeCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    void hookAggregate_insert_collectedEvent_hasVersionAndOperationCode() {
+        HookRepository repository = new HookRepository();
+        HeteroSampleAggregate aggregate = new HeteroSampleAggregate();
+        aggregate.markNew();
+        repository.insert(aggregate);
+        List<?> events = aggregate.getDomainEvents();
+        assertThat(events).hasSize(1);
+        SampleEvent event = (SampleEvent) events.get(0);
+        assertThat(event.operationCode).isEqualTo(io.pragmatic.ddd.operation.SampleRegistry.A.code());
+        assertThat(event.version).isNotEqualTo(0);
+    }
 }
