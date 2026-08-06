@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.event.internal.defaults;
 
+import io.pragmatic.ddd.config.IConfigurationSource;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
 
@@ -16,6 +17,11 @@ import java.util.Set;
  */
 public class ConfigurableTopicResolver implements ITopicResolver {
 
+    private static final String PREFIX = "event.topic.";
+    private static final String DEFAULT_KEY = PREFIX + "default";
+    private static final String EVENT_KEY = PREFIX + "event.";
+    private static final String SUBSCRIBER_KEY = PREFIX + "subscriber.";
+
     private final String globalDefaultTopic;
     private final Map<String, String> eventTypeTopics;
     private final Map<String, String> subscriberTopics;
@@ -26,6 +32,32 @@ public class ConfigurableTopicResolver implements ITopicResolver {
         this.globalDefaultTopic = globalDefaultTopic;
         this.eventTypeTopics = eventTypeTopics;
         this.subscriberTopics = subscriberTopics;
+    }
+
+    /**
+     * 从配置源按 {@code event.topic} 前缀批量加载 Topic 映射（兼容并收敛既有配置）。
+     * 键约定：
+     * <ul>
+     *   <li>{@code event.topic.default} → 全局默认</li>
+     *   <li>{@code event.topic.event.{ClassName}} → 事件级</li>
+     *   <li>{@code event.topic.subscriber.{ClassName}#{subscriber}} → 订阅者级</li>
+     * </ul>
+     *
+     * @param source 配置源
+     * @return 构建后的解析器
+     */
+    public static ConfigurableTopicResolver fromSource(IConfigurationSource source) {
+        String globalDefault = source.getString(DEFAULT_KEY, null);
+        Map<String, String> eventTypeTopics = new HashMap<>();
+        Map<String, String> subscriberTopics = new HashMap<>();
+        for (String key : source.keys()) {
+            if (key.startsWith(EVENT_KEY)) {
+                eventTypeTopics.put(key.substring(EVENT_KEY.length()), source.getString(key, ""));
+            } else if (key.startsWith(SUBSCRIBER_KEY)) {
+                subscriberTopics.put(key.substring(SUBSCRIBER_KEY.length()), source.getString(key, ""));
+            }
+        }
+        return new ConfigurableTopicResolver(globalDefault, eventTypeTopics, subscriberTopics);
     }
 
     @Override

@@ -30,32 +30,6 @@ public class ThreadPoolEventManager extends AbstractEventManager {
 
     private static final Logger log = LoggerFactory.getLogger(ThreadPoolEventManager.class);
 
-    /** 默认调度器线程数 */
-    private static final int DEFAULT_SCHEDULER_THREADS = 2;
-
-    /** 默认执行器核心线程数 */
-    private static final int DEFAULT_CORE_POOL_SIZE =
-            Math.max(4, Runtime.getRuntime().availableProcessors());
-
-    /** 默认执行器最大线程数 */
-    private static final int DEFAULT_MAX_POOL_SIZE =
-            Math.max(8, Runtime.getRuntime().availableProcessors() * 2);
-
-    /** 默认队列容量 */
-    private static final int DEFAULT_QUEUE_CAPACITY = 1000;
-
-    /** 默认线程空闲保活时间（秒） */
-    private static final long DEFAULT_KEEP_ALIVE_SECONDS = 60;
-
-    /** 默认投递延迟（毫秒） */
-    private static final int DEFAULT_DELIVERY_DELAY_MS = 1000;
-
-    /** 默认最大重试次数 */
-    private static final int DEFAULT_MAX_RETRY_TIMES = 3;
-
-    /** 默认重试延迟（毫秒） */
-    private static final int DEFAULT_RETRY_DELAY_MS = 1500;
-
     private final ScheduledExecutorService delayScheduler;
     private final ThreadPoolExecutor taskExecutor;
     private final int maxRetryTimes;
@@ -65,32 +39,42 @@ public class ThreadPoolEventManager extends AbstractEventManager {
     // ── 构造器 ──
 
     public ThreadPoolEventManager() {
-        this(DEFAULT_CORE_POOL_SIZE, DEFAULT_MAX_POOL_SIZE, DEFAULT_QUEUE_CAPACITY,
-                DEFAULT_MAX_RETRY_TIMES, DEFAULT_RETRY_DELAY_MS, DEFAULT_DELIVERY_DELAY_MS,
-                new SubscriberOrderManager());
+        this(LocalEventManagerConfig.defaultConfig(), new SubscriberOrderManager());
     }
 
     public ThreadPoolEventManager(
             int corePoolSize, int maxPoolSize, int queueCapacity,
             int maxRetryTimes, int retryDelayMs, int deliveryDelayMs,
             ISubscriberOrderManager orderManager) {
-        super( orderManager);
-        this.maxRetryTimes = maxRetryTimes;
-        this.retryDelayMs = retryDelayMs;
-        this.deliveryDelayMs = deliveryDelayMs;
+        this(new LocalEventManagerConfig(
+                2, corePoolSize, maxPoolSize, queueCapacity,
+                60, deliveryDelayMs, maxRetryTimes, retryDelayMs), orderManager);
+    }
 
-        // 调度器：2 线程，只负责等待延时，不执行业务逻辑
+    /**
+     * 基于类型化配置构造（新增，兼容并收敛既有常量）。
+     *
+     * @param config       运行配置（可由 LocalEventManagerConfig.bind 从配置源加载）
+     * @param orderManager 订阅者顺序管理器
+     */
+    public ThreadPoolEventManager(LocalEventManagerConfig config, ISubscriberOrderManager orderManager) {
+        super(orderManager);
+        this.maxRetryTimes = config.maxRetryTimes();
+        this.retryDelayMs = config.retryDelayMs();
+        this.deliveryDelayMs = config.deliveryDelayMs();
+
+        // 调度器：只负责等待延时，不执行业务逻辑
         this.delayScheduler = new ScheduledThreadPoolExecutor(
-                DEFAULT_SCHEDULER_THREADS,
+                config.schedulerThreads(),
                 createThreadFactory("domain-event-scheduler-"));
 
         // 执行器：有界队列 + CallerRunsPolicy，背压保护
         this.taskExecutor = new ThreadPoolExecutor(
-                corePoolSize,
-                maxPoolSize,
-                DEFAULT_KEEP_ALIVE_SECONDS,
+                config.corePoolSize(),
+                config.maxPoolSize(),
+                config.keepAliveSeconds(),
                 TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(queueCapacity),
+                new LinkedBlockingQueue<>(config.queueCapacity()),
                 createThreadFactory("domain-event-executor-"));
         this.taskExecutor.setRejectedExecutionHandler(
                 new ThreadPoolExecutor.CallerRunsPolicy());

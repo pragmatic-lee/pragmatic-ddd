@@ -1,7 +1,11 @@
 package io.pragmatic.ddd.base.id;
 
+import io.pragmatic.ddd.config.ConfigurationBinder;
+import io.pragmatic.ddd.config.IConfigurationSource;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 多生成器注册中心：一个 bizKey 对应一个独立的 IIdGenerator 实例，各渠道互不干扰。
@@ -40,5 +44,24 @@ public class IdGeneratorRegistry {
     public <T> T nextId(String bizKey) {
         IIdGenerator<T> generator = get(bizKey);
         return generator.nextId();
+    }
+
+    /**
+     * 从配置源按 {@code id.{bizKey}.*} 前缀批量加载并注册生成器（兼容并收敛既有配置）。
+     * 键约定：id.{bizKey}.start-id / id.{bizKey}.step / id.{bizKey}.id-type / id.{bizKey}.format。
+     *
+     * @param source   配置源
+     * @param allocator 号段分配器（由调用方提供，框架不预设存储后端）
+     */
+    public void loadFrom(IConfigurationSource source, IIdSegmentAllocator allocator) {
+        Set<String> bizKeys = source.keys().stream()
+                .filter(k -> k.startsWith("id."))
+                .map(k -> k.substring(3).split("\\.")[0])
+                .collect(Collectors.toSet());
+        for (String bizKey : bizKeys) {
+            IdGeneratorDefinition def = ConfigurationBinder.bind(source, "id." + bizKey, IdGeneratorDefinition.class);
+            def.setBizKey(bizKey);
+            register(def, allocator);
+        }
     }
 }
