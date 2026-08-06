@@ -43,24 +43,18 @@ public abstract class AbstractIdempotentWriteGateway<P, R, Q, S, K> {
     /** 对方返回值 → 领域返回值。 */
     protected abstract R toDomainResult(S response);
 
-    /** 模板方法：先查后写，已存在则短路返回。 */
+    /** 模板方法：先查后写，已存在则短路返回。转换与通信异常分别归为 AclConversionException / AclCommunicationException。 */
     public final R write(P param) {
-        K key = uniqueKey(param);
-        Optional<S> existing = queryByKey(key);
+        K key = AclExceptions.convert(() -> uniqueKey(param), "查重键提取", logger);
+        Optional<S> existing = AclExceptions.communicate(() -> queryByKey(key), "查重查询", logger);
         if (existing.isPresent()) {
             logger.onResponse(existing.get());
-            return toDomainResultFromExisting(existing.get());
+            return AclExceptions.convert(() -> toDomainResultFromExisting(existing.get()), "已存在记录转换", logger);
         }
-        Q request = toExternalRequest(param);
+        Q request = AclExceptions.convert(() -> toExternalRequest(param), "请求转换", logger);
         logger.onRequest(request);
-        S response;
-        try {
-            response = doWrite(request);
-        } catch (RuntimeException ex) {
-            logger.onError(ex);
-            throw ex;
-        }
+        S response = AclExceptions.communicate(() -> doWrite(request), "写入调用", logger);
         logger.onResponse(response);
-        return toDomainResult(response);
+        return AclExceptions.convert(() -> toDomainResult(response), "响应转换", logger);
     }
 }

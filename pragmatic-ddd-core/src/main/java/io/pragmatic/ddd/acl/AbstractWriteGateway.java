@@ -31,18 +31,12 @@ public abstract class AbstractWriteGateway<P, R, Q, S> {
     /** 对方返回值 → 领域返回值。 */
     protected abstract R toDomainResult(S response);
 
-    /** 模板方法：执行一次写入。 */
+    /** 模板方法：执行一次写入。转换失败归为 AclConversionException，通信失败归为 AclCommunicationException。 */
     public final R write(P param) {
-        Q request = toExternalRequest(param);
+        Q request = AclExceptions.convert(() -> toExternalRequest(param), "请求转换", logger);
         logger.onRequest(request);
-        S response;
-        try {
-            response = doWrite(request);
-        } catch (RuntimeException ex) {
-            logger.onError(ex);
-            throw ex;
-        }
+        S response = AclExceptions.communicate(() -> doWrite(request), "写入调用", logger);
         logger.onResponse(response);
-        return toDomainResult(response);
+        return AclExceptions.convert(() -> toDomainResult(response), "响应转换", logger);
     }
 }

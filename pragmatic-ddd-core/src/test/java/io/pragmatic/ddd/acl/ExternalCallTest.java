@@ -52,7 +52,7 @@ class ExternalCallTest {
     }
 
     @Test
-    void queryShouldRethrowAndLogError() {
+    void queryShouldWrapCommunicationErrorAndLogOriginal() {
         AtomicReference<Throwable> captured = new AtomicReference<>();
         ExternalCallLogger<String, String> logger = new ExternalCallLogger<>() {
             @Override
@@ -67,8 +67,23 @@ class ExternalCallTest {
                     throw ex;
                 },
                 Function.identity(),
-                logger)).isSameAs(ex);
+                logger))
+                .isInstanceOf(AclCommunicationException.class)
+                .hasCause(ex);
         assertThat(captured).hasValue(ex);
+    }
+
+    @Test
+    void queryShouldWrapConversionError() {
+        RuntimeException ex = new RuntimeException("bad-param");
+        assertThatThrownBy(() -> ExternalCall.query("u1",
+                req -> {
+                    throw ex;
+                },
+                Function.identity(),
+                Function.identity()))
+                .isInstanceOf(AclConversionException.class)
+                .hasCause(ex);
     }
 
     @Test

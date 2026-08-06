@@ -40,17 +40,11 @@ public final class ExternalCall {
                                        Function<Q, S> doCall,
                                        Function<S, R> toResult,
                                        ExternalCallLogger<Q, S> logger) {
-        Q request = toRequest.apply(param);
+        Q request = AclExceptions.convert(() -> toRequest.apply(param), "请求转换", logger);
         logger.onRequest(request);
-        S response;
-        try {
-            response = doCall.apply(request);
-        } catch (RuntimeException ex) {
-            logger.onError(ex);
-            throw ex;
-        }
+        S response = AclExceptions.communicate(() -> doCall.apply(request), "查询调用", logger);
         logger.onResponse(response);
-        return toResult.apply(response);
+        return AclExceptions.convert(() -> toResult.apply(response), "响应转换", logger);
     }
 
     /**
@@ -79,17 +73,11 @@ public final class ExternalCall {
                                        Function<Q, S> doCall,
                                        Function<S, R> toResult,
                                        ExternalCallLogger<Q, S> logger) {
-        Q request = toRequest.apply(param);
+        Q request = AclExceptions.convert(() -> toRequest.apply(param), "请求转换", logger);
         logger.onRequest(request);
-        S response;
-        try {
-            response = doCall.apply(request);
-        } catch (RuntimeException ex) {
-            logger.onError(ex);
-            throw ex;
-        }
+        S response = AclExceptions.communicate(() -> doCall.apply(request), "写入调用", logger);
         logger.onResponse(response);
-        return toResult.apply(response);
+        return AclExceptions.convert(() -> toResult.apply(response), "响应转换", logger);
     }
 
     /**
@@ -128,22 +116,16 @@ public final class ExternalCall {
                                                     Function<Q, S> doCall,
                                                     Function<S, R> toResult,
                                                     ExternalCallLogger<Q, S> logger) {
-        K key = toKey.apply(param);
-        Optional<S> existing = queryByKey.apply(key);
+        K key = AclExceptions.convert(() -> toKey.apply(param), "查重键提取", logger);
+        Optional<S> existing = AclExceptions.communicate(() -> queryByKey.apply(key), "查重查询", logger);
         if (existing.isPresent()) {
             logger.onResponse(existing.get());
-            return toResultExisting.apply(existing.get());
+            return AclExceptions.convert(() -> toResultExisting.apply(existing.get()), "已存在记录转换", logger);
         }
-        Q request = toRequest.apply(param);
+        Q request = AclExceptions.convert(() -> toRequest.apply(param), "请求转换", logger);
         logger.onRequest(request);
-        S response;
-        try {
-            response = doCall.apply(request);
-        } catch (RuntimeException ex) {
-            logger.onError(ex);
-            throw ex;
-        }
+        S response = AclExceptions.communicate(() -> doCall.apply(request), "写入调用", logger);
         logger.onResponse(response);
-        return toResult.apply(response);
+        return AclExceptions.convert(() -> toResult.apply(response), "响应转换", logger);
     }
 }
