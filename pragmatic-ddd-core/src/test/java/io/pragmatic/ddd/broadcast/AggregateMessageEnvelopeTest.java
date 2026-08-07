@@ -7,6 +7,11 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 AggregateMessageEnvelope 从源领域事件提取元数据并封装负载。
+ *
+ * @author wizard-lee
+ */
 class AggregateMessageEnvelopeTest {
 
     private static final class SampleEvent extends BaseDomainEvent {

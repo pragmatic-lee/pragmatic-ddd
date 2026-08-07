@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * StringSegmentIdGenerator 测试：验证带前缀 / 格式的 String 标识产出与号段推进。
+  * @author wizard-lee
  */
 class StringSegmentIdGeneratorTest {
 

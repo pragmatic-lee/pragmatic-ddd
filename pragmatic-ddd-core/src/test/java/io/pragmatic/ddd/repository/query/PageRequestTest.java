@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * 验证 PageRequest 分页请求的参数与偏移量计算。
+ *
+ * @author wizard-lee
+ */
 class PageRequestTest {
 
     @Test

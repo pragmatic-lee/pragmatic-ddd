@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 ScrollPosition 游标初始态与构造语义。
+ *
+ * @author wizard-lee
+ */
 class ScrollPositionTest {
 
     @Test

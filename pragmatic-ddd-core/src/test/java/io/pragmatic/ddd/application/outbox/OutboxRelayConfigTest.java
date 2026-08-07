@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * OutboxRelayConfig 运行配置测试：验证 record 值语义与内置默认值。
+  * @author wizard-lee
  */
 class OutboxRelayConfigTest {
 

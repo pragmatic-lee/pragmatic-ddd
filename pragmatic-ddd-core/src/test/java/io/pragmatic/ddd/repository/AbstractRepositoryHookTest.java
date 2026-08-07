@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * AbstractRepository 钩子触发测试：验证 insert / update / remove 落库前统一触发
  * 聚合根数据同步钩子，以及 save 经虚分发只触发一次。
+  * @author wizard-lee
  */
 class AbstractRepositoryHookTest {
 

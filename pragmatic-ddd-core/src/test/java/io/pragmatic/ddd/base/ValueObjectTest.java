@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.7：ValueObject（值对象）结构相等性单元测试（迁 JUnit5 + AssertJ）。
+  * @author wizard-lee
  */
 class ValueObjectTest {
 

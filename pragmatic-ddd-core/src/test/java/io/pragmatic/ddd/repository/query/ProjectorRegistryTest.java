@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 ProjectorRegistry 投影器与物化器的登记与解析。
+ *
+ * @author wizard-lee
+ */
 class ProjectorRegistryTest {
 
     @Test

@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 对应设计文档《应用服务层 Try-run（Dry-run）能力支持》第 8 节：ICommandExecutor#tryExecute 的零副作用与结果语义测试。
+  * @author wizard-lee
  */
 class DryRunCommandExecutorTest {
 

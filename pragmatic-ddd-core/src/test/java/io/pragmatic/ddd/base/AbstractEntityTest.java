@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.6：AbstractEntity（实体基类）单元测试，替代无效的 EntityBaseTest。
+  * @author wizard-lee
  */
 class AbstractEntityTest {
 

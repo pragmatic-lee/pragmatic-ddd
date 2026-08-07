@@ -7,6 +7,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 IQueryByIds 按主键集合批量查询并保序的契约。
+ *
+ * @author wizard-lee
+ */
 class IQueryByIdsTest {
 
     private static final class InMemoryQuery implements IQueryByIds<Long, String> {

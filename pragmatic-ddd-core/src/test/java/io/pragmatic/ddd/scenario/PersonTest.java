@@ -10,6 +10,11 @@ import io.pragmatic.ddd.scenario.rule.validator.BasePersonGradeValidator;
 import io.pragmatic.ddd.scenario.rule.validator.BasePersonScoreValidator;
 import org.junit.Test;
 
+/**
+ * 场景示例：验证人员聚合根的初始化、更新与规则校验行为。
+ *
+ * @author wizard-lee
+ */
 public class PersonTest {
 
     @Test

@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * OutboxMessage 数据容器测试：确认默认状态、getter/setter 读写与全字段可观测。
+  * @author wizard-lee
  */
 class OutboxMessageTest {
 

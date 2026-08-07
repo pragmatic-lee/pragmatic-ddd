@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * OutboxCommandExecutor 测试：验证同事务落聚合 + outbox(PENDING)、提交后主动推送、事件清空与规则校验短路。
+  * @author wizard-lee
  */
 class OutboxCommandExecutorTest {
 

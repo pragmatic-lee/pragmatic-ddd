@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * LongSegmentIdGenerator 测试：覆盖 AbstractSegmentIdGenerator 号段核心逻辑——
  * 首次惰性拉取、号段内连续发号、耗尽后自动申请新段、批量生成与业务键。
+  * @author wizard-lee
  */
 class LongSegmentIdGeneratorTest {
 

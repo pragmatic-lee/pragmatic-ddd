@@ -7,6 +7,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * 验证 PageResult 分页结果的数据与元信息承载。
+ *
+ * @author wizard-lee
+ */
 class PageResultTest {
 
     @Test

@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * OutboxRelay 兜底轮询测试：验证成功补发、失败释放+重试、超限转死信，以及 start 的周期调度装配。
+  * @author wizard-lee
  */
 class OutboxRelayTest {
 

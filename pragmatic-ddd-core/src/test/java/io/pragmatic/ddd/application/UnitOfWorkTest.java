@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 覆盖 UnitOfWork#commit 真实路径：逐条 save → 收集 → 统一发布 → 清空，以及状态保护。
+  * @author wizard-lee
  */
 class UnitOfWorkTest {
 

@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 AggregateProjectorSupport 编排 projector 注册、同步与物化。
+ *
+ * @author wizard-lee
+ */
 class AggregateProjectorSupportTest {
 
     private ProjectorRegistry newRegisteredRegistry() {

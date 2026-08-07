@@ -7,6 +7,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * 验证 ScrollResult 滚动结果的数据与下一游标承载。
+ *
+ * @author wizard-lee
+ */
 class ScrollResultTest {
 
     @Test

@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 Reconciliation 依据读写版本计算一致性状态。
+ *
+ * @author wizard-lee
+ */
 class ReconciliationTest {
 
     @Test

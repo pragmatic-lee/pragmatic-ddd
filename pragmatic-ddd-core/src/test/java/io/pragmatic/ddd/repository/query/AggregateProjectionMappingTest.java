@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 聚合投影映射落地测试：覆盖 ProjectorRegistry 登记/解析与
  * AggregateProjectorSupport 门面编排（sync / purge）。
+  * @author wizard-lee
  */
 class AggregateProjectionMappingTest {
 

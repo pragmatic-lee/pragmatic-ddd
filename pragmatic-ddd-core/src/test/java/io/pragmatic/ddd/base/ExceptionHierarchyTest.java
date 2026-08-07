@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.5：异常继承层次契约测试，保障统一 catch 能力。
+  * @author wizard-lee
  */
 class ExceptionHierarchyTest {
 

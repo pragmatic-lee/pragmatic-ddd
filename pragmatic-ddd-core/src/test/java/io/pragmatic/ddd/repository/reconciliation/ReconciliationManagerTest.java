@@ -10,6 +10,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 ReconciliationManager 协调版本核对与重新同步。
+ *
+ * @author wizard-lee
+ */
 class ReconciliationManagerTest {
 
     private static final ReconciliationTarget TARGET =

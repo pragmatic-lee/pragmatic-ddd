@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 验证 IEntityPropertyCalculator 契约与 EntityPropertyResolvers#of 适配器的行为。
+  * @author wizard-lee
  */
 class EntityPropertyResolversTest {
 

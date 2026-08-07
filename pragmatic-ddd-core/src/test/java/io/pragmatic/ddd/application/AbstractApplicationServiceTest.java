@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 覆盖 AbstractApplicationService 的三个构造器与便捷方法 execute / tryExecute / beginUnitOfWork。
+  * @author wizard-lee
  */
 class AbstractApplicationServiceTest {
 

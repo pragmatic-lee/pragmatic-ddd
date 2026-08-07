@@ -6,6 +6,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 IQueryScroll 游标滚动查询并返回下一游标的契约。
+ *
+ * @author wizard-lee
+ */
 class IQueryScrollTest {
 
     private record Criteria(String key) {}

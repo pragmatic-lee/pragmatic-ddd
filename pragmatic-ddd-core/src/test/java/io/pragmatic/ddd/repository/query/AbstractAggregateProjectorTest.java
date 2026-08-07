@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 AbstractAggregateProjector 投影类型暴露与聚合到投影的转换。
+ *
+ * @author wizard-lee
+ */
 class AbstractAggregateProjectorTest {
 
     @Test

@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 ReconciliationStatus 四种一致性状态的枚举定义。
+ *
+ * @author wizard-lee
+ */
 class ReconciliationStatusTest {
 
     @Test

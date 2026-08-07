@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 ReconciliationRegistry 核对目标与重新同步器的登记解析。
+ *
+ * @author wizard-lee
+ */
 class ReconciliationRegistryTest {
 
     private static final ReconciliationTarget TARGET =

@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * EagerOutboxPublisher 提交后主动推送测试：验证成功标记 SENT、失败保持 PENDING 交由 Relay 兜底。
+  * @author wizard-lee
  */
 class EagerOutboxPublisherTest {
 

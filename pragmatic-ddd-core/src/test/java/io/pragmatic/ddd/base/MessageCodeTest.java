@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.1：MessageCode（record 值对象）单元测试。
+  * @author wizard-lee
  */
 class MessageCodeTest {
 

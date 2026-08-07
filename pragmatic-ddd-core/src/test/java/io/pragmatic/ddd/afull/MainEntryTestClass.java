@@ -16,10 +16,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 服务接口测试
+ * 订单服务接口集成测试入口，装配应用服务与仓储并验证下单与支付流程。
  *
- * @author lixiaojing
-
+ * @author wizard-lee
  */
 public class MainEntryTestClass implements IOrderService {
 

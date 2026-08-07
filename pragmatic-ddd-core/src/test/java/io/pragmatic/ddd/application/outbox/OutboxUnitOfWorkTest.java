@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * OutboxUnitOfWork 测试：验证同一事务逐条 save + 整批落 outbox(PENDING)、提交后主动推送与规则校验短路。
+  * @author wizard-lee
  */
 class OutboxUnitOfWorkTest {
 

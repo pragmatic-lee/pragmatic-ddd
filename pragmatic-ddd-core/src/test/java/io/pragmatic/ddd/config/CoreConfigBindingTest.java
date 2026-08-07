@@ -12,6 +12,11 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证核心组件配置（Outbox、ID 生成器、Topic 解析等）的绑定契约。
+ *
+ * @author wizard-lee
+ */
 class CoreConfigBindingTest {
 
     @Test

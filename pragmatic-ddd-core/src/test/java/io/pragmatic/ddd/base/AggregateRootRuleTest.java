@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.8：AggregateRoot 的规则校验委托测试（吸收原 BrokenRuleRefactorTest 实体用例）。
+  * @author wizard-lee
  */
 class AggregateRootRuleTest {
 

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.14：IEnumValue 接口 default 方法契约测试。
+  * @author wizard-lee
  */
 class IEnumValueTest {
 

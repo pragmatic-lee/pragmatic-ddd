@@ -13,6 +13,9 @@ hero:
     - theme: alt
       text: API Examples
       link: /api-examples
+  image:
+    src: /hero-logo.svg
+    alt: VitePress
 
 features:
   - title: Feature A

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * OutboxStatus 状态机枚举测试：确认四态完备且命名稳定（供存储/认领逻辑依赖）。
+  * @author wizard-lee
  */
 class OutboxStatusTest {
 

@@ -7,6 +7,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 AbstractBroadcastSubscriber 的订阅分发与消息处理契约。
+ *
+ * @author wizard-lee
+ */
 class AbstractBroadcastSubscriberTest {
 
     private static final class SampleEvent extends BaseDomainEvent {

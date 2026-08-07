@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * IdGeneratorDefinition 生成器定义测试：验证默认值、全参构造与 getter/setter 读写。
+  * @author wizard-lee
  */
 class IdGeneratorDefinitionTest {
 

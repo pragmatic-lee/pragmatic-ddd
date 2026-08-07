@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.2：BrokenRule（违规信息载体）单元测试。
+  * @author wizard-lee
  */
 class BrokenRuleTest {
 

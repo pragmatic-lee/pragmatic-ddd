@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 对应设计文档阶段 6.10：AggregateRoot 操作追踪测试（吸收原 T7）。
+  * @author wizard-lee
  */
 class AggregateRootOperationTest {
 

@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * IdGeneratorRegistry 多生成器注册中心测试：验证按 bizKey 隔离、按 IdType 构建与取号异常语义。
+  * @author wizard-lee
  */
 class IdGeneratorRegistryTest {
 

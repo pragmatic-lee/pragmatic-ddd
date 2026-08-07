@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 对应设计文档阶段 6.13：CompareAndSetInfo 单元测试。
+  * @author wizard-lee
  */
 class CompareAndSetInfoTest {
 

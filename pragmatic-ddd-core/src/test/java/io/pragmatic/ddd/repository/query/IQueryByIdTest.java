@@ -6,6 +6,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 IQueryById 按主键查询投影的契约。
+ *
+ * @author wizard-lee
+ */
 class IQueryByIdTest {
 
     private static final class InMemoryQuery implements IQueryById<Long, String> {

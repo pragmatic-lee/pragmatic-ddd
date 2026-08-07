@@ -7,6 +7,11 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * 验证 ConfigurationBinder 将配置源绑定到 record 与 POJO 的类型转换。
+ *
+ * @author wizard-lee
+ */
 class ConfigurationBinderTest {
 
     @Test

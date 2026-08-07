@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 覆盖 CommandExecutor#execute 真实路径：领域逻辑 → 规则校验 → 落库 + 发布 → 清空。
+  * @author wizard-lee
  */
 class CommandExecutorTest {
 

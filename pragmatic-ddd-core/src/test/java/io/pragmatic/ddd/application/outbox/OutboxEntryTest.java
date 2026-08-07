@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * OutboxEntry 配对结构测试：验证原始事件与 outbox 行一一对应、字段透传。
+  * @author wizard-lee
  */
 class OutboxEntryTest {
 

@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 对应设计文档阶段 6.11：AggregateRoot 版本号、新建标记、工作单元清理测试（吸收原 T8）。
+  * @author wizard-lee
  */
 class AggregateRootVersionAndLifecycleTest {
 

@@ -6,6 +6,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 MapFeatureToggle 基于配置源的特性开关状态解析。
+ *
+ * @author wizard-lee
+ */
 class MapFeatureToggleTest {
 
     @Test

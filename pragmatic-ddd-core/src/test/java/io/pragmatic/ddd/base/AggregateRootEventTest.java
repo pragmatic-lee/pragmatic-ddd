@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 对应设计文档阶段 6.9：AggregateRoot 三种 collectEvent 路径与因果归属测试。
  * 改造自原 EntityOperationCodeTest T1~T8，统一 JUnit5 + 行为命名。
+  * @author wizard-lee
  */
 class AggregateRootEventTest {
 

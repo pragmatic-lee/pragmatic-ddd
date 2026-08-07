@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 对应设计文档阶段 6.3：BrokenRuleRegistry（抽象基类 + 反射自动注册）单元测试。
  * 合并原 BrokenRuleMessageTest 与 BrokenRuleRefactorTest 中注册表相关用例，去重。
+  * @author wizard-lee
  */
 class BrokenRuleRegistryTest {
 

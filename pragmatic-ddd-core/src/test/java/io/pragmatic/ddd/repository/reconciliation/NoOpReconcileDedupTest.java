@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 NoOpReconcileDedup 去重兜底实现恒不跳过。
+ *
+ * @author wizard-lee
+ */
 class NoOpReconcileDedupTest {
 
     @Test

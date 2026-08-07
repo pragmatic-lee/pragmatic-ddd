@@ -6,6 +6,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 IQueryPage 分页查询并返回分页元数据的契约。
+ *
+ * @author wizard-lee
+ */
 class IQueryPageTest {
 
     private record Criteria(String key) {}

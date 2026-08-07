@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 对应设计文档阶段 6.4：BrokenRuleObject（违规收集器）单元测试。
  * 保留原有用例并迁 JUnit5 + AssertJ，补充新增用例。
+  * @author wizard-lee
  */
 class BrokenRuleObjectTest {
 

@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证 IQueryOne 按条件查询单个投影（命中/未命中）的契约。
+ *
+ * @author wizard-lee
+ */
 class IQueryOneTest {
 
     private record Criteria(String key) {}

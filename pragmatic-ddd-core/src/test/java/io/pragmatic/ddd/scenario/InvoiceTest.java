@@ -5,6 +5,11 @@ import org.junit.Test;
 
 import java.util.List;
 
+/**
+ * 场景示例：验证发票聚合根的领域规则校验行为。
+ *
+ * @author wizard-lee
+ */
 public class InvoiceTest {
 
     @Test

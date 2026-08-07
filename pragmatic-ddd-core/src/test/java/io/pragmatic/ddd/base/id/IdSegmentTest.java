@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * IdSegment 号段值对象测试：验证区间 [current, max] 的分配语义、不可变性与耗尽异常。
+  * @author wizard-lee
  */
 class IdSegmentTest {
 
