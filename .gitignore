@@ -47,3 +47,7 @@ jacoco.exec
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
 docs/
+
+documentation/.vitepress/cache
+documentation/.vitepress/dist
+documentation/node_modules

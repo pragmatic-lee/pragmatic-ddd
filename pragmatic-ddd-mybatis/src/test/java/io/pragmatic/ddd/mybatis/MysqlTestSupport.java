@@ -11,7 +11,6 @@ import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 
 import java.sql.Connection;
-import java.util.Arrays;
 
 /**
  * 测试期 MySQL 连接与 {@link SqlSessionFactory} 构建的通用支持类，
@@ -34,9 +33,9 @@ import java.util.Arrays;
  *   }
  * </pre>
  *
- * <p>装配统一交由 {@link MybatisModuleBootstrap} 完成：根据传入的契约接口决定模块开关，
- * 注入表名变量并加载对应 SQL 实现 XML（契约接口随之被自动注册）。
- * 并演示了「表名可配置 / 模块可关闭 / 多库 XML 切换」三特性的接线方式。</p>
+ * <p>装配在 {@link #sessionFactory(Class[])} 内完成：根据传入的契约接口（{@link IdSegmentMapper} /
+ * {@link OutboxMapper}）调用 {@code Configuration.addMapper} 注册，MyBatis 随即按同包同名规则
+ * 自动从 classpath 加载对应 XML（如 {@code OutboxMapper.xml}）。模块保持 Spring 无关。</p>
  *
  * <p>无可达 MySQL 时 {@link #isAvailable()} 返回 false，测试应跳过以免构建失败。
  * 仅用于 test scope，mysql-connector-j 不会进入框架产物。</p>
@@ -56,7 +55,7 @@ public final class MysqlTestSupport {
     }
 
     /**
-     * 通用工厂：由 {@link MybatisModuleBootstrap} 装配 mapper，返回 SqlSessionFactory。
+     * 通用工厂：注册 mapper 契约接口并返回 SqlSessionFactory。
      *
      * <p>默认库与表均已预先存在，本方法只负责连接与装配，不再执行任何建库 / 建表逻辑。</p>
      *
@@ -65,20 +64,32 @@ public final class MysqlTestSupport {
      */
     public static SqlSessionFactory sessionFactory(Class<?>... mappers) throws Exception {
         // 库与表均已存在，直接构建 SqlSessionFactory 并装配：
-        // 注入表名变量 + 加载 mapper XML（自动注册契约接口）
+        // 注入表名变量 + 注册 mapper 契约接口（MyBatis 按同包同名规则自动加载对应 XML）
+        return sessionFactory(cfg -> { }, mappers);
+    }
+
+    /**
+     * 在 {@link #sessionFactory(Class[])} 基础上，允许调用方在 mapper 注册前对
+     * {@link Configuration} 做额外定制（如注册带参构造的 TypeHandler 实例）。
+     *
+     * @param customizer 在 mapper 注册前回调，用于注册 TypeHandler 等
+     * @param mappers    需要启用的契约接口
+     */
+    public static SqlSessionFactory sessionFactory(java.util.function.Consumer<Configuration> customizer,
+                                                    Class<?>... mappers) throws Exception {
         PooledDataSource ds = new PooledDataSource(
                 "com.mysql.cj.jdbc.Driver", url(), user(), password());
         Configuration cfg = new Configuration(new Environment("test", new JdbcTransactionFactory(), ds));
+        customizer.accept(cfg);
+        for (Class<?> mapper : mappers) {
+            cfg.addMapper(mapper);
+        }
         return new SqlSessionFactoryBuilder().build(cfg);
     }
 
     /** outbox 测试便捷方法：装配契约接口 OutboxMapper。 */
     public static SqlSessionFactory sqlSessionFactory() throws Exception {
         return sessionFactory(OutboxMapper.class);
-    }
-
-    private static boolean contains(Class<?>[] mappers, Class<?> target) {
-        return Arrays.asList(mappers).contains(target);
     }
 
     private static Connection openConnection(String jdbcUrl) throws Exception {
@@ -106,5 +117,5 @@ public final class MysqlTestSupport {
     private static int    port()     { return Integer.parseInt(env("MYSQL_PORT", "3306")); }
     private static String db()       { return env("MYSQL_DB", "pragmatic_ddb"); }
     private static String user()     { return env("MYSQL_USER", "root"); }
-    private static String password() { return env("MYSQL_PASSWORD", "mysqlxxl123"); }
+    private static String password() { return env("MYSQL_PASSWORD", "MySqlXXL123"); }
 }

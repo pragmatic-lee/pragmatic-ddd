@@ -96,8 +96,13 @@ public final class Fastjson2JsonSerializer implements JsonSerializer, IEventSeri
     @Override
     public Object toJsonValue(Object obj) {
         if (obj == null) return null;
-        // JSON.toJSON 不接受 Context，故序列化文本后再规整为 JSONObject 树（应用私有 enum writer）
-        return JSON.parseObject(serialize(obj), JSONObject.class, readContext);
+        String text = serialize(obj);
+        // 顶层集合 / 数组需按 JSONArray 规整，否则按 JSONObject.class 解析 [..] 会抛 JSONException；
+        // 其余按 JSONObject 规整（均应用私有 enum writer 的序列化结果）
+        if (obj instanceof java.util.Collection || obj.getClass().isArray()) {
+            return JSON.parseArray(text);
+        }
+        return JSON.parseObject(text, JSONObject.class, readContext);
     }
 
     @Override

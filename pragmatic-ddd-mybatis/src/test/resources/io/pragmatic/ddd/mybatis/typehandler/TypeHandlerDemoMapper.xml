@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDemoMapper">
+
+    <resultMap id="demoRow" type="io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDemoRow">
+        <id column="id" property="id"/>
+        <result column="biz_name" property="bizName"/>
+        <result column="status_code" property="statusCode"/>
+        <result column="status_name" property="statusName"/>
+        <result column="profile_json" property="profileJson"/>
+        <result column="colors_json" property="colorsJson"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDemoRow">
+        INSERT INTO type_handler_demo
+            (biz_name, status_code, status_name, profile_json, colors_json)
+        VALUES
+            (#{bizName}, #{statusCode}, #{statusName}, #{profileJson}, #{colorsJson})
+    </insert>
+
+    <select id="selectById" resultMap="demoRow">
+        SELECT id, biz_name, status_code, status_name, profile_json, colors_json
+        FROM type_handler_demo
+        WHERE id = #{id}
+    </select>
+
+    <delete id="clear">
+        DELETE FROM type_handler_demo
+    </delete>
+</mapper>
