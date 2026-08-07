@@ -60,6 +60,8 @@ class RocketMqDomainEventManagerTest {
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
         assertThat(received).hasSize(2);
+        manager.shutdown();
+        logPass("topicUseClassName", "received=" + received);
     }
 
     /**
@@ -77,6 +79,8 @@ class RocketMqDomainEventManagerTest {
         manager.publish(ShareDomainEvent.buildEvent("100", "share-" + System.nanoTime()));
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        manager.shutdown();
+        logPass("useShareTopicTest", "topic=" + DEFAULT_TOPIC);
     }
 
     /**
@@ -104,6 +108,8 @@ class RocketMqDomainEventManagerTest {
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
         assertThat(executed).containsExactlyInAnyOrder("test1", "test2");
+        manager.shutdown();
+        logPass("useConditionTest", "executed=" + executed);
     }
 
     /**
@@ -124,6 +130,8 @@ class RocketMqDomainEventManagerTest {
         manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
 
         assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
+        manager.shutdown();
+        logPass("delayTest", "topic=" + DEFAULT_TOPIC);
     }
 
     /**
@@ -147,6 +155,8 @@ class RocketMqDomainEventManagerTest {
         manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
 
         assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
+        manager.shutdown();
+        logPass("retryTest", "topic=" + DEFAULT_TOPIC);
     }
 
     /**
@@ -176,6 +186,8 @@ class RocketMqDomainEventManagerTest {
         manager.publish(MyDomainEvent.buildEvent("order-" + System.nanoTime(), "order"));
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
         assertThat(order).containsExactly("r3", "r2", "r1");
+        manager.shutdown();
+        logPass("orderExecuteTest", "order=" + order);
     }
 
     /**
@@ -203,6 +215,8 @@ class RocketMqDomainEventManagerTest {
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
         assertThat(received).hasSize(2);
+        manager.shutdown();
+        logPass("route_allEventsToSingleTopic", "topic=" + SINGLE_TOPIC + ", received=" + received);
     }
 
     /**
@@ -237,5 +251,18 @@ class RocketMqDomainEventManagerTest {
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
         assertThat(received).containsExactlyInAnyOrder("A:x", "B:y");
+        manager.shutdown();
+        logPass("route_differentEventsToDifferentTopics",
+                "eventA=" + EVENT_A_TOPIC + ", eventB=" + EVENT_B_TOPIC + ", received=" + received);
+    }
+
+    /**
+     * 统一输出测试通过日志，便于在无失败时也能确认执行记录。
+     *
+     * @param testName 测试方法名
+     * @param detail   本次执行的关键记录摘要
+     */
+    private static void logPass(String testName, String detail) {
+        System.out.println("[RocketMqDomainEventManagerTest] PASS " + testName + " | " + detail);
     }
 }
