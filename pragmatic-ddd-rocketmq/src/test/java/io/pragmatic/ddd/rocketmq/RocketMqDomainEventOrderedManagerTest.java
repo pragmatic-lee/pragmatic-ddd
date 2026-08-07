@@ -1,247 +1,175 @@
 package io.pragmatic.ddd.rocketmq;
 
-import io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver;
-import io.pragmatic.ddd.event.internal.defaults.SubscriberOrderManager;
-import io.pragmatic.ddd.event.internal.defaults.SubscriberFactory;
 import io.pragmatic.ddd.event.spi.ExecuteStatus;
-import io.pragmatic.ddd.event.spi.IExecuteCondition;
-import io.pragmatic.ddd.event.spi.ITopicResolver;
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
- * @author lixiaojing10
- * @date 2021/12/24 10:08 下午
+ * 4.x 订阅顺序执行 / 依赖链 / 条件 + 顺序 组合集成测试，需真实 RocketMQ。
+ * 无 RocketMQ 环境时整类跳过。
+ *
+ * @author wizard-lee
  */
-public class RocketMqDomainEventOrderedManagerTest {
+@Tag("integration")
+@Tag("rocketmq-4x")
+class RocketMqDomainEventOrderedManagerTest {
 
-    private static final String NAME_SERVER = "localhost:9876";
+    private static final String DEFAULT_TOPIC = "pdd_ddd_default_topic";
 
-    private RocketMqEventManager createManager(ITopicResolver topicResolver) {
-        return RocketMqEventManager.builder()
-                .config(new RocketMqConfig().setNameServer(NAME_SERVER))
-                .topicResolver(topicResolver)
-                .orderManager(new SubscriberOrderManager())
-                .build();
+    @BeforeAll
+    static void available() {
+        Assumptions.assumeTrue(RocketMqTestSupport.is4xAvailable(), "RocketMQ 4.x 不可用，跳过集成测试");
     }
 
     /**
-     * 随机执行，订阅执行不分先后顺序
-     * r1 ,r2 ,r3 的执行顺序不定
+     * 随机执行，订阅执行不分先后顺序。
      */
     @Test
-    public void randomExecuteTest() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(4);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void randomExecuteTest() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(4);
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println("r1");
-        });
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println("r2");
-        });
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println("r3");
-        });
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("全部执行", "全部执行"));
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("指定执行r3", "指定执行r3"), "r3");
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> latch.countDown());
 
-        Thread.sleep(30000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        manager.publish(MyDomainEvent.buildEvent("全部执行", "全部执行-" + System.nanoTime()));
+        manager.publish(MyDomainEvent.buildEvent("指定执行r3", "指定执行r3"), "r3");
+
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
     }
 
     /**
-     * 验证按顺序执行 r3->r2->r1
+     * 验证按顺序执行 r3 -> r2 -> r1。
      */
     @Test
-    public void orderExecuteTest1() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(5);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void orderExecuteTest1() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(5);
+        List<String> order = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(1);
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
+            order.add("r1");
+            latch.countDown();
         }, null, MyDomainEventKeys.R2);
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(2);
+        manager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
+            order.add("r2");
+            latch.countDown();
         }, null, MyDomainEventKeys.R3);
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(3);
+        manager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> {
+            order.add("r3");
+            latch.countDown();
         });
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行全部事件订阅", "执行全部事件订阅"));
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，不执行依赖当前订阅的订阅", "执行指定的事件订阅，不执行依赖当前订阅的订阅"), MyDomainEventKeys.R2, true);
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，同时执行依赖当前订阅的订阅", "执行指定的事件订阅，同时执行依赖当前订阅的订阅"), MyDomainEventKeys.R2, false);
 
-        countDownLatch.await(30000, TimeUnit.SECONDS);
-        Thread.sleep(30000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        manager.publish(MyDomainEvent.buildEvent("执行全部事件订阅", "执行全部事件订阅-" + System.nanoTime()));
+        manager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，不执行依赖当前订阅的订阅", "1"), MyDomainEventKeys.R2, true);
+        manager.publish(MyDomainEvent.buildEvent("执行指定的事件订阅，同时执行依赖当前订阅的订阅", "2"), MyDomainEventKeys.R2, false);
+
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        assertThat(order).containsExactly("r3", "r2", "r1");
     }
 
     /**
-     * 验证 r1、r3 依赖 r2
+     * 验证 r1、r3 依赖 r2（并发依赖，仅验证均被触发）。
      */
     @Test
-    public void orderExecuteTest2() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(3);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void orderExecuteTest2() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(3);
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R1, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "r1");
-        }, null, ShareDomainEventKeys.R2);
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R2, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "r2");
-        });
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R3, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "r3");
-        }, null, ShareDomainEventKeys.R2);
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(ShareDomainEventKeys.R1, ShareDomainEvent.class, s -> latch.countDown(), null, ShareDomainEventKeys.R2);
+        manager.registerSubscriber(ShareDomainEventKeys.R2, ShareDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber(ShareDomainEventKeys.R3, ShareDomainEvent.class, s -> latch.countDown(), null, ShareDomainEventKeys.R2);
 
-        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "share"));
+        manager.publish(ShareDomainEvent.buildEvent("100", "share-" + System.nanoTime()));
 
-        countDownLatch.await(30000, TimeUnit.SECONDS);
-        Thread.sleep(30000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
     }
 
     /**
-     * 验证两个事件执行指定订阅
+     * 验证两个事件各自执行指定订阅与依赖链。
      */
     @Test
-    public void towEventOrderExecute() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(3);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void towEventOrderExecute() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(3);
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> { });
+        manager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> { }, null, MyDomainEventKeys.R1);
+        manager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> { }, null, MyDomainEventKeys.R1);
+        manager.registerSubscriber(ShareDomainEventKeys.R1, ShareDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber(ShareDomainEventKeys.R2, ShareDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber(ShareDomainEventKeys.R3, ShareDomainEvent.class, s -> latch.countDown(), null, ShareDomainEventKeys.R1);
 
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
-            System.out.println("MyDomainEvent r1");
-        });
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
-            System.out.println("MyDomainEvent r2");
-        }, null, MyDomainEventKeys.R1);
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R3, MyDomainEvent.class, s -> {
-            System.out.println("MyDomainEvent r3");
-        }, null, MyDomainEventKeys.R1);
+        manager.publish(ShareDomainEvent.buildEvent("100", "share-" + System.nanoTime()));
+        manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
 
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R1, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "ShareDomainEvent r1");
-        });
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R2, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "ShareDomainEvent r2");
-        });
-        rocketMqDomainEventManager.registerSubscriber(ShareDomainEventKeys.R3, ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "ShareDomainEvent r3");
-        }, null, ShareDomainEventKeys.R1);
-
-        rocketMqDomainEventManager.publish(ShareDomainEvent.buildEvent("100", "share"));
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
-
-        countDownLatch.await(30000, TimeUnit.SECONDS);
-        Thread.sleep(30000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
     }
 
+    /**
+     * 顺序 + 条件：r2 条件不满足时 SKIP，r1 不触发。
+     */
     @Test
-    public void orderExecuteWithConditionTest() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void orderExecuteWithConditionTest() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(2);
+        List<String> executed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println("r1");
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
+            executed.add("r1");
+            latch.countDown();
         }, null, MyDomainEventKeys.R2);
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println("2");
+        manager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
+            executed.add("r2");
+            latch.countDown();
         }, evt -> evt.getName().equals("100") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP);
 
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("200", "200"));
+        manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
+        manager.publish(MyDomainEvent.buildEvent("200", "200-" + System.nanoTime()));
 
-        Thread.sleep(30000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        assertThat(executed).containsExactlyInAnyOrder("r1", "r2");
     }
 
     /**
-     * 测试重试执行，r2 依赖 r1
+     * 顺序 + 重试：r2 依赖 r1，r1 失败时重试。
      */
     @Test
-    public void retryOrderExecuteTest() throws InterruptedException {
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event")
-                .build();
-        RocketMqEventManager rocketMqDomainEventManager = createManager(topicResolver);
+    void retryOrderExecuteTest() throws InterruptedException {
+        RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(2);
 
-        rocketMqDomainEventManager.initTopics();
-        rocketMqDomainEventManager.start();
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
-            if (countDownLatch.getCount() > 0) {
-                countDownLatch.countDown();
-                System.out.println(s.getName() + "run error " + countDownLatch.getCount());
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber(MyDomainEventKeys.R1, MyDomainEvent.class, s -> {
+            if (latch.getCount() > 0) {
+                latch.countDown();
                 throw new RuntimeException("test exception");
             }
-            System.out.println("run ok");
         });
-        rocketMqDomainEventManager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> {
-            System.out.println("run ok r2");
-        }, null, MyDomainEventKeys.R1);
+        manager.registerSubscriber(MyDomainEventKeys.R2, MyDomainEvent.class, s -> { }, null, MyDomainEventKeys.R1);
 
-        rocketMqDomainEventManager.publish(MyDomainEvent.buildEvent("100", "100"));
+        manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
 
-        countDownLatch.await(30000, TimeUnit.SECONDS);
-        Thread.sleep(60000);
-        Assertions.assertEquals(0L, countDownLatch.getCount());
+        assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
     }
-}
-
-final class MyDomainEventKeys {
-
-    public static final String R3 = "r3";
-    public static final String R2 = "r2";
-    public static final String R1 = "r1";
-}
-
-final class ShareDomainEventKeys {
-
-    public static final String R3 = "r3";
-    public static final String R2 = "r2";
-    public static final String R1 = "r1";
 }

@@ -1,229 +1,183 @@
 package io.pragmatic.ddd.rocketmq;
 
-import io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver;
-import io.pragmatic.ddd.event.internal.defaults.SubscriberOrderManager;
 import io.pragmatic.ddd.event.internal.model.DeliveryPolicy;
 import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import io.pragmatic.ddd.event.spi.IExecuteCondition;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static io.pragmatic.ddd.event.internal.model.DeliveryPolicy.DELAYED;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * RocketMQ 5.x gRPC 领域事件管理器的单元测试。
- * <p>
- * 运行前置：本地部署 RocketMQ 5.x 并开启 gRPC Proxy（默认 8081），
- * 将 {@link #PROXY_ADDR} 改为实际地址。验证发布/订阅主链路与关键行为。
+ * 5.x（gRPC Proxy 协议）领域事件管理器的集成测试，需真实 RocketMQ 5.x Proxy。
+ * 无 RocketMQ 环境时整类跳过。
  *
  * @author wizard-lee
  */
-public class RocketMqGrpcEventManagerTest {
+@Tag("integration")
+@Tag("rocketmq-5x")
+class RocketMqGrpcEventManagerTest {
 
-    private static final String PROXY_ADDR = "localhost:8081";
+    private static final String CLASSNAME_TOPIC = "pdd_ddd_classname_topic";
 
-    private RocketMqGrpcEventManager createManager(ITopicResolver topicResolver) {
-        return RocketMqGrpcEventManager.builder()
-                .config(new RocketMqConfig()
-                        .setProxyAddr(PROXY_ADDR)
-                        .setConsumerGroup("RocketMqGrpcEventManagerTest"))
-                .topicResolver(topicResolver)
-                .serializer(new Fastjson2EventSerializer())
-                .build();
+    private RocketMqGrpcEventManager manager;
+
+    @BeforeAll
+    static void available() {
+        Assumptions.assumeTrue(RocketMqTestSupport.is5xAvailable(), "RocketMQ 5.x 不可用，跳过集成测试");
     }
 
-    private RocketMqGrpcEventManager createManager(ITopicResolver topicResolver,
-                                                   SubscriberOrderManager orderManager) {
-        return RocketMqGrpcEventManager.builder()
-                .config(new RocketMqConfig()
-                        .setProxyAddr(PROXY_ADDR)
-                        .setConsumerGroup("RocketMqGrpcEventManagerTest"))
-                .topicResolver(topicResolver)
-                .orderManager(orderManager)
-                .serializer(new Fastjson2EventSerializer())
-                .build();
+    @AfterEach
+    void tearDown() {
+        if (manager != null) {
+            manager.shutdown();
+        }
     }
 
     /**
      * 使用类名作为 Topic 的发布订阅实现，验证两个订阅者回调均被执行。
      */
     @Test
-    public void topicUseClassName() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event111")
-                .build();
-        RocketMqGrpcEventManager manager = createManager(topicResolver);
+    void topicUseClassName() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC);
+        CountDownLatch latch = new CountDownLatch(2);
 
         manager.initTopics();
         manager.start();
-        manager.registerSubscriber("test1", MyDomainEvent.class, s -> {
-            System.out.println(s.getName() + "test1");
-            countDownLatch.countDown();
-        });
-        manager.registerSubscriber("test2", MyDomainEvent.class, s -> {
-            System.out.println(s.getName() + "test2");
-            countDownLatch.countDown();
-        });
-        manager.publish(MyDomainEvent.buildEvent("abc", "abc"));
+        manager.registerSubscriber("test1", MyDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber("test2", MyDomainEvent.class, s -> latch.countDown());
+        manager.publish(MyDomainEvent.buildEvent("abc-" + System.nanoTime(), "abc"));
 
-        try {
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            Thread.sleep(30000);
-            Assertions.assertEquals(0L, countDownLatch.getCount());
-        } finally {
-            manager.shutdown();
-        }
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
     }
 
     /**
-     * 使用共享 Topic 的发布订阅测试，验证两个订阅者回调均被执行。
+     * 使用共享 Topic 的发布订阅测试。
      */
     @Test
-    public void useShareTopicTest() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event111")
-                .build();
-        RocketMqGrpcEventManager manager = createManager(topicResolver);
+    void useShareTopicTest() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC);
+        CountDownLatch latch = new CountDownLatch(2);
 
         manager.initTopics();
         manager.start();
-        manager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "shareTest1");
-        });
-        manager.registerSubscriber("shareTest2", ShareDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(s.getName() + "shareTest2");
-        });
-        manager.publish(ShareDomainEvent.buildEvent("100", "share"));
+        manager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber("shareTest2", ShareDomainEvent.class, s -> latch.countDown());
+        manager.publish(ShareDomainEvent.buildEvent("100", "share-" + System.nanoTime()));
 
-        try {
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            Thread.sleep(30000);
-            Assertions.assertEquals(0L, countDownLatch.getCount());
-        } finally {
-            manager.shutdown();
-        }
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
     }
 
     /**
      * 带条件的订阅测试，验证仅满足执行条件的订阅者被触发。
      */
     @Test
-    public void useConditionTest() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(2);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event111")
-                .build();
-        RocketMqGrpcEventManager manager = createManager(topicResolver);
+    void useConditionTest() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC);
+        CountDownLatch latch = new CountDownLatch(2);
+        List<String> executed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         manager.initTopics();
         manager.start();
-        IExecuteCondition<ShareDomainEvent> test1Condition = evt ->
-                evt.getName().equals("test1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP;
-        IExecuteCondition<ShareDomainEvent> test2Condition = evt ->
-                evt.getName().equals("test2") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP;
+        IExecuteCondition<ShareDomainEvent> test1Condition =
+                evt -> evt.getName().equals("test1") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP;
+        IExecuteCondition<ShareDomainEvent> test2Condition =
+                evt -> evt.getName().equals("test2") ? ExecuteStatus.EXECUTE : ExecuteStatus.SKIP;
         manager.registerSubscriber("test1", ShareDomainEvent.class, s -> {
-            System.out.println("test1");
-            countDownLatch.countDown();
+            executed.add("test1");
+            latch.countDown();
         }, test1Condition);
         manager.registerSubscriber("test2", ShareDomainEvent.class, s -> {
-            System.out.println("test2");
-            countDownLatch.countDown();
+            executed.add("test2");
+            latch.countDown();
         }, test2Condition);
 
         manager.publish(ShareDomainEvent.buildEvent("100", "test1"));
         manager.publish(ShareDomainEvent.buildEvent("100", "test2"));
 
-        try {
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            Thread.sleep(30000);
-            Assertions.assertEquals(0L, countDownLatch.getCount());
-        } finally {
-            manager.shutdown();
-        }
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        assertThat(executed).containsExactlyInAnyOrder("test1", "test2");
     }
 
     /**
      * 延时投递测试，验证 DELAYED 策略订阅者最终收到消息。
      */
     @Test
-    public void delayTest() throws InterruptedException {
-        CountDownLatch countDownLatch = new CountDownLatch(4);
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event111")
-                .build();
-        RocketMqGrpcEventManager manager = createManager(topicResolver, new SubscriberOrderManager());
+    void delayTest() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(4);
 
         manager.initTopics();
         manager.start();
-        manager.registerSubscriber("sub0", MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(0);
-        });
-        manager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(1);
-        }, DELAYED);
-        manager.registerSubscriber("sub2", MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(2);
-        }, DELAYED);
-        manager.registerSubscriber("sub3", MyDomainEvent.class, s -> {
-            countDownLatch.countDown();
-            System.out.println(3);
-        }, DELAYED);
+        manager.registerSubscriber("sub0", MyDomainEvent.class, s -> latch.countDown());
+        manager.registerSubscriber("sub1", MyDomainEvent.class, s -> latch.countDown(), DELAYED);
+        manager.registerSubscriber("sub2", MyDomainEvent.class, s -> latch.countDown(), DELAYED);
+        manager.registerSubscriber("sub3", MyDomainEvent.class, s -> latch.countDown(), DELAYED);
 
-        manager.publish(MyDomainEvent.buildEvent("100", "100"));
+        manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
 
-        try {
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            Thread.sleep(60000);
-            Assertions.assertEquals(0L, countDownLatch.getCount());
-        } finally {
-            manager.shutdown();
-        }
+        assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
     }
 
     /**
      * 测试重试执行，验证订阅者首轮异常后由框架重试并最终成功。
      */
     @Test
-    public void retryTest() throws InterruptedException {
-        ITopicResolver topicResolver = ConfigurableTopicResolver.builder()
-                .globalDefaultTopic("test_event111")
-                .build();
-        RocketMqGrpcEventManager manager = createManager(topicResolver, new SubscriberOrderManager());
+    void retryTest() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(3);
 
         manager.initTopics();
         manager.start();
-        CountDownLatch countDownLatch = new CountDownLatch(3);
         manager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
-            if (countDownLatch.getCount() > 0) {
-                countDownLatch.countDown();
-                System.out.println(s.getName() + "run error " + countDownLatch.getCount());
+            if (latch.getCount() > 0) {
+                latch.countDown();
                 throw new RuntimeException("test exception");
             }
-            System.out.println("run ok");
         });
-        manager.registerSubscriber("sub2", MyDomainEvent.class, s -> {
-            System.out.println("run ok sub2");
+        manager.registerSubscriber("sub2", MyDomainEvent.class, s -> { });
+
+        manager.publish(MyDomainEvent.buildEvent("100", "100-" + System.nanoTime()));
+
+        assertThat(latch.await(60, TimeUnit.SECONDS)).isTrue();
+    }
+
+    /**
+     * 订阅按顺序执行（r3 -> r2 -> r1），补齐 5.x 缺失的顺序执行用例。
+     */
+    @Test
+    void orderExecuteTest() throws InterruptedException {
+        manager = RocketMqTestSupport.create5xManager(CLASSNAME_TOPIC, RocketMqTestSupport.orderManager());
+        CountDownLatch latch = new CountDownLatch(3);
+        List<String> order = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        manager.initTopics();
+        manager.start();
+        manager.registerSubscriber("r1", MyDomainEvent.class, s -> {
+            order.add("r1");
+            latch.countDown();
+        }, null, "r2");
+        manager.registerSubscriber("r2", MyDomainEvent.class, s -> {
+            order.add("r2");
+            latch.countDown();
+        }, null, "r3");
+        manager.registerSubscriber("r3", MyDomainEvent.class, s -> {
+            order.add("r3");
+            latch.countDown();
         });
 
-        manager.publish(MyDomainEvent.buildEvent("100", "100"));
+        manager.publish(MyDomainEvent.buildEvent("order-" + System.nanoTime(), "order"));
 
-        try {
-            countDownLatch.await(30, TimeUnit.SECONDS);
-            Thread.sleep(60000);
-            Assertions.assertEquals(0L, countDownLatch.getCount());
-        } finally {
-            manager.shutdown();
-        }
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        assertThat(order).containsExactly("r3", "r2", "r1");
     }
 }

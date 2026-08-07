@@ -65,6 +65,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- 默认只跑纯单元（unit），集成测试(integration)需显式 -Dgroups=integration 开启 -->
+                    <excludedGroups>integration</excludedGroups>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
