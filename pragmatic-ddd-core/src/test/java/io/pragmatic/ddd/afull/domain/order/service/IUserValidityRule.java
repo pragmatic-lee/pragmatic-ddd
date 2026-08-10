@@ -1,7 +1,9 @@
 package io.pragmatic.ddd.afull.domain.order.service;
 
-import io.pragmatic.ddd.base.IDomainService;
 import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.service.DomainService;
+import io.pragmatic.ddd.service.IDomainService;
+import io.pragmatic.ddd.service.DomainServiceCategory;
 
 /**
  * 用户有效性校验契约。
@@ -9,6 +11,9 @@ import io.pragmatic.ddd.base.RuleCheckResult;
  *
  * @author wizard-lee
  */
+@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+        targetName = "Order",
+        description = "校验指定用户是否存在且有效")
 public interface IUserValidityRule extends IDomainService {
 
     /**

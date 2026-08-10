@@ -11,11 +11,11 @@ import io.pragmatic.ddd.acl.fixture.adapter.PaymentExternalClient;
 import io.pragmatic.ddd.acl.fixture.adapter.PaymentPreAuthGateway;
 import io.pragmatic.ddd.acl.fixture.adapter.UserExternalClient;
 import io.pragmatic.ddd.acl.fixture.adapter.UserGatewayAdapter;
-import io.pragmatic.ddd.acl.fixture.domain.IUserDependency;
-import io.pragmatic.ddd.acl.fixture.domain.IPaymentGatewayDependency;
-import io.pragmatic.ddd.acl.fixture.domain.PaymentPreAuthParam;
-import io.pragmatic.ddd.acl.fixture.domain.PaymentPreAuthResult;
-import io.pragmatic.ddd.acl.fixture.domain.UserLevel;
+import io.pragmatic.ddd.dependency.fixture.domain.IUserDependency;
+import io.pragmatic.ddd.dependency.fixture.domain.IPaymentGatewayDependency;
+import io.pragmatic.ddd.dependency.fixture.domain.PaymentPreAuthParam;
+import io.pragmatic.ddd.dependency.fixture.domain.PaymentPreAuthResult;
+import io.pragmatic.ddd.dependency.fixture.domain.UserLevel;
 
 
 /**

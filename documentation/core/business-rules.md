@@ -3,31 +3,6 @@
 > 本文档属于 pragmatic-ddd 使用文档 `core` 系列，介绍业务规则引擎（`io.pragmatic.ddd.rules`）的核心概念与用法。
 > 前置阅读：[领域建模](./domain-modeling.md)。本系列后续文档：[领域事件](./domain-events.md) · [应用服务](./application-service.md)。
 
-## 大纲
-
-- [1. 概述](#1-概述)
-  - [1.1 规则引擎解决什么问题](#11-规则引擎解决什么问题)
-  - [1.2 核心概念与协作关系](#12-核心概念与协作关系)
-- [2. 校验项级契约 `ICheckRule<T>`](#2-校验项级契约-icheckrulet)
-  - [2.1 新旧模型双参数](#21-新旧模型双参数)
-  - [2.2 校验结果 `RuleCheckResult`](#22-校验结果-rulecheckresult)
-- [3. 方式一：继承 `EntityRule<T>`（规则列表容器）](#3-方式一继承-entityrulet规则列表容器)
-  - [3.1 定义与注册规则](#31-定义与注册规则)
-  - [3.2 新旧对比规则](#32-新旧对比规则)
-  - [3.3 failFast 模式](#33-failfast-模式)
-  - [3.4 运行时动态调整规则](#34-运行时动态调整规则)
-  - [3.5 规则查询](#35-规则查询)
-- [4. 方式二：继承 `BaseRuleValidator<T>`（单规则快速定义）](#4-方式二继承-baserulevalidatort单规则快速定义)
-- [5. 方式三：`ICheckRuleBuilder`（构造器适配）](#5-方式三icheckrulebuilder构造器适配)
-- [6. 激活条件：`IActiveRuleCondition<T>`](#6-激活条件iactiveruleconditiont)
-  - [6.1 模型级条件](#61-模型级条件)
-  - [6.2 code 级开关](#62-code-级开关)
-  - [6.3 便捷工厂与默认条件](#63-便捷工厂与默认条件)
-- [7. 规则位置与消息码操作](#7-规则位置与消息码操作)
-- [8. `@BusinessRule` 注解（仅标记，不参与运行期校验）](#8-businessrule-注解仅标记不参与运行期校验)
-- [9. 与聚合根 `satisfiesRule` 的协作](#9-与聚合根-satisfiesrule-的协作)
-- [10. 三种定义方式选型](#10-三种定义方式选型)
-
 ## 1. 概述
 
 ### 1.1 规则引擎解决什么问题

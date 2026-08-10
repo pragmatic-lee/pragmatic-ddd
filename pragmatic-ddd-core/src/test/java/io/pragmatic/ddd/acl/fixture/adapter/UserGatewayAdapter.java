@@ -2,8 +2,8 @@ package io.pragmatic.ddd.acl.fixture.adapter;
 
 import io.pragmatic.ddd.acl.ExternalCall;
 import io.pragmatic.ddd.acl.ExternalCallLogger;
-import io.pragmatic.ddd.acl.fixture.domain.IUserDependency;
-import io.pragmatic.ddd.acl.fixture.domain.UserLevel;
+import io.pragmatic.ddd.dependency.fixture.domain.IUserDependency;
+import io.pragmatic.ddd.dependency.fixture.domain.UserLevel;
 
 /**
  * 防腐层适配器：组合式（ExternalCall）实现 User 查询依赖。

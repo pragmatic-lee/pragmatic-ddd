@@ -3,33 +3,6 @@
 > 本文档属于 pragmatic-ddd 使用文档 `core` 系列，介绍领域建模层（`io.pragmatic.ddd.base`）的核心概念与用法。
 > 阅读前建议先完成 [快速开始](../getting-started/quick-start.md)。本系列后续文档：[业务规则引擎](./business-rules.md) · [领域事件](./domain-events.md)。
 
-## 大纲
-
-- [1. 概述](#1-概述)
-  - [1.1 这一层解决什么问题](#11-这一层解决什么问题)
-  - [1.2 概念层级关系](#12-概念层级关系)
-- [2. 实体（Entity）](#2-实体entity)
-  - [2.1 实体标识契约 `IEntity<T>`](#21-实体标识契约-ientityt)
-  - [2.2 实体基类 `AbstractEntity<T>`](#22-实体基类-abstractentityt)
-  - [2.3 定义你自己的实体](#23-定义你自己的实体)
-- [3. 值对象（Value Object）](#3-值对象value-object)
-  - [3.1 值对象标记接口 `IValueObject`](#31-值对象标记接口-ivalueobject)
-  - [3.2 结构相等基类 `ValueObject`](#32-结构相等基类-valueobject)
-  - [3.3 定义你自己的值对象](#33-定义你自己的值对象)
-  - [3.4 枚举值对象 `IEnumValue<T,K>`](#34-枚举值对象-ienumvaluetk)
-- [4. 聚合根（Aggregate Root）](#4-聚合根aggregate-root)
-  - [4.1 聚合根基类 `AggregateRoot<T>`](#41-聚合根基类-aggregateroott)
-  - [4.2 定义你自己的聚合根](#42-定义你自己的聚合根)
-  - [4.3 规则违反收集](#43-规则违反收集)
-  - [4.4 版本号与 CAS 乐观锁](#44-版本号与-cas-乐观锁)
-  - [4.5 新建标记](#45-新建标记)
-- [5. 消息码与注册表](#5-消息码与注册表)
-  - [5.1 `MessageCode`](#51-messagecode)
-  - [5.2 `BrokenRuleRegistry` 注册表](#52-brokenruleregistry-注册表)
-- [6. 领域服务标记](#6-领域服务标记)
-- [7. 异常体系](#7-异常体系)
-- [8. 领域建模小结](#8-领域建模小结)
-
 ## 1. 概述
 
 ### 1.1 这一层解决什么问题

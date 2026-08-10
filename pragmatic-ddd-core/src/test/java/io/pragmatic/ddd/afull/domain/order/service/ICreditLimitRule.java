@@ -1,7 +1,9 @@
 package io.pragmatic.ddd.afull.domain.order.service;
 
-import io.pragmatic.ddd.base.IDomainService;
 import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.service.DomainService;
+import io.pragmatic.ddd.service.IDomainService;
+import io.pragmatic.ddd.service.DomainServiceCategory;
 
 import java.math.BigDecimal;
 
@@ -11,6 +13,9 @@ import java.math.BigDecimal;
  *
  * @author wizard-lee
  */
+@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+        targetName = "Order",
+        description = "校验用户信用额度是否足够覆盖订单金额")
 public interface ICreditLimitRule extends IDomainService {
 
     /**

@@ -3,9 +3,9 @@ package io.pragmatic.ddd.acl.fixture.adapter;
 import java.util.Optional;
 
 import io.pragmatic.ddd.acl.AbstractIdempotentWriteGateway;
-import io.pragmatic.ddd.acl.fixture.domain.IPaymentGatewayDependency;
-import io.pragmatic.ddd.acl.fixture.domain.PaymentPreAuthParam;
-import io.pragmatic.ddd.acl.fixture.domain.PaymentPreAuthResult;
+import io.pragmatic.ddd.dependency.fixture.domain.IPaymentGatewayDependency;
+import io.pragmatic.ddd.dependency.fixture.domain.PaymentPreAuthParam;
+import io.pragmatic.ddd.dependency.fixture.domain.PaymentPreAuthResult;
 
 /**
  * 防腐层适配器：继承式（AbstractIdempotentWriteGateway）实现支付预授权（先查后写，按流水号幂等）。

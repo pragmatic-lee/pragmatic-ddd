@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.base;
 
+import io.pragmatic.ddd.service.IDomainService;
+
 /**
  * 实体属性计算领域服务契约：基于计算输入与实体现状，判断并计算出实体某一属性的值。
  *

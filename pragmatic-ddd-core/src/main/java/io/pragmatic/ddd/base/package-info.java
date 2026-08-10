@@ -10,7 +10,7 @@
  *   <li>规则违反收集（Notification 模式）—— {@link IRule} / {@link ICheckRule} / {@link BrokenRule} /
  *       {@link BrokenRuleObject} / {@link BrokenRuleRegistry} / {@link MessageCode} / {@link RuleCheckResult}
  *       及异常（{@link RuleException}、{@link BrokenRuleException}、{@link BrokenRuleAggregateException}）</li>
- *   <li>领域服务与实体属性计算 —— {@link IDomainService}、{@link IEntityPropertyCalculator}</li>
+ *   <li>实体属性计算 —— {@link IEntityPropertyCalculator}（其继承的领域服务标记接口位于 {@code io.pragmatic.ddd.service} 包）</li>
  *   <li>实体辅助工具 —— {@link CompareAndSetInfo}</li>
  *   <li>统一异常体系 —— {@link PragmaticException}、{@link RuleException}</li>
  *   <li>子包 {@code id} —— 号段模式 ID 生成器体系（{@code IIdGenerator} / {@code IIdSegmentAllocator} /

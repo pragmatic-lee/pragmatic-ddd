@@ -3,6 +3,8 @@ package io.pragmatic.ddd.afull.domain.order.service;
 import io.pragmatic.ddd.afull.domain.order.model.Order;
 import io.pragmatic.ddd.afull.domain.order.model.TotalPriceContext;
 import io.pragmatic.ddd.base.IEntityPropertyCalculator;
+import io.pragmatic.ddd.service.DomainService;
+import io.pragmatic.ddd.service.DomainServiceCategory;
 
 import java.math.BigDecimal;
 
@@ -11,6 +13,9 @@ import java.math.BigDecimal;
  *
  * @author wizard-lee
  */
+@DomainService(category = DomainServiceCategory.TYPE_CONVERTER,
+        targetName = "Order.TotalPrice",
+        description = "计算订单总价并赋给订单实体属性")
 public interface IOrderTotalPriceCalculator
         extends IEntityPropertyCalculator<TotalPriceContext, Order, BigDecimal> {
 }
