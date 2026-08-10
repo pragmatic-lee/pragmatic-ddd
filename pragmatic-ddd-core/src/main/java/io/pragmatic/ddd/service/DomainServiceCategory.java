@@ -10,8 +10,8 @@ public enum DomainServiceCategory {
     EVENT_SUBSCRIBER,
     /** 校验规则 */
     RULE_VALIDATOR,
-    /** 属性计算（类型转换） */
-    TYPE_CONVERTER,
+    /** 属性计算 */
+    ATTRIBUTE_CALCULATOR,
     /** 领域工厂 / 能力供给 */
     CAPABILITY_PROVIDER,
     /** 未分类（向后兼容） */

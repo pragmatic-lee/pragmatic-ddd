@@ -1,4 +1,6 @@
 package io.pragmatic.ddd.scenario;
+import io.pragmatic.ddd.scenario.domain.invoice.Invoice;
+import io.pragmatic.ddd.scenario.domain.invoice.InvoiceEntityRule;
 
 import io.pragmatic.ddd.base.BrokenRule;
 import org.junit.Test;

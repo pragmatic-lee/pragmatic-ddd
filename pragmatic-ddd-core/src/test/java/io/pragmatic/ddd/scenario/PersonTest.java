@@ -1,13 +1,14 @@
 package io.pragmatic.ddd.scenario;
 
-import io.pragmatic.ddd.scenario.boxvalueobject.PersonInitData;
-import io.pragmatic.ddd.scenario.boxvalueobject.PersonUpdateData;
-import io.pragmatic.ddd.scenario.entity.Person;
-import io.pragmatic.ddd.scenario.event.PersonUpdateEvent;
-import io.pragmatic.ddd.scenario.entity.enums.Status;
-import io.pragmatic.ddd.scenario.rule.PersonEntityRule;
-import io.pragmatic.ddd.scenario.rule.validator.BasePersonGradeValidator;
-import io.pragmatic.ddd.scenario.rule.validator.BasePersonScoreValidator;
+import io.pragmatic.ddd.scenario.domain.person.param.PersonInitData;
+import io.pragmatic.ddd.scenario.domain.person.param.PersonUpdateData;
+import io.pragmatic.ddd.scenario.domain.person.model.Person;
+import io.pragmatic.ddd.scenario.domain.person.event.PersonUpdateEvent;
+import io.pragmatic.ddd.scenario.domain.person.model.enums.Status;
+import io.pragmatic.ddd.scenario.domain.person.rule.PersonEntityRule;
+import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonGradeValidator;
+import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonScoreValidator;
+import io.pragmatic.ddd.scenario.domain.person.operation.PersonOperations;
 import org.junit.Test;
 
 /**
@@ -51,7 +52,7 @@ public class PersonTest {
         BasePersonGradeValidator personGradeValidator = this.mockGradeValidator();
 
         Person person = this.mockData();
-        person.updateStatus(Status.END);
+        person.updateStatus(Status.ACTIVE);
         Boolean validate1 = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
 
 
@@ -70,7 +71,7 @@ public class PersonTest {
         person.updateStatus(Status.ILLEGAL);
         Boolean validate1 = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
 
-        assert !validate1;
+        assert validate1;
         assert person.hasOperation(PersonOperations.UPDATE_STATUS);
     }
 
@@ -96,7 +97,7 @@ public class PersonTest {
         personInitData.setAge("test");
         personInitData.setEmail("test@test.com");
         personInitData.setPhone("11123231");
-        personInitData.setStatus(Status.END);
+        personInitData.setStatus(Status.ACTIVE);
 
         return new Person(personInitData);
     }

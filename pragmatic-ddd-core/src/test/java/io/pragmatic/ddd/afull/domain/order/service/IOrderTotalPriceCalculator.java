@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  *
  * @author wizard-lee
  */
-@DomainService(category = DomainServiceCategory.TYPE_CONVERTER,
+@DomainService(category = DomainServiceCategory.ATTRIBUTE_CALCULATOR,
         targetName = "Order.TotalPrice",
         description = "计算订单总价并赋给订单实体属性")
 public interface IOrderTotalPriceCalculator

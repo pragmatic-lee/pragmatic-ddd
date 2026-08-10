@@ -27,8 +27,8 @@ class DomainServiceCategoryTest {
     public interface SampleRuleValidator extends IRuleValidatorService {
     }
 
-    @DomainService(category = DomainServiceCategory.TYPE_CONVERTER, targetName = "Sample")
-    public interface SampleTypeConverter extends ITypeConverterService {
+    @DomainService(category = DomainServiceCategory.ATTRIBUTE_CALCULATOR, targetName = "Sample")
+    public interface SampleAttributeCalculator extends IAttributeCalculatorService {
     }
 
     @DomainService(category = DomainServiceCategory.CAPABILITY_PROVIDER, targetName = "SampleId")
@@ -63,8 +63,8 @@ class DomainServiceCategoryTest {
         }.category()).isEqualTo(DomainServiceCategory.EVENT_SUBSCRIBER);
         assertThat(new SampleRuleValidator() {
         }.category()).isEqualTo(DomainServiceCategory.RULE_VALIDATOR);
-        assertThat(new SampleTypeConverter() {
-        }.category()).isEqualTo(DomainServiceCategory.TYPE_CONVERTER);
+        assertThat(new SampleAttributeCalculator() {
+        }.category()).isEqualTo(DomainServiceCategory.ATTRIBUTE_CALCULATOR);
         assertThat(new SampleCapabilityProvider() {
         }.category()).isEqualTo(DomainServiceCategory.CAPABILITY_PROVIDER);
     }
@@ -74,7 +74,7 @@ class DomainServiceCategoryTest {
         assertThat(IDomainService.class.isAssignableFrom(IEventSubscriberService.class)).isTrue();
         assertThat(IHandle.class.isAssignableFrom(IEventSubscriberService.class)).isTrue();
         assertThat(IDomainService.class.isAssignableFrom(IRuleValidatorService.class)).isTrue();
-        assertThat(IDomainService.class.isAssignableFrom(ITypeConverterService.class)).isTrue();
+        assertThat(IDomainService.class.isAssignableFrom(IAttributeCalculatorService.class)).isTrue();
         assertThat(IDomainService.class.isAssignableFrom(ICapabilityProviderService.class)).isTrue();
     }
 
