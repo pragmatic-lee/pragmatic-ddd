@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.rules;
 
-import io.pragmatic.ddd.base.ICheckRule;
 import io.pragmatic.ddd.base.MessageCode;
+import io.pragmatic.ddd.rules.ICheckRule;
 import lombok.Getter;
 
 /**

@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.afull.domain.order.service;
 
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.service.DomainService;
 import io.pragmatic.ddd.service.IDomainService;
 import io.pragmatic.ddd.service.DomainServiceCategory;

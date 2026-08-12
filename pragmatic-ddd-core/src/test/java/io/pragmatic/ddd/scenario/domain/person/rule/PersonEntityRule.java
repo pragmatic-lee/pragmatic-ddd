@@ -3,7 +3,7 @@ package io.pragmatic.ddd.scenario.domain.person.rule;
 import io.pragmatic.ddd.scenario.domain.person.model.Person;
 import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonGradeValidator;
 import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonScoreValidator;
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.rules.EntityRule;
 import org.apache.commons.lang3.StringUtils;
 

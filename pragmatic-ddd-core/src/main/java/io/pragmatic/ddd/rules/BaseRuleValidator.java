@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.rules;
 
-import io.pragmatic.ddd.base.ICheckRule;
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.ICheckRule;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 
 /**
  * 规则校验器基类 —— 将 {@code validate(T, T)} 适配为校验项级 {@link ICheckRule} 与激活条件。

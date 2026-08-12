@@ -172,7 +172,7 @@ public class OrderOperation extends OperationRegistry {
 `EntityRule` 是无状态规则容器，可通过校验器基类或 Lambda 校验项追加规则：
 
 ```java
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.rules.ActiveStatus;
 import io.pragmatic.ddd.rules.BaseRuleValidator;
 import io.pragmatic.ddd.rules.EntityRule;

@@ -11,7 +11,7 @@
 * pragmatic-ddd-kafka 是领域事件基础设施kafkaMQ的实现包
 * pragmatic-ddd-spring-boot 和SpringBoot集成的包
 * pragmatic-ddd/docs 里面放的是一些提案文档以及设计文档,我的设计文档统一放到这个目录下面，它可以根据代码的包去分类。
-* pragmatic-ddd/documentation 这个目录是放使用文档的地方
+* pragmatic-ddd/documentation 这个目录是放使用文档的地方，注意 这个是VitePress的文档,这里文档在生成markdown文件的时候，不需要生成目录，因为VitePress已经有目录了
 
 # 核心工作原则
 * 这是一个领驱动的框架库，所以在设计时要考虑框架的通用性，以及和其他项目引用该框架后的易于集成

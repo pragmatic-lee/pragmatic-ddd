@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.base;
+package io.pragmatic.ddd.rules;
 
 /**
  * 规则校验结果 —— {@link ICheckRule} 的返回值，携带校验通过/失败状态及用于消息格式化的动态参数。

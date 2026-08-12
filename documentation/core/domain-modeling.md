@@ -1,70 +1,85 @@
 # 领域建模：实体、值对象与聚合根
 
-> 本文档属于 pragmatic-ddd 使用文档 `core` 系列，介绍领域建模层（`io.pragmatic.ddd.base`）的核心概念与用法。
-> 阅读前建议先完成 [快速开始](../getting-started/quick-start.md)。本系列后续文档：[业务规则引擎](./business-rules.md) · [领域事件](./domain-events.md)。
+> 本文档说明 `io.pragmatic.ddd.base` 包提供的领域建模能力。相关文档：[业务规则引擎](./business-rules.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
 
 ## 1. 概述
 
-### 1.1 这一层解决什么问题
+### 1.1 核心定位
 
-`io.pragmatic.ddd.base` 是整个框架的基础，也是使用者最频繁接触的包。它把 DDD 的四个核心战术概念——**实体（Entity）、值对象（Value Object）、聚合根（Aggregate Root）、领域服务（Domain Service）**——做成了开箱即用的 Java 基类与接口：
+`io.pragmatic.ddd.base` 提供 DDD 战术建模的基类与接口：实体标识、值对象、聚合根、规则消息码。继承或实现后，框架统一管理 ID、审计字段、等同性、规则校验、版本号、领域事件与操作追踪，开发者无需手写样板代码。
 
-- 通过继承，你无需再手写 `equals/hashCode`、ID 字段、审计字段、软删标记等样板代码。
-- 通过组合，聚合根自动获得规则校验、乐观锁版本号、领域事件收集、操作追踪等聚合级能力（这些能力在本系列后续文档展开）。
+### 1.2 概念层级与依赖关系
 
-### 1.2 概念层级关系
+```text
+IEntity<T>                     实体标识契约
+  └─ AbstractEntity<T>        实体基类（ID / 软删 / 审计 / 等同性）
+       └─ AggregateRoot<T>    聚合根基类（规则 / 版本 / 事件 / 操作）
 
-```
-IEntity<T>                    实体标识契约（getEntityId）
-   └── AbstractEntity<T>      实体基类：ID、软删、审计、基于 ID 的 equals/hashCode
-         └── AggregateRoot<T> 聚合根：+ 规则校验 + 版本号 + 事件收集 + 操作追踪 + 新建标记
+IValueObject                   值对象标记接口（仅标记）
+  └─ ValueObject              结构相等值对象基类（可选继承）
 
-IValueObject                  值对象标记
-   └── ValueObject            可选基类：按 equalityComponents() 结构相等
-   └── IEnumValue<T,K>        枚举值对象（替代 Java enum）
+IEnumValue<T,K>               枚举值对象接口（替代 Java enum）
 
-IDomainService                领域服务标记
-
-MessageCode / BrokenRule      规则违反消息码与明细（与聚合根协作）
+MessageCode                   record：规则消息码（局部码 + 描述）
+BrokenRuleRegistry           规则消息注册表基类（反射自动注册）
+BrokenRuleObject             规则违反收集器（AggregateRoot 组合持有）
 ```
 
-## 2. 实体（Entity）
+| 类型 | 包路径 | 用途 |
+| --- | --- | --- |
+| `IEntity<T>` | `io.pragmatic.ddd.base` | 约束实体暴露 `getEntityId()` |
+| `AbstractEntity<T>` | `io.pragmatic.ddd.base` | 实体通用能力 |
+| `AggregateRoot<T>` | `io.pragmatic.ddd.base` | 聚合根，所有需持久化的实体应继承 |
+| `ValueObject` / `IValueObject` | `io.pragmatic.ddd.base` | 值对象 |
+| `IEnumValue<T,K>` | `io.pragmatic.ddd.base` | 枚举值对象 |
+| `MessageCode` / `BrokenRuleRegistry` | `io.pragmatic.ddd.base` | 规则消息码与注册表 |
 
-### 2.1 实体标识契约 `IEntity<T>`
+## 2. 核心概念详解
 
-`IEntity<T>` 是实体标识接口，约束实体暴露其标识：
+### 2.1 实体（Entity）
+
+#### 契约 / 接口：`IEntity<T>`
 
 ```java
 public interface IEntity<T> {
-    T getEntityId();
+    T getEntityId();   // 返回实体标识
 }
 ```
 
-所有实体必须能回答"我是谁"。绝大多数情况下你无需直接实现它，继承基类即可。
+#### 基类能力：`AbstractEntity<T>`
 
-### 2.2 实体基类 `AbstractEntity<T>`
+字段与方法（Lombok 注解：`@Getter` + `@Setter(AccessLevel.PROTECTED)`）：
 
-`AbstractEntity<T>` 是一个纯数据容器，承载：
+| 成员 | 可见性 | 说明 |
+| --- | --- | --- |
+| `entityId` | `protected set` / `get` | 身份标识，经 `setEntityId(T)` 赋值 |
+| `entityDelete` | `protected set` / `get` | 软删标记 |
+| `createdAt` / `updatedAt` | `protected set` / `get` | 审计时间戳（`LocalDateTime`） |
+| `createdBy` / `updatedBy` | `protected set` / `get` | 审计操作人 |
+| `markCreated()` | `protected` | 设 `createdAt` 与 `updatedAt` 为当前时间，构造末尾调用一次 |
+| `markModified()` | `protected` | 刷新 `updatedAt` 为当前时间 |
 
-| 能力 | 说明 |
+`equals` / `hashCode` / `toString` 行为：
+
+| 方法 | 规则 |
 | --- | --- |
-| `entityId` | 身份标识，`getEntityId()` 获取，`@Setter(PROTECTED)` 只能子类内部赋值 |
-| `entityDelete` | 软删标记，`isEntityDelete()` / `setEntityDelete()` |
-| 审计字段 | `createdAt / updatedAt / createdBy / updatedBy` |
-| `markCreated()` | 构造末尾调用，一次性填充 `createdAt` 与 `updatedAt` |
-| `markModified()` | 每次修改后调用，刷新 `updatedAt` |
-| `equals/hashCode` | 基于身份标识：两实体 ID 均非空且相等才视为同一实体 |
+| `equals` | 两实体 `getEntityId()` **均非空且相等** 才相等；否则 `false` |
+| `hashCode` | ID 非空时取 `entityId.hashCode()`，为空退回父类哈希 |
+| `toString` | 形如 `ClassName{id=...}` |
 
-关键设计点：
+#### 关键约束
 
-- **等同性基于 ID**：只要 ID 相同就是同一实体，即使其他字段内容不同。这是实体与值对象的本质区别。
-- **审计字段为受保护 setter**：时间戳只能通过 `markCreated()` / `markModified()` 更新，避免外部随意篡改审计信息。
-- 注意：`AbstractEntity` 不持有规则校验、版本号、事件收集等**聚合级能力**，这些由 `AggregateRoot` 提供。
+> **重要约束**：实体等同性**仅**由 `entityId` 决定。ID 相等即视为同一实体，与其他字段无关。重建对象（ID 相同）与内存新对象判等为真，但两者状态不自动同步。
 
-### 2.3 定义你自己的实体
+> **重要约束**：审计时间戳只能经 `markCreated()` / `markModified()` 写入，禁止直接调用 Lombok 的 `setCreatedAt` / `setUpdatedAt` 以外的途径；审计字段 setter 为 `protected`，非聚合外部可写。
+
+#### 示例代码
 
 ```java
 public class Address extends AbstractEntity<Long> {
+
+    private String province;
+    private String city;
 
     public Address(Long id, String province, String city) {
         this.setEntityId(id);
@@ -73,9 +88,6 @@ public class Address extends AbstractEntity<Long> {
         this.markCreated();
     }
 
-    private String province;
-    private String city;
-
     public void changeCity(String city) {
         this.city = city;
         this.markModified();
@@ -83,40 +95,35 @@ public class Address extends AbstractEntity<Long> {
 }
 ```
 
-## 3. 值对象（Value Object）
+### 2.2 值对象（Value Object）
 
-### 3.1 值对象标记接口 `IValueObject`
-
-`IValueObject` 是纯标记接口，供可视化模块反射识别，不承载行为契约。
-
-### 3.2 结构相等基类 `ValueObject`
-
-`ValueObject` 是**可选**的"胖"值对象基类。它基于 `equalityComponents()` 提供结构相等性，并统一生成 `equals` / `hashCode` / `toString`：
+#### 标记接口：`IValueObject`
 
 ```java
-public abstract class ValueObject implements IValueObject {
-
-    protected abstract Object[] equalityComponents();
-
-    @Override
-    public final boolean equals(Object o) { /* 基于 equalityComponents() */ }
-
-    @Override
-    public final int hashCode() { /* 基于 equalityComponents() */ }
-}
+public interface IValueObject { }   // 纯标记，供反射识别，不承载行为契约
 ```
 
-要点：
+与 MyBatis JSON 通道配合时，`IValueObject` 被 `GenericJsonTypeHandler` 自动识别，整体序列化到 JSON 列（详见 [MyBatis 集成](../integration/mybatis.md)）。
 
-- **只声明"哪些成分决定相等"**：`equalityComponents()` 不一定是全部字段，只返回语义上真正决定相等性的成分即可（顺序敏感）。
-- **不可变性由你保证**：框架不强制不可变，建议通过全参构造器 + 构造期校验实现。
-- **`equals/hashCode` 为 final**：不允许子类覆盖，保证结构相等语义一致。
+#### 结构相等基类：`ValueObject`
 
-### 3.3 定义你自己的值对象
+| 成员 | 说明 |
+| --- | --- |
+| `equalityComponents()` | `protected abstract Object[]`，返回参与相等性判定的成分（**顺序敏感**） |
+| `equals` | `final`，基于 `Arrays.equals(equalityComponents(), ...)`；要求 `getClass()` 完全相同 |
+| `hashCode` | `final`，基于 `Arrays.hashCode(equalityComponents())` |
+| `toString` | `getClass().getSimpleName() + Arrays.toString(equalityComponents())` |
+
+#### 关键约束
+
+> **重要约束**：`ValueObject` 的 `equals` / `hashCode` 为 `final`，子类**不可覆盖**。相等判定要求**精确类匹配**（`getClass() != o.getClass()` 直接返回 `false`），子类间即使成分相同也不相等。
+
+> **重要约束**：不可变性由使用者保证。`ValueObject` 不强制不可变，应自行使用全参构造 + 构造期校验，不提供可变 setter。
+
+#### 示例代码
 
 ```java
 public class Money extends ValueObject {
-
     private final long amount;
     private final String currency;
 
@@ -132,21 +139,30 @@ public class Money extends ValueObject {
 }
 ```
 
-两个 `Money(100, "CNY")` 实例 `equals` 为 `true`——这正是值对象"内容相等"的语义。
+`new Money(100, "CNY").equals(new Money(100, "CNY"))` 为 `true`。
 
-> 提示：与 MyBatis JSON 通道配合时，`IValueObject` 会被 `GenericJsonTypeHandler` 自动识别，整体序列化到 JSON 列。详见 [MyBatis 集成](../integration/mybatis.md)。
+### 2.3 枚举值对象（Enum Value Object）
 
-### 3.4 枚举值对象 `IEnumValue<T,K>`
-
-`IEnumValue<T,K>` 用于**替代 Java enum**，规避 MyBatis 对 enum 持久化的痛点：
+#### 接口：`IEnumValue<T,K>`
 
 ```java
 public interface IEnumValue<T, K extends Enum<?>> {
-    T getValue();      // 持久化 / 传输用的业务 code
-    String getName();  // 展示名（label）
+    T getValue();             // 持久化 / 传输用的业务 code
+    String getName();         // 展示名（label）
     default String getDesc() { return getName(); }
 }
 ```
+
+| 类型参数 | 含义 |
+| --- | --- |
+| `T` | 业务 code 类型（持久化到 DB 的值） |
+| `K` | 枚举类型本身 |
+
+#### 关键约束
+
+> **重要约束**：枚举值对象用于替代 Java `enum`，规避 MyBatis 持久化痛点。持久化经 `EnumRule(CODE)` 写入 `getValue()` 的返回值，推荐使用 `CODE` 模式。
+
+#### 示例代码
 
 ```java
 public enum OrderStatus implements IEnumValue<String, OrderStatus> {
@@ -162,60 +178,87 @@ public enum OrderStatus implements IEnumValue<String, OrderStatus> {
         this.name = name;
     }
 
-    @Override
-    public String getValue() {
-        return value;
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
+    @Override public String getValue() { return value; }
+    @Override public String getName() { return name; }
 }
 ```
 
-`T` 是业务 code 类型（持久化到 DB 的值），`K` 是枚举类型本身。MyBatis 通过 `EnumRule(NAME/ORDINAL/CODE/LABEL)` 控制持久化形态，推荐使用 `CODE`（`getValue()`）。
+### 2.4 聚合根（Aggregate Root）
 
-## 4. 聚合根（Aggregate Root）
+聚合根是持久化的一致性边界：一个聚合根实例对应一次事务的写范围，聚合内部的不变性（规则校验）、版本（乐观锁）与领域事件均在该边界内保证一致；跨聚合的一致性通过领域事件解耦、由各订阅者分别响应，不在单个聚合根内直接修改其他聚合。
 
-### 4.1 聚合根基类 `AggregateRoot<T>`
-
-`AggregateRoot<T>` 继承 `AbstractEntity<T>` 并**组合** `BrokenRuleObject`，作为 DDD 聚合的唯一外部入口点。**所有需要持久化的实体都应继承它。**
-
-它在实体基础上额外提供：
-
-| 能力 | 方法 | 说明 |
-| --- | --- | --- |
-| 规则校验 | `satisfiesRule(IRule)` / `getBrokenRules()` / `throwBrokenRuleException()` | 聚合级不变性约束 |
-| 规则违反追加 | `addBrokenRule(MessageCode)` / `addParamBrokenRule(...)` | 手动收集规则违反 |
-| 版本控制 | `getOldVersion()` / `getNewVersion()` | CAS 乐观锁 |
-| 新建标记 | `markNew()` / `isNew()` | 仓储据此路由 insert/update |
-| 领域事件 | `collectEvent(...)` / `getDomainEvents()` | 收集与取回事件（详见领域事件文档） |
-| 操作追踪 | `recordOperation(...)` / `hasOperation(...)` | 记录与判断操作（详见操作追踪文档） |
-| 工作单元清理 | `clearWorkUnitState()` | 清空事件/操作临时状态 |
-| 数据同步钩子 | `triggerDataSyncHook()` | 落库前发异构事件 |
-
-聚合根是**抽象类**，使用者必须实现两个抽象方法：
+#### 抽象方法（必须实现）
 
 ```java
-protected abstract BrokenRuleRegistry brokenRuleRegistry();
-protected abstract OperationRegistry operationRegistry();
+protected abstract BrokenRuleRegistry brokenRuleRegistry();   // 返回规则注册表，不可为 null
+protected abstract OperationRegistry operationRegistry();     // 返回操作注册表；返回 null = 不启用操作体系
 ```
 
-- `brokenRuleRegistry()`：返回规则消息注册表（见第 5 节）。
-- `operationRegistry()`：返回操作注册表；**返回 `null` 表示不启用操作体系**。
+#### 基类能力：`AggregateRoot<T>`
 
-### 4.2 定义你自己的聚合根
+**规则校验**（委托 `BrokenRuleObject`）：
+
+| 方法 | 可见性 | 说明 |
+| --- | --- | --- |
+| `satisfiesRule(IRule<?>)` | `public` | 以自身为 model 执行规则，`rule==null` 视为通过；返回 `true`/`false` |
+| `addBrokenRule(MessageCode)` | `public` | 追加一条规则违反 |
+| `addParamBrokenRule(MessageCode, Object[], boolean)` | `public` | 追加支持参数格式化的违反；`isAutoFormat=true` 时用 `String.format(description, params)` |
+| `getBrokenRules()` | `public` | 返回已收集违反（只读） |
+| `throwBrokenRuleException()` | `public` | 有违反则抛**单条**异常（取第一条） |
+| `throwBrokenRuleAggregateException()` | `public` | 有违反则抛**聚合**异常（含全部） |
+| `clearBrokenRules()` | `public` | 清空已收集违反 |
+
+**版本与新建标记**：
+
+| 成员 | 可见性 | 说明 |
+| --- | --- | --- |
+| `oldVersion` | `get` | 上一次持久化版本，仓储 `findById` 回填，默认 `1` |
+| `getNewVersion()` | `public` | 返回递增后的新版本号（**幂等**）：首次调用 `oldVersion + 1` 并缓存，之后返回同一值 |
+| `isNew` | `get` | 是否新建标记 |
+| `markNew()` | `public` | 置 `isNew = true`，仓储 `save()` 据此路由 insert / update |
+
+**领域事件**（均为 `protected`）：
+
+| 方法 | 说明 |
+| --- | --- |
+| `collectEvent(BaseDomainEvent)` | 收集立即事件；自动回填 `operationCode`（最近一次 `recordOperation`）与 `version` |
+| `collectEvent(BaseDomainEvent, EntityOperation)` | 收集事件并显式指定成因操作（优先级最高） |
+| `collectEvent(Supplier<IDomainEvent>)` | 收集**延迟事件**，发布时才执行 supplier 并回填 `operationCode` / `version` |
+| `getDomainEvents()` | 返回本工作单元已收集事件（`public`） |
+| `triggerDataSyncHook()` | 持久化落库前由仓储调用；默认空实现，子类覆写以发异构事件 |
+
+**操作追踪**（均为 `protected`，除查询方法）：
+
+| 方法 | 可见性 | 说明 |
+| --- | --- | --- |
+| `recordOperation(EntityOperation)` | `protected` | 记录一次操作，更新多值集合与因果指针 |
+| `hasOperation / hasAllOperations / hasAnyOperation` | `public` | 判断已触发操作是否包含指定项 |
+
+**工作单元清理**：
+
+| 方法 | 说明 |
+| --- | --- |
+| `clearWorkUnitState()` | 清空领域事件、已触发操作与因果指针；应用层在事件分发完成后调用 |
+
+#### 关键约束
+
+> **重要约束**：事件成因缺失将抛异常。调用 `collectEvent(BaseDomainEvent)`（无显式操作参数）前，必须先 `recordOperation(...)`；否则若启用了操作体系（`operationRegistry() != null`），`resolveOperationCode()` 抛 `OperationException`。
+
+> **重要约束**：`operationRegistry()` 返回 `null` 时，调用 `recordOperation` / `hasOperation` 抛 `OperationException`。即：未声明操作注册表即代表不启用操作体系。
+
+> **重要约束**：`getNewVersion()` 幂等。首次调用生成 `oldVersion + 1` 并缓存；后续调用返回同一值。并发控制依赖持久化层 `UPDATE ... WHERE version = oldVersion`，影响行数为 0 即版本冲突。
+
+> **重要约束**：`collectEvent` 系列为 `protected`，仅聚合根内部业务方法可调用；外部（应用层）经 `getDomainEvents()` 读取、`clearWorkUnitState()` 清理。
+
+#### 示例代码
 
 ```java
 public class Order extends AggregateRoot<Long> {
 
-    private final List<OrderItem> items = new ArrayList<>();
     private String status;
 
-    public Order(Long id, String customerName) {
+    public Order(Long id) {
         this.setEntityId(id);
-        this.customerName = customerName;
         this.markCreated();
     }
 
@@ -229,162 +272,133 @@ public class Order extends AggregateRoot<Long> {
         return OrderOperationRegistry.INSTANCE;
     }
 
-    // 业务方法：修改状态并记录操作（操作体系需在操作追踪文档中定义）
     public void cancel() {
         this.status = "CANCELLED";
         this.markModified();
+        this.recordOperation(OrderOperationRegistry.CANCEL);   // 先于 collectEvent
+        this.collectEvent(OrderCancelledEvent.buildEvent(this));
     }
 }
 ```
 
-### 4.3 规则违反收集
+### 2.5 消息码与注册表（Message Code & Registry）
 
-聚合根可以手动收集规则违反，或通过规则引擎自动校验（详见 [业务规则引擎](./business-rules.md)）：
-
-```java
-// 手动收集：校验不通过时收集，最终由应用层统一决定是否抛出
-if (items.isEmpty()) {
-    this.addBrokenRule(OrderRuleRegistry.EMPTY_ITEMS);
-}
-
-// 支持参数格式化
-this.addParamBrokenRule(OrderRuleRegistry.INVALID_QUANTITY,
-        new Object[]{quantity}, true);
-```
-
-- `getBrokenRules()`：返回已收集的违反列表（只读）。
-- `throwBrokenRuleException()`：存在违反则抛**单条**异常（取第一条）。
-- `throwBrokenRuleAggregateException()`：存在违反则抛**聚合异常**（含全部违反）。
-- `clearBrokenRules()`：清空已收集的违反。
-
-### 4.4 版本号与 CAS 乐观锁
-
-聚合根内置乐观锁版本控制，防止并发更新丢数据：
-
-```java
-@Getter
-private long oldVersion = 1;   // 上一次持久化的版本
-private long newVersion = 0;   // 本次工作单元递增后的版本
-```
-
-- `getOldVersion()`：仓储加载后由 `findById` 回填（`oldVersion`）。
-- `getNewVersion()`：**幂等**地返回递增后的新版本号。首次调用时 `oldVersion + 1`，之后多次调用返回同一值。
-- 持久化语义：`UPDATE ... WHERE version = oldVersion`，影响行数为 0 时说明并发冲突。
-- 常用做法：聚合根每次修改时调用 `getNewVersion()`，把新版本号随 UPDATE 一起提交。
-
-```java
-public void modify() {
-    // 业务修改
-    this.getNewVersion();  // 触发版本递增，落库时携带
-}
-```
-
-### 4.5 新建标记
-
-`markNew()` 把聚合根标记为"新建"，`isNew()` 判断。仓储的 `save()` 据此自动路由到 `insert` 还是 `update`：
-
-```java
-public void save(Order order) {
-    if (order.isNew()) {
-        insert(order);
-    } else {
-        update(order);
-    }
-}
-```
-
-## 5. 消息码与注册表
-
-### 5.1 `MessageCode`
-
-`MessageCode` 是 Java 17 record，表示一条规则违反消息码，由**局部码 + 描述**组成，作为消息表 key 与异常 code：
+#### `MessageCode`
 
 ```java
 public record MessageCode(String localCode, String description) {
     public static MessageCode of(String localCode, String description);
     public static MessageCode of(String localCode);
-    public String code();           // 返回局部码
+    public String code();   // 返回 localCode，作为 map key 与异常 code
 }
 ```
 
-关键语义：
+| 规则 | 说明 |
+| --- | --- |
+| 相等性 | **仅**按 `localCode` 判定（`description` 不参与） |
+| `code()` | 返回 `localCode`，业务上以它作为 key |
 
-- **相等性仅按 `localCode` 判定**（`equals/hashCode` 重写），便于作为 Map key 与去重。
-- 全局唯一标识由 `localCode + description` 共同构成；但业务上以 `code()`（局部码）作为实际 key。
+#### `BrokenRuleRegistry`
 
-### 5.2 `BrokenRuleRegistry` 注册表
+构造时反射扫描子类声明的 `static MessageCode` 字段并自动注册。
 
-`BrokenRuleRegistry` 是规则消息注册表基类。它的特殊机制是：**构造时反射扫描子类声明的 `static MessageCode` 字段并自动注册**，子类只需声明常量即可。
+| 方法 | 说明 |
+| --- | --- |
+| `register(MessageCode...)` | `protected final`，以 `code()` 为 key 注册 |
+| `getRuleDescription(String)` | 按局部码返回描述；未注册返回空串 |
+| `createException(String)` | 构造单条规则违反异常 |
+| `createExceptionWithParam(String, Object...)` | 构造参数格式化异常（`String.format`） |
+| `of(MessageCode...)` | `static` 内联工厂，免建子类 |
+
+#### 关键约束
+
+> **重要约束**：注册表子类**必须**为 `public`。构造函数通过反射 `field.get(null)` 读取 `static MessageCode` 字段；若子类为包级私有，`IllegalAccessException` 被静默吞掉，导致该消息码**未注册**——`getRuleDescription` 返回空串，且 `addBrokenRule` 收集到的描述为空白（仅影响描述文本，不影响 code）。
+
+#### 示例代码
 
 ```java
 public class OrderRuleRegistry extends BrokenRuleRegistry {
+    public static final MessageCode EMPTY_ITEMS =
+            MessageCode.of("ORDER_EMPTY_ITEMS", "订单不能为空");
+    public static final MessageCode INVALID_QUANTITY =
+            MessageCode.of("ORDER_INVALID_QUANTITY", "数量必须大于0，当前为 %s");
 
-    public static final MessageCode EMPTY_ITEMS = MessageCode.of("ORDER_EMPTY_ITEMS", "订单不能为空");
-    public static final MessageCode INVALID_QUANTITY = MessageCode.of("ORDER_INVALID_QUANTITY", "数量必须大于0，当前为 %s");
-
-    private OrderRuleRegistry() {
-    }
+    private OrderRuleRegistry() {}
+    public static final OrderRuleRegistry INSTANCE = new OrderRuleRegistry();
 }
 ```
 
-> ⚠️ **重要约束**：由于构造时 `io.pragmatic.ddd.base` 包内通过反射扫描子类的 `static MessageCode` 字段并调用 `field.get(null)`，**注册表子类必须是 `public`**。若注册表子类是包级私有（默认可见性），base 包无法访问其 public 字段，`field.get(null)` 会抛 `IllegalAccessException` 并被静默吞掉，导致所有消息码未注册、`getRuleDescription` 返回空串（只影响 description，不影响 code）。
+## 3. 关键机制与避坑指南
 
-`BrokenRuleRegistry` 还提供便利方法与内联工厂：
+### 3.1 等同性判定边界
 
-```java
-// 内联构建，无需自定义子类
-BrokenRuleRegistry registry = BrokenRuleRegistry.of(
-        MessageCode.of("A", "msg A"),
-        MessageCode.of("B", "msg B"));
-
-String desc = registry.getRuleDescription("A");       // "msg A"，未注册返回空串
-registry.createException("A");                        // 构造单条规则违反异常
-registry.createExceptionWithParam("B", "arg");        // 构造参数格式化异常
-```
-
-## 6. 领域服务标记
-
-`IDomainService` 是领域服务标记接口，用于标识承载领域逻辑、但不属于单个聚合的服务类：
-
-```java
-public class TransferService implements IDomainService {
-    // 跨聚合的领域逻辑
-}
-```
-
-它主要用于 AI 编码辅助对领域结构的识别，本身不承载契约方法。领域服务承担"不属于任何单个聚合"的领域逻辑，例如转账涉及两个账户的协调。
-
-## 7. 异常体系
-
-base 层定义了统一的异常继承体系，使用者可按需捕获：
-
-```
-RuntimeException
- └── PragmaticException         框架所有业务异常的抽象基类
-      └── RuleException         业务规则校验异常基类
-           └── BrokenRuleException          单条规则违反异常（code + message + source）
-           └── BrokenRuleAggregateException 聚合规则违反异常（含全部违反）
-```
-
-- 通过 `catch (PragmaticException e)` 可统一兜底捕获所有框架异常。
-- `BrokenRuleException` 携带 `code`（局部码）、`message`（描述）与 `source`（触发源，transient）。
-- 最佳实践：在应用层边界捕获 `BrokenRuleException`，把 `code` 映射为对前端友好的错误码。详见 [异常处理策略](../best-practices/aggregate-design.md)。
-
-## 8. 领域建模小结
-
-到这里，你已经掌握了使用 pragmatic-ddd 建模领域模型的全部基础概念：
-
-| 概念 | 使用方式 | 关键点 |
+| 类型 | 相等判定依据 | 边界 |
 | --- | --- | --- |
-| 实体 | 继承 `AbstractEntity<T>` | 基于 ID 的等同性、审计字段、软删 |
-| 值对象 | 继承 `ValueObject` 或实现 `IValueObject` | 结构相等、不可变 |
-| 枚举值对象 | 实现 `IEnumValue<T,K>` | 替代 Java enum，规避 MyBatis 痛点 |
-| 聚合根 | 继承 `AggregateRoot<T>` | 规则校验 + 版本 + 事件 + 操作追踪 |
-| 领域服务 | 实现 `IDomainService` | 跨聚合领域逻辑标记 |
-| 消息码 | `MessageCode` + `BrokenRuleRegistry` | 注册表子类必须 `public` |
+| `AbstractEntity` | 两方 `entityId` 均非空且 `equals` | 一方 ID 为空即 `false`（含新建未赋值对象与持久化对象之间） |
+| `ValueObject` | `equalityComponents()` 内容 + **精确类相同** | 子类间即使成分相同也不等 |
+| `MessageCode` | `localCode` | `description` 不影响相等与去重 |
 
-下一步建议阅读：
+### 3.2 事件成因与操作指针
 
-- [业务规则引擎](./business-rules.md)：聚合根上的规则校验能力
-- [领域事件](./domain-events.md)：`collectEvent` 与事件发布
-- [仓储](./repository.md)：聚合根的持久化与版本对账
+- 每次业务变更：**先 `recordOperation`，后 `collectEvent`**。
+- `collectEvent(BaseDomainEvent)` 的 `operationCode` 取自 `lastRecordedOperation`（单值因果指针）。
+- 延迟事件 `collectEvent(Supplier)` 在**发布时**捕获成因并回填 `operationCode` / `version`，适用于 ID 构造期未知（自增/回填）的场景。
+- 显式 `collectEvent(event, operation)` 可解耦事件成因与"最近操作"。
+
+### 3.3 版本号与乐观锁
+
+- `oldVersion` 默认值 `1`，由仓储 `findById` 回填为数据库持久化值。
+- `getNewVersion()` 首次调用返回 `oldVersion + 1` 并缓存（幂等）。
+- 持久化层应执行 `UPDATE ... SET version = newVersion WHERE version = oldVersion`；影响行数 0 即并发冲突，需上层重试或抛错。
+
+### 3.4 规则违反收集时机
+
+- 规则违反由 `AggregateRoot` 委托 `BrokenRuleObject` 收集，可多次 `addBrokenRule`。
+- 抛异常时机由调用方决定：`throwBrokenRuleException()`（单条）/ `throwBrokenRuleAggregateException()`（全量）。
+- `clearBrokenRules()` 可重置；与 `clearWorkUnitState()`（清事件/操作）互不影响。
+
+### 3.5 一致性边界约束
+
+> **边界外不变性不由聚合根保证。** 聚合根业务方法内不得直接调用另一个聚合根或修改其状态；跨聚合写操作通过领域事件发布 + 订阅者响应完成。违反此约束会破坏事务边界，导致不可预期的并发与一致性问题。
+
+## 4. 异常与错误处理体系
+
+### 4.1 继承关系
+
+```text
+RuntimeException
+ └─ PragmaticException              所有框架业务异常的抽象基类（RuntimeException 子类）
+     └─ RuleException               业务规则校验异常抽象基类
+         ├─ BrokenRuleException           单条规则违反（code + message + source）
+         └─ BrokenRuleAggregateException  聚合异常，持有 List<BrokenRuleException>
+```
+
+### 4.2 异常字段
+
+| 异常类 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `BrokenRuleException` | `code` (`String`)、`message`、`source` (`transient Object`) | `code` 即消息局部码；`source` 为触发源，不序列化 |
+| `BrokenRuleAggregateException` | `exceptions` (`List<BrokenRuleException>`)、`getSource()` | `getSource()` 返回首个子异常的 source |
+
+### 4.3 捕获与映射规范
+
+- 统一兜底：`catch (PragmaticException e)` 可捕获所有框架异常。
+- 规则校验：`catch (BrokenRuleException e)` 取 `e.getCode()` 映射为前端错误码；`catch (BrokenRuleAggregateException e)` 遍历 `e.getExceptions()` 返回全部违反。
+- `source` 为 `transient`，跨进程/序列化场景勿依赖。
+
+## 5. 总结速查
+
+| 概念 | 使用方式 | 最关键约束 |
+| --- | --- | --- |
+| 实体 | 继承 `AbstractEntity<T>` | 等同性仅由 `entityId` 决定；审计只能经 `markCreated`/`markModified` |
+| 值对象 | 继承 `ValueObject` 或实现 `IValueObject` | `equals/hashCode` 为 `final`；要求精确类匹配；不可变性自行保证 |
+| 枚举值对象 | 实现 `IEnumValue<T,K>` | 持久化写 `getValue()`，推荐 `CODE` 模式 |
+| 聚合根 | 继承 `AggregateRoot<T>` | 实现两抽象方法；先 `recordOperation` 后 `collectEvent`；`getNewVersion()` 幂等 |
+| 消息码 | `MessageCode.of(...)` + `BrokenRuleRegistry` | 注册表子类必须 `public`，否则码未注册 |
+| 异常 | `PragmaticException` 体系 | `catch (PragmaticException)` 统一兜底；`source` 为 `transient` |
+
+**下一步阅读**
+
+- [业务规则引擎](./business-rules.md)：`IRule` / `EntityRule` 聚合级校验
+- [领域事件](./domain-events.md)：`BaseDomainEvent` 与事件发布
+- [仓储](./repository.md)：聚合持久化与版本对账

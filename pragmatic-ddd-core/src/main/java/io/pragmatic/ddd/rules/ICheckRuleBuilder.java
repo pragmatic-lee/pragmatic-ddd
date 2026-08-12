@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.rules;
 
-import io.pragmatic.ddd.base.ICheckRule;
+import io.pragmatic.ddd.rules.ICheckRule;
 
 /**
  * 校验项构造器 —— 将 {@code validate(T)} 适配为 {@link ICheckRule} 与激活条件。

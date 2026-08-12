@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.scenario.domain.invoice;
 
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.rules.EntityRule;
 import org.apache.commons.lang3.StringUtils;
 

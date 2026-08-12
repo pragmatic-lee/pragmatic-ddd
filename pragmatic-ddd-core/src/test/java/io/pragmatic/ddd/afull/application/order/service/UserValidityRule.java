@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.afull.application.order.service;
 
 import io.pragmatic.ddd.afull.domain.order.service.IUserValidityRule;
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 
 /**
  * 用户有效性校验实现（Mock 外部用户服务）。

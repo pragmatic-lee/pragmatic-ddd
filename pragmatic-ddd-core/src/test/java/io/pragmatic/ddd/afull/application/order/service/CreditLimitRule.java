@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.afull.application.order.service;
 
 import io.pragmatic.ddd.afull.domain.order.service.ICreditLimitRule;
-import io.pragmatic.ddd.base.RuleCheckResult;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 
 import java.math.BigDecimal;
 

@@ -40,8 +40,9 @@ export default defineConfig({
           text: '核心模块',
           items: [
             { text: '领域建模', link: '/core/domain-modeling' },
-            { text: '业务规则引擎', link: '/core/business-rules' },
+            { text: '领域服务', link: '/core/domain-service' },
             { text: '领域事件', link: '/core/domain-events' },
+            { text: '业务规则引擎', link: '/core/business-rules' },
             { text: '应用服务', link: '/core/application-service' },
             { text: '仓储', link: '/core/repository' },
             { text: '操作追踪', link: '/core/operation-tracking' },
@@ -67,6 +68,7 @@ export default defineConfig({
           text: '最佳实践',
           items: [
             { text: '聚合设计原则', link: '/best-practices/aggregate-design' },
+            { text: '校验规则领域服务', link: '/best-practices/rule-validation' },
             { text: '事件建模指南', link: '/best-practices/event-modeling' },
             { text: '事务性发件箱', link: '/best-practices/transactional-outbox' }
           ]

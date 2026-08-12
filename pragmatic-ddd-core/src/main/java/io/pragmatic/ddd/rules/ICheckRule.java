@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.base;
+package io.pragmatic.ddd.rules;
 
 /**
  * 校验项级契约 —— 对模型执行单条不变量的校验。

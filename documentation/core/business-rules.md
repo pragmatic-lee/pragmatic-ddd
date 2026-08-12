@@ -1,393 +1,367 @@
-# 业务规则引擎
+# 业务规则引擎（Business Rules）
 
-> 本文档属于 pragmatic-ddd 使用文档 `core` 系列，介绍业务规则引擎（`io.pragmatic.ddd.rules`）的核心概念与用法。
-> 前置阅读：[领域建模](./domain-modeling.md)。本系列后续文档：[领域事件](./domain-events.md) · [应用服务](./application-service.md)。
+> 本文档说明 `io.pragmatic.ddd.base` 与 `io.pragmatic.ddd.rules` 包提供的业务规则能力。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
 
 ## 1. 概述
 
-### 1.1 规则引擎解决什么问题
+### 1.1 核心定位
 
-业务规则引擎用于把聚合根上的**业务不变量（invariant）**从业务方法中抽离出来，集中、可组合、可动态调整地表达"在什么条件下，一个模型是否满足约束"。
+业务规则（Business Rules）用于表达聚合内部的**不变量约束**——在聚合生命周期的任意时刻都必须成立的条件（如「发票标题不可为空」「订单金额不得超过信用额度」）。框架将规则建模为可执行单元，在聚合状态变更后由应用层触发校验，违反时收集为 `BrokenRule` 并抛出 `BrokenRuleException`。
 
-典型场景：
+设计意图（一句话）：业务规则是聚合保证自身一致性的「守门人」，将校验逻辑从业务方法中剥离为可组合、可插拔、可动态启停的单元。
 
-- 订单金额必须大于 0，且不得超过账户余额；
-- 库存扣减时不能出现负库存；
-- 状态流转只允许"已创建 → 已支付 → 已发货"等合法路径。
+### 1.2 概念层级与依赖关系
 
-规则引擎统一约定三条原则：
+```text
+io.pragmatic.ddd.base           契约与基础
+  ├─ IRule<T>                   规则核心契约（satisfiesRule）
+  ├─ ICheckRule<T>              单条不变量校验（check → RuleCheckResult）
+  ├─ RuleCheckResult            校验结果（pass / fail / 带参数）
+  ├─ MessageCode                record：规则消息码（局部码 + 描述）
+  ├─ BrokenRuleRegistry         消息码注册表基类（反射自动注册）
+  ├─ BrokenRule / BrokenRuleObject  违反值对象 / 收集器（AggregateRoot 组合持有）
+  └─ AggregateRoot<T>           聚合根：satisfiesRule + 抛异常委托
 
-1. **规则是无状态纯函数**：校验项接收「新模型」与「旧模型」双参数，不持有 per-call 可变状态，因此规则实例可作为单例安全共享。
-2. **违规信息统一收集**：校验失败时写入聚合根的 `BrokenRuleObject`，最终由应用层决定抛出方式（单条或聚合异常）。
-3. **运行期可动态调整**：规则支持运行时 `addRule` / `replaceRule` / `removeRule`，配合激活条件可实现配置驱动的规则开关。
-
-### 1.2 核心概念与协作关系
-
-```
-IRule<T>                        规则的根契约（satisfiesRule）
-   └── EntityRule<T>            规则列表容器（继承并覆写 init()）
-         ├── RuleItem<T>        rule + messageCode + condition 的封装单元
-         ├── ICheckRule<T>      校验项级契约（check(new, old) → RuleCheckResult）
-         └── IActiveRuleCondition<T>  激活条件（模型级 status + code 级 switchStatus）
-
-BaseRuleValidator<T>            单规则校验器（validate(new, old) → boolean）
-ICheckRuleBuilder<T>            校验项构造器（rule() + ruleCondition()）
-
-@BusinessRule                   方法注解，仅标记，不参与运行期校验
+io.pragmatic.ddd.rules          容器与扩展实现（依赖 base）
+  ├─ EntityRule<T>              实体规则容器（一维规则列表 + failFast）
+  ├─ RuleItem<T>                规则项（校验项 + 消息码 + 激活条件）
+  ├─ IRuleBuild                 规则生命周期钩子（init / reset）
+  ├─ IActiveRuleCondition<T>    激活条件（code 级开关 + 模型级条件）
+  ├─ ActiveStatus               激活状态枚举（ACTIVE / INACTIVE）
+  ├─ RulePosition               插入位置枚举（LAST / BEFORE / AFTER）
+  ├─ ICheckRuleBuilder<T>       校验项构建器（携带激活条件）
+  └─ BaseRuleValidator<T>       校验器适配器（boolean → ICheckRule）
 ```
 
-核心接口一览：
+### 1.3 类型与包路径
 
-| 类型 | 名称 | 用户的关注点 |
+| 类型 | 包路径 | 用途 |
 | --- | --- | --- |
-| 抽象类 | `EntityRule<T>` | 规则列表容器，实现 `IRule<T>`，用户继承并覆写 `init()` |
-| 接口 | `ICheckRule<T>` | 校验项级契约，`check(T new, T old)` 返回 `RuleCheckResult` |
-| 抽象类 | `BaseRuleValidator<T>` | 单规则校验器基类，实现 `validate(T, T)` 返回 boolean |
-| 接口 | `ICheckRuleBuilder<T>` | 校验项构造器，将 `validate` 适配为 `ICheckRule` + 激活条件 |
-| 类 | `RuleItem<T>` | 规则项封装（rule + messageCode + condition） |
-| 枚举 | `RulePosition` | `LAST` / `BEFORE` / `AFTER`，控制插入位置 |
-| 枚举 | `ActiveStatus` | `ACTIVE` / `INACTIVE`，控制规则是否参与校验 |
-| 接口 | `IActiveRuleCondition<T>` | 激活条件，`status` 模型级 + `switchStatus` code 级 |
-| 类 | `AlwaysActiveRuleCondition<T>` | 始终激活的默认条件 |
-| 注解 | `@BusinessRule` | 标记方法为业务规则，AI 编码辅助 + 可视化消费 |
+| `IRule<T>` / `ICheckRule<T>` | `io.pragmatic.ddd.base` | 规则核心契约与单条校验 |
+| `RuleCheckResult` | `io.pragmatic.ddd.base` | 校验结果载体 |
+| `MessageCode` / `BrokenRuleRegistry` | `io.pragmatic.ddd.base` | 规则消息码与注册表 |
+| `BrokenRule` / `BrokenRuleObject` | `io.pragmatic.ddd.base` | 违反值对象与收集器 |
+| `EntityRule<T>` | `io.pragmatic.ddd.rules` | 实体规则容器 |
+| `RuleItem<T>` / `IRuleBuild` | `io.pragmatic.ddd.rules` | 规则项与生命周期钩子 |
+| `IActiveRuleCondition<T>` / `ActiveStatus` / `RulePosition` | `io.pragmatic.ddd.rules` | 激活条件与定位 |
+| `ICheckRuleBuilder<T>` / `BaseRuleValidator<T>` | `io.pragmatic.ddd.rules` | 校验器适配器 |
 
-## 2. 校验项级契约 `ICheckRule<T>`
+## 2. 核心概念详解
 
-`ICheckRule<T>` 是对模型执行单条不变量的校验契约，是规则引擎的最小单元：
+### 2.1 规则契约：IRule 与 ICheckRule
+
+#### 核心契约：`IRule<T>`
+
+```java
+public interface IRule<T> {
+    boolean satisfiesRule(T model);
+}
+```
+
+#### 单条校验契约：`ICheckRule<T>`
 
 ```java
 @FunctionalInterface
 public interface ICheckRule<T> {
-    RuleCheckResult check(T newModel, T oldModel);
-
+    RuleCheckResult check(T newModel, T oldModel);   // 双参数：新模型 + 旧模型
     default RuleCheckResult check(T newModel) {
         return check(newModel, null);
     }
 }
 ```
 
-### 2.1 新旧模型双参数
+双参数设计使规则成为**无状态纯函数**：需要新旧对比的规则通过 `oldModel` 获取快照，不需要的规则忽略第二参数。`EntityRule` 自身不持有任何 per-call 可变状态，因此可作为单例（如 Spring Bean）在多线程下安全共享。
 
-校验接收「新模型」与「旧模型」两个入参，使规则成为无状态纯函数：
+### 2.2 校验结果：RuleCheckResult
 
-- `newModel`：当前被校验的模型。
-- `oldModel`：修改前的模型快照，创建操作或规则不需要时为 `null`。
+`ICheckRule` 返回 `RuleCheckResult`，全部通过静态工厂创建：
 
-需要**新旧对比**的规则通过 `oldModel` 获取修改前快照；不需要的规则忽略第二参数即可（用单参数便捷入口 `check(newModel)`）。
-
-### 2.2 校验结果 `RuleCheckResult`
-
-`RuleCheckResult` 是 `ICheckRule` 的返回值，携带校验通过/失败状态及用于消息格式化的动态参数。**创建方式全部通过静态工厂方法**，消除 `boolean` 构造函数歧义：
-
-| 工厂方法 | 语义 |
+| 工厂方法 | 含义 |
 | --- | --- |
-| `pass()` | 校验通过 |
-| `fail()` | 校验失败，无动态参数 |
-| `fail(Object[] params)` | 校验失败，携带参数（`String.format` 格式化违规消息） |
-| `fail(Object[] params, boolean enableFormat)` | 校验失败，可控制是否自动格式化 |
-| `of(boolean)` | 由 boolean 直接构造 |
+| `RuleCheckResult.pass()` | 校验通过 |
+| `RuleCheckResult.fail()` | 校验失败，无动态参数 |
+| `RuleCheckResult.fail(Object[] params)` | 校验失败，携带消息参数（`String.format` 格式化） |
+| `RuleCheckResult.fail(Object[] params, boolean enableFormat)` | 校验失败，可关闭自动格式化 |
+| `RuleCheckResult.of(boolean)` | 由 boolean 直接构造（无动态参数） |
+
+`hasParams()` 为真时，聚合根走参数化消息分支，调用 `addParamBrokenRule(code, params, autoFormat)`。
+
+### 2.3 消息码与注册表：MessageCode / BrokenRuleRegistry
+
+#### `MessageCode`
 
 ```java
-ICheckRule<Order> amountMustBePositive = (order, old) ->
-        order.getAmount() > 0 ? RuleCheckResult.pass()
-                              : RuleCheckResult.fail(new Object[]{order.getAmount()});
-```
-
-失败且带参数时，`EntityRule` 会自动调用聚合根的 `addParamBrokenRule`，用 `%s` 占位符格式化为可读消息。
-
-## 3. 方式一：继承 `EntityRule<T>`（规则列表容器）
-
-`EntityRule<T>` 是**规则列表容器**，实现 `IRule<T>`。它是一个一维的规则列表，每条校验项通过 `ICheckRule.check` 对模型校验，违规信息统一收集。适用于**多条规则组合**的场景。
-
-### 3.1 定义与注册规则
-
-继承 `EntityRule<T>` 并在构造器中（或覆写 `init()`）调用 `addRule` 注册规则：
-
-```java
-public class OrderRule extends EntityRule<Order> {
-
-    public OrderRule() {
-        super(true); // failFast=true
-        init();
-    }
-
-    @Override
-    protected void init() {
-        addRule((order, old) ->
-                order.getAmount() > 0 ? RuleCheckResult.pass()
-                                      : RuleCheckResult.fail(new Object[]{order.getAmount()}),
-                OrderRuleRegistry.AMOUNT_POSITIVE);
-
-        addRule(order -> order.getStatus() != null ? RuleCheckResult.pass()
-                                                   : RuleCheckResult.fail(),
-                OrderRuleRegistry.STATUS_NOT_NULL);
-    }
+public record MessageCode(String localCode, String description) {
+    public static MessageCode of(String localCode, String description);
+    public static MessageCode of(String localCode);
+    public String code();   // 返回 localCode，作为 map key 与异常 code
 }
 ```
 
-`addRule` 的重载形式：
-
-| 重载 | 说明 |
+| 规则 | 说明 |
 | --- | --- |
-| `addRule(ICheckRule, MessageCode)` | 追加校验项，使用默认激活条件 |
-| `addRule(ICheckRule, MessageCode, IActiveRuleCondition)` | 追加并指定激活条件 |
-| `addRule(BaseRuleValidator, MessageCode)` | 追加校验器规则（取其内部激活条件） |
-| `addRule(ICheckRuleBuilder, MessageCode)` | 追加构造器规则（取其内部激活条件） |
+| 相等性 | **仅**按 `localCode` 判定（`description` 不参与） |
+| `code()` | 返回 `localCode`，业务上以它作为 key |
 
-### 3.2 新旧对比规则
+#### `BrokenRuleRegistry`
 
-需要新旧对比的规则，覆写 `requireOldEntity()`（返回 `true`）与 `supplyOldEntity()`：
+构造时反射扫描子类声明的 `static MessageCode` 字段并自动注册。
 
-```java
-public class OrderRule extends EntityRule<Order> {
-
-    @Override
-    protected boolean requireOldEntity() {
-        return true; // 存在新旧对比规则，触发旧实体加载
-    }
-
-    @Override
-    protected Order supplyOldEntity(Order currentModel) {
-        return orderRepository.findById(currentModel.getEntityId()); // 加载修改前快照
-    }
-
-    @Override
-    protected void init() {
-        // 状态只能合法流转：使用新旧双参数
-        addRule((order, old) -> {
-            if (old == null) {
-                return RuleCheckResult.pass();
-            }
-            boolean legal = isLegalTransition(old.getStatus(), order.getStatus());
-            return legal ? RuleCheckResult.pass() : RuleCheckResult.fail();
-        }, OrderRuleRegistry.ILLEGAL_STATUS_TRANSITION);
-    }
-}
-```
-
-- 默认 `requireOldEntity()` 返回 `false`，即**不触发任何旧实体查询**，避免无谓的 DB 访问。
-- 仅当返回 `true` 时，每次 `satisfiesRule` 调用一次 `supplyOldEntity`。
-
-### 3.3 failFast 模式
-
-`EntityRule` 支持两种校验模式：
-
-- **`failFast=true`（默认）**：遇第一条失败即停止校验，立即返回 `false`。适合"先判断最关键约束"的场景，性能更好。
-- **`failFast=false`**：全量校验所有规则，收集所有违反。适合需要一次性告知用户所有错误的场景（如表单提交）。
-
-```java
-EntityRule<Order> failFastRule = new OrderRule(true);    // 遇首条失败即停
-EntityRule<Order> collectAllRule = new OrderRule(false); // 全量收集违反
-```
-
-> `failFast=false` 时，多条违反会通过聚合根的 `throwBrokenRuleAggregateException()` 聚合成 `BrokenRuleAggregateException`（含全部子异常）。
-
-### 3.4 运行时动态调整规则
-
-`EntityRule` 支持运行时的增删改，配合激活条件可实现配置驱动：
-
-```java
-// 追加到列表末尾
-orderRule.addRule(myCheckRule, RuleCode.MY_RULE);
-
-// 在参照规则之后插入
-orderRule.appendRule(myCheckRule, RuleCode.MY_RULE, RuleCode.REFERENCE, RulePosition.AFTER);
-
-// 替换某条规则的消息码
-orderRule.replaceRule(myCheckRule, RuleCode.OLD, RuleCode.NEW);
-
-// 按消息码移除
-orderRule.removeRule(RuleCode.OBsolete);
-
-// 清空并重新初始化
-orderRule.reset();
-```
-
-### 3.5 规则查询
-
-```java
-List<RuleItem<Order>> items = orderRule.allRuleItems();          // 全部规则项副本
-ICheckRule<Order> rule = orderRule.findRuleByMessageCode(code);  // 按码查找单条（未命中返回 null）
-List<ICheckRule<Order>> rules = orderRule.findRulesByMessageCode(c1, c2); // 批量查找
-```
-
-## 4. 方式二：继承 `BaseRuleValidator<T>`（单规则快速定义）
-
-`BaseRuleValidator<T>` 将 `validate(T, T)` 适配为校验项级 `ICheckRule` 与激活条件。适用于**单条规则快速定义**：
-
-```java
-public class AmountPositiveValidator extends BaseRuleValidator<Order> {
-
-    @Override
-    protected boolean validate(Order order, Order oldOrder) {
-        return order.getAmount() > 0;
-    }
-}
-```
-
-它把 `validate` 自动包装为 `ICheckRule`（`rule()` 方法），并默认提供始终生效的激活条件（`ruleCondition()`）。然后可将其加入 `EntityRule`：
-
-```java
-orderRule.addRule(new AmountPositiveValidator(), OrderRuleRegistry.AMOUNT_POSITIVE);
-```
-
-> **选型提示**：`BaseRuleValidator` 只关心 `boolean` 结果，无法携带动态消息参数。若需要参数化违规消息，请直接使用返回 `RuleCheckResult` 的 `ICheckRule`。
-
-## 5. 方式三：`ICheckRuleBuilder<T>`（构造器适配）
-
-`ICheckRuleBuilder<T>` 是一个校验项构造器，将 `validate` 适配为 `ICheckRule` 与激活条件：
-
-```java
-public interface ICheckRuleBuilder<T> {
-    ICheckRule<T> rule();
-    default IActiveRuleCondition<T> ruleCondition() { return null; }
-}
-```
-
-通常以匿名类或 lambda 使用，把"规则逻辑"与"激活条件"打包为一个单元，便于复用和组合。
-
-## 6. 激活条件：`IActiveRuleCondition<T>`
-
-激活条件决定一条规则在特定模型上下文中**是否参与校验**。`IActiveRuleCondition<T>` 是函数式接口，提供两个维度的判断：
-
-### 6.1 模型级条件
-
-`status(T newModel, T oldModel)` 基于**模型内容**（或新旧对比）判断，返回 `ActiveStatus`：
-
-```java
-// 仅当订单状态为草稿时才校验金额规则
-IActiveRuleCondition<Order> draftOnly = (order, old) ->
-        order.getStatus() == OrderStatus.DRAFT ? ActiveStatus.ACTIVE
-                                               : ActiveStatus.INACTIVE;
-
-orderRule.addRule(amountCheck, RuleCode.AMOUNT, draftOnly);
-```
-
-### 6.2 code 级开关
-
-`switchStatus(MessageCode messageCode)` 基于**规则标识**（而非模型内容）判断，常被用于读取外部动态配置（配置中心、开关平台）临时启用/停用某条规则：
-
-```java
-public class ConfigDrivenCondition<T> implements IActiveRuleCondition<T> {
-
-    @Override
-    public ActiveStatus status(T newModel, T oldModel) {
-        return ActiveStatus.ACTIVE;
-    }
-
-    @Override
-    public ActiveStatus switchStatus(MessageCode messageCode) {
-        // 读取开关平台：若该规则码被关闭则停用
-        return featureToggle.isEnabled(messageCode.code()) ? ActiveStatus.ACTIVE
-                                                           : ActiveStatus.INACTIVE;
-    }
-}
-```
-
-**两重判定顺序**（在 `EntityRule.satisfiesRule` 中）：
-
-1. 第一重：`switchStatus(messageCode)` —— code 级开关，决定规则整体是否启用；
-2. 第二重：`status(model, oldModel)` —— 模型级条件，决定当前上下文是否参与校验。
-
-### 6.3 便捷工厂与默认条件
-
-`IActiveRuleCondition` 提供便捷静态工厂，以及默认条件实现：
-
-```java
-// 单参数条件
-IActiveRuleCondition<Order> c1 = IActiveRuleCondition.of(
-        order -> order.getStatus() == Status.DRAFT ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
-
-// 双参数（新旧对比）条件
-IActiveRuleCondition<Order> c2 = IActiveRuleCondition.of(
-        (order, old) -> old != null ? ActiveStatus.ACTIVE : ActiveStatus.INACTIVE);
-
-// 始终激活的默认条件
-IActiveRuleCondition<Order> always = new AlwaysActiveRuleCondition<>();
-```
-
-> 默认 `switchStatus` 返回 `ACTIVE`（规则默认启用），既有实现无需覆盖即可获得与原先一致的行为。
-
-## 7. 规则位置与消息码操作
-
-`RulePosition` 枚举取代了原有的 int 魔术数字，使插入位置可直读：
-
-| 值 | 语义 |
+| 方法 | 说明 |
 | --- | --- |
-| `LAST` | 追加到规则列表末尾（不依赖参照规则） |
-| `BEFORE` | 插入到参照规则之前 |
-| `AFTER` | 插入到参照规则之后 |
+| `register(MessageCode...)` | `protected final`，以 `code()` 为 key 注册 |
+| `getRuleDescription(String)` | 按局部码返回描述；未注册返回空串 |
+| `createException(String)` | 构造单条规则违反异常 |
+| `createExceptionWithParam(String, Object...)` | 构造参数格式化异常（`String.format`） |
+| `of(MessageCode...)` | `static` 内联工厂，免建子类 |
 
-配合 `appendRule` 使用：
+#### 关键约束
+
+> **重要约束**：注册表子类**必须**为 `public`（含测试内 public static nested class）。构造函数通过反射 `field.get(null)` 读取 `static MessageCode` 字段；若子类为包级私有，`IllegalAccessException` 被静默吞掉，导致该消息码**未注册**——`getRuleDescription` 返回空串，且 `addBrokenRule` 收集到的描述为空白（仅影响描述文本，不影响 code）。
+
+> **重要约束**：`MessageCode.localCode` 是 map key 与异常 code，**同一注册表内不允许重复**，重复注册后者覆盖前者。
+
+#### 示例代码
 
 ```java
-orderRule.appendRule(newRule, RuleCode.NEW, RuleCode.EXISTING, RulePosition.BEFORE);
-```
+public class InvoiceBrokenRuleRegistry extends BrokenRuleRegistry {
+    public static final MessageCode TITLE_IS_EMPTY_ERROR =
+            MessageCode.of("title_is_empty_error", "title为空");
+    public static final MessageCode NO_IS_EMPTY_ERROR =
+            MessageCode.of("no_is_empty_error", "编码为空");
 
-## 8. `@BusinessRule` 注解（仅标记，不参与运行期校验）
-
-`@BusinessRule` 是方法级注解，承载规则元信息，供 **AI 编码辅助**消费，用于记录每条规则的意图、错误码与消息：
-
-```java
-@BusinessRule(
-        description = "订单金额必须大于0",
-        errorCode = "ORDER_AMOUNT_POSITIVE",
-        errorMessage = "订单金额必须大于0"
-)
-public void validateAmount() {
-    // 规则校验逻辑
+    public static final InvoiceBrokenRuleRegistry INSTANCE = new InvoiceBrokenRuleRegistry();
 }
 ```
 
-三个属性：`description`（规则可读描述）、`errorCode`（对应 `BrokenRuleRegistry` 中的键）、`errorMessage`（违反时展示的可读消息）。
+### 2.4 违反收集：BrokenRule / BrokenRuleObject
 
-> ⚠️ **重要**：`@BusinessRule` **仅作标记**，不参与运行期校验。原 `visual` 包的可视化解析器会反射消费它以产出规则图谱，但该包已在当前版本移除；如需规则图谱，后续将由可观测性方向（如 `observability` 包）重新提供。真正的运行期校验必须依赖上述 `ICheckRule` / `EntityRule` 机制。
+`BrokenRule` 是单条违反的值对象：`name`（code）、`description`（消息描述）、可选 `extraData`。
 
-## 9. 与聚合根 `satisfiesRule` 的协作
+`BrokenRuleObject` 负责规则违反的收集、查询与异常抛出。`AggregateRoot` 以组合方式持有它（注入 `BrokenRuleRegistry` 与 `source`）。关键方法：
 
-聚合根（`AggregateRoot<T>`）通过 `satisfiesRule(IRule)` 委托执行规则校验，并复用 `IRule` 契约：
+| 方法 | 说明 |
+| --- | --- |
+| `addBrokenRule(MessageCode)` | 追加一条规则违反 |
+| `addParamBrokenRule(MessageCode, params, autoFormat)` | 追加带参数的违反（自动 `String.format`） |
+| `throwBrokenRuleException()` | 存在违反时抛出**单条**异常（取首条） |
+| `throwBrokenRuleAggregateException()` | 存在违反时抛出**聚合**异常（全部违反） |
+| `getBrokenRules()` / `clearBrokenRules()` | 查询 / 清空已收集违反 |
+
+### 2.5 规则容器：EntityRule
+
+`EntityRule<T extends AggregateRoot<?>>` 是一个**一维规则列表**，不区分「属性级」与「类级」规则。每条校验项通过 `RuleItem` 封装为「校验项 + 消息码 + 激活条件」。
+
+#### 构造与 failFast
 
 ```java
-public boolean satisfiesRule(IRule<?> rule) {
-    return rule != null && ((IRule) rule).satisfiesRule(this);
+public EntityRule()            { this(true); }   // 默认 failFast=true（遇首条失败即停止）
+public EntityRule(boolean failFast) { ... }
+```
+
+#### 添加规则
+
+```java
+addRule(ICheckRule<T> rule, MessageCode messageCode);
+addRule(ICheckRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition);
+addRule(BaseRuleValidator<T> rule, MessageCode messageCode);   // 适配器，取其内部激活条件
+addRule(ICheckRuleBuilder<T> rule, MessageCode messageCode);   // 构建器，取其内部激活条件
+```
+
+#### 运行时增删改
+
+```java
+appendRule(ICheckRule<T> rule, MessageCode appendCode, MessageCode relativeCode,
+           RulePosition position, IActiveRuleCondition<T> condition);  // 相对位置插入
+replaceRule(ICheckRule<T> rule, MessageCode replaceCode, MessageCode newCode);  // 替换消息码
+removeRule(MessageCode messageCode);                                    // 按消息码移除
+findRuleByMessageCode(MessageCode) / findRulesByMessageCode(MessageCode...);    // 查询
+```
+
+#### 校验执行
+
+`satisfiesRule(T)` 对每个规则项做两重过滤：
+
+1. **code 级开关**：`condition.switchStatus(messageCode) == INACTIVE` 则跳过（读取外部动态配置决定是否启用该规则）。
+2. **模型级条件**：`condition.status(model, oldModel) == INACTIVE` 则跳过（基于模型内容 / 新旧对比决定）。
+
+通过后才执行 `check`；失败则按 `hasParams` 选择 `addParamBrokenRule` 或 `addBrokenRule`，`failFast` 为真时立即中止。
+
+#### 单参数适配与新旧对比
+
+| 能力 | 用法 | 说明 |
+| --- | --- | --- |
+| `EntityRule.of(Function<T, RuleCheckResult>)` | 单参数校验逻辑适配为双参数 `ICheckRule` | 用于不关心旧实体的规则 |
+| `requireOldEntity()` 返回 `true` | 子类覆盖，声明需要旧实体 | 不覆盖默认 `false` |
+| `supplyOldEntity(T)` | 提供修改前快照 | `satisfiesRule` 每次调用一次 |
+
+#### 关键约束
+
+> **重要约束**：业务规则只校验**聚合自身**的不变量，不发起跨聚合、跨服务的调用。需要外部数据时，应通过参数在构造规则时注入（参考 `PersonEntityRule` 注入 `BasePersonScoreValidator`），而非在规则内部直接依赖仓储或远程服务。
+
+#### 示例代码
+
+```java
+public class InvoiceEntityRule extends EntityRule<Invoice> {
+    public InvoiceEntityRule() {
+        // 单参数适配：不关心旧实体，lambda 第二参忽略即可
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getTitle())),
+                TITLE_IS_EMPTY_ERROR);
+        this.addRule((s, old) -> RuleCheckResult.of(StringUtils.isNotEmpty(s.getNo())),
+                NO_IS_EMPTY_ERROR);
+    }
 }
 ```
 
-典型用法——在应用服务或聚合根业务方法中校验：
+### 2.6 激活条件：IActiveRuleCondition
+
+`IActiveRuleCondition<T>` 控制一条规则是否参与校验，有两类职责：
+
+- `status(newModel, oldModel)`：基于**模型内容**判断（纯函数）。
+- `switchStatus(messageCode)`：基于**规则标识**判断是否启用（读取配置中心 / 开关平台），默认 `ACTIVE`；既有实现不覆盖即保持原行为。
+
+| 工厂方法 | 说明 |
+| --- | --- |
+| `IActiveRuleCondition.of(Function<T, ActiveStatus>)` | 仅关心新模型 |
+| `IActiveRuleCondition.of(BiFunction<T, T, ActiveStatus>)` | 需要新旧对比 |
+| `AlwaysActiveRuleCondition<T>` | 无条件生效的默认实现 |
+
+### 2.7 校验器适配器：BaseRuleValidator
+
+将「`validate(newModel, oldModel)` 返回 boolean」的校验逻辑包装为 `ICheckRule` 并携带默认激活条件：
 
 ```java
-boolean valid = order.satisfiesRule(orderRule);
-if (!valid) {
-    // 已收集违反，可选择抛出
-    order.throwBrokenRuleException();            // 抛单条异常（取第一条）
-    // 或 order.throwBrokenRuleAggregateException(); // 抛聚合异常
+public abstract class BaseRuleValidator<T> {
+    protected abstract boolean validate(T newModel, T oldModel);
+    public ICheckRule<T> rule() { return (n, o) -> RuleCheckResult.of(validate(n, o)); }
+    public IActiveRuleCondition<T> ruleCondition() { return (n, o) -> ActiveStatus.ACTIVE; }
 }
-// 或直接读取违反列表做进一步处理
-List<BrokenRule> brokenRules = order.getBrokenRules();
 ```
 
-校验失败时，`EntityRule` 会自动把违规写入聚合根的 `BrokenRuleObject`（通过 `addBrokenRule` / `addParamBrokenRule`），应用层只需统一决定抛出策略。
+外部依赖（如评分校验器 `BasePersonScoreValidator`）经构造器注入规则，使规则保持无状态且可单例共享。
 
-> 在 [应用服务](./application-service.md) 中，`CommandExecutor` / `AbstractApplicationService` 会内建"领域逻辑 → 规则校验 → 落库 → 发布事件"的固定模板，你通常不需要手动调用 `throwBrokenRuleException`。
+### 2.8 聚合根集成：AggregateRoot
 
-## 10. 三种定义方式选型
+`AggregateRoot` 组合 `BrokenRuleObject`，并暴露校验委托方法：
 
-| 方式 | 适用场景 | 动态参数消息 | 组合多条 | 激活条件 |
-| --- | --- | --- | --- | --- |
-| `EntityRule<T>` | 多条规则组合、增删改、failFast、配置开关 | ✅ | ✅ | ✅ |
-| `BaseRuleValidator<T>` | 单条快速定义，只关心 boolean 结果 | ❌ | 需加入 EntityRule | 默认始终生效 |
-| `ICheckRuleBuilder<T>` | 把"规则逻辑 + 激活条件"打包复用 | ✅ | 需加入 EntityRule | ✅ |
-| `@BusinessRule` | 仅标记可视化，不参与运行期校验 | - | - | - |
+| 方法 | 可见性 | 说明 |
+| --- | --- | --- |
+| `satisfiesRule(IRule<?>)` | `public` | 以自身为 model 执行规则，`rule==null` 视为通过；返回 `true`/`false` |
+| `addBrokenRule(MessageCode)` | `public` | 追加一条规则违反 |
+| `addParamBrokenRule(MessageCode, Object[], boolean)` | `public` | 追加支持参数格式化的违反；`isAutoFormat=true` 时用 `String.format(description, params)` |
+| `getBrokenRules()` | `public` | 返回已收集违反（只读） |
+| `throwBrokenRuleException()` | `public` | 有违反则抛**单条**异常（取第一条） |
+| `throwBrokenRuleAggregateException()` | `public` | 有违反则抛**聚合**异常（含全部） |
+| `clearBrokenRules()` | `public` | 清空已收集违反 |
 
-选择建议：
+聚合根必须实现抽象方法 `protected abstract BrokenRuleRegistry brokenRuleRegistry();` 以接入消息码注册表。
 
-- **场景是单条简单校验** → `BaseRuleValidator<T>`。
-- **场景是多条规则组合、需要动态调整或配置开关** → `EntityRule<T>`。
-- **需要参数化违规消息** → 使用返回 `RuleCheckResult.fail(params)` 的 `ICheckRule`（直接写 lambda 或实现 `ICheckRuleBuilder`）。
-- **需要给可视化/AI 提供规则元信息** → 额外用 `@BusinessRule` 标记。
+#### 示例代码
 
-下一步建议阅读：
+```java
+public class Invoice extends AggregateRoot<String> {
+    private String title;
+    private String no;
 
-- [领域事件](./domain-events.md)：规则通过后的事件触发
-- [应用服务](./application-service.md)：校验在命令执行模板中的位置
-- [领域建模](./domain-modeling.md)：聚合根与实体的建模约定
+    @Override
+    protected BrokenRuleRegistry brokenRuleRegistry() {
+        return InvoiceBrokenRuleRegistry.INSTANCE;      // 提供消息码注册表
+    }
+
+    public void changeTitle(String title) {
+        this.title = title;
+    }
+    // 业务方法内不内联校验逻辑，交由规则容器统一校验
+}
+```
+
+## 3. 关键机制与避坑指南
+
+### 3.1 校验两阶段：收集与抛异常分离
+
+> **重要约束**：校验与抛异常是两步操作——先 `satisfiesRule` 收集违反，再 `throwBrokenRuleException` / `throwBrokenRuleAggregateException` 决定抛单条还是聚合异常；不调用抛异常方法就不会中断流程。
+
+```java
+Invoice invoice = invoiceRepository.findById(invoiceId);
+invoice.changeTitle("");                                  // 触发可能违反不变量的变更
+if (!invoice.satisfiesRule(new InvoiceEntityRule())) {    // 收集违反
+    invoice.throwBrokenRuleAggregateException();          // 抛聚合异常中断流程
+}
+```
+
+### 3.2 failFast 与短路
+
+`EntityRule` 默认 `failFast=true`，遇首条失败即停止后续规则；置 `false` 可一次性收集全部违反（适合前端一次性返回所有字段错误）。注意：`BrokenRuleAggregateException` 仅当存在多条违反时才有意义。
+
+### 3.3 带参数消息的格式化
+
+消息描述支持 `String.format` 占位符，校验时传参由收集器自动格式化：
+
+```java
+// 注册表：MessageCode.of("amount_exceed_error", "金额 %s 超过信用额度 %s")
+this.addRule((s, old) -> RuleCheckResult.fail(
+        new Object[]{ s.getAmount(), s.getCreditLimit() }), AMOUNT_EXCEED_ERROR);
+// 收集时自动 String.format → 「金额 1200 超过信用额度 1000」
+```
+
+### 3.4 新旧对比的一致性边界
+
+需要旧实体的规则必须同时覆盖 `requireOldEntity()` 返回 `true` 并实现 `supplyOldEntity(T)`；`satisfiesRule` 每次调用 `supplyOldEntity` 一次。`oldModel` 为 `null` 时代表「无旧快照」（如新建场景），规则内部应做空判断。
+
+### 3.5 规则容器与一致性边界
+
+> **边界外不变性不由聚合根保证。** 规则只校验聚合自身；跨聚合写操作通过领域事件发布 + 订阅者响应完成，规则内部不得直接依赖其他聚合的仓储或应用服务。
+
+## 4. 异常与错误处理体系
+
+### 4.1 继承关系
+
+```text
+RuntimeException
+ └─ PragmaticException              所有框架业务异常的抽象基类（RuntimeException 子类）
+     └─ RuleException               业务规则校验异常抽象基类
+         ├─ BrokenRuleException           单条规则违反（code + message + source）
+         └─ BrokenRuleAggregateException  聚合异常，持有 List<BrokenRuleException>
+```
+
+### 4.2 异常字段
+
+| 异常类 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `BrokenRuleException` | `code` (`String`)、`message`、`source` (`transient Object`) | `code` 即消息局部码；`source` 为触发源，不序列化 |
+| `BrokenRuleAggregateException` | `exceptions` (`List<BrokenRuleException>`)、`getSource()` | `getSource()` 返回首个子异常的 source |
+
+### 4.3 捕获与映射规范
+
+- 统一兜底：`catch (PragmaticException e)` 可捕获所有框架异常。
+- 规则校验：`catch (BrokenRuleException e)` 取 `e.getCode()` 映射为前端错误码；`catch (BrokenRuleAggregateException e)` 遍历 `e.getExceptions()` 返回全部违反。
+- `source` 为 `transient`，跨进程/序列化场景勿依赖。
+
+## 5. 总结速查
+
+| 概念 | 使用方式 | 最关键约束 |
+| --- | --- | --- |
+| 规则契约 | 实现 `IRule<T>` / `ICheckRule<T>` | 设计为无状态纯函数，可单例共享 |
+| 校验结果 | `RuleCheckResult` 静态工厂 | `hasParams()` 决定参数化消息分支 |
+| 消息码 | `MessageCode.of(...)` + `BrokenRuleRegistry` | 注册表子类必须 `public`，否则码未注册 |
+| 规则容器 | 继承 `EntityRule<T>` | 默认 `failFast`；先 code 开关后模型条件两重过滤 |
+| 激活条件 | `IActiveRuleCondition` / `AlwaysActiveRuleCondition` | `switchStatus(messageCode)` 读取外部开关 |
+| 聚合根 | `AggregateRoot<T>` + `satisfiesRule` | 校验/抛异常两步分离；只校验聚合自身 |
+| 异常 | `PragmaticException` 体系 | `catch (PragmaticException)` 统一兜底；`source` 为 `transient` |
+
+**下一步阅读**
+
+- [领域建模](./domain-modeling.md)：`AggregateRoot` 与 `MessageCode` 基础能力
+- [领域事件](./domain-events.md)：跨聚合一致性的事件方案
+- [仓储](./repository.md)：聚合持久化与版本对账
+
+## 命名规范速查
+
+| 元素 | 格式 | 示例 |
+| --- | --- | --- |
+| 消息码常量 | 大写 + 下划线，语义化后缀 `_ERROR` | `TITLE_IS_EMPTY_ERROR` |
+| 注册表类 | `{聚合}BrokenRuleRegistry`，继承 `BrokenRuleRegistry` | `InvoiceBrokenRuleRegistry` |
+| 注册表实例 | `{聚合}BrokenRuleRegistry.INSTANCE` | `InvoiceBrokenRuleRegistry.INSTANCE` |
+| 规则容器类 | `{聚合}EntityRule`，继承 `EntityRule<{聚合}>` | `InvoiceEntityRule` |
+| 校验器类 | `Base{聚合}{维度}Validator`，继承 `BaseRuleValidator<{聚合}>` | `BasePersonScoreValidator` |
+| 外部注入规则 | 构造器入参注入，规则内部不直接依赖仓储/远程 | `new PersonEntityRule(scoreValidator, gradeValidator)` |
