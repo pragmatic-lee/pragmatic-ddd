@@ -1,296 +1,332 @@
 # 防腐层（ACL）
 
-> 本文档介绍防腐层（`io.pragmatic.ddd.acl`）的使用，包括与外部系统交互的固定套路、异常分类与日志钩子。
-> 前置阅读：[领域建模](../core/domain-modeling.md)。
+> 本文档说明 `io.pragmatic.ddd.acl` 包提供的防腐层（Anti-Corruption Layer）调用套路能力：统一收敛"领域对象 ↔ 外部系统"之间的请求/响应转换、通信与异常分类。相关文档：[领域事件](./domain-event.md) · [领域服务](./domain-service.md) · [仓储](./repository.md)。
 
 ## 1. 概述
 
-防腐层（Anti-Corruption Layer，ACL）用于隔离领域模型与外部系统（其他聚合、第三方 API、遗留服务），保证领域层不被外部模型"污染"。
+### 1.1 核心定位
 
-框架提供两种使用方式：
+防腐层隔离外部系统的模型与内部领域模型，避免外部契约污染领域层。本包将"领域入参 → 请求转换 → 调用对方 → 响应转换 → 领域返回值"这一固定套路收敛为可复用的模板，并提供**两种使用形态**：
 
-| 方式 | 特点 | 适用场景 |
-| --- | --- | --- |
-| **继承式**（`AbstractQueryGateway` / `AbstractWriteGateway`） | 继承抽象类，实现抽象方法 | 适配器有明确类继承关系 |
-| **组合式**（`ExternalCall` 静态方法） | 以函数参数提供，不要求继承 | 适配器已继承其他类，或偏好组合 |
-
-两者内部逻辑完全一致，均按固定套路执行并自动分类异常。
-
-### 固定套路
-
-```
-领域入参 → 请求转换 → 调用对方 → 响应转换 → 领域返回值
-              ↓           ↓           ↓
-         AclConversion  AclCommunication  AclConversion
-         Exception      Exception          Exception
-         (不可重试)      (可重试)           (不可重试)
-```
-
-## 2. 异常体系
-
-```
-PragmaticException
- └── AclException                    ACL 异常抽象基类
-      ├── AclConversionException     本地转换异常（不可重试）
-      └── AclCommunicationException  外部通信异常（可重试）
-```
-
-| 异常 | 语义 | 典型场景 | 重试策略 |
+| 形态 | 入口 | 风格 | 适用 |
 | --- | --- | --- | --- |
-| `AclConversionException` | 本地数据转换失败 | 请求转换、响应转换、查重键提取 | **不可重试**，需修复入参或映射 |
-| `AclCommunicationException` | 外部通信失败 | 网络超时、远程业务错误、非预期状态码 | **可重试**，由上层决策重试/降级/熔断 |
+| 组合式 | `ExternalCall` 静态方法 | 传入 `Function` 参数，不要求继承 | 适配器体量小、需灵活组合 |
+| 继承式 | `AbstractQueryGateway` / `AbstractWriteGateway` / `AbstractIdempotentWriteGateway` 抽象类 | 重写抽象方法 | 套路固定、需复用父类状态 |
 
-```java
-try {
-    return externalService.query(param);
-} catch (AclConversionException e) {
-    // 不可重试：记录日志并返回错误
-    log.error("转换失败", e);
-    throw e;
-} catch (AclCommunicationException e) {
-    // 可重试：重试或降级
-    return retryOrFallback(param, e);
-}
+两种形态共享同一套异常分类（`AclConversionException` / `AclCommunicationException`）与日志钩子（`ExternalCallLogger`）。
+
+### 1.2 设计目标
+
+- **统一套路**：四类调用（查询、写入、先查后写）的节点顺序固定，降低样板代码。
+- **异常二分**：本地转换失败（不可重试）与外部通信失败（通常可重试）明确区分，避免重试策略误判。
+- **零日志耦合**：通过 `ExternalCallLogger` 钩子抽象埋点，不绑定具体日志框架。
+
+### 1.3 概念层级
+
+```text
+ExternalCall（组合式静态入口）
+  ├─ query           查询
+  ├─ write           写入
+  └─ writeIdempotent 先查后写
+
+AbstractQueryGateway       查询（继承式）
+AbstractWriteGateway       写入（继承式）
+AbstractIdempotentWriteGateway  先查后写（继承式，幂等保护）
+
+AclExceptions         异常包装辅助（convert / communicate）
+ExternalCallLogger    日志钩子（onRequest / onResponse / onError）
+AclException          ACL 异常基类（继承 PragmaticException）
+  ├─ AclConversionException   转换失败（不可重试）
+  └─ AclCommunicationException 通信失败（通常可重试）
 ```
 
-## 3. 日志钩子 `ExternalCallLogger`
+## 2. 核心概念详解
 
-`ExternalCallLogger<Q, S>` 在调用关键节点触发，便于输出日志、埋点、链路追踪。不绑定任何日志框架：
+### 2.1 通用套路节点
 
-```java
-public interface ExternalCallLogger<Q, S> {
+所有套路均按以下顺序执行，并在每个节点接入日志钩子：
 
-    default void onRequest(Q request) { }    // 请求转换完成后、调用对方前
-
-    default void onResponse(S response) { }  // 收到对方响应、响应转换前
-
-    default void onError(Throwable ex) { }   // 调用或转换发生异常时
-}
+```text
+[toExternalRequest 请求转换] → logger.onRequest
+                              → [doQuery/doWrite 调用对方] → logger.onResponse
+                                                          → [toDomainResult 响应转换]
 ```
 
-使用示例：
+先查后写（`writeIdempotent`）额外在开头插入"查重"节点：
+
+```text
+[uniqueKey 查重键提取] → [queryByKey 查重查询] ──存在──► [toDomainResultFromExisting] 短路返回
+                                                  └─不存在─► 走上述写入套路
+```
+
+### 2.2 `ExternalCall`（组合式）
+
+`ExternalCall` 提供三个静态方法，直接以 `Function` 参数描述各节点，无需继承。
+
+#### 2.2.1 查询
 
 ```java
-ExternalCallLogger<ExternalOrderReq, ExternalOrderResp> logger = new ExternalCallLogger<>() {
+ExternalCall.query(
+        orderId,
+        this::toRequest,                 // 领域入参 → 对方入参
+        this::doQuery,                   // 调用对方查询接口
+        this::toResult                   // 对方返回值 → 领域返回值
+);
+```
+
+带日志钩子：
+
+```java
+ExternalCall.query(orderId, this::toRequest, this::doQuery, this::toResult, logger);
+```
+
+#### 2.2.2 写入
+
+```java
+ExternalCall.write(
+        command,
+        this::toRequest,
+        this::doWrite,
+        this::toResult
+);
+```
+
+#### 2.2.3 先查后写（幂等保护）
+
+```java
+ExternalCall.writeIdempotent(
+        command,
+        this::uniqueKey,          // 提取查重唯一键
+        this::queryByKey,         // 按唯一键查询，返回 Optional
+        this::toExistingResult,   // 已存在 → 领域返回值
+        this::toRequest,          // 不存在 → 请求转换
+        this::doWrite,            // 调用对方写入
+        this::toResult            // 响应转换
+);
+```
+
+:::: warning 幂等是概率性保障
+`writeIdempotent` 仅"降低重复概率"。并发场景下两个请求可能同时通过查重，真正幂等仍需**对方写入接口按唯一键去重**。本包不提供分布式锁。
+::::
+
+### 2.3 继承式抽象类
+
+当套路固定、需在多个适配器中复用时，继承对应抽象类并重写抽象方法。
+
+#### 2.3.1 查询网关 `AbstractQueryGateway<P, R, Q, S>`
+
+| 抽象方法 | 职责 |
+| --- | --- |
+| `Q toExternalRequest(P param)` | 领域入参 → 对方入参 |
+| `S doQuery(Q request)` | 调用对方查询接口 |
+| `R toDomainResult(S response)` | 对方返回值 → 领域返回值 |
+
+```java
+public class OrderQueryGateway extends AbstractQueryGateway<OrderId, OrderView, ExternalQuery, ExternalResp> {
+
     @Override
-    public void onRequest(ExternalOrderReq request) {
-        log.info("调用外部订单接口, req={}", request);
+    protected ExternalQuery toExternalRequest(OrderId param) {
+        return new ExternalQuery(param.value());
     }
 
     @Override
-    public void onResponse(ExternalOrderResp response) {
-        log.info("外部订单接口返回, resp={}", response);
+    protected ExternalResp doQuery(ExternalQuery request) {
+        return externalClient.query(request);
+    }
+
+    @Override
+    protected OrderView toDomainResult(ExternalResp response) {
+        return OrderView.from(response);
+    }
+}
+
+// 调用
+OrderView view = new OrderQueryGateway().query(orderId);
+```
+
+#### 2.3.2 写入网关 `AbstractWriteGateway<P, R, Q, S>`
+
+方法与查询网关对称，仅 `doWrite(Q request)` 改为调用对方写入接口：
+
+```java
+public class PaymentWriteGateway extends AbstractWriteGateway<PayCommand, PayResult, PayReq, PayResp> {
+
+    @Override
+    protected PayReq toExternalRequest(PayCommand param) { /* ... */ }
+
+    @Override
+    protected PayResp doWrite(PayReq request) {
+        return externalClient.write(request);
+    }
+
+    @Override
+    protected PayResult toDomainResult(PayResp response) { /* ... */ }
+}
+```
+
+#### 2.3.3 先查后写网关 `AbstractIdempotentWriteGateway<P, R, Q, S, K>`
+
+比写入网关多三个抽象方法，用于"查重 → 短路"：
+
+| 抽象方法 | 职责 |
+| --- | --- |
+| `K uniqueKey(P param)` | 提取查重唯一键 |
+| `Optional<S> queryByKey(K key)` | 按唯一键查询，空表示未处理过 |
+| `R toDomainResultFromExisting(S existing)` | 已存在记录 → 领域返回值（需结合状态判断终态） |
+
+```java
+public class IdempotentWriteGateway
+        extends AbstractIdempotentWriteGateway<Cmd, Result, Req, Resp, String> {
+
+    @Override
+    protected String uniqueKey(Cmd param) {
+        return param.bizKey();
+    }
+
+    @Override
+    protected Optional<Resp> queryByKey(String key) {
+        return externalClient.findByKey(key);
+    }
+
+    @Override
+    protected Result toDomainResultFromExisting(Resp existing) {
+        // 结合状态判断是否为终态成功，再映射为领域返回值
+        return Result.fromExisting(existing);
+    }
+
+    @Override
+    protected Req toExternalRequest(Cmd param) { /* ... */ }
+
+    @Override
+    protected Resp doWrite(Req request) {
+        return externalClient.write(request);
+    }
+
+    @Override
+    protected Result toDomainResult(Resp response) { /* ... */ }
+}
+```
+
+### 2.4 `ExternalCallLogger` 日志钩子
+
+日志钩子抽象了三个关键节点，默认空实现，业务侧按需覆盖，不绑定任何日志框架：
+
+| 钩子方法 | 触发时机 |
+| --- | --- |
+| `onRequest(Q request)` | 请求转换完成后、调用对方前 |
+| `onResponse(S response)` | 收到对方响应、响应转换前 |
+| `onError(Throwable ex)` | 转换或通信发生异常时 |
+
+类型安全空实现工厂：`ExternalCallLogger.noop()`。继承式网关可通过 `setLogger(...)` 注入：
+
+```java
+ExternalCallLogger<ExternalQuery, ExternalResp> logger = new ExternalCallLogger<>() {
+    @Override
+    public void onRequest(ExternalQuery request) {
+        log.info("ACL request: {}", request);
+    }
+
+    @Override
+    public void onResponse(ExternalResp response) {
+        log.info("ACL response: {}", response);
     }
 
     @Override
     public void onError(Throwable ex) {
-        log.error("外部调用异常", ex);
+        log.error("ACL error", ex);
     }
 };
+
+gateway.setLogger(logger);            // 继承式
+ExternalCall.query(p, r, c, s, logger);  // 组合式
 ```
 
-默认 `NOOP` 空实现，不输出任何内容。
+## 3. 关键机制与避坑指南
 
-## 4. 继承式：查询网关 `AbstractQueryGateway`
+### 3.1 异常二分机制
 
-```java
-public class ExternalOrderQueryGateway
-        extends AbstractQueryGateway<OrderQuery, OrderDTO, ExternalOrderReq, ExternalOrderResp> {
+`AclExceptions` 统一包装两类失败，节点语义固定：
 
-    private final ExternalOrderClient client;
+| 包装方法 | 节点 | 失败归类 | 可重试性 |
+| --- | --- | --- | --- |
+| `AclExceptions.convert(...)` | 请求转换 / 响应转换 / 查重键提取 / 已存在记录转换 | `AclConversionException` | 否（本地问题） |
+| `AclExceptions.communicate(...)` | 查询调用 / 写入调用 / 查重查询 | `AclCommunicationException` | 是（通常） |
 
-    public ExternalOrderQueryGateway(ExternalOrderClient client) {
-        this.client = client;
-    }
+若节点已主动抛出 `AclException`（含其子类），`AclExceptions` 会**原样传递**，不重复包装，避免因果嵌套。
 
-    @Override
-    protected ExternalOrderReq toExternalRequest(OrderQuery param) {
-        // 领域入参 → 对方接口入参
-        return new ExternalOrderReq(param.getOrderId());
-    }
-
-    @Override
-    protected ExternalOrderResp doQuery(ExternalOrderReq request) {
-        // 调用对方查询接口
-        return client.queryOrder(request);
-    }
-
-    @Override
-    protected OrderDTO toDomainResult(ExternalOrderResp response) {
-        // 对方返回值 → 领域返回值
-        return new OrderDTO(response.getId(), response.getStatus());
-    }
-}
+```text
+转换步骤抛 RuntimeException → wrap 为 AclConversionException（保留 cause）
+通信步骤抛 RuntimeException → wrap 为 AclCommunicationException（保留 cause）
+步骤抛 AclException          → 原样抛出（不嵌套）
+每个异常路径均触发 logger.onError(原始异常)
 ```
 
-使用：
+:::: warning 不要混用异常
+本地转换失败被归为 `AclConversionException`（不可重试）。若把"网络超时"在转换阶段抛出，会被误判为不可重试，导致上层重试策略失效。通信失败应在 `doQuery` / `doWrite` / `queryByKey` 阶段抛出，由 `communicate` 统一归为 `AclCommunicationException`。
+::::
 
-```java
-ExternalOrderQueryGateway gateway = new ExternalOrderQueryGateway(client);
-gateway.setLogger(logger);  // 可选：设置日志钩子
-OrderDTO result = gateway.query(new OrderQuery("ORD-001"));
-```
+### 3.2 组合式 vs 继承式选型
 
-模板内部流程：
-
-```
-query(param)
-  ├─ AclExceptions.convert(() -> toExternalRequest(param))   ← 转换失败 → AclConversionException
-  ├─ logger.onRequest(request)
-  ├─ AclExceptions.communicate(() -> doQuery(request))       ← 通信失败 → AclCommunicationException
-  ├─ logger.onResponse(response)
-  └─ AclExceptions.convert(() -> toDomainResult(response))   ← 转换失败 → AclConversionException
-```
-
-## 5. 继承式：写入网关 `AbstractWriteGateway`
-
-```java
-public class ExternalOrderWriteGateway
-        extends AbstractWriteGateway<CreateOrderCmd, String, ExternalCreateReq, ExternalCreateResp> {
-
-    private final ExternalOrderClient client;
-
-    @Override
-    protected ExternalCreateReq toExternalRequest(CreateOrderCmd param) {
-        return new ExternalCreateReq(param.getOrderId(), param.getAmount());
-    }
-
-    @Override
-    protected ExternalCreateResp doWrite(ExternalCreateReq request) {
-        return client.createOrder(request);
-    }
-
-    @Override
-    protected String toDomainResult(ExternalCreateResp response) {
-        return response.getExternalId();
-    }
-}
-```
-
-使用：
-
-```java
-String externalId = gateway.write(new CreateOrderCmd("ORD-001", 100));
-```
-
-::: tip 通信异常 vs 转换异常
-写入场景中，`AclCommunicationException` 应向上抛出由上层重试；`AclConversionException` 不应被误判为"可重试的写超时"，它表示本地数据有问题，重试也不会成功。
-:::
-
-## 6. 继承式：幂等写入网关 `AbstractIdempotentWriteGateway`
-
-"先查后写"套路，用唯一键查询对方，已存在则短路返回：
-
-```java
-public class IdempotentOrderCreateGateway
-        extends AbstractIdempotentWriteGateway<CreateOrderCmd, String, ExternalCreateReq, ExternalCreateResp, String> {
-
-    @Override
-    protected String uniqueKey(CreateOrderCmd param) {
-        return param.getOrderId();  // 查重唯一键
-    }
-
-    @Override
-    protected Optional<ExternalCreateResp> queryByKey(String key) {
-        return client.findByOrderId(key);  // 查对方是否已处理
-    }
-
-    @Override
-    protected String toDomainResultFromExisting(ExternalCreateResp existing) {
-        return existing.getExternalId();  // 已存在则短路返回
-    }
-
-    @Override
-    protected ExternalCreateReq toExternalRequest(CreateOrderCmd param) { ... }
-
-    @Override
-    protected ExternalCreateResp doWrite(ExternalCreateReq request) { ... }
-
-    @Override
-    protected String toDomainResult(ExternalCreateResp response) { ... }
-}
-```
-
-模板流程：
-
-```
-write(param)
-  ├─ 提取查重唯一键
-  ├─ 查重查询 → 已存在？→ 短路返回（转换已存在记录）
-  └─ 不存在 → 请求转换 → 写入调用 → 响应转换
-```
-
-::: warning 幂等保证
-本套路仅**降低重复概率**，真正幂等仍需对方写入接口按唯一键去重。
-:::
-
-## 7. 组合式：`ExternalCall` 静态方法
-
-不要求继承，以函数参数提供，适合适配器已继承其他类的场景：
-
-```java
-// 查询
-OrderDTO result = ExternalCall.query(
-        new OrderQuery("ORD-001"),
-        OrderQuery::toExternalRequest,      // 领域入参 → 对方入参
-        client::queryOrder,                 // 调用对方
-        ExternalOrderResp::toDomainResult,  // 对方返回 → 领域返回
-        logger);                            // 可选日志钩子
-
-// 写入
-String externalId = ExternalCall.write(
-        new CreateOrderCmd("ORD-001", 100),
-        CreateOrderCmd::toExternalRequest,
-        client::createOrder,
-        ExternalCreateResp::getExternalId);
-
-// 幂等写入
-String result = ExternalCall.writeIdempotent(
-        new CreateOrderCmd("ORD-001", 100),
-        CreateOrderCmd::getOrderId,         // 查重键提取
-        client::findByOrderId,              // 查重查询
-        ExternalCreateResp::getExternalId,  // 已存在记录转换
-        CreateOrderCmd::toExternalRequest,  // 请求转换
-        client::createOrder,                // 写入调用
-        ExternalCreateResp::getExternalId); // 响应转换
-```
-
-`ExternalCall` 提供三个静态方法：
-
-| 方法 | 说明 |
-| --- | --- |
-| `query(param, toRequest, doCall, toResult)` | 查询套路（无副作用） |
-| `write(param, toRequest, doCall, toResult)` | 写入套路（有副作用） |
-| `writeIdempotent(param, toKey, queryByKey, toResultExisting, toRequest, doCall, toResult)` | 幂等写入（先查后写） |
-
-每个方法均有带 `ExternalCallLogger` 的重载版本。
-
-## 8. 外部依赖声明
-
-> 聚合的**外部依赖声明**（标注本聚合依赖了哪些外部聚合 / 系统）已从本包移出，独立为 `io.pragmatic.ddd.dependency` 包，详见 [外部依赖声明](./dependency.md)。
->
-> 防腐层（ACL）只负责**外部调用的封装机制**（转换、通信、异常分类、日志）；而"依赖了什么"是领域层对外部契约的声明，二者正交
-<arg_key:6124c78e>explanation</arg_key:6124c78e>
-<arg_value:6124c78e>将 acl.md 第8节改为指向 dependency 文档的跳转，并在概述中强调 ACL 与依赖声明正交
-
-## 9. 继承式 vs 组合式选型
-
-| 维度 | 继承式 | 组合式 |
+| 维度 | 组合式（`ExternalCall`） | 继承式（抽象类） |
 | --- | --- | --- |
-| 代码组织 | 适配器有明确类层级 | 适配器可继承其他类 |
- | 可读性 | 方法名语义清晰 | 函数参数链式 |
- | 复用性 | 单类内聚全部转换逻辑 | 可拆散到多个函数 |
- | 灵活性 | 受限于继承 | 自由组合 |
+| 扩展方式 | 传入 `Function` | 继承重写抽象方法 |
+| 复用父类状态 | 否 | 是（如共享 `client` / `logger`） |
+| 多套路混合 | 易组合 | 受单继承限制 |
+| 样板代码 | 调用处集中 | 类级分散 |
 
-选择建议：
+规则：适配器仅调用单个套路且体量小 → 组合式；多个适配器共享同一套节点实现或需持有状态 → 继承式。
 
-- 适配器是独立类，只做外部调用 → **继承式**
-- 适配器已继承其他类，或需要灵活组合 → **组合式**
+### 3.3 先查后写的短路语义
 
----
+`writeIdempotent` 在查重命中时**短路返回** `toDomainResultFromExisting(existing.get())`，不再发起写入。短路路径同样触发 `logger.onResponse(existing.get())`，但不触发 `onRequest`（因为未构造写入请求）。业务侧在 `toDomainResultFromExisting` 内部应结合记录状态判断是否为终态成功（例如已成功的支付不应重复通知）。
 
-下一步：
+### 3.4 查询套路的无副作用假设
 
-- [配置体系](./configuration.md)
-- [对外广播](./broadcast.md)
-- [异常处理策略](../best-practices/aggregate-design.md)
+`ExternalCall.query` / `AbstractQueryGateway.query` 假定查询无副作用，调用失败可由上层直接重试。若查询接口实际产生副作用（如计数、发券），不应使用查询套路，应改用写入套路并在上层明确重试边界。
+
+## 4. 异常与错误处理体系
+
+### 4.1 异常类层次
+
+```text
+PragmaticException（框架统一异常基类，可 catch 兜底）
+  └─ AclException（ACL 异常基类）
+       ├─ AclConversionException   转换失败，不可重试
+       └─ AclCommunicationException 通信失败，通常可重试
+```
+
+所有异常保留原始 `cause`，便于定位根因。
+
+### 4.2 异常触发与处理建议
+
+| 异常 | 触发节点 | 原始 cause 示例 | 处理建议 |
+| --- | --- | --- | --- |
+| `AclConversionException` | 请求/响应转换、查重键提取、已存在记录转换 | 字段缺失、类型不兼容、空指针 | 修复入参或映射，不重试；必要时告警 |
+| `AclCommunicationException` | 查询/写入调用、查重查询 | 超时、连接拒绝、远程业务错误 | 上层决策重试/降级/熔断 |
+
+### 4.3 错误用法汇总
+
+| 错误用法 | 后果 | 正确做法 |
+| --- | --- | --- |
+| 在转换阶段抛出网络超时 | 归为 `AclConversionException`，重写试策略失效 | 超时应在 `doQuery`/`doWrite` 抛出 |
+| 把有副作用的查询放进 query 套路 | 重试导致重复副作用 | 改用 write 套路 |
+| 把 `writeIdempotent` 当强幂等 | 并发重复写入 | 依赖对方唯一键去重 + 上层幂等控制 |
+| 在 `toDomainResultFromExisting` 忽略状态 | 重复终态被当新成功 | 结合状态判断终态 |
+
+## 5. 总结速查
+
+| 概念 | 使用方式 | 最关键约束 |
+| --- | --- | --- |
+| `ExternalCall` | `query` / `write` / `writeIdempotent` 静态方法 | 组合式；可传 `ExternalCallLogger` |
+| `AbstractQueryGateway` | 继承 + 重写 3 个方法 | 查询无副作用，可重试 |
+| `AbstractWriteGateway` | 继承 + 重写 3 个方法 | 写入有副作用，通信异常上抛 |
+| `AbstractIdempotentWriteGateway` | 继承 + 重写 6 个方法 | 先查后写仅概率幂等，靠对方去重 |
+| `ExternalCallLogger` | `setLogger` 或末参传入 | 不绑定日志框架；`noop()` 默认空 |
+| `AclConversionException` | 转换失败 | 不可重试 |
+| `AclCommunicationException` | 通信失败 | 通常可重试 |
+
+**下一步阅读**
+
+- [领域服务](./domain-service.md)：编排跨聚合的领域逻辑
+- [仓储](./repository.md)：聚合持久化
+- [领域事件](./domain-event.md)：跨上下文最终一致

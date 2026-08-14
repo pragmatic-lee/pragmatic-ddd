@@ -30,6 +30,7 @@ export default defineConfig({
           text: '开始',
           items: [
             { text: '框架概览', link: '/getting-started/overview' },
+            { text: '设计理念', link: '/getting-started/design-philosophy' },
             { text: '快速开始', link: '/getting-started/quick-start' },
             { text: '推荐项目结构', link: '/getting-started/project-structure' }
           ]
@@ -42,10 +43,10 @@ export default defineConfig({
             { text: '领域建模', link: '/core/domain-modeling' },
             { text: '领域服务', link: '/core/domain-service' },
             { text: '领域事件', link: '/core/domain-events' },
+            { text: '领域操作', link: '/core/domain-operation' },
             { text: '业务规则引擎', link: '/core/business-rules' },
             { text: '应用服务', link: '/core/application-service' },
             { text: '仓储', link: '/core/repository' },
-            { text: '操作追踪', link: '/core/operation-tracking' },
             { text: '变更追踪', link: '/core/change-tracking' },
             { text: '防腐层（ACL）', link: '/core/acl' },
             { text: '外部依赖声明', link: '/core/dependency' },

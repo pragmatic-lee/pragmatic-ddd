@@ -23,6 +23,8 @@ Pragmatic DDD 是一个基于 Java 17 的**实用主义**领域驱动设计（DD
 | **端口-适配器** | 核心定义 SPI 端口，基础设施实现延迟到独立集成包，可自由替换 |
 | **开箱即用** | 聚合根基类内聚规则校验、事件收集、操作追踪、版本号，继承即获得全部能力 |
 
+> **核心主张**：领域层只声明业务事实（状态流转、领域事件、业务规则），而把执行驱动（校验时机、持久化、事件分发）交给框架托管——让领域层成为**业务指挥中心**，而非代码执行者。这一理念的完整阐释见 [设计理念](./design-philosophy.md)。
+
 ## 3. 模块组成
 
 | 模块 | 状态 | 职责 |
@@ -64,6 +66,19 @@ IBroadcastMessenger           对外广播发送端口
 AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 ```
 
+这些类型在一次写请求中的协作关系：
+
+```text
+命令执行器（ICommandExecutor / IUnitOfWork）
+  ├─ 1. 执行聚合根业务方法  → 修改状态、recordOperation、collectEvent
+  ├─ 2. 规则校验           → aggregateRoot.satisfiesRule(entityRule)
+  ├─ 3. 持久化            → repository.save(aggregateRoot)
+  ├─ 4. 发布事件           → eventManager.publish(domainEvents)
+  └─ 5. 清空工作单元        → clearWorkUnitState()
+```
+
+即：**聚合根负责收集事实，应用编排器负责按固定模板执行并驱动校验、落库与事件分发**。完整编排细节见 [应用服务](../core/application-service.md)。
+
 ## 5. 技术栈要求
 
 - **JDK 17+**：框架大量使用 Java 17 特性（record、sealed、pattern matching、switch 表达式）
@@ -72,7 +87,7 @@ AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 
 ## 6. Maven 坐标与 BOM
 
-推荐通过 BOM 一次性管理所有模块版本：
+推荐通过 BOM 一次性管理所有模块版本（以下 `2.0.0` 以当前最新版本为准，请以 BOM 实际发布版本替换）：
 
 ```xml
 <dependencyManagement>
@@ -114,4 +129,7 @@ AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 `pragmatic-ddd-core` 仅依赖 Lombok（provided scope），不传递任何框架依赖。即使你只用核心库不集成 MyBatis/MQ，也能完成完整的 DDD 战术建模。
 :::
 
-下一步：[快速开始 →](./quick-start.md)
+下一步：
+
+- [设计理念 →](./design-philosophy.md)：理解框架为什么这样设计领域层
+- [快速开始 →](./quick-start.md)：跑通你的第一个聚合根

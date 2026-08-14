@@ -1,6 +1,6 @@
 # 业务规则引擎（Business Rules）
 
-> 本文档说明 `io.pragmatic.ddd.base` 与 `io.pragmatic.ddd.rules` 包提供的业务规则能力。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
+> 本文档说明 `io.pragmatic.ddd.base` 与 `io.pragmatic.ddd.rules` 包提供的业务规则能力。其中规则顶层抽象 `IRule` 与违规收集（`BrokenRule` / `MessageCode` 等）位于 `base` 包，校验项级契约 `ICheckRule` / `RuleCheckResult` 及其容器实现位于 `rules` 包。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
 
 ## 1. 概述
 
@@ -13,16 +13,16 @@
 ### 1.2 概念层级与依赖关系
 
 ```text
-io.pragmatic.ddd.base           契约与基础
+io.pragmatic.ddd.base           契约与基础（规则顶层抽象 + 违规收集）
   ├─ IRule<T>                   规则核心契约（satisfiesRule）
-  ├─ ICheckRule<T>              单条不变量校验（check → RuleCheckResult）
-  ├─ RuleCheckResult            校验结果（pass / fail / 带参数）
   ├─ MessageCode                record：规则消息码（局部码 + 描述）
   ├─ BrokenRuleRegistry         消息码注册表基类（反射自动注册）
   ├─ BrokenRule / BrokenRuleObject  违反值对象 / 收集器（AggregateRoot 组合持有）
   └─ AggregateRoot<T>           聚合根：satisfiesRule + 抛异常委托
 
-io.pragmatic.ddd.rules          容器与扩展实现（依赖 base）
+io.pragmatic.ddd.rules          校验项契约 + 容器与扩展实现（依赖 base）
+  ├─ ICheckRule<T>              单条不变量校验（check → RuleCheckResult）
+  ├─ RuleCheckResult            校验结果（pass / fail / 带参数）
   ├─ EntityRule<T>              实体规则容器（一维规则列表 + failFast）
   ├─ RuleItem<T>                规则项（校验项 + 消息码 + 激活条件）
   ├─ IRuleBuild                 规则生命周期钩子（init / reset）
@@ -37,8 +37,9 @@ io.pragmatic.ddd.rules          容器与扩展实现（依赖 base）
 
 | 类型 | 包路径 | 用途 |
 | --- | --- | --- |
-| `IRule<T>` / `ICheckRule<T>` | `io.pragmatic.ddd.base` | 规则核心契约与单条校验 |
-| `RuleCheckResult` | `io.pragmatic.ddd.base` | 校验结果载体 |
+| `IRule<T>` | `io.pragmatic.ddd.base` | 规则核心契约（聚合级） |
+| `ICheckRule<T>` | `io.pragmatic.ddd.rules` | 单条不变量校验契约 |
+| `RuleCheckResult` | `io.pragmatic.ddd.rules` | 校验结果载体 |
 | `MessageCode` / `BrokenRuleRegistry` | `io.pragmatic.ddd.base` | 规则消息码与注册表 |
 | `BrokenRule` / `BrokenRuleObject` | `io.pragmatic.ddd.base` | 违反值对象与收集器 |
 | `EntityRule<T>` | `io.pragmatic.ddd.rules` | 实体规则容器 |
