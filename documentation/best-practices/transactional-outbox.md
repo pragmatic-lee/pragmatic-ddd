@@ -46,7 +46,7 @@ Outbox 模式的解决思路：**把事件与聚合根放在同一个事务中�
 ### 3.1 准备 Outbox 表
 
 ```sql
-CREATE TABLE outbox (
+CREATE TABLE outbox_message (
     id            VARCHAR(64) PRIMARY KEY,
     aggregate_id  VARCHAR(64),
     aggregate_type VARCHAR(255),
@@ -65,8 +65,16 @@ CREATE TABLE outbox (
 ### 3.2 配置 `MybatisOutboxStore`
 
 ```java
+// 1. 注册 OutboxMapper（同包同名 OutboxMapper.xml 自动加载绑定）
 sqlSessionFactory.getConfiguration().addMapper(OutboxMapper.class);
-MybatisOutboxStore outboxStore = new MybatisOutboxStore(sqlSession);
+
+// 2. 提供事务抽象实现（SPI，由使用方按技术栈实现，如 Spring 事务模板 / SqlSession 手动提交）
+//    store 在调用方事务内执行，claim / markSent / release 等补偿操作通过它各自开启独立短事务
+TransactionOperations txOps = ...;
+
+// 3. 装配（构造签名：OutboxMapper + TransactionOperations）
+OutboxMapper mapper = sqlSession.getMapper(OutboxMapper.class);
+MybatisOutboxStore outboxStore = new MybatisOutboxStore(mapper, txOps);
 ```
 
 ### 3.3 配置 `OutboxCommandExecutor`
@@ -100,8 +108,8 @@ OutboxRelay relay = new OutboxRelay(
         Executors.newScheduledThreadPool(1),
         new OutboxRelayConfig(
                 Duration.ofSeconds(5),   // pollInterval
-                100,                      // batchSize
                 Duration.ofSeconds(30),  // grace
+                100,                      // batchSize
                 5));                      // maxAttempts
 
 relay.start();  // 启动周期性轮询
@@ -132,7 +140,7 @@ PENDING ──claim──→ PROCESSING ──publish成功──→ SENT ✅
 
 ```sql
 -- 原子认领（单条 SQL，数据库行锁保证安全）
-UPDATE outbox
+UPDATE outbox_message
 SET status = 'PROCESSING',
     claim_token = #{token},
     updated_at = NOW()

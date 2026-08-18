@@ -219,7 +219,7 @@ public class CancelReasonRequiredRule implements IRule<Order> {
     }
 
     @Override
-    public boolean isSatisfiedBy(Order order) {
+    public boolean satisfiesRule(Order order) {
         // 激活条件：仅当本次触发过 CANCEL 才校验
         if (!order.hasOperation(OrderOperationRegistry.CANCEL)) {
             return true;  // 未取消则不激活本规则

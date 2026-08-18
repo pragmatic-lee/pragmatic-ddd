@@ -35,14 +35,16 @@
 
 ## 3. Outbox Relay 配置
 
-`OutboxRelayConfig`（构造参数，非配置源绑定）：
+前缀：`outbox`（通过 `OutboxRelayConfig.bind(IConfigurationSource)` 绑定）
 
-| 参数 | 类型 | 推荐值 | 说明 |
+| 键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `pollInterval` | Duration | 5-10s | 轮询间隔 |
-| `batchSize` | int | 100-500 | 每次认领批量 |
-| `grace` | Duration | 30-60s | 宽限时间 |
-| `maxAttempts` | int | 3-5 | 最大重试次数 |
+| `poll-interval` | Duration | 5min | 轮询间隔 |
+| `grace` | Duration | 30s | 宽限时间（超过此时间的 PENDING 才会被认领） |
+| `batch-size` | int | 200 | 每次认领批量 |
+| `max-attempts` | int | 10 | 最大重试次数 |
+
+也可通过构造器直接传入（record 参数顺序：`(pollInterval, grace, batchSize, maxAttempts)`）；不配置时使用 `OutboxRelayConfig.defaultConfig()` 的内置默认值。
 
 ## 4. MyBatis TypeHandler 配置
 

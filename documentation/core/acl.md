@@ -1,6 +1,6 @@
 # 防腐层（ACL）
 
-> 本文档说明 `io.pragmatic.ddd.acl` 包提供的防腐层（Anti-Corruption Layer）调用套路能力：统一收敛"领域对象 ↔ 外部系统"之间的请求/响应转换、通信与异常分类。相关文档：[领域事件](./domain-event.md) · [领域服务](./domain-service.md) · [仓储](./repository.md)。
+> 本文档说明 `io.pragmatic.ddd.acl` 包提供的防腐层（Anti-Corruption Layer）调用套路能力：统一收敛"领域对象 ↔ 外部系统"之间的请求/响应转换、通信与异常分类。相关文档：[领域事件](./domain-events.md) · [领域服务](./domain-service.md) · [仓储](./repository.md)。
 
 ## 1. 概述
 
@@ -329,4 +329,4 @@ PragmaticException（框架统一异常基类，可 catch 兜底）
 
 - [领域服务](./domain-service.md)：编排跨聚合的领域逻辑
 - [仓储](./repository.md)：聚合持久化
-- [领域事件](./domain-event.md)：跨上下文最终一致
+- [领域事件](./domain-events.md)：跨上下文最终一致

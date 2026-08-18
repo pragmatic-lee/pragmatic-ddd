@@ -311,7 +311,7 @@ OutboxRelay relay = new OutboxRelay(
         eventManager,
         new Fastjson2EventSerializer(),
         Executors.newScheduledThreadPool(1),
-        new OutboxRelayConfig(Duration.ofSeconds(5), 100, Duration.ofSeconds(30), 5));
+        new OutboxRelayConfig(Duration.ofSeconds(5), Duration.ofSeconds(30),100, 5));
 relay.start();
 ```
 

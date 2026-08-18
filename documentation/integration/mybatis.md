@@ -344,8 +344,13 @@ RuntimeException
 `MybatisOutboxStore` 实现 core 的 `IOutboxStore`：
 
 ```java
-IOutboxStore store = new MybatisOutboxStore(sqlSessionFactory);
-store.save(outboxMessage);
+// 注册 OutboxMapper（同包同名 OutboxMapper.xml 自动加载绑定）
+sqlSessionFactory.getConfiguration().addMapper(OutboxMapper.class);
+
+// 构造签名：OutboxMapper + TransactionOperations（最小事务抽象 SPI，由使用方按技术栈实现）
+OutboxMapper mapper = sqlSession.getMapper(OutboxMapper.class);
+IOutboxStore store = new MybatisOutboxStore(mapper, txOps);
+store.store(List.of(outboxMessage));  // 在调用方事务内执行，与聚合同事务落库
 ```
 
 ## 6. 号段 ID 生成（DbSegmentAllocator）
@@ -411,5 +416,5 @@ CREATE TABLE IF NOT EXISTS id_segment (
 | `CollectionMapping` | `of(entityClass, field, elementType).columnLabel(...)` | 不可 `builder()`；三者缺一不可 |
 | `ListTypeHandler` | 单例注册 `List.class`，由 `columnLabel` 还原泛型 | 同名列不同类型须用不同 `columnLabel` 隔离（启动期 `IllegalStateException`） |
 | `TypeHandlerContext` | `record(6 参数)` → `registerInto(sqlSessionFactory)` | 枚举策略单点来源，勿分头配置 |
-| `MybatisOutboxStore` | `new MybatisOutboxStore(sqlSessionFactory)` | 实现 core `IOutboxStore` |
+| `MybatisOutboxStore` | `new MybatisOutboxStore(mapper, txOps)`（需先 `addMapper(OutboxMapper.class)`） | 实现 core `IOutboxStore`；store 走调用方事务，补偿操作走 `txOps` 独立短事务 |
 | `DbSegmentAllocator` | `new DbSegmentAllocator(sqlSessionFactory)` | 实现 core `IIdSegmentAllocator` |

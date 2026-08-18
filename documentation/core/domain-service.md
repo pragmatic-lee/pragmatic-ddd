@@ -17,8 +17,9 @@
 IDomainService (io.pragmatic.ddd.service)           标记接口，提供 category()
 ├── IEventSubscriberService<T>  (service)            extends IDomainService, IHandle<T>
 ├── IRuleValidatorService       (service)            extends IDomainService
+├── IAttributeCalculatorService (service)            extends IDomainService （第三类属性计算标记子接口）
 ├── ICapabilityProviderService  (service)            extends IDomainService
-└── IEntityPropertyCalculator<T,E,R> (base)          extends IDomainService （第三类属性计算的实际承载）
+└── IEntityPropertyCalculator<T,E,R> (base)          extends IDomainService （第三类绑定实体属性的泛型契约）
 
 IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明 void handleEvent(T)
 ```
@@ -81,7 +82,7 @@ IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明
 
 | 项 | 说明 |
 | --- | --- |
-| 基类接口 | 无专属标记子接口；直接 `extends IDomainService`，或复用 `IEntityPropertyCalculator<T,E,R> extends IDomainService` |
+| 基类接口 | `IAttributeCalculatorService extends IDomainService`（标记子接口）；绑定实体属性时复用 `IEntityPropertyCalculator<T,E,R> extends IDomainService` |
 | 方法 | `R calculate(...)`（自由计算）或 `R calculate(T source, E entity)`（实体属性计算） |
 | 参数 | 领域对象 / 值对象 / 上下文（`IEntityPropertyCalculator` 中 `entity` 在创建场景为 `null`） |
 | 语义边界 | 输出是由输入"推导"出的属性值或视图对象，通常可替换为纯领域计算 |
@@ -183,10 +184,13 @@ public interface IEventSubscriberService<T extends IDomainEvent>
 // 第二类：校验规则（service 包）
 public interface IRuleValidatorService extends IDomainService { }
 
+// 第三类：属性计算（service 包，标记子接口）
+public interface IAttributeCalculatorService extends IDomainService { }
+
 // 第四类：能力供给（service 包）
 public interface ICapabilityProviderService extends IDomainService { }
 
-// 第三类：属性计算（base 包，无专属标记子接口，直接复用泛型契约）
+// 第三类扩展：绑定实体属性的泛型契约（base 包）
 public interface IEntityPropertyCalculator<T, E, R> extends IDomainService {
     R calculate(T source, E entity);   // entity 在创建场景为 null
 }
@@ -226,10 +230,10 @@ public interface IOrderAmountLimitRule extends IDomainService {
 
 ### 4.3 属性计算契约
 
-自由计算场景，直接 `extends IDomainService`：
+自由计算场景，继承第三类标记子接口：
 
 ```java
-public interface IOrderTotalCalculator extends IDomainService {
+public interface IOrderTotalCalculator extends IAttributeCalculatorService {
     OrderTotal calculate(List<OrderItem> items);
 }
 ```
@@ -371,9 +375,9 @@ application/
 
 > **重要约束**：`category()` 仅读取 `@DomainService` 注解。若契约接口既未标注注解、实现类也未标注，则 `category()` 恒返回 `UNKNOWN`，该服务不会进入任何分类维度（不影响方法调用，但会丢失分类元信息，导致依赖分类的扫描/校验逻辑无法识别它）。
 
-### 9.2 第三类无专属标记子接口
+### 9.2 第三类标记子接口
 
-> **重要约束**：框架**未提供** `ITypeConverterService` 这类第三类标记子接口。第三类属性计算应直接 `extends IDomainService`，或在绑定实体属性时复用 `io.pragmatic.ddd.base.IEntityPropertyCalculator<T,E,R>`。误引入不存在的 `ITypeConverterService` 会导致编译失败。
+> **重要约束**：第三类属性计算已提供专属标记子接口 `IAttributeCalculatorService`（`io.pragmatic.ddd.service` 包）：自由计算契约继承它即可声明分类；绑定实体属性的场景复用 `io.pragmatic.ddd.base.IEntityPropertyCalculator<T,E,R>`。注意框架**未提供** `ITypeConverterService`，误引入该不存在的接口会导致编译失败。
 
 ### 9.3 参数类型边界
 
@@ -395,7 +399,7 @@ application/
 | --- | --- | --- | --- | --- |
 | 事件订阅 `EVENT_SUBSCRIBER` | `IEventSubscriberService<T>`（service） | `extends IHandle<T>` | `void handleEvent(T)` | 仅响应已发生事件；非 Spring 需手动注册 |
 | 校验规则 `RULE_VALIDATOR` | `IRuleValidatorService`（service） | 返回 `RuleCheckResult` | `RuleCheckResult check(...)` | 入参须为领域类型；只判断不改状态不写库 |
-| 属性计算 `ATTRIBUTE_CALCULATOR` | 无专属子接口；复用 `IEntityPropertyCalculator`（base） | `calculate(...)` | `R calculate(...)` / `R calculate(T,E)` | 无 `ITypeConverterService`；输出须由输入推导 |
+| 属性计算 `ATTRIBUTE_CALCULATOR` | `IAttributeCalculatorService`（service）；绑定实体属性时复用 `IEntityPropertyCalculator`（base） | `calculate(...)` | `R calculate(...)` / `R calculate(T,E)` | 无 `ITypeConverterService`；输出须由输入推导 |
 | 能力供给 `CAPABILITY_PROVIDER` | `ICapabilityProviderService`（service） | 产出方法 | `T generate()` / `nextId()` | 通常依赖基础设施；输出非由输入推导 |
 | 未分类 `UNKNOWN` | — | 未标注 `@DomainService` | 任意 | `category()` 恒返回 `UNKNOWN`，丢失分类元信息 |
 
