@@ -259,4 +259,64 @@ class TrackedListTest {
         assertThat(list.getAppendedItems()).hasSize(2);
         assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "3", "2", "2");
     }
+
+    // ===== 方案 C：不可变基线（等价 MyBatis 懒加载代理）惰性物化 =====
+
+    @Test
+    void update_withImmutableInit_stillWorks() {
+        TrackedList<TestItem, String> list = new TrackedList<>(List.of(item("1", "a"), item("2", "b"), item("3", "c")));
+
+        list.update(item("2", "whatever"), item("2", "b_updated"));
+
+        assertThat(list.getRemovedItems()).hasSize(1);
+        assertThat(list.getRemovedItems().get(0).label).isEqualTo("b");
+        assertThat(list.getAppendedItems()).hasSize(1);
+        assertThat(list.getAppendedItems().get(0).label).isEqualTo("b_updated");
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "3", "2");
+    }
+
+    @Test
+    void removeItems_withImmutableInit_stillWorks() {
+        TrackedList<TestItem, String> list = new TrackedList<>(List.of(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+
+        List<TestItem> removed = list.removeItems(i -> i.id().equals("1"));
+
+        assertThat(removed).hasSize(1);
+        assertThat(list.getRemovedItems()).hasSize(1);
+        assertThat(list.getRemovedItems().get(0).id).isEqualTo("1");
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("2", "3");
+    }
+
+    @Test
+    void removeAll_withImmutableInit_stillWorks() {
+        TrackedList<TestItem, String> list = new TrackedList<>(List.of(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+        list.removeAll();
+        list.append(item("4", "d"));
+
+        assertThat(list.getRemovedItems()).extracting(i -> i.id).containsExactly("1", "2");
+        assertThat(list.getAppendedItems()).extracting(i -> i.id).containsExactly("4");
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("4");
+    }
+
+    @Test
+    void clearAndAppend_withImmutableInit_stillWorks() {
+        TrackedList<TestItem, String> list = new TrackedList<>(List.of(item("1", "a"), item("2", "b")));
+
+        list.clearAndAppend(List.of(item("3", "x"), item("4", "y")));
+
+        assertThat(list.getRemovedItems()).extracting(i -> i.id).containsExactly("1", "2");
+        assertThat(list.getAppendedItems()).extracting(i -> i.id).containsExactly("3", "4");
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("3", "4");
+    }
+
+    @Test
+    void getInitItems_withImmutableInit_returnsBaseline() {
+        TrackedList<TestItem, String> list = new TrackedList<>(List.of(item("1", "a"), item("2", "b")));
+        list.append(item("3", "c"));
+
+        assertThat(list.getInitItems()).extracting(i -> i.id).containsExactly("1", "2");
+        assertThat(list.getAllItems()).extracting(i -> i.id).containsExactly("1", "2", "3");
+    }
 }

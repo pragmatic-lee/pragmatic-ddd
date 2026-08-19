@@ -13,10 +13,17 @@ import java.util.function.Predicate;
  * 定位基线项时优先按 {@code id()} 精确匹配（走惰性 {@code initMap}），
  * 物理移除时退用 {@code equals()}（需确保 {@code T.equals()} 按 ID 等同）。</p>
  *
- * <h2>惰性 initMap</h2>
+ * <h2>惰性 initCollection（MyBatis 懒加载代理友好）</h2>
  * <p>构造器将基线列表直接赋引用（不遍历、不拷贝），所以传入 MyBatis 懒加载代理时
- * 不会触发子查询。首次调用 {@link #update(T, T)} 或
- * {@link #removeItems(Predicate)} 时才遍历基线建索引（此时也确实需要数据）。</p>
+ * 不会触发子查询。首次经 {@link #getInitCollection()} 访问基线时，若其仍为不可变的
+ * 懒加载代理，则触发子查询并<b>物化</b>为内部可变 {@code ArrayList}（一次性拷贝、
+ * 替换字段引用）。物化后 {@code initCollection} 即本地可变集合，所有就地修改
+ * （{@code update}/{@code removeItems}/{@code removeAll}/{@code clearAndAppend}）
+ * 均正常执行，读路径保持 O(1)。</p>
+ *
+ * <h2>惰性 initMap</h2>
+ * <p>首次调用 {@link #update(T, T)} 或 {@link #removeItems(Predicate)} 时才遍历基线
+ * 建索引（此时也确实需要数据）。</p>
  *
  * <h2>适用对象</h2>
  * <p>本容器只针对<b>有独立 DB 行的对象类型</b>（实体或独立表值对象），
@@ -42,6 +49,10 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
     private List<T> initCollection; // 基线（非 final，供 MyBatis 反射设置）
     private final List<T> appendList = new ArrayList<>(); // 待 INSERT
     private final List<T> removeList = new ArrayList<>(); // 待 DELETE
+
+    // ===== 惰性物化标记 =====
+    // initCollection 是否已物化为本地可变 ArrayList（true 后不再走代理、不再重复物化）
+    private boolean initMaterialized;
 
     // ===== 惰性行标识索引 =====
     private Map<ID, T> initMap;
@@ -189,7 +200,24 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
     public List<T> getInitItems() {
         return List.copyOf(this.getInitCollection());
     }
+
+    /**
+     * 基线物理集合，惰性物化。
+     *
+     * <p>MyBatis 通过反射将懒加载代理直接赋给 {@code initCollection}（不遍历、不触发
+     * 子查询）。首次访问本方法时，若基线尚未物化，则将其物化为内部可变
+     * {@code ArrayList} 并替换字段引用（一次性拷贝；对代理即触发子查询）。
+     * 物化后 {@code initCollection} 为本地可变集合，就地修改（remove/clear）正常执行，
+     * 读路径亦为 O(1)。</p>
+     */
     protected List<T> getInitCollection() {
-        return initCollection;
+        if (this.initCollection == null) {
+            this.initCollection = new ArrayList<>();
+            this.initMaterialized = true;
+        } else if (!this.initMaterialized) {
+            this.initCollection = new ArrayList<>(this.initCollection);
+            this.initMaterialized = true;
+        }
+        return this.initCollection;
     }
 }

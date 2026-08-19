@@ -178,16 +178,17 @@ class OrderRepositoryTest {
         Order order = newOrder(id);
         repo.insert(order); // 落库 2 个订单项（9001、9002）
         createdOrderIds.add(id);
+        Order loaded = repo.findById(id);
 
         // 新增 1 项
-        order.addItem(newOrderItem(9003L, "MacBook", "M3", 9999, 1),
+        loaded.addItem(newOrderItem(9003L, "MacBook", "M3", 9999, 1),
                 new Money(BigDecimal.valueOf(19786), "CNY"));
         // 删除第 2 项（基线项）
-        order.removeItem(9002L, new Money(BigDecimal.valueOf(9787), "CNY"));
-        repo.update(order);
+        loaded.removeItem(9002L, new Money(BigDecimal.valueOf(9787), "CNY"));
+        repo.update(loaded);
 
-        Order loaded = repo.findById(id);
-        assertThat(loaded.getOrderItems().getAllItems()).hasSize(2); // 9001 + 9003
+        Order loaded2 = repo.findById(id);
+        assertThat(loaded2.getOrderItems().getAllItems()).hasSize(2); // 9001 + 9003
 
         Integer dbCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM t_order_item WHERE order_id = ?", Integer.class, id);
