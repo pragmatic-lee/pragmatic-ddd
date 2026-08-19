@@ -69,6 +69,11 @@ export default defineConfig({
           text: '最佳实践',
           items: [
             { text: '聚合设计原则', link: '/best-practices/aggregate-design' },
+            { text: '普通实体设计', link: '/best-practices/entity-design' },
+            { text: '应用服务层协作', link: '/best-practices/application-collaboration' },
+            { text: '注册表设计', link: '/best-practices/registry-design' },
+            { text: '值对象', link: '/best-practices/value-object' },
+            { text: '枚举值对象', link: '/best-practices/enum-value' },
             { text: '校验规则领域服务', link: '/best-practices/rule-validation' },
             { text: '事件建模指南', link: '/best-practices/event-modeling' },
             { text: '事务性发件箱', link: '/best-practices/transactional-outbox' }

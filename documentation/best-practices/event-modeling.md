@@ -10,7 +10,7 @@
 
 - **不可变**：事件一旦产生，其内容不可修改
 - **过去式**：描述"已发生"的事情
-- **自包含**：携带足够的上下文，订阅者无需回查
+- **轻量**：只携带聚合标识与少量路由 ID，不携带业务快照；权威数据由订阅者反查聚合根获取
 
 ## 2. 事件命名规范
 
@@ -30,36 +30,92 @@ CancelOrderEvent           // 语义不清
 
 ## 3. 事件携带的数据
 
-事件应携带**订阅者处理所需的最小完整上下文**，避免订阅者回查聚合根：
+事件只携带**聚合标识与少量路由 / 上下文 ID**，不携带业务快照。事件表达的是「已发生且不可变」的领域事实，它只需回答两个问题：**发生了什么、作用于哪个聚合**。事件发生时的业务状态会继续演进，权威数据始终以聚合根为准。
+
+**订阅者处理时应反查聚合根**：通过事件携带的聚合 ID 调仓储 `findById` 取当前权威状态，再基于最新状态做后续处理。
 
 ```java
-// ✅ 推荐：携带足够上下文
-public class OrderCancelledEvent extends BaseDomainEvent {
+// ✅ 推荐：事件只携带聚合标识与少量路由 ID
+@Getter
+@Setter(AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class OrderCreatedEvent extends BaseDomainEvent {
+    private Long customerId;
 
-    private final String customerId;
-    private final long refundAmount;
-    private final String cancelReason;
+    public OrderCreatedEvent(String entityId) {
+        super(entityId);
+    }
 
-    public OrderCancelledEvent(String orderId, String customerId,
-                               long refundAmount, String cancelReason) {
-        super(orderId);
-        this.customerId = customerId;
-        this.refundAmount = refundAmount;
-        this.cancelReason = cancelReason;
+    public static OrderCreatedEvent buildEvent(Order order) {
+        OrderCreatedEvent event = new OrderCreatedEvent(order.getEntityId().toString());
+        event.setCustomerId(order.getCustomer().getCustomerId());
+        return event;
     }
 }
 
-// ❌ 反模式：只携带 ID，订阅者必须回查
-public class OrderCancelledEvent extends BaseDomainEvent {
-    // 订阅者需要再查 Order 才知道退款金额、客户信息
+// ✅ 订阅者处理时反查聚合根，取权威状态
+public void handle(OrderCreatedEvent event) {
+    Order order = orderRepository.findById(Long.valueOf(event.getEntityId())).orElseThrow();
+    // 基于 order 最新状态做后续处理
 }
 ```
 
-::: warning 不要携带过多数据
-也不要把整个聚合根塞进事件。携带"订阅者大概率需要"的字段即可，避免事件膨胀。
+```java
+// ❌ 反模式：事件携带整份业务快照
+public class OrderCancelledEvent extends BaseDomainEvent {
+    private final String customerId;
+    private final long refundAmount;
+    private final String cancelReason;
+    private final List<OrderItemSnapshot> items;   // 快照膨胀、易过期
+}
+```
+
+::: tip 可以带少量路由 ID，但不要带快照
+事件可以携带少量**路由 / 上下文 ID**（如 `customerId`、`orderId`），用于订阅者定位聚合、路由到正确的处理分支；但**不要携带整份业务快照**——快照会过期、会随业务字段增长而膨胀，权威数据始终以聚合根为准。
 :::
 
-## 4. 即时事件 vs 延迟事件
+## 4. 事件的构造方式：buildEvent 静态工厂
+
+事件实例统一通过 `buildEvent(聚合类型)` 静态工厂构造，入参是**当前聚合对象**，而不是零散原始值。聚合根在业务方法里只写 `collectEvent(OrderPaidEvent.buildEvent(this))`，事件字段的提取集中在一处，聚合字段变化时只改工厂。
+
+参考示例（`examples/order-example` 的 `OrderPaidEvent`）：
+
+```java
+@Getter
+@Setter(AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class OrderPaidEvent extends BaseDomainEvent {
+
+    private LocalDateTime paidAt;
+
+    private BigDecimal amount;
+
+    public OrderPaidEvent(String entityId) {
+        super(entityId);
+    }
+
+    public static OrderPaidEvent buildEvent(Order order) {
+        OrderPaidEvent event = new OrderPaidEvent(order.getEntityId().toString());
+        event.setPaidAt(order.getPaidAt());
+        event.setAmount(order.getTotalAmount().getAmount());
+        return event;
+    }
+}
+```
+
+**Lombok 约定**（与聚合根 / 值对象一致）：
+
+- `@Getter` + `@Setter(AccessLevel.PROTECTED)`：事件字段对外只读，写入仅限 `buildEvent` 工厂与框架反序列化。
+- `@NoArgsConstructor(access = AccessLevel.PROTECTED)`：供持久化 / 反序列化框架（Fastjson2）重建对象。
+- 构造：`Event(String entityId)` 调 `super(entityId)` 把聚合标识交给 `BaseDomainEvent`；`entityId` / `eventId` / `occurredOn` 由基类承载，`operationCode` / `version` 由框架在 `collectEvent` 时回填。
+- **禁用 `@Data` / `@Builder`**：事件等同性不承载业务含义、按对象身份区分；`@Builder` 无法把聚合标识传给基类构造。
+
+**要点**：
+
+- 工厂入参是聚合对象（业务方法里传 `this`），`buildEvent` 内先 `new Event(entityId)`、再 `set` 必要字段，避免在业务方法里拼零散参数。
+- 事件字段只承载「定位聚合 + 少量路由 ID」，不携带业务快照（见 §3）。
+
+## 5. 即时事件 vs 延迟事件
 
 ```java
 // 即时事件：立即构造，适用于事件内容在业务方法中已确定
@@ -83,7 +139,7 @@ this.collectEvent(() -> new OrderSubmittedEvent(
 | 事件内容依赖后续计算或最终状态 | 延迟事件 |
 | 事件构造开销大、可能不被发布 | 延迟事件 |
 
-## 5. 事件粒度
+## 6. 事件粒度
 
 一个业务操作可产生多个事件，每个事件表达一个**独立的领域事实**：
 
@@ -112,7 +168,7 @@ this.collectEvent(new InventoryDeductedEvent(...));
 this.collectEvent(new LoyaltyPointsEarnedEvent(...));
 ```
 
-## 6. 事件与操作的关系
+## 7. 事件与操作的关系
 
 操作（`EntityOperation`）是"做了什么"，事件（`IDomainEvent`）是"发生了什么"：
 

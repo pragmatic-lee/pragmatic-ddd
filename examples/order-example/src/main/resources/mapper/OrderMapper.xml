@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  纯 XML Mapper（无对应 Java 接口类）。namespace 作为语句命名空间标识，
+  由 mybatis-config.xml 的 <mappers> 统一加载，调用方通过
+  sqlSession.insert/select("...OrderMapper.insert", param) 使用。
+-->
+<mapper namespace="io.pragmatic.ddd.example.order.infrastructure.order.repository.mapper.OrderMapper">
+
+    <!-- 订单聚合持久化语句。具体列映射随领域模型落地时补充；此处预留骨架。 -->
+
+    <insert id="insert" parameterType="io.pragmatic.ddd.example.order.domain.order.model.Order">
+        <!-- TODO: 按 Order 聚合字段补充 INSERT 语句 -->
+    </insert>
+
+    <update id="update" parameterType="io.pragmatic.ddd.example.order.domain.order.model.Order">
+        <!-- TODO: 按 Order 聚合字段补充 UPDATE 语句 -->
+    </update>
+
+    <delete id="deleteById" parameterType="java.lang.Long">
+        <!-- TODO: 按订单主键补充 DELETE 语句 -->
+    </delete>
+
+    <select id="selectById" parameterType="java.lang.Long" resultType="io.pragmatic.ddd.example.order.domain.order.model.Order">
+        <!-- TODO: 按订单主键补充 SELECT 语句 -->
+    </select>
+
+</mapper>

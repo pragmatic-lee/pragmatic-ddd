@@ -1,6 +1,6 @@
 # 聚合设计原则
 
-> 本文档介绍使用 Pragmatic DDD 进行聚合设计的最佳实践与常见反模式，并结合聚合根实体编码规范给出可直接落地的代码示例。
+> 本文档介绍使用 Pragmatic DDD 进行聚合设计的最佳实践与常见反模式：先明确聚合本身的边界与粒度原则，再说明框架父类已经托管的字段与能力，最后落到聚合根编码规范。
 
 ## 1. 聚合设计原则
 
@@ -61,26 +61,90 @@ unitOfWork.register(order, orderRule, orderRepo, Order::cancel)
 
 ---
 
-## 2. 聚合根编码规范
+## 2. 框架父类已提供的能力
+
+聚合根继承 `AggregateRoot<T>` 后，身份标识、审计字段、软删标记、版本号、规则校验、领域事件与操作追踪全部由父类托管。**聚合根只需声明业务字段与业务方法，不要重复造基础设施的轮子。**
+
+### 2.1 继承体系
+
+```text
+IEntity<T>                    实体标识契约（暴露 getEntityId）
+  └─ AbstractEntity<T>       实体基类：ID / 软删 / 审计 / 等同性 / 时间戳
+       └─ AggregateRoot<T>   聚合根基类：规则 / 版本 / 事件 / 操作 / 清理
+```
+
+### 2.2 已托管的字段
+
+| 字段 | 继承自 | 说明 |
+| --- | --- | --- |
+| `entityId` | `AbstractEntity` | 身份标识，经 `setEntityId(T)` 赋值；持久化重建时由仓储回填 |
+| `entityDelete` | `AbstractEntity` | 软删标记 |
+| `createdAt` / `updatedAt` | `AbstractEntity` | 审计时间戳（`LocalDateTime`） |
+| `createdBy` / `updatedBy` | `AbstractEntity` | 审计操作人 |
+| `oldVersion` | `AggregateRoot` | 上一次持久化版本，默认 `1`，仓储 `findById` 回填 |
+| `isNew` | `AggregateRoot` | 新建标记，仓储 `save()` 据此路由 insert / update |
+
+**设计含义**：聚合根类里只出现业务字段。ID、审计、软删、版本都是父类字段，不要自定义同名属性；审计时间戳只能经 `markCreated()` / `markModified()` 写入，禁止直接操作。
+
+### 2.3 已提供的能力
+
+**等同性（由 `entityId` 托管）**
+
+`equals` / `hashCode` / `toString` 由 `AbstractEntity` 基于身份标识实现：两方 `entityId` 均非空且相等即为同一实体。**不要覆盖 `equals` / `hashCode`**——聚合根等同性与业务字段无关，覆盖会破坏集合去重与对账逻辑。
+
+**审计时间戳**
+
+- `markCreated()`：置 `createdAt` 与 `updatedAt` 为当前时间，业务构造函数末尾调用一次。
+- `markModified()`：刷新 `updatedAt`，业务方法修改状态后调用。
+
+**规则校验（委托 `BrokenRuleObject`）**
+
+聚合根组合持有规则违反收集器，无需自建校验设施：`addBrokenRule(MessageCode)` / `addParamBrokenRule(...)` 追加违反；`getBrokenRules()` 只读查询；`throwBrokenRuleException()`（单条）/ `throwBrokenRuleAggregateException()`（全量）抛出；`satisfiesRule(IRule<?>)` 执行规则。校验触发时机由应用层决定，业务方法内不自行校验。
+
+**版本号与乐观锁**
+
+`oldVersion` 由仓储回填；`getNewVersion()` 幂等返回递增后的版本号（首次调用 `oldVersion + 1` 并缓存）。持久化层以 `version = oldVersion` 作为乐观锁条件，影响行数为 0 即冲突。**不要自建 version 字段。**
+
+**新建标记**
+
+`markNew()` 置 `isNew = true`，仓储 `save()` 据此路由 insert / update；重建对象没有新建标记，靠 `isNew()` 区分。
+
+**领域事件收集（`collectEvent` 系列为 `protected`，仅供聚合根内部）**
+
+| 方法 | 说明 |
+| --- | --- |
+| `collectEvent(BaseDomainEvent)` | 收集立即事件，自动回填 `operationCode`（最近一次 `recordOperation`）与 `version` |
+| `collectEvent(BaseDomainEvent, EntityOperation)` | 显式指定成因操作（优先级最高） |
+| `collectEvent(Supplier<IDomainEvent>)` | 延迟事件，发布时才构造并回填，ID 后生成场景必用 |
+| `getDomainEvents()` | `public`，应用层读取本工作单元已收集事件 |
+| `triggerDataSyncHook()` | `public`，仓储落库前调用，子类覆写以发异构事件 |
+
+> 事件成因约束：使用无显式操作参数的 `collectEvent(BaseDomainEvent)` 前，必须先 `recordOperation(...)`，否则启用了操作体系时抛 `OperationException`。操作与事件的顺序详见 [应用服务层协作](./application-collaboration.md)。
+
+**操作追踪**
+
+`recordOperation(EntityOperation)`（`protected`）记录操作；`hasOperation` / `hasAllOperations` / `hasAnyOperation`（`public`）供应用层判断已触发操作。
+
+**工作单元清理**
+
+`clearWorkUnitState()` 清空已收集事件、已触发操作与因果指针，由应用层在事件分发完成后调用。
+
+### 2.4 父类要求聚合根提供的东西
+
+`AggregateRoot` 声明两个 `protected abstract` 方法，聚合根必须实现：
+
+```java
+protected abstract BrokenRuleRegistry brokenRuleRegistry();   // 规则注册表，不能为 null
+protected abstract OperationRegistry operationRegistry();     // 操作注册表；返回 null = 不启用操作体系
+```
+
+---
+
+## 3. 聚合根编码规范
 
 聚合根继承 `AggregateRoot<T>`，通过业务构造函数初始化，业务方法内聚状态变更；规则注册表与操作注册表由领域层定义，领域事件由聚合根收集，应用层负责发布与清理。
 
-- **聚合根**：DDD 聚合的唯一对外入口，充血模型，承载状态变更、Operation 记录、事件收集
-- **注册表**：领域层定义 `{聚合}OperationRegistry` 与 `{聚合}BrokenRuleRegistry`，反射自动注册
-- **领域事件**：表达已发生的领域事实，由聚合根 `collectEvent` 收集
-- **应用层**：在合适时机触发规则校验，发布事件后调用 `clearWorkUnitState()` 清理
-
-### 2.1 继承基类与两个抽象方法
-
-聚合根继承 `io.pragmatic.ddd.base.AggregateRoot<T>`，必须实现两个 `protected abstract` 方法：
-
-```java
-/** 提供规则注册表，不能为 null。 */
-protected abstract BrokenRuleRegistry brokenRuleRegistry();
-
-/** 提供操作注册表；返回 null 表示不启用操作体系。 */
-protected abstract OperationRegistry operationRegistry();
-```
+### 3.1 两个抽象方法的实现
 
 实现推荐以单例 `INSTANCE` 返回，避免每次调用重复 new：
 
@@ -96,7 +160,9 @@ protected OperationRegistry operationRegistry() {
 }
 ```
 
-### 2.2 构造函数与无参构造
+> 注册表类的编写规范（`public` 类、单例 `INSTANCE`、`code` 命名约定）见 [注册表设计](./registry-design.md)。
+
+### 3.2 构造函数与无参构造
 
 聚合根存在两类构造路径，职责不同，**切勿混用**：
 
@@ -119,9 +185,9 @@ protected Person() {
 
 > 重建出的对象没有「新建」标记，依赖 `isNew()` 即可区分。
 
-### 2.3 充血模型业务方法
+### 3.3 充血模型业务方法
 
-业务变更逻辑内聚在聚合根内部，一个标准的业务方法只包含三步：修改属性、更新审计时间、记录 Operation 并收集事件。
+业务方法内聚聚合根的状态变更，本质是**纯粹的赋值**：把「准备好的」入参赋给自身字段，再收尾（更新审计时间、记录 Operation、收集事件）。它**不需要任何守卫**，也不携带任何其他职责。
 
 ```java
 public void update(PersonUpdateData data) {
@@ -133,57 +199,68 @@ public void update(PersonUpdateData data) {
 }
 ```
 
-**关键认知**：规则校验不是业务方法的责任。业务方法只负责「执行变更」，校验由应用层或统一校验入口在合适时机触发。这样业务方法保持纯粹、可预测，也避免了校验逻辑散落各处。
+业务方法保持纯粹、可预测，**它就是赋值**。围绕它有两条设计原则：
 
-### 2.4 协作组件：注册表 / 事件 / 值对象
+**① 不做规则校验**
 
-**注册表（必须 `public`）**：基类在 `io.pragmatic.ddd.base` 包内通过反射扫描子类的 `static` 字段并 `field.get(null)`。若子类是包级私有，`IllegalAccessException` 会被静默吞掉，导致操作码/校验码未注册。推荐单例 `INSTANCE`，无需手动 `register`，`localCode` 字符串必须与常量字段名完全相同。
+规则校验不是业务方法的责任，业务方法内**不写任何 `if + throw` 守卫**。校验（含前置状态不变性）由应用层或统一校验入口在合适时机触发（`satisfiesRule` / `EntityRule`），校验逻辑集中可审计，业务方法不被守卫塞满、保持可测。
+
+**② 不做数据的组装与转换**
+
+业务方法不负责把入参组装成领域对象，也不做数据格式转换（字符串转日期、code 转枚举、DTO 转领域结构等）。凡是业务方法要用的值对象、已转换的字段，由**调用方 / 工厂**组装好再传入；业务方法只做字段赋值与状态变更。数据组装与转换集中在应用层（`EntityFactory` / `EntityUpdater`）或调用方完成。
 
 ```java
-public class PersonOperationRegistry extends OperationRegistry {
-    public static final EntityOperation CREATE = EntityOperation.of("CREATE", "创建人员");
-    public static final EntityOperation UPDATE = EntityOperation.of("UPDATE", "更新人员");
-    private PersonOperationRegistry() {}
-    public static final PersonOperationRegistry INSTANCE = new PersonOperationRegistry();
+// ❌ 反模式：业务方法内加守卫、做数据组装与转换
+public void update(PersonUpdateData data) {
+    if (data.getAge() < 0) {
+        throw new IllegalArgumentException("年龄不能为负");                     // 守卫
+    }
+    this.address = new Address(data.getProvince(), data.getCity(), data.getDetail()); // 组装值对象
+    this.birthday = LocalDate.parse(data.getBirthday(), DateTimeFormatter.ISO_DATE);  // 字符串转日期
+    this.status = Status.of(data.getStatusCode());                                    // code 转枚举
+    // ... 业务方法被守卫与组装转换逻辑塞满
 }
 
-public class PersonBrokenRuleRegistry extends BrokenRuleRegistry {
-    public static final MessageCode NAME_EMPTY = MessageCode.of("NAME_EMPTY", "姓名不能为空");
-    private PersonBrokenRuleRegistry() {}
-    public static final PersonBrokenRuleRegistry INSTANCE = new PersonBrokenRuleRegistry();
-}
+// ✅ 推荐：入参已组装转换好，业务方法无守卫、纯赋值（见上例）
 ```
 
-校验码命名：不带聚合/领域前缀、全大写下划线、跨聚合允许重名（各自独立注册）、不收敛为有限枚举词表；`description` 支持 `{}` 占位符。
+配合 §3.4 参数对象（`IParamObject` 收敛入参）与 `EntityFactory` / `EntityUpdater`（命令 → 领域结构的组装与转换），业务方法只收「准备好的」入参、只改自己的状态。
 
-**领域事件**：表达「已发生且不可变」的领域事实，必须有 `buildEvent(聚合类型)` 静态工厂（入参是当前聚合对象，不是零散原始值），`operationCode` 与 `version` 由框架回填。
+### 3.4 参数对象：用 `IParamObject` 收敛入参
+
+构造函数或业务方法的入参过多（一般超过 5 个，或参数明显成组出现）时，不要逐个列参，而是封装成一个参数对象整体传入，并让该对象**实现 `IParamObject` 标记接口**。这样既避免了超长参数列表难以阅读、容易传错顺序，也让入参结构可复用、可演进——新增字段只改参数对象，不改方法签名。
+
+`IParamObject` 只是**数据容器**标记：类上加 Lombok 注解（如 `@Data`）即可，**不需要手写构造函数**来初始化，字段经 setter 或工厂赋值。
 
 ```java
-@Getter
-@Setter(AccessLevel.PROTECTED)
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public static class PersonCreatedEvent extends BaseDomainEvent {
+@Data // 纯数据容器：加注解即可，无需手写构造函数
+public class PersonInitData implements IParamObject {
     private String name;
     private int age;
-
-    protected PersonCreatedEvent(String entityId) {
-        super(entityId);
-    }
-
-    public static PersonCreatedEvent buildEvent(Person person) {
-        PersonCreatedEvent event = new PersonCreatedEvent(String.valueOf(person.getEntityId()));
-        event.setName(person.getName());
-        event.setAge(person.getAge());
-        return event;
-    }
+    private String email;
 }
+
+@Data
+public class PersonUpdateData implements IParamObject {
+    private String name;
+    private int age;
+}
+
+// 构造函数与业务方法都只收一个参数对象
+public Person(PersonInitData data) { ... }
+
+public void update(PersonUpdateData data) { ... }
 ```
 
-**值对象与枚举**：值对象（继承 `ValueObject` / 实现 `IValueObject`）是由属性组合判等的可嵌入数据结构（如地址），不可变；枚举（实现 `IEnumValue<T, 自身>`）是固定离散常量集合（如状态机）。经验法则：能用有限个常量表达的分类用枚举；需要由多个字段组合且按结构判等的数据用值对象。复杂值对象通过 MyBatis JSON TypeHandler 整体读写数据库 JSON 列——**必须实现 `IValueObject` 标记接口**才会被自动登记。构造入参超过 5 个时，用实现 `IParamObject` 的数据容器（如 `AddressInitData`）收敛入参。
+**判定原则**：入参 ≤ 3 个且短小稳定时可直接列参；一旦超过 5 个，或参数经常成组出现、未来可能继续增加，就应封装为 `IParamObject` 数据容器。
 
-### 2.5 Lombok 统一约定
+**与领域对象不同**：参数对象是纯数据容器——只声明字段、加 `@Data` 即可，不放任何业务逻辑、不继承领域基类。这里的 `@Data` 是被鼓励的；而聚合根禁用 `@Data`（见 §3.5）、值对象禁用 `@Data`（见 [值对象最佳实践](./value-object.md)），注意区分。
 
-聚合根与值对象的字段一律 `@Getter` + `@Setter(AccessLevel.PROTECTED)`（对外只读、对内/重建可写），重建构造用 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`。两者均**禁用 `@Data` / `@EqualsAndHashCode` / `@Builder`**（聚合根等同性由 `AbstractEntity` 托管、值对象判等由 `ValueObject` 基类托管）；聚合根全参业务构造必须手写（含副作用）。
+> 与[值对象](./value-object.md)（`IValueObject`）的区别：参数对象是**入参**载体，不参与持久化，等同性由 Lombok `@Data` 生成、纯属容器便利，不承载领域判等语义；值对象是**领域内**的可嵌入数据结构，判等是其领域行为。两者不要混用。
+
+### 3.5 Lombok 统一约定
+
+聚合根字段一律 `@Getter` + `@Setter(AccessLevel.PROTECTED)`（对外只读、对内/重建可写），重建构造用 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`。**禁用 `@Data` / `@EqualsAndHashCode` / `@Builder`**（聚合根等同性由 `AbstractEntity` 托管）；聚合根全参业务构造必须手写（含副作用）。值对象的 Lombok 约定见 [值对象最佳实践](./value-object.md)。
 
 ```java
 @Getter
@@ -206,38 +283,6 @@ public class Person extends AggregateRoot<Long> {
 
 ---
 
-## 3. 应用层协作
-
-### 3.1 操作与事件的顺序
-
-每次业务行为必须**先 `recordOperation`，后 `collectEvent`**。框架的事件会自动回填 `operationCode`（取最近一次操作）与 `version`。如果先收集事件再记录操作，事件因缺少成因而抛 `OperationException`。
-
-```java
-this.recordOperation(PersonOperationRegistry.UPDATE); // 先
-this.collectEvent(PersonUpdatedEvent.buildEvent(this)); // 后
-```
-
-若希望事件成因与「最近操作」解耦，使用 `collectEvent(event, triggerOperation)` 显式指定。
-
-### 3.2 延迟事件：ID 后生成必用
-
-当聚合根 ID 由持久化后生成（自增主键、仓储回填雪花 ID），**构造期 `getEntityId()` 还是 `null`**。若用立即事件，事件会定格错误的 `entityId`，且无法补救。
-
-框架提供延迟事件重载 `collectEvent(Supplier<IDomainEvent>)`：`Supplier` 在事件真正发布时才执行，届时读到真实 ID。
-
-```java
-// ID 构造期未知 → 强制延迟事件
-this.collectEvent(() -> PersonCreatedEvent.buildEvent(this));
-```
-
-判定原则：**构造期拿不到确定 ID，一律用延迟事件**；ID 由业务传入（UUID / 雪花 ID）时，可用立即事件 `collectEvent(PersonCreatedEvent.buildEvent(this))`。
-
-### 3.3 事件发布后的清理
-
-应用层在事件分发完成后，必须调用 `clearWorkUnitState()` 清空已收集的事件、操作与因果指针，避免同一工作单元被重复处理或跨请求串味。
-
----
-
 ## 4. 常见反模式
 
 | 反模式 | 问题 | 正确做法 |
@@ -247,116 +292,19 @@ this.collectEvent(() -> PersonCreatedEvent.buildEvent(this));
 | 聚合根之间直接调用 | 耦合、事务边界模糊 | 通过领域事件解耦 |
 | 领域逻辑泄漏到应用层 | 贫血模型 | 领域逻辑内聚到聚合根 |
 | 业务方法内做规则校验 | 校验散落、方法不可测 | 校验交由应用层 `satisfiesRule` 触发 |
-| 注册表写成包级私有 | 反射注册失败、码未注册 | 注册表子类必须为 `public` |
+| 业务方法内做数据组装与转换 | 方法职责混杂、不可测 | 组装/转换集中在应用层或调用方，业务方法只做状态变更 |
 | 聚合根用 `@Data`/`@Builder` | 破坏等同性、构造副作用丢失 | 用 `@Getter`+`@Setter(PROTECTED)`，手写业务构造 |
-| 仓储返回 DTO | 混淆读写模型 | 写走 `IRepository`，读走 `IAggregateProjection` |
 
 ---
 
-## 5. 异常处理策略
+## 下一步
 
-```
-PragmaticException             框架所有业务异常的抽象基类
- └── RuleException             业务规则校验异常基类
-      └── BrokenRuleException          单条规则违反（code + message + source）
-      └── BrokenRuleAggregateException 聚合规则违反（含全部违反）
-```
-
-推荐处理方式：
-
-```java
-@RestControllerAdvice
-public class GlobalExceptionHandler {
-
-    @ExceptionHandler(BrokenRuleException.class)
-    public ResponseEntity<ErrorResponse> handleBrokenRule(BrokenRuleException e) {
-        // 把 code 映射为前端友好的错误码
-        return ResponseEntity.badRequest()
-                .body(new ErrorResponse(e.getCode(), e.getMessage()));
-    }
-
-    @ExceptionHandler(BrokenRuleAggregateException.class)
-    public ResponseEntity<ErrorResponse> handleAggregate(BrokenRuleAggregateException e) {
-        // 返回全部违反信息
-        List<ErrorResponse.FieldError> errors = e.getBrokenRules().stream()
-                .map(r -> new ErrorResponse.FieldError(r.getName(), r.getDescription()))
-                .toList();
-        return ResponseEntity.badRequest()
-                .body(new ErrorResponse("AGGREGATE_VIOLATION", "校验失败", errors));
-    }
-
-    @ExceptionHandler(PragmaticException.class)
-    public ResponseEntity<ErrorResponse> handlePragmatic(PragmaticException e) {
-        // 兜底捕获
-        return ResponseEntity.internalServerError()
-                .body(new ErrorResponse("INTERNAL", e.getMessage()));
-    }
-}
-```
-
----
-
-## 6. 项目分包建议
-
-```
-com.example.order/
-├── domain/                 # 领域层
-│   ├── model/              # 聚合根、实体、值对象
-│   │   ├── Order.java
-│   │   ├── OrderItem.java
-│   │   └── Address.java
-│   ├── rule/              # 规则
-│   │   ├── OrderRule.java
-│   │   └── OrderRuleRegistry.java
-│   ├── event/             # 领域事件
-│   │   └── OrderCancelledEvent.java
-│   ├── operation/         # 操作注册表
-│   │   └── OrderOperationRegistry.java
-│   └── service/           # 领域服务
-│       └── TransferService.java
-├── application/           # 应用层
-│   ├── command/           # 命令服务
-│   │   └── OrderCommandService.java
-│   ├── query/             # 查询服务
-│   │   └── OrderQueryService.java
-│   ├── factory/           # 实体工厂
-│   └── updater/           # 实体更新器
-├── infrastructure/        # 基础设施层
-│   ├── persistence/       # 仓储实现
-│   │   ├── OrderRepositoryImpl.java
-│   │   └── OrderMapper.java
-│   ├── event/             # 事件管理器
-│   │   └── EventManagerConfig.java
-│   └── outbox/            # Outbox 实现
-│       └── OutboxConfig.java
-└── interfaces/            # 接口层
-    ├── rest/              # REST Controller
-    │   └── OrderController.java
-    └── rpc/               # RPC 入口
-```
-
----
-
-## 7. 命名规范速查
-
-| 层 | 类型 | 命名格式 | 示例 |
-|----|------|---------|------|
-| 领域层 | 聚合根 | `{业务对象}` extends `AggregateRoot<T>` | `Person` |
-| 领域层 | 操作注册表 | `{聚合}OperationRegistry` | `PersonOperationRegistry` |
-| 领域层 | 规则注册表 | `{聚合}BrokenRuleRegistry` | `PersonBrokenRuleRegistry` |
-| 领域层 | 操作常量 | `EntityOperation.of("CODE", "描述")` | `CREATE` |
-| 领域层 | 校验码常量 | `MessageCode.of("NAME_EMPTY", "描述")` | `NAME_EMPTY` |
-| 领域层 | 领域事件 | `{聚合}{动作}Event` extends `BaseDomainEvent` | `PersonCreatedEvent` |
-| 领域层 | 事件工厂 | `buildEvent({聚合})` | `PersonCreatedEvent.buildEvent(person)` |
-| 领域层 | 值对象 | 继承 `ValueObject` / 实现 `IValueObject` | `Address` |
-| 领域层 | 枚举 | 实现 `IEnumValue<T, 自身>` | `Status` |
-| 应用层 | 入参容器 | `{聚合}{动作}Data` implements `IParamObject` | `PersonUpdateData` |
-
----
-
-下一步：
-
+- [普通实体设计](./entity-design.md)：聚合内子实体的设计
+- [应用服务层协作](./application-collaboration.md)：操作/事件顺序、延迟事件、工作单元清理与异常响应
+- [注册表设计](./registry-design.md)：操作注册表与规则注册表的编写规范
+- [值对象最佳实践](./value-object.md)：值对象的取舍与编写规范
 - [事件建模指南](./event-modeling.md)
+- [校验规则领域服务](./rule-validation.md)
 - [事务性发件箱](./transactional-outbox.md)
 - [聚合根实现详解](../core/domain-modeling.md)
 - [领域事件体系](../core/domain-events.md)

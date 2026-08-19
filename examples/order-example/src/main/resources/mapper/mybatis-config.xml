@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+
+    <settings>
+        <!-- 下划线转驼峰，领域字段与数据库列自动映射 -->
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+        <!-- 非空列映射，避免覆盖已有值 -->
+        <setting name="aggressiveLazyLoading" value="false"/>
+    </settings>
+
+    <typeAliases>
+        <package name="io.pragmatic.ddd.example.order.domain"/>
+        <package name="io.pragmatic.ddd.mybatis.outbox"/>
+        <package name="io.pragmatic.ddd.mybatis.id"/>
+    </typeAliases>
+
+    <!--
+        Mapper 组织中心：所有 Mapper XML 在此统一声明加载，不使用 @MapperScan，也不在 Java 中持有 Mapper 接口类。
+        - OrderMapper：订单域纯 XML Mapper（无对应接口，namespace 仅作语句命名空间）。
+        - OutboxMapper / IdSegmentMapper：来自 pragmatic-ddd-mybatis 框架的 Mapper 契约，
+          其 namespace 为接口全限定名，MyBatis 解析 XML 时会自动将该接口注册为 Mapper 代理，
+          因此框架使用方（MybatisOutboxStore / DbSegmentAllocator）仍可正常 getMapper。
+    -->
+    <mappers>
+        <mapper resource="mapper/OrderMapper.xml"/>
+        <mapper resource="io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml"/>
+        <mapper resource="io/pragmatic/ddd/mybatis/id/IdSegmentMapper.xml"/>
+    </mappers>
+
+</configuration>
