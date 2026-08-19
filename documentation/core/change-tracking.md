@@ -58,7 +58,9 @@ appendList（新增桶）      ← 本次新增的子项 → 持久化发 INSERT
 removeList（删除桶）      ← 本次移除的子项 → 持久化发 DELETE
 ```
 
-构造器有两种形态：无参构造（`initCollection = 空`）用于新建聚合；带 `List<T>` 构造用于 DB 加载，且**直接赋引用、不遍历、不拷贝**。
+构造器有两种形态：无参构造（`initCollection = 空`）用于新建聚合；带 `List<T>` 构造用于 DB 加载，且**直接赋引用、不遍历、不拷贝**（MyBatis 懒加载代理原样传入，不触发子查询）。
+
+**惰性物化**：首次经 `getInitCollection()` 访问基线时，若其仍为不可变的懒加载代理，则触发子查询并物化为内部可变 `ArrayList`（一次性拷贝、替换字段引用，`initMaterialized = true`）。物化后 `initCollection` 即为本地可变集合，所有就地修改（`update` / `removeItems` / `removeAll` / `clearAndAppend`）均正常执行，读路径保持 O(1)。**首次访问后才可对基线做就地修改**，因此对懒加载代理必须先经过物化读路径再变更。
 
 #### 2.2.2 基本用法
 
@@ -264,11 +266,14 @@ t0  orderMapper.selectById(id)
       → <collection property="initCollection" fetchType="lazy">
         → 设置 initCollection = 懒加载代理（未执行子查询）★
 
-t1  首次调用 getItems() / getAllItems()
-      → 遍历 initCollection → 触发 selectItemsByOrderId → 返回真实子项
+t1  首次调用 getItems() / getAllItems() / getInitCollection()
+      → 惰性物化：遍历代理 → 触发 selectItemsByOrderId → 返回真实子项
+      → 物化为内部可变 ArrayList（一次性拷贝）★
+
+t2  此后读路径为 O(1)，就地修改（remove/clear）直接作用于本地集合
 ```
 
-若不需要懒加载，去掉 `fetchType="lazy"` 即可在加载时立即带齐子项。
+若不需要懒加载，去掉 `fetchType="lazy"` 即可在加载时立即带齐子项（无参构造后立即物化）。
 
 ### 3.4 仓储读取
 
@@ -331,7 +336,7 @@ public void save(Product product) {
 ```
 
 :::: tip 读 API 不触发子查询
-`getAppendedItems()` / `getRemovedItems()` / `getInsertedEntries()` / `getUpdatedEntries()` / `getRemovedEntries()` 只读变更桶，**不访问基线**，因此仓储写入阶段不会触发懒加载子查询。只有 `getAllItems()` / `getInitItems()` / `update()` / `removeItems()` 才遍历基线。
+`getAppendedItems()` / `getRemovedItems()` / `getInsertedEntries()` / `getUpdatedEntries()` / `getRemovedEntries()` 只读变更桶，**不访问基线**，因此仓储写入阶段不会触发懒加载子查询。`getAllItems()` / `getInitItems()` 访问基线时：首次触发惰性物化（子查询），物化后不再触发、读路径 O(1)。`update()` / `removeItems()` 也会触发物化建索引。
 ::::
 
 ### 3.6 TrackedMap 的映射注意点
@@ -381,31 +386,35 @@ public void setAttributes(List<Attribute> list) {
 
 ## 4. 关键机制与避坑指南
 
-### 4.1 惰性索引与懒加载
+### 4.1 惰性物化与惰性索引
 
-`TrackedList` 构造时直接赋引用（不遍历）。传入 MyBatis 懒加载代理时，代理原样保存在 `initCollection`，不触发子查询；首次调用 `update` 或 `removeItems` 时遍历基线建惰性 `initMap`（按 `id()` 精确索引），此时也确实需要数据。
+`TrackedList` 构造时直接赋引用（不遍历）。传入 MyBatis 懒加载代理时，代理原样保存在 `initCollection`，不触发子查询。
 
-| 操作 | 触发子查询 | 说明 |
+**惰性物化**：首次访问基线（`getInitCollection()`）时，若其仍为不可变懒加载代理，则触发子查询并物化为内部可变 `ArrayList`（`initMaterialized = true`，一次性拷贝、替换字段引用）。物化后才可对基线做就地修改（remove/clear），读路径 O(1)。
+
+**惰性索引**：首次调用 `update` 或 `removeItems` 时，先经惰性物化拿到可变基线，再按 `id()` 建 `initMap` 精确索引。
+
+| 操作 | 触发物化/子查询 | 说明 |
 | --- | --- | --- |
-| 无参 `new TrackedList<>()` | 否 | `initCollection = 空 ArrayList` |
+| 无参 `new TrackedList<>()` | 否 | `initCollection = 空 ArrayList`，已物化 |
 | MyBatis 反射设 `initCollection = proxy` | 否 | 设引用，不读元素 |
-| `getAllItems()` / `getInitItems()` | 是 | `List.copyOf` 遍历 |
-| `getAppendedItems()` / `getRemovedItems()` | 否 | 只读 append/remove 桶 |
-| `update(old, new)` | 是 | 触发 `initMap()` 建索引 |
-| `removeItems(predicate)` | 是 | 同上 |
-| `getInserted/Updated/RemovedEntries()` | 否 | 只读 putMap + removeKeys |
+| `getAllItems()` / `getInitItems()` | 首次是、之后否 | 首次触发物化；物化后 O(1) |
+| `getAppendedItems()` / `getRemovedItems()` | 否 | 只读 append/remove 桶，不访问基线 |
+| `update(old, new)` | 首次是、之后否 | 先物化再触发 `initMap()` 建索引 |
+| `removeItems(predicate)` | 首次是、之后否 | 同上 |
+| `getInserted/Updated/RemovedEntries()` | 否 | 只读 putMap + removeKeys（TrackedMap） |
 
 :::: tip 惰性索引
-`TrackedList` 构造时直接赋引用（不遍历、不拷贝），传入 MyBatis 懒加载代理时不会触发子查询。首次调用 `update` 或 `removeItems` 时才遍历基线建索引。
+`TrackedList` 构造时直接赋引用（不遍历、不拷贝），传入 MyBatis 懒加载代理时不会触发子查询。首次访问基线时才触发子查询并物化为本地可变 `ArrayList`；物化后不再重复触发，读路径 O(1)，就地修改正常执行。
 ::::
 
 ### 4.2 结构差量 vs 字段修改
 
 本容器只负责集合的**结构差量**：哪些子行要 INSERT（append）/ DELETE（remove）。"更新集合中某项"= 用新对象替换旧对象 = `remove(旧) + append(新)`，旧项发 DELETE、新项发 INSERT。容器**不引入**"原地 UPDATE 字段"的第四态；子项字段修改的源头由调用方负责——外部产生新对象，调用 `update(old, new)`。`TrackedMap` 例外：`put` 同 key 即物理 UPDATE 同一行。
 
-### 4.3 等同性依赖
+### 4.3 行标识定位契约
 
-`TrackedList` 物理移除时按 `equals()` 兜底定位（当 `initMap` 未命中时）。子项应保证 `equals` / `hashCode` 按 `id()` 等同，否则删除可能误删或漏删。`TrackedMap` 以 key 为唯一索引，无需子项等同性。
+`TrackedList` 定位基线项时**优先按 `id()` 精确匹配**（走惰性 `initMap`，见类注释"行标识契约"），`update(old, new)` 与 `removeItems(predicate)` 均以 `initMap` 按行标识迭代/命中；仅在部分需要 `equals()` 的物理移除场景退用 `equals()` 兜底。子项应保证 `equals` / `hashCode` 按 `id()` 等同，否则删除可能误删或漏删。`TrackedMap` 以 key 为唯一索引，无需子项等同性。
 
 ### 4.4 读 API 不可变快照
 
@@ -413,7 +422,7 @@ public void setAttributes(List<Attribute> list) {
 
 ### 4.5 MyBatis 字段非 final
 
-MyBatis 直接反射设置 `initCollection` / `initMap` 字段，二者必须为非 final。当前实现已满足，无需额外配置；若自行扩展容器切勿将内部基线字段声明为 `final`。
+MyBatis 直接反射设置 `TrackedList.initCollection` / `TrackedMap.initMap` 字段，二者必须为非 final。当前实现已满足，无需额外配置；若自行扩展容器切勿将内部基线字段声明为 `final`。`TrackedList` 的 `getInitCollection()` 为 `protected`，MyBatis 通过反射直接写字段（不经该方法），不会触发物化。
 
 ## 5. 异常与错误处理体系
 
@@ -448,7 +457,7 @@ public void update(T oldItem, T newItem) {
 | 概念 | 使用方式 | 最关键约束 |
 | --- | --- | --- |
 | `ITrackable` | 子项实现 `id()` 返回行标识 | 与 `IEntity.getEntityId()` 不同层次，不可混用 |
-| `TrackedList` | `append` / `removeItems` / `update` | 构造不遍历（懒加载友好）；`update` 未命中基线抛 `IllegalArgumentException` |
+| `TrackedList` | `append` / `removeItems` / `update` | 构造不遍历（懒加载友好）；首次访问基线惰性物化；`update` 未命中基线抛 `IllegalArgumentException` |
 | `TrackedMap` | `put` / `remove` | key 即行标识；同 key `put` = 物理 UPDATE |
 | 读 API | `getAppended/Removed/Init/AllItems`、`getInserted/Updated/RemovedEntries` | 均返回不可变快照 |
 | MyBatis 集成 | `<association>` 嵌套 `<collection property="initCollection">` | 内部字段非 final；关闭 aggressive 懒加载 |
