@@ -1,10 +1,9 @@
 package io.pragmatic.ddd.mybatis.spi;
 
 /**
- * JSON 序列化插口；默认实现亦实现 core 的 {@code IEventSerializer}，确保与事件/Outbox 同栈。
+ * JSON 序列化插口。
  *
- * <p>与 core 的 {@link io.pragmatic.ddd.event.spi.IEventSerializer} 同形（方法签名兼容），
- * 便于默认实现同时服务 Outbox 事件，保证全框架 JSON 行为一致。
+ * @author wizard-lee
  */
 public interface JsonSerializer {
 

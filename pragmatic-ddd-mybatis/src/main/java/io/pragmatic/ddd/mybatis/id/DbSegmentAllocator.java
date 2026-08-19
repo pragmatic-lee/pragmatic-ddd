@@ -6,10 +6,9 @@ import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 
 /**
- * 基于数据库的号段分配器，实现 core 的 IIdSegmentAllocator 端口。
+ * 基于数据库号段的 IIdSegmentAllocator 实现，自管独立短事务持锁分配号段。
  *
- * <p>自管独立短事务：allocateNext 内开启 autoCommit=false 会话完成 SELECT ... FOR UPDATE 与 UPDATE，
- * 无论调用方是否处于事务都能正确持锁；模块保持 Spring 无关，仅依赖 MyBatis 核心 API。</p>
+ * @author wizard-lee
  */
 public class DbSegmentAllocator implements IIdSegmentAllocator {
 

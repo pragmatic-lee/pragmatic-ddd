@@ -3,28 +3,43 @@ package io.pragmatic.ddd.mybatis.typehandler.json;
 import io.pragmatic.ddd.base.IValueObject;
 import io.pragmatic.ddd.mybatis.spi.JsonSerializer;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
-import org.apache.ibatis.session.SqlSessionFactory;
-import org.apache.ibatis.type.TypeHandlerRegistry;
+import org.apache.ibatis.type.TypeHandler;
+
+import java.util.Collection;
+import java.util.Map;
 
 /**
- * JSON 通道批量注册器（无 Spring 依赖）：在 {@link SqlSessionFactory} 构建后，
- * 程序化登记 VO 类型（与枚举登记同样无注解依赖），统一从 {@link TypeHandlerContext} 取共享依赖。
+ * JSON 通道构建器（无 Spring 依赖）：构建 {@link GenericJsonTypeHandler} 并登记 javaType → handler。
  *
- * <p>仅登记实现了 {@link IValueObject} 的类型；每个 VO 绑定一个 {@link GenericJsonTypeHandler}，
- * 由它把 VO 整体委托给 {@code TypeHandlerContext} 中的 {@link JsonSerializer} 读写原生 JSON 列。
+ * <p>仅登记实现了 {@link IValueObject} 的类型；由 {@link TypeHandlerContext#registrations()}
+ * 的 {@code buildTypeHandlerMap()} 统一触发。
+ *
+ * @author wizard-lee
  */
 public final class JsonTypeHandlerAutoConfigurer {
 
-    /** 主入口：从统一装配上下文取 serializer / jdbcJsonValue / voTypes，批量注册 VO 类型。 */
-    public static <T> void configure(TypeHandlerContext ctx, SqlSessionFactory sqlSessionFactory) {
-        JsonSerializer serializer = ctx.serializer();
-        JdbcJsonValue jdbcJsonValue = ctx.jdbcJsonValue();
-        TypeHandlerRegistry reg = sqlSessionFactory.getConfiguration().getTypeHandlerRegistry();
-        for (Class<?> t : ctx.voTypes()) {
-            if (!IValueObject.class.isAssignableFrom(t)) continue;   // 仅登记值对象
+    /**
+     * 构建 JSON 值对象 TypeHandler 并写入输出映射。
+     *
+     * @param serializer      JSON 序列化器
+     * @param jdbcJsonValue   JDBC JSON 方言
+     * @param voTypes         值对象类型清单
+     * @param out             输出映射：javaType → handler
+     */
+    public static void register(JsonSerializer serializer,
+                                JdbcJsonValue jdbcJsonValue,
+                                Collection<Class<?>> voTypes,
+                                Map<Class<?>, TypeHandler<?>> out) {
+        for (Class<?> type : voTypes) {
+            if (!IValueObject.class.isAssignableFrom(type)) {
+                continue;                                  // 仅登记值对象
+            }
             @SuppressWarnings("unchecked")
-            Class<T> vt = (Class<T>) t;
-            reg.register(vt, new GenericJsonTypeHandler<>(vt, serializer, jdbcJsonValue));
+            Class<IValueObject> voType = (Class<IValueObject>) type;
+            out.put(voType, new GenericJsonTypeHandler<>(voType, serializer, jdbcJsonValue));
         }
+    }
+
+    private JsonTypeHandlerAutoConfigurer() {
     }
 }

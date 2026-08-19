@@ -5,6 +5,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Address;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Customer;
+import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import lombok.Data;
 
 import java.util.List;
@@ -26,4 +27,7 @@ public class OrderInitData implements IParamObject {
     private PaymentMethod paymentMethod;
 
     private List<OrderItem> orderItems;
+
+    private Money totalAmount;
+
 }

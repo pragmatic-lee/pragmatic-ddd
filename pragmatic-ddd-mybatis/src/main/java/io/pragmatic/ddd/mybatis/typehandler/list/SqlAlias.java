@@ -3,9 +3,7 @@ package io.pragmatic.ddd.mybatis.typehandler.list;
 /**
  * 表作用域隔离标签生成器：把 (table, field) 规整为结果集列标签 {@code table_field}。
  *
- * <p>多表同名列冲突的根因是"结果集出现两个同名 label"，MyBatis 无法区分。
- * 隔离方案 = SQL 中对每列 {@code AS} 出表作用域别名，本类给出与配置一致的标签，
- * 使"SQL 别名"与"handler 查表键"严格对齐（见 {@link CollectionMapping} 与 {@link ListTypeHandler}）。
+ * @author wizard-lee
  */
 public final class SqlAlias {
 

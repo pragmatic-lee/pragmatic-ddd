@@ -5,25 +5,250 @@
   纯 XML Mapper（无对应 Java 接口类）。namespace 作为语句命名空间标识，
   由 mybatis-config.xml 的 <mappers> 统一加载，调用方通过
   sqlSession.insert/select("...OrderMapper.insert", param) 使用。
+  orderItems 采用 MyBatis 延迟加载：<association> 实例化 TrackedList，
+  嵌套 <collection> 将懒加载代理写入 TrackedList.initCollection（字段反射填充）。
+  乐观锁：INSERT / UPDATE 均写 AggregateRoot.getNewVersion()，UPDATE 以 version = oldVersion 做 CAS 比对。
 -->
-<mapper namespace="io.pragmatic.ddd.example.order.infrastructure.order.repository.mapper.OrderMapper">
+<mapper namespace="OrderMapper">
 
-    <!-- 订单聚合持久化语句。具体列映射随领域模型落地时补充；此处预留骨架。 -->
+    <!-- ==================== 查询列片段（竖排） ==================== -->
+
+    <!-- t_order 查询列：selectById 等语句统一 include -->
+    <sql id="selectOrderColumns">
+        order_id,
+        customer,
+        status,
+        shipping_address,
+        currency,
+        total_amount,
+        remark,
+        paid_at,
+        cancel_reason,
+        payment_method,
+        logistics_info,
+        payment_serial_no,
+        platform_discount,
+        actual_amount,
+        created_at,
+        created_by,
+        updated_at,
+        updated_by,
+        version
+    </sql>
+
+    <!-- t_order_item 查询列：order_id 是查询过滤键（逻辑外键），非 OrderItem 领域属性，
+         故不纳入查询列，保证所有被查询列均被 resultMap 显式映射 -->
+    <sql id="selectOrderItemColumns">
+        id,
+        product_id,
+        product_name,
+        spec,
+        price,
+        quantity,
+        subtotal,
+        created_at,
+        created_by,
+        updated_at,
+        updated_by
+    </sql>
+
+    <!-- ==================== ResultMap（显式映射，关闭自动映射） ==================== -->
+
+    <!-- TrackedList 嵌套 resultMap：实例化 TrackedList，并把懒加载集合填入 initCollection -->
+    <resultMap id="orderItemTrackedListResultMap"
+               type="io.pragmatic.ddd.track.TrackedList"
+               autoMapping="false">
+        <collection property="initCollection"
+                    ofType="io.pragmatic.ddd.example.order.domain.order.model.OrderItem"
+                    column="order_id"
+                    select="OrderMapper.selectOrderItemsByOrderId"
+                    fetchType="lazy"/>
+    </resultMap>
+
+    <!-- 订单聚合根 resultMap：全字段显式映射 -->
+    <resultMap id="orderResultMap"
+               type="io.pragmatic.ddd.example.order.domain.order.model.Order"
+               autoMapping="false">
+        <id property="entityId" column="order_id"/>
+        <result property="customer" column="customer"/>
+        <result property="status" column="status"/>
+        <result property="shippingAddress" column="shipping_address"/>
+        <result property="currency" column="currency"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="remark" column="remark"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="cancelReason" column="cancel_reason"/>
+        <result property="paymentMethod" column="payment_method"/>
+        <result property="logisticsInfo" column="logistics_info"/>
+        <result property="paymentSerialNo" column="payment_serial_no"/>
+        <result property="platformDiscount" column="platform_discount"/>
+        <result property="actualAmount" column="actual_amount"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <!-- 乐观锁基线：DB version 列读入 AggregateRoot.oldVersion（无 setter，MyBatis 反射字段写入） -->
+        <result property="oldVersion" column="version"/>
+        <!-- orderItems 为 TrackedList，委托 orderItemTrackedListResultMap 实例化并懒加载 -->
+        <association property="orderItems" resultMap="orderItemTrackedListResultMap"/>
+    </resultMap>
+
+    <!-- 订单项 resultMap：全字段显式映射（order_id 为逻辑外键，不映射） -->
+    <resultMap id="orderItemResultMap"
+               type="io.pragmatic.ddd.example.order.domain.order.model.OrderItem"
+               autoMapping="false">
+        <id property="entityId" column="id"/>
+        <result property="productId" column="product_id"/>
+        <result property="productName" column="product_name"/>
+        <result property="spec" column="spec"/>
+        <result property="price" column="price"/>
+        <result property="quantity" column="quantity"/>
+        <result property="subtotal" column="subtotal"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="updatedBy" column="updated_by"/>
+    </resultMap>
+
+    <!-- ==================== 订单主表 CRUD ==================== -->
 
     <insert id="insert" parameterType="io.pragmatic.ddd.example.order.domain.order.model.Order">
-        <!-- TODO: 按 Order 聚合字段补充 INSERT 语句 -->
+        INSERT INTO t_order (
+            order_id,
+            customer,
+            status,
+            shipping_address,
+            currency,
+            total_amount,
+            remark,
+            paid_at,
+            cancel_reason,
+            payment_method,
+            logistics_info,
+            payment_serial_no,
+            platform_discount,
+            actual_amount,
+            created_at,
+            created_by,
+            updated_at,
+            updated_by,
+            version
+        ) VALUES (
+            #{entityId},
+            #{customer},
+            #{status},
+            #{shippingAddress},
+            #{currency},
+            #{totalAmount},
+            #{remark},
+            #{paidAt},
+            #{cancelReason},
+            #{paymentMethod},
+            #{logisticsInfo},
+            #{paymentSerialNo},
+            #{platformDiscount},
+            #{actualAmount},
+            #{createdAt},
+            #{createdBy},
+            #{updatedAt},
+            #{updatedBy},
+            #{newVersion}
+        )
     </insert>
 
     <update id="update" parameterType="io.pragmatic.ddd.example.order.domain.order.model.Order">
-        <!-- TODO: 按 Order 聚合字段补充 UPDATE 语句 -->
+        UPDATE t_order
+        SET
+            customer = #{customer},
+            status = #{status},
+            shipping_address = #{shippingAddress},
+            currency = #{currency},
+            total_amount = #{totalAmount},
+            remark = #{remark},
+            paid_at = #{paidAt},
+            cancel_reason = #{cancelReason},
+            payment_method = #{paymentMethod},
+            logistics_info = #{logisticsInfo},
+            payment_serial_no = #{paymentSerialNo},
+            platform_discount = #{platformDiscount},
+            actual_amount = #{actualAmount},
+            updated_at = #{updatedAt},
+            updated_by = #{updatedBy},
+            version = #{newVersion}
+        WHERE order_id = #{entityId}
+          AND version = #{oldVersion}
     </update>
 
     <delete id="deleteById" parameterType="java.lang.Long">
-        <!-- TODO: 按订单主键补充 DELETE 语句 -->
+        DELETE FROM t_order
+        WHERE order_id = #{id}
     </delete>
 
-    <select id="selectById" parameterType="java.lang.Long" resultType="io.pragmatic.ddd.example.order.domain.order.model.Order">
-        <!-- TODO: 按订单主键补充 SELECT 语句 -->
+    <select id="selectById" parameterType="java.lang.Long" resultMap="orderResultMap">
+        SELECT
+        <include refid="selectOrderColumns"/>
+        FROM t_order
+        WHERE order_id = #{id}
     </select>
+
+    <!-- ==================== 订单项：懒加载子查询 + TrackedList 差量同步 ==================== -->
+
+    <!-- 懒加载子查询：orderItems 首次访问时按订单主键加载全部订单项 -->
+    <select id="selectOrderItemsByOrderId" parameterType="java.lang.Long" resultMap="orderItemResultMap">
+        SELECT
+        <include refid="selectOrderItemColumns"/>
+        FROM t_order_item
+        WHERE order_id = #{id}
+    </select>
+
+    <!-- 批量插入订单项：doInsert 全量 / doUpdate 消费 TrackedList.appendList。
+         入参为 Map：{ orderId: Long, items: List<OrderItem> } -->
+    <insert id="batchInsertOrderItems">
+        INSERT INTO t_order_item (
+            id,
+            order_id,
+            product_id,
+            product_name,
+            spec,
+            price,
+            quantity,
+            subtotal,
+            created_at,
+            created_by,
+            updated_at,
+            updated_by
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (
+                #{item.entityId},
+                #{orderId},
+                #{item.productId},
+                #{item.productName},
+                #{item.spec},
+                #{item.price},
+                #{item.quantity},
+                #{item.subtotal},
+                #{item.createdAt},
+                #{item.createdBy},
+                #{item.updatedAt},
+                #{item.updatedBy}
+            )
+        </foreach>
+    </insert>
+
+    <!-- 批量删除订单项：doUpdate 消费 TrackedList.removeList（按 id 物理删除） -->
+    <delete id="deleteOrderItemsByIds">
+        DELETE FROM t_order_item
+        WHERE id IN
+        <foreach collection="list" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 级联清理子表：doRemove 删除订单前调用，避免 t_order_item 产生孤儿行（无外键约束） -->
+    <delete id="deleteOrderItemsByOrderId" parameterType="java.lang.Long">
+        DELETE FROM t_order_item
+        WHERE order_id = #{id}
+    </delete>
 
 </mapper>

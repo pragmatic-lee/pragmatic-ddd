@@ -72,6 +72,7 @@ export default defineConfig({
             { text: '普通实体设计', link: '/best-practices/entity-design' },
             { text: '应用服务层协作', link: '/best-practices/application-collaboration' },
             { text: '注册表设计', link: '/best-practices/registry-design' },
+            { text: '操作注册表设计', link: '/best-practices/operation-registry-design' },
             { text: '值对象', link: '/best-practices/value-object' },
             { text: '枚举值对象', link: '/best-practices/enum-value' },
             { text: '校验规则领域服务', link: '/best-practices/rule-validation' },

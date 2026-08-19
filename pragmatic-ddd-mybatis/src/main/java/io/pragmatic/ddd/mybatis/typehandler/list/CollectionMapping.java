@@ -3,18 +3,9 @@ package io.pragmatic.ddd.mybatis.typehandler.list;
 import java.util.Objects;
 
 /**
- * 单个集合字段的映射声明（原生 Java 配置单元，等价于 YAML 中一行）。
+ * 单个集合字段的映射声明：持有字段、元素类型、列标签与可选转换钩子。
  *
- * <p>关键字段：
- * <ul>
- *   <li>{@code entityClass} —— 持有字段的实体类（用于隔离/诊断，不参与运行期查表）；</li>
- *   <li>{@code field}        —— Java 字段名（property）；</li>
- *   <li>{@code elementType}  —— 元素类型（决定序列化通道）；</li>
- *   <li>{@code columnLabel} —— 结果集<b>列标签</b>（= MyBatis 传入 getResult 的 column 参数）。
- *        这是运行期查表的键；当两表同名列冲突时，由调用方在 SQL 中 {@code AS} 出不同别名并填此字段；</li>
- *   <li>{@code table}        —— 可选表名/表别名，用于自动生成 table_field 隔离标签（{@link SqlAlias}）；</li>
- *   <li>{@code converter}    —— 可选元素级类型转换钩子。</li>
- * </ul>
+ * @author wizard-lee
  */
 public final class CollectionMapping {
 

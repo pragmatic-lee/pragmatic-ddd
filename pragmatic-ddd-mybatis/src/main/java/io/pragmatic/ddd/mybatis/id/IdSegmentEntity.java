@@ -1,6 +1,10 @@
 package io.pragmatic.ddd.mybatis.id;
 
-/** id_segment 表映射 POJO。注：无 start_id 字段——起始值仅在插行时作为 current_max_id 初值，不落库。 */
+/**
+ * id_segment 表映射 POJO。注：无 start_id 字段——起始值仅在插行时作为 current_max_id 初值，不落库。
+ *
+ * @author wizard-lee
+ */
 public class IdSegmentEntity {
 
     private String bizKey;

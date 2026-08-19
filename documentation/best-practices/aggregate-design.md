@@ -160,7 +160,7 @@ protected OperationRegistry operationRegistry() {
 }
 ```
 
-> 注册表类的编写规范（`public` 类、单例 `INSTANCE`、`code` 命名约定）见 [注册表设计](./registry-design.md)。
+> 注册表类的编写规范（`public` 类、单例 `INSTANCE`、`code` 命名约定）见 [规则注册表设计](./registry-design.md) 与 [操作注册表设计](./operation-registry-design.md)。
 
 ### 3.2 构造函数与无参构造
 
@@ -301,7 +301,8 @@ public class Person extends AggregateRoot<Long> {
 
 - [普通实体设计](./entity-design.md)：聚合内子实体的设计
 - [应用服务层协作](./application-collaboration.md)：操作/事件顺序、延迟事件、工作单元清理与异常响应
-- [注册表设计](./registry-design.md)：操作注册表与规则注册表的编写规范
+- [规则注册表设计](./registry-design.md)：校验消息码（`BrokenRuleRegistry`）的编写规范
+- [操作注册表设计](./operation-registry-design.md)：领域操作（`OperationRegistry`）的编写规范
 - [值对象最佳实践](./value-object.md)：值对象的取舍与编写规范
 - [事件建模指南](./event-modeling.md)
 - [校验规则领域服务](./rule-validation.md)

@@ -10,6 +10,8 @@ import java.util.Map;
  * 结果存进 {@code EnumValueResolver.ResolverEntry}，运行期零反射、O(1) 查表。
  *
  * <p>重复 code / name 在构建期即 fail-fast。</p>
+ *
+ * @author wizard-lee
  */
 final class EnumValueIndex {
 

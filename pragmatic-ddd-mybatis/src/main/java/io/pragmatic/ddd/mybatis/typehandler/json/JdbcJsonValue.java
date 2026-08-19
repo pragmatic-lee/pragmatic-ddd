@@ -5,16 +5,10 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 
 /**
- * 把结构化 JSON 值适配为当前 JDBC 驱动可 {@code setObject} 的 JSON 形态；零驱动强依赖（按需 SPI/构造注入）。
+ * 把结构化 JSON 值适配为当前 JDBC 驱动可 {@code setObject} 的形态，避免 handler 耦合具体驱动。
+ * 默认 {@link #DEFAULT} 透传，MySQL 用 {@link #MYSQL}，PostgreSQL 用 {@link PgJdbcJsonValue}。
  *
- * <p>不同 JDBC 驱动对"原生 JSON 列"接受的入参形态不一：
- * <ul>
- *   <li>MySQL Connector/J 8：JSON 列应按列类型接收 JSON 文本字符串；直接 {@code setObject(i, JSONObject)}
- *       会被驱动当作 binary 字符串而报 {@code CHARACTER SET 'binary'} 错，故需序列化为文本。</li>
- *   <li>PostgreSQL：必须传驱动专属的 {@code org.postgresql.util.PGobject}（设 type 为 jsonb/json），
- *       裸 JSONObject 会被当作 unknown 类型报错。</li>
- * </ul>
- * 为避免 handler 耦合具体驱动，引入此轻量适配层；默认 {@link #DEFAULT} 直接透传，MySQL 场景用 {@link #MYSQL}。
+ * @author wizard-lee
  */
 public interface JdbcJsonValue {
 

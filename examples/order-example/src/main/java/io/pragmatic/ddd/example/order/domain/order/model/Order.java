@@ -9,7 +9,6 @@ import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Customer;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsInfo;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.PaymentInfo;
-import io.pragmatic.ddd.example.order.domain.order.operation.OrderOperation;
 import io.pragmatic.ddd.example.order.domain.order.operation.OrderOperationRegistry;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRuleRegistry;
 import io.pragmatic.ddd.example.order.domain.order.event.OrderAddressChangedEvent;
@@ -124,8 +123,9 @@ public class Order extends AggregateRoot<Long> {
         this.paymentMethod = data.getPaymentMethod();
         this.status = OrderStatus.CREATED;
         this.currency = "CNY";
+        this.totalAmount =data.getTotalAmount();
         this.orderItems = new TrackedList<>(data.getOrderItems() == null ? List.of() : data.getOrderItems());
-        this.recordOperation(OrderOperation.PLACE);
+        this.recordOperation(OrderOperationRegistry.PLACE);
         this.markCreated();
         this.markNew();
         this.collectEvent(OrderCreatedEvent.buildEvent(this));
@@ -150,7 +150,7 @@ public class Order extends AggregateRoot<Long> {
         }
         this.totalAmount = totalAmount;
         this.markModified();
-        this.recordOperation(OrderOperation.ADD_ITEM);
+        this.recordOperation(OrderOperationRegistry.ADD_ITEM);
     }
 
     /**
@@ -168,7 +168,7 @@ public class Order extends AggregateRoot<Long> {
         });
         this.totalAmount = totalAmount;
         this.markModified();
-        this.recordOperation(OrderOperation.UPDATE_ITEM);
+        this.recordOperation(OrderOperationRegistry.UPDATE_ITEM);
     }
 
     /**
@@ -178,10 +178,10 @@ public class Order extends AggregateRoot<Long> {
      * @param totalAmount 外部计算后的订单总金额
      */
     public void removeItem(Long itemId, Money totalAmount) {
-        this.orderItems.removeItems(i -> i.id().equals(itemId));
+        this.orderItems.removeItems(i -> i.getProductId().equals(itemId));
         this.totalAmount = totalAmount;
         this.markModified();
-        this.recordOperation(OrderOperation.REMOVE_ITEM);
+        this.recordOperation(OrderOperationRegistry.REMOVE_ITEM);
     }
 
     /**
@@ -192,7 +192,7 @@ public class Order extends AggregateRoot<Long> {
     public void changeAddress(Address shippingAddress) {
         this.shippingAddress = shippingAddress;
         this.markModified();
-        this.recordOperation(OrderOperation.CHANGE_ADDRESS);
+        this.recordOperation(OrderOperationRegistry.CHANGE_ADDRESS);
         this.collectEvent(OrderAddressChangedEvent.buildEvent(this));
     }
 
@@ -205,7 +205,7 @@ public class Order extends AggregateRoot<Long> {
         this.status = OrderStatus.SHIPPED;
         this.logisticsInfo = logisticsInfo;
         this.markModified();
-        this.recordOperation(OrderOperation.SHIP);
+        this.recordOperation(OrderOperationRegistry.SHIP);
         this.collectEvent(OrderShippedEvent.buildEvent(this));
     }
 
@@ -221,7 +221,7 @@ public class Order extends AggregateRoot<Long> {
         this.platformDiscount = paymentInfo.getPlatformDiscount();
         this.actualAmount = paymentInfo.getActualAmount();
         this.markModified();
-        this.recordOperation(OrderOperation.PAY);
+        this.recordOperation(OrderOperationRegistry.PAY);
         this.collectEvent(OrderPaidEvent.buildEvent(this));
     }
 
@@ -234,7 +234,7 @@ public class Order extends AggregateRoot<Long> {
         this.status = OrderStatus.CANCELLED;
         this.cancelReason = reason;
         this.markModified();
-        this.recordOperation(OrderOperation.CANCEL);
+        this.recordOperation(OrderOperationRegistry.CANCEL);
         this.collectEvent(OrderCancelledEvent.buildEvent(this));
     }
 
@@ -250,6 +250,6 @@ public class Order extends AggregateRoot<Long> {
 
     @Override
     protected OrderOperationRegistry operationRegistry() {
-        return OrderOperationRegistry.getInstance();
+        return OrderOperationRegistry.INSTANCE;
     }
 }

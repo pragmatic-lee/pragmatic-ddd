@@ -15,13 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 单列 JSON 数组处理器（单例，注册到 List.class）。
+ * 单列 JSON 数组处理器（单例，注册到 List.class）：整列委托共享 {@link JsonSerializer}，按列标签还原元素类型。
  *
- * <p>整列委托共享 {@link JsonSerializer} 序列化/反序列化（元素按运行时类型分派 base/enum/VO 三通道）。
- * 运行期按 MyBatis 传入的<b>列标签</b>（columnLabel）从 {@code columnListTypes} 取对应的 List&lt;E&gt; 参数化类型，
- * 精确还原；多表同名列已由配置期用不同 label 隔离，故此处查表键永远是唯一的列标签。
- *
- * <p>写侧无需元素类型（整列交给 serializer）；读侧必须按 label 取类型，故 label 冲突在配置期已被 fail-fast 拦截。
+ * @author wizard-lee
  */
 public class ListTypeHandler implements TypeHandler<List<?>> {
 

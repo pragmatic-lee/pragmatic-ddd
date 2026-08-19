@@ -68,7 +68,7 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
     private Map<ID, T> initMap() {
         if (initMap == null) {
             initMap = new LinkedHashMap<>();
-            for (T item : initCollection) {
+            for (T item : getInitCollection()) {
                 initMap.put(item.id(), item);
             }
         }
@@ -104,7 +104,7 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
             throw new IllegalArgumentException(
                     "oldItem.id()=[" + oldItem.id() + "] not found in init collection");
         }
-        this.initCollection.remove(removed);
+        this.getInitCollection().remove(removed);
         this.removeList.add(removed);
         this.appendList.add(newItem);
     }
@@ -129,7 +129,7 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
                 it.remove();
             }
         }
-        this.initCollection.removeAll(fromInit);
+        this.getInitCollection().removeAll(fromInit);
         this.removeList.addAll(fromInit);
 
         List<T> allRemoved = new ArrayList<>(fromAppend.size() + fromInit.size());
@@ -140,8 +140,8 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
 
     /** 清理所有子项（基线全移入 remove，清空 append）。 */
     public void removeAll() {
-        this.removeList.addAll(this.initCollection);
-        this.initCollection.clear();
+        this.removeList.addAll(this.getInitCollection());
+        this.getInitCollection().clear();
         this.appendList.clear();
         if (this.initMap != null) {
             this.initMap.clear();
@@ -153,8 +153,8 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
      * <p>等价于 {@code removeAll()} + {@code append(items)}。</p>
      */
     public void clearAndAppend(List<T> items) {
-        this.removeList.addAll(this.initCollection);
-        this.initCollection.clear();
+        this.removeList.addAll(this.getInitCollection());
+        this.getInitCollection().clear();
         this.appendList.clear();
         if (this.initMap != null) {
             this.initMap.clear();
@@ -179,14 +179,17 @@ public class TrackedList<T extends ITrackable<ID>, ID> {
      * <p>返回顺序为"基线顺序（按加入顺序）后接新增顺序"。</p>
      */
     public List<T> getAllItems() {
-        List<T> all = new ArrayList<>(this.initCollection.size() + this.appendList.size());
-        all.addAll(this.initCollection);
+        List<T> all = new ArrayList<>(this.getInitCollection().size() + this.appendList.size());
+        all.addAll(this.getInitCollection());
         all.addAll(this.appendList);
         return List.copyOf(all);
     }
 
     /** 基线（DB 加载时已有的子项）。 */
     public List<T> getInitItems() {
-        return List.copyOf(this.initCollection);
+        return List.copyOf(this.getInitCollection());
+    }
+    protected List<T> getInitCollection() {
+        return initCollection;
     }
 }

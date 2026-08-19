@@ -11,19 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 集合字段配置中心：从若干 {@link CollectionMapping} 构建出运行期查表所需的两张索引，
- * 并在构建期对"同名列标签 + 不同类型"做 fail-fast 冲突校验。
+ * 集合字段配置中心：从若干 {@link CollectionMapping} 构建运行期查表索引，并在构建期对同名列标签 + 不同类型做 fail-fast 冲突校验。
  *
- * <p>持有：
- * <ul>
- *   <li>{@code columnLabel -> List<E> 参数化类型}（运行期 getResult 查表键，键=数据库列标签）；</li>
- *   <li>{@code columnLabel -> ElementConverter}（可选元素级类型转换）；</li>
- *   <li>{@code columnLabel -> CollectionMapping}（诊断/报错用原始声明）。</li>
- * </ul>
- *
- * <p><b>多表同名列冲突处理</b>：两表同名列若元素类型不同，必须靠不同 {@code columnLabel}（SQL 别名）
- * 隔离；若未隔离而产生了相同 label 但类型不一致，本构造器<b>立即抛异常</b>，把歧义消灭在启动期，
- * 而非运行期静默串类型。
+ * @author wizard-lee
  */
 public final class CollectionElementTypeConfig {
 

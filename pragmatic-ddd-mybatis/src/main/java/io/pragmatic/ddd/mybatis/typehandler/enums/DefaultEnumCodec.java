@@ -4,6 +4,8 @@ import io.pragmatic.ddd.base.IEnumValue;
 
 /**
  * 默认 {@link EnumCodec}：按 {@link IEnumValue#getValue()} 取业务 code。
+ *
+ * @author wizard-lee
  */
 public final class DefaultEnumCodec implements EnumCodec {
     @Override

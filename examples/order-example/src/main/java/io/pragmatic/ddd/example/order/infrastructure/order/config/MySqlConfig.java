@@ -8,13 +8,16 @@ import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsIn
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.PaymentInfo;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
+import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerRegistration;
 import io.pragmatic.ddd.mybatis.typehandler.enums.EnumRule;
 import io.pragmatic.ddd.mybatis.typehandler.enums.EnumValueResolver;
+import io.pragmatic.ddd.mybatis.typehandler.enums.UniversalEnumTypeHandler;
 import io.pragmatic.ddd.mybatis.typehandler.list.CollectionElementTypeConfig;
 import io.pragmatic.ddd.mybatis.typehandler.json.Fastjson2JsonSerializer;
 import io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue;
-import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.logging.slf4j.Slf4jImpl;
 import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.type.TypeHandler;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -22,12 +25,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -79,25 +84,55 @@ public class MySqlConfig {
      */
     @Bean
     public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
+        // 1. 创建原生的 Configuration 对象
+        org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
+
+        // 2. 注入你的自定义 TypeHandler
+        Collection<TypeHandlerRegistration> typeHandlerRegistrations = registerTypeHandlers();
+        typeHandlerRegistrations
+                .forEach(typ -> {
+                    Class<?> aClass = typ.javaType();
+                    TypeHandler<?> handler = typ.handler();
+                    configuration.getTypeHandlerRegistry().register(aClass,(TypeHandler)handler);
+                });
+
+        // 3. 全局配置
+        configuration.setMapUnderscoreToCamelCase(true); // 开启驼峰命名自动映射
+        configuration.setCacheEnabled(true); // 开启全局缓存
+        configuration.setLazyLoadingEnabled(true); // 开启延迟加载
+        configuration.setAggressiveLazyLoading(false); // 按需加载
+
+        configuration.setLogImpl(Slf4jImpl.class);
+        SqlSessionFactoryBean sessionFactory = this.createSessionFactory(dataSource, configuration);
+
+        return sessionFactory.getObject();
+    }
+
+    private  SqlSessionFactoryBean createSessionFactory(DataSource dataSource, org.apache.ibatis.session.Configuration configuration) throws IOException {
         SqlSessionFactoryBean sessionFactory = new SqlSessionFactoryBean();
         sessionFactory.setDataSource(dataSource);
-        Resource configLocation = new DefaultResourceLoader().getResource(MYBATIS_CONFIG_LOCATION);
-        sessionFactory.setConfigLocation(configLocation);
-        SqlSessionFactory sqlSessionFactory = sessionFactory.getObject();
-        registerTypeHandlers(sqlSessionFactory);
-        return sqlSessionFactory;
+
+        // 5. 将配置好的 Configuration 注入 (彻底抛弃 setConfigLocation)
+        sessionFactory.setConfiguration(configuration);
+
+        // 6. 指定 Mapper XML 文件的路径
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        sessionFactory.setMapperLocations(resolver.getResources("classpath:mapper/**/*.xml"));
+
+        // 7. (可选) 扫描实体类的包路径，用于类型别名 (TypeAliases)
+        sessionFactory.setTypeAliasesPackage("com.example.entity");
+        return sessionFactory;
     }
 
     /**
      * 初始化 pragmatic-ddd-mybatis 的 TypeHandler 体系（枚举 / 值对象 JSON / 集合）。
      *
-     * <p>构建 {@link TypeHandlerContext} 后调用 {@code registerInto}，由框架统一把
-     * UniversalEnumTypeHandler、GenericJsonTypeHandler、ListTypeHandler 注册进
-     * MyBatis 的 TypeHandlerRegistry。枚举策略、值对象清单、集合映射三类信息需按需填充。</p>
+     * <p>构建 {@link TypeHandlerContext} 后调用 {@code registerInto(Configuration)}，
+     * 在 Configuration 构建阶段注入 UniversalEnumTypeHandler、GenericJsonTypeHandler、
+     * ListTypeHandler。枚举策略、值对象清单、集合映射三类信息需按需填充。</p>
      *
-     * @param sqlSessionFactory MyBatis 会话工厂
      */
-    private void registerTypeHandlers(SqlSessionFactory sqlSessionFactory) {
+    private Collection<TypeHandlerRegistration> registerTypeHandlers() {
         EnumValueResolver resolver = new EnumValueResolver();
         Map<Class<?>, EnumRule> enumRules = Map.of(
                 OrderStatus.class, EnumRule.CODE,
@@ -119,7 +154,8 @@ public class MySqlConfig {
                 voTypes,
                 collections
         );
-        context.registerInto(sqlSessionFactory);
+//        context.registerInto(configuration);
+        return context.registrations();
     }
 
     /**

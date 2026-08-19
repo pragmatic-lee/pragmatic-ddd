@@ -9,11 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * 集中化枚举解析注册表——所有枚举在启动时统一 register，反序列化只查表。
- * 取代"各枚举自带静态 parse"与"运行时按类型懒反射"两种非标做法。
+ * 集中化枚举解析注册表：启动时统一注册所有枚举，反序列化只查表。
  *
- * 直接持有默认 {@link DefaultEnumCodec} 实例。无码枚举仅构建 ordinal 索引，
- * 启动期集中登记即完成索引预建与冲突校验。
+ * @author wizard-lee
  */
 public final class EnumValueResolver {
 

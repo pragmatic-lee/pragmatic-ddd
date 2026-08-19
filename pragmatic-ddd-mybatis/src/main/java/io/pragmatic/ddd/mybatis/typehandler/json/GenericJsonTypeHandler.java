@@ -11,16 +11,9 @@ import java.sql.SQLException;
 import java.sql.Types;
 
 /**
- * 通用 JSON 值对象类型处理器——把 VO（含枚举）整体委托给 {@link JsonSerializer} 读写原生 JSON 列。
+ * 通用 JSON 值对象类型处理器：把 VO（含枚举）整体委托 {@link JsonSerializer} 读写原生 JSON 列。
  *
- * <p>列类型统一为数据库原生 JSON（PG {@code jsonb}/{@code json}，MySQL {@code JSON}），
- * 因此 {@code setParameter} 用 {@code PreparedStatement.setObject(i, jsonValue)} 写入结构化 JSON 值，
- * 不再 {@code setString} + {@code VARCHAR}；{@code getResult} 用 {@code getObject} 读回任意 JSON 形态后
- * 交给 {@code serializer.fromJsonValue} 还原。与枚举通道 {@code UniversalEnumTypeHandler} 的
- * setObject / getObject 风格保持一致。
- *
- * <p>VO 内枚举的序列化/反序列化全部转发给 {@code serializer}（{@code Fastjson2JsonSerializer} 的
- * 策略感知逻辑兜底）；写入/读回均走结构化 JSON 值，与单列枚举通道形态一致。
+ * @author wizard-lee
  */
 public class GenericJsonTypeHandler<T> implements TypeHandler<T> {
 

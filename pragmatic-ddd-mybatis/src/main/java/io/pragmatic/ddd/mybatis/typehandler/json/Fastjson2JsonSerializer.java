@@ -18,21 +18,9 @@ import java.lang.reflect.Type;
 import java.util.Map;
 
 /**
- * Fastjson2 序列化实现——枚举策略感知、作用域私有。
+ * Fastjson2 序列化实现：枚举策略感知、作用域私有，同时实现 {@link IEventSerializer} 服务 Outbox 事件。
  *
- * <p>职责：把"枚举按 {@link EnumRule} 序列化/反序列化"注入 fastjson2。枚举的序列化维度
- * （value / name / label / ordinal）从 {@code enumRules} 一次取定，反序列化复用
- * {@link EnumValueResolver#resolve(Class, Object, EnumRule)}，与 DB 单列
- * {@code UniversalEnumTypeHandler} 共用同一套 {@link EnumValueResolver} 与 {@link EnumRule}，
- * 保证"枚举无论存为单列还是嵌在 JSON 中，形态与解析完全一致"。
- *
- * <p>fastjson2 的定制（{@link ObjectWriterProvider}/{@link ObjectReaderProvider}）作用域为
- * 本实例私有，绝不注册到 fastjson2 全局实例，避免影响应用其它 JSON 序列化。
- * （fastjson2 2.x 已无 1.x 的 {@code SerializeConfig}/{@code ParserConfig} 全局类，
- * 私有配置以 Provider 包进 {@link JSONWriter.Context}/{@link JSONReader.Context} 实现。）
- *
- * <p>同时实现 core 的 {@link IEventSerializer}，确保 Outbox 事件与 JSON 列共用同一套 JSON 行为
- * （与 rocketmq {@code Fastjson2EventSerializer} 同栈）。
+ * @author wizard-lee
  */
 public final class Fastjson2JsonSerializer implements JsonSerializer, IEventSerializer {
 
