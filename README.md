@@ -1,8 +1,10 @@
+
+
 # Pragmatic DDD
 
 > 🚀 **务实可落地的领域驱动设计框架（Pragmatic Domain-Driven Design Framework）**
 >
-> 不追求 CQRS / Event Sourcing 的“全家桶”复杂度，聚焦于 DDD 核心战术模式的标准化表达：实体、值对象、聚合根、领域规则、领域事件。让团队用最小的学习成本，把 DDD 真正写进代码里。
+> 不追求 CQRS / Event Sourcing 的"全家桶"复杂度，聚焦于 DDD 核心战术模式的标准化表达：实体、值对象、聚合根、领域规则、领域事件。让团队用最小的学习成本，把 DDD 真正写进代码里。
 
 [![Java](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://openjdk.org/)
 [![Maven Central](https://img.shields.io/badge/Maven%20Central-pragmatic--ddd--core-blue.svg)](https://central.sonatype.com/artifact/io.pragmatic.ddd/pragmatic-ddd-core)
