@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.example.order.domain.order.model;
 
 import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.example.order.domain.order.event.*;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.OrderStatus;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import io.pragmatic.ddd.example.order.domain.order.param.OrderInitData;
@@ -11,11 +12,6 @@ import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsIn
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.PaymentInfo;
 import io.pragmatic.ddd.example.order.domain.order.operation.OrderOperationRegistry;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRuleRegistry;
-import io.pragmatic.ddd.example.order.domain.order.event.OrderAddressChangedEvent;
-import io.pragmatic.ddd.example.order.domain.order.event.OrderCancelledEvent;
-import io.pragmatic.ddd.example.order.domain.order.event.OrderCreatedEvent;
-import io.pragmatic.ddd.example.order.domain.order.event.OrderPaidEvent;
-import io.pragmatic.ddd.example.order.domain.order.event.OrderShippedEvent;
 import io.pragmatic.ddd.track.TrackedList;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,7 +24,7 @@ import java.util.Optional;
 
 /**
  * 订单聚合根，封装订单完整生命周期与不变性约束。
- *
+ * <p>
  * 业务方法仅做状态赋值，不内嵌校验与计算逻辑，订单金额由外部计算后传入，
  * 窗口期、发货与支付前置不变性等校验职责外移应用层。
  *
@@ -112,10 +108,10 @@ public class Order extends AggregateRoot<Long> {
     /**
      * 基于初始化数据创建订单并持有初始订单项，发布订单创建事件。
      *
-     * @param data 订单初始化参数
+     * @param data    订单初始化参数
      * @param orderId 订单标识
      */
-    public Order(OrderInitData data,Long orderId) {
+    public Order(OrderInitData data, Long orderId) {
         this.setEntityId(orderId);
         this.customer = data.getCustomer();
         this.shippingAddress = data.getShippingAddress();
@@ -123,7 +119,7 @@ public class Order extends AggregateRoot<Long> {
         this.paymentMethod = data.getPaymentMethod();
         this.status = OrderStatus.CREATED;
         this.currency = "CNY";
-        this.totalAmount =data.getTotalAmount();
+        this.totalAmount = data.getTotalAmount();
         this.orderItems = new TrackedList<>(data.getOrderItems() == null ? List.of() : data.getOrderItems());
         this.recordOperation(OrderOperationRegistry.PLACE);
         this.markCreated();
@@ -134,7 +130,7 @@ public class Order extends AggregateRoot<Long> {
     /**
      * 添加订单项，若同商品已存在则合并数量，并刷新订单总金额。
      *
-     * @param item 待添加订单项
+     * @param item        待添加订单项
      * @param totalAmount 外部计算后的订单总金额
      */
     public void addItem(OrderItem item, Money totalAmount) {
@@ -156,8 +152,8 @@ public class Order extends AggregateRoot<Long> {
     /**
      * 更新指定订单项的数量，并刷新订单总金额。
      *
-     * @param itemId 订单项标识
-     * @param quantity 更新后的数量
+     * @param itemId      订单项标识
+     * @param quantity    更新后的数量
      * @param totalAmount 外部计算后的订单总金额
      */
     public void updateItem(Long itemId, int quantity, Money totalAmount) {
@@ -174,7 +170,7 @@ public class Order extends AggregateRoot<Long> {
     /**
      * 移除指定订单项，并刷新订单总金额。
      *
-     * @param itemId 订单项标识
+     * @param itemId      订单项标识
      * @param totalAmount 外部计算后的订单总金额
      */
     public void removeItem(Long itemId, Money totalAmount) {
@@ -243,6 +239,7 @@ public class Order extends AggregateRoot<Long> {
                 .filter(item -> item.id().equals(itemId))
                 .findFirst();
     }
+
     @Override
     protected OrderRuleRegistry brokenRuleRegistry() {
         return OrderRuleRegistry.getInstance();
@@ -251,5 +248,10 @@ public class Order extends AggregateRoot<Long> {
     @Override
     protected OrderOperationRegistry operationRegistry() {
         return OrderOperationRegistry.INSTANCE;
+    }
+
+    @Override
+    public void triggerDataSyncHook() {
+        this.collectEvent(OrderDataSyncEvent.buildEvent(this));
     }
 }
