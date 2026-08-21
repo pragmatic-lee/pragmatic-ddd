@@ -52,3 +52,4 @@ docs/
 documentation/.vitepress/cache
 documentation/.vitepress/dist
 documentation/node_modules
+.claude/
