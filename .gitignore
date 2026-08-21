@@ -36,6 +36,7 @@ dependency-reduced-pom.xml
 build/
 out/
 bin/
+delombok/
 
 # Test output
 hs_err_pid*

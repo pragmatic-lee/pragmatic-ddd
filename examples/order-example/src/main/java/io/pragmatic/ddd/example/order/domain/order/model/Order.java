@@ -242,7 +242,7 @@ public class Order extends AggregateRoot<Long> {
 
     @Override
     protected OrderRuleRegistry brokenRuleRegistry() {
-        return OrderRuleRegistry.getInstance();
+        return OrderRuleRegistry.INSTANCE;
     }
 
     @Override

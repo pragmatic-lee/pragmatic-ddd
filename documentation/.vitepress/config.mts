@@ -69,6 +69,7 @@ export default defineConfig({
         {
           text: '最佳实践',
           items: [
+            { text: '模式库总览', link: '/best-practices/' },
             { text: '聚合设计原则', link: '/best-practices/aggregate-design' },
             { text: '聚合数据库设计原则', link: '/best-practices/aggregate-database-design' },
             { text: '普通实体设计', link: '/best-practices/entity-design' },
@@ -79,7 +80,9 @@ export default defineConfig({
             { text: '枚举值对象', link: '/best-practices/enum-value' },
             { text: '校验规则领域服务', link: '/best-practices/rule-validation' },
             { text: '仓储设计原则', link: '/best-practices/repository-design' },
+            { text: '投影读模型设计原则', link: '/best-practices/projection-design' },
             { text: 'MySQL 配置设计原则', link: '/best-practices/mysql-config' },
+            { text: 'Elasticsearch 配置设计原则', link: '/best-practices/elasticsearch-config' },
             { text: '事件建模指南', link: '/best-practices/event-modeling' },
             { text: '事务性发件箱', link: '/best-practices/transactional-outbox' }
           ]

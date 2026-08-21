@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch._types.VersionType;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.materializer.IOrderProjectionMaterializer;
+import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import lombok.SneakyThrows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +43,7 @@ public class OrderEsMaterializer implements IOrderProjectionMaterializer {
      * @return 订单 ES 读模型对账目标
      */
     @Override
-    public io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget target() {
+    public ReconciliationTarget target() {
         return OrderEsTargets.TARGET_ES_ORDERS;
     }
 
@@ -53,17 +54,15 @@ public class OrderEsMaterializer implements IOrderProjectionMaterializer {
      * @param version    写模型的副本版本，用于 ES 乐观并发控制
      */
     @Override
+    @SneakyThrows
     public void materialize(OrderEsProjection projection, long version) {
-        try {
-            elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
-                    .id(projection.getOrderId().toString())
-                    .versionType(VersionType.External)
-                    .version(version)
-                    .document(projection));
-        } catch (RuntimeException | java.io.IOException ex) {
-            log.warn("订单 ES 物化版本冲突或写入失败 orderId={} version={}",
-                    projection.getOrderId(), version, ex);
-        }
+
+        elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
+                .id(projection.getOrderId().toString())
+                .versionType(VersionType.External)
+                .version(version)
+                .document(projection));
+
     }
 
     /**
