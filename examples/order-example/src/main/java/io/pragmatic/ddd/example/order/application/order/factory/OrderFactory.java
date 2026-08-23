@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.example.order.application.order.factory;
 
 import io.pragmatic.ddd.application.EntityFactory;
-import io.pragmatic.ddd.example.order.application.order.IOrderIdGenerator;
+import io.pragmatic.ddd.example.order.domain.order.service.IOrderIdGenerator;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.resolver.OrderTotalAmountResolver;

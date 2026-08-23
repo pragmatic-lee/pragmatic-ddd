@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 把下单 Input 适配到订单总额计算器：从 CreateOrderInput 解析出领域 OrderItem 列表后交给 Calculator。
@@ -45,12 +46,12 @@ public class OrderTotalAmountResolver implements IEntityPropertyResolver<CreateO
     @Override
     public Money resolve(CreateOrderInput command, Order entity) {
         IEntityPropertyResolver<CreateOrderInput, Order, Money> delegate =
-                EntityPropertyResolvers.of(calculator, (cmd, ent) -> toOrderItems(cmd, ent));
+                EntityPropertyResolvers.of(calculator, this::toOrderItems);
         return delegate.resolve(command, entity);
     }
 
     private List<OrderItem> toOrderItems(CreateOrderInput cmd, Order ent) {
-        Long id = ent != null ? ent.getEntityId() : null;
+        Long id = Optional.ofNullable(ent).map(Order::getEntityId).orElse(null);
         return toOrderItems(cmd, id);
     }
 }

@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.application.order.calculator;
+package io.pragmatic.ddd.example.order.application.order.service;
 
 import io.pragmatic.ddd.example.order.domain.order.dependency.IUserDependency;
 import io.pragmatic.ddd.example.order.domain.order.calculator.IOrderTotalAmountCalculator;

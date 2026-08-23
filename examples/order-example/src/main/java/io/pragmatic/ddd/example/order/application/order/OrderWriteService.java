@@ -3,6 +3,11 @@ package io.pragmatic.ddd.example.order.application.order;
 import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.application.ICommandApplicationService;
 import io.pragmatic.ddd.application.ICommandExecutor;
+import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
+import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
+import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
+import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.example.order.application.order.factory.OrderFactory;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
 import io.pragmatic.ddd.example.order.application.order.rule.OrderRuleAssembler;
@@ -26,11 +31,14 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
     private final OrderRepository orderRepository;
 
     public OrderWriteService(IEventManager eventManager,
-                             ICommandExecutor commandExecutor,
+                             IOutboxStore iOutboxStore,
+                             IEventSerializer eventSerializer,
+                             EagerOutboxPublisher eagerOutboxPublisher,
+                             TransactionOperations txOps,
                              OrderFactory orderFactory,
                              OrderRuleAssembler orderRuleAssembler,
                              OrderRepository orderRepository) {
-        super(eventManager, commandExecutor);
+        super(eventManager, new OutboxCommandExecutor(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher));
         this.orderFactory = orderFactory;
         this.orderRuleAssembler = orderRuleAssembler;
         this.orderRepository = orderRepository;

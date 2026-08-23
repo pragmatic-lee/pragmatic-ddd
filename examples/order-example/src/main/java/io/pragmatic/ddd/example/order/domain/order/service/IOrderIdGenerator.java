@@ -1,6 +1,5 @@
-package io.pragmatic.ddd.example.order.application.order;
+package io.pragmatic.ddd.example.order.domain.order.service;
 
-import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.service.DomainService;
 import io.pragmatic.ddd.service.DomainServiceCategory;
 import io.pragmatic.ddd.service.IDomainService;
