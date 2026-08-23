@@ -78,6 +78,7 @@ export default defineConfig({
             { text: '操作注册表设计', link: '/best-practices/operation-registry-design' },
             { text: '值对象', link: '/best-practices/value-object' },
             { text: '枚举值对象', link: '/best-practices/enum-value' },
+            { text: '聚合业务规则（OrderRule 范式）', link: '/best-practices/order-rule-pattern' },
             { text: '校验规则领域服务', link: '/best-practices/rule-validation' },
             { text: '仓储设计原则', link: '/best-practices/repository-design' },
             { text: '投影读模型设计原则', link: '/best-practices/projection-design' },

@@ -35,6 +35,10 @@ public class Money extends ValueObject {
         return new Money(amount.multiply(BigDecimal.valueOf(quantity)), currency);
     }
 
+    public Money multiply(BigDecimal rate) {
+        return new Money(amount.multiply(rate), currency);
+    }
+
     @Override
     protected Object[] equalityComponents() {
         return new Object[]{amount, currency};
