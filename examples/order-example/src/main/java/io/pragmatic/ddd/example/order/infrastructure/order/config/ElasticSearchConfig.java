@@ -4,6 +4,8 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -18,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 订单示例的 Elasticsearch 客户端配置。
@@ -77,7 +80,9 @@ public class ElasticSearchConfig {
      */
     @Bean
     public ElasticsearchTransport elasticsearchTransport(RestClient restClient) {
-        return new RestClientTransport(restClient, new JacksonJsonpMapper());
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        return new RestClientTransport(restClient, new JacksonJsonpMapper(objectMapper));
     }
 
     /**
@@ -91,7 +96,7 @@ public class ElasticSearchConfig {
         return new ElasticsearchClient(transport);
     }
 
-    private java.util.Optional<RestClientBuilder.HttpClientConfigCallback> credentialsProvider() {
+    private Optional<RestClientBuilder.HttpClientConfigCallback> credentialsProvider() {
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             return java.util.Optional.empty();
         }

@@ -107,6 +107,11 @@
             <artifactId>elasticsearch-java</artifactId>
             <version>${elasticsearch.version}</version>
         </dependency>
+        <!-- Jackson JSR-310 模块：支持 Java 8 时间类型（LocalDateTime 等）序列化到 ES -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
         <!-- ===== RocketMQ 4.x：使用框架 pragmatic-ddd-rocketmq 提供的集成（已含 rocketmq-client） ===== -->
 
         <!-- ===== 工具 / 序列化 ===== -->
@@ -192,6 +197,7 @@
                                     <directory>${project.basedir}/docker</directory>
                                     <includes>
                                         <include>Dockerfile</include>
+                                        <include>build.sh</include>
                                     </includes>
                                 </resource>
                             </resources>
