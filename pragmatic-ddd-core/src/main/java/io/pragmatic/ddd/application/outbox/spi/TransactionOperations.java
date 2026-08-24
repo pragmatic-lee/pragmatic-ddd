@@ -7,6 +7,9 @@ package io.pragmatic.ddd.application.outbox.spi;
  */
 public interface TransactionOperations {
 
-    /** 在事务内执行回调，提交后返回结果。 */
+    /** 在事务内执行回调，提交后返回结果（默认 REQUIRED 传播行为）。 */
     <T> T execute(TransactionCallback<T> callback);
+
+    /** 以指定传播行为在事务内执行回调，提交后返回结果。 */
+    <T> T execute(TransactionCallback<T> callback, Propagation propagation);
 }

@@ -8,7 +8,7 @@ import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;
-import io.pragmatic.ddd.mybatis.outbox.OutboxMapper;
+import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,8 +50,8 @@ public class OutboxConfig {
     }
 
     /**
-     * MyBatis 实现的 Outbox 存储。
-     * OutboxMapper 不经 @MapperScan 注入，通过 SqlSessionTemplate.getMapper 获取。
+     * MyBatis 实现的 Outbox 存储（传统纯 XML 直调方式，不持有 Mapper 接口）。
+     * 通过 SpringOutboxStatementExecutor 注入 SqlSessionTemplate 参与 Spring 事务，按 statementKey 直调 SQL。
      *
      * @param sqlSessionTemplate MyBatis 会话模板
      * @param txOps 事务抽象
@@ -59,8 +59,8 @@ public class OutboxConfig {
      */
     @Bean
     public IOutboxStore outboxStore(SqlSessionTemplate sqlSessionTemplate, TransactionOperations txOps) {
-        OutboxMapper outboxMapper = sqlSessionTemplate.getMapper(OutboxMapper.class);
-        return new MybatisOutboxStore(outboxMapper, txOps);
+        IOutboxStatementExecutor executor = new SpringOutboxStatementExecutor(sqlSessionTemplate);
+        return new MybatisOutboxStore(executor, txOps);
     }
 
     /**

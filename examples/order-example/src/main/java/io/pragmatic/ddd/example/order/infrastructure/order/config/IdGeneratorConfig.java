@@ -3,9 +3,11 @@ package io.pragmatic.ddd.example.order.infrastructure.order.config;
 import io.pragmatic.ddd.base.id.IdGeneratorDefinition;
 import io.pragmatic.ddd.base.id.IdGeneratorRegistry;
 import io.pragmatic.ddd.base.id.IdType;
+import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 import io.pragmatic.ddd.example.order.application.order.service.OrderIdGenerator;
 import io.pragmatic.ddd.mybatis.id.DbSegmentAllocator;
-import org.apache.ibatis.session.SqlSessionFactory;
+import io.pragmatic.ddd.mybatis.id.IIdSegmentStatementExecutor;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -19,9 +21,10 @@ public class IdGeneratorConfig {
     private static final String ORDER_BIZ_KEY = "order";
 
     @Bean
-    public IdGeneratorRegistry idGeneratorRegistry(SqlSessionFactory sqlSessionFactory) {
+    public IdGeneratorRegistry idGeneratorRegistry(SqlSessionTemplate sqlSessionTemplate, TransactionOperations txOps) {
         IdGeneratorRegistry registry = new IdGeneratorRegistry();
-        DbSegmentAllocator allocator = new DbSegmentAllocator(sqlSessionFactory);
+        IIdSegmentStatementExecutor executor = new SpringIdSegmentStatementExecutor(sqlSessionTemplate);
+        DbSegmentAllocator allocator = new DbSegmentAllocator(executor, txOps);
         IdGeneratorDefinition definition =
                 new IdGeneratorDefinition(ORDER_BIZ_KEY, 1L, 1000, IdType.LONG, null, "订单号");
         registry.register(definition, allocator);

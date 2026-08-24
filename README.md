@@ -314,6 +314,7 @@ import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
 import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 import io.pragmatic.ddd.event.local.ThreadPoolEventManager;
 import io.pragmatic.ddd.event.spi.IEventManager;
+import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;
 import io.pragmatic.ddd.mybatis.typehandler.json.Fastjson2JsonSerializer;
 
@@ -321,7 +322,8 @@ import java.util.concurrent.Executors;
 
 // 组合装配（示意）
 TransactionOperations txOps = ...;   // 由集成层实现：绑定"聚合写 + outbox 写"到同一 DB 事务
-IOutboxStore outboxStore = new MybatisOutboxStore(outboxMapper, txOps);
+IOutboxStatementExecutor executor = ...; // 由集成层实现：注入 SqlSessionTemplate，按 statementKey 直调 SQL（传统纯 XML，无需 Mapper 接口）
+IOutboxStore outboxStore = new MybatisOutboxStore(executor, txOps);
 IEventManager eventManager = new ThreadPoolEventManager();
 IUnitOfWork uow = new OutboxUnitOfWork(outboxStore, txOps,
         new Fastjson2JsonSerializer(),
@@ -351,15 +353,19 @@ import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
 import io.pragmatic.ddd.base.id.IdSegment;
 import io.pragmatic.ddd.base.id.IIdSegmentAllocator;
 import io.pragmatic.ddd.mybatis.id.DbSegmentAllocator;
+import io.pragmatic.ddd.mybatis.id.IIdSegmentStatementExecutor;
+import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
 
-// 基于 MyBatis 的号段 ID 分配器
-IIdSegmentAllocator allocator = new DbSegmentAllocator(sqlSessionFactory);
+// 基于 MyBatis 的号段 ID 分配器（传统纯 XML 直调，执行器自管独立短事务）
+IIdSegmentStatementExecutor idExecutor = ...; // 由集成层实现：注入 SqlSessionFactory，自管独立短事务
+IIdSegmentAllocator allocator = new DbSegmentAllocator(idExecutor);
 IdSegment segment = allocator.allocateNext("order"); // 当前号段 [segment.getStart(), segment.getMax()]
 
-// 基于 MyBatis 的事件箱存储（与聚合同事务）
-IOutboxStore outboxStore = new MybatisOutboxStore(outboxMapper, transactionOperations);
+// 基于 MyBatis 的事件箱存储（与聚合同事务，执行器按 statementKey 直调 SQL）
+IOutboxStatementExecutor outboxExecutor = ...; // 由集成层实现：注入 SqlSessionTemplate
+IOutboxStore outboxStore = new MybatisOutboxStore(outboxExecutor, transactionOperations);
 outboxStore.store(outboxMessages); // 在调用方事务内批量落库
 
 // 统一注册枚举 / JSON / 集合类型处理器（构建完 SqlSessionFactory 后调用一次）

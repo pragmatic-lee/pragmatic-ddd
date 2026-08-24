@@ -344,12 +344,10 @@ RuntimeException
 `MybatisOutboxStore` 实现 core 的 `IOutboxStore`：
 
 ```java
-// 注册 OutboxMapper（同包同名 OutboxMapper.xml 自动加载绑定）
-sqlSessionFactory.getConfiguration().addMapper(OutboxMapper.class);
-
-// 构造签名：OutboxMapper + TransactionOperations（最小事务抽象 SPI，由使用方按技术栈实现）
-OutboxMapper mapper = sqlSession.getMapper(OutboxMapper.class);
-IOutboxStore store = new MybatisOutboxStore(mapper, txOps);
+// 传统纯 XML 直调方式：框架按 namespace.statementId 直接调用 SQL，无需持有 OutboxMapper 接口。
+// IOutboxStatementExecutor 注入 SqlSessionTemplate，按调用方传入的 statementKey 直调（执行器不感知 key 具体值）。
+IOutboxStatementExecutor executor = ...;
+IOutboxStore store = new MybatisOutboxStore(executor, txOps);
 store.store(List.of(outboxMessage));  // 在调用方事务内执行，与聚合同事务落库
 ```
 
@@ -358,7 +356,9 @@ store.store(List.of(outboxMessage));  // 在调用方事务内执行，与聚合
 **解决什么问题**：分布式下需要高性能、趋势递增且不强依赖中心化发号（如雪花算法对时钟敏感）的业务 ID。`DbSegmentAllocator` 实现 core 的 `IIdSegmentAllocator`，从数据库号段表一次性拉取一段 `[current_max_id, current_max_id + step)` 缓存在本地，用完再续段，把数据库访问从"每次发号"降为"每段一次"，兼顾性能与单调趋势。
 
 ```java
-IIdSegmentAllocator allocator = new DbSegmentAllocator(sqlSessionFactory);
+// 号段分配器经 IIdSegmentStatementExecutor 直调，执行器自管独立短事务（SELECT ... FOR UPDATE 持锁）
+IIdSegmentStatementExecutor idExecutor = ...;
+IIdSegmentAllocator allocator = new DbSegmentAllocator(idExecutor);
 long id = allocator.nextId("order");
 ```
 
@@ -416,5 +416,5 @@ CREATE TABLE IF NOT EXISTS id_segment (
 | `CollectionMapping` | `of(entityClass, field, elementType).columnLabel(...)` | 不可 `builder()`；三者缺一不可 |
 | `ListTypeHandler` | 单例注册 `List.class`，由 `columnLabel` 还原泛型 | 同名列不同类型须用不同 `columnLabel` 隔离（启动期 `IllegalStateException`） |
 | `TypeHandlerContext` | `record(6 参数)` → `registerInto(sqlSessionFactory)` | 枚举策略单点来源，勿分头配置 |
-| `MybatisOutboxStore` | `new MybatisOutboxStore(mapper, txOps)`（需先 `addMapper(OutboxMapper.class)`） | 实现 core `IOutboxStore`；store 走调用方事务，补偿操作走 `txOps` 独立短事务 |
-| `DbSegmentAllocator` | `new DbSegmentAllocator(sqlSessionFactory)` | 实现 core `IIdSegmentAllocator` |
+| `MybatisOutboxStore` | `new MybatisOutboxStore(executor, txOps)` | 传统纯 XML 直调；持有 `IOutboxStatementExecutor`，store 走调用方事务，补偿操作走 `txOps` 独立短事务（REQUIRES_NEW） |
+| `DbSegmentAllocator` | `new DbSegmentAllocator(idExecutor)` | 传统纯 XML 直调；持有 `IIdSegmentStatementExecutor`，执行器自管独立短事务实现 core `IIdSegmentAllocator` |

@@ -65,16 +65,14 @@ CREATE TABLE outbox_message (
 ### 3.2 配置 `MybatisOutboxStore`
 
 ```java
-// 1. 注册 OutboxMapper（同包同名 OutboxMapper.xml 自动加载绑定）
-sqlSessionFactory.getConfiguration().addMapper(OutboxMapper.class);
-
-// 2. 提供事务抽象实现（SPI，由使用方按技术栈实现，如 Spring 事务模板 / SqlSession 手动提交）
-//    store 在调用方事务内执行，claim / markSent / release 等补偿操作通过它各自开启独立短事务
+// 1. 提供事务抽象实现（SPI，由使用方按技术栈实现，如 Spring 事务模板 / SqlSession 手动提交）
+//    store 在调用方事务内执行，claim / markSent / release 等补偿操作通过它各自开启独立短事务（REQUIRES_NEW）
 TransactionOperations txOps = ...;
 
-// 3. 装配（构造签名：OutboxMapper + TransactionOperations）
-OutboxMapper mapper = sqlSession.getMapper(OutboxMapper.class);
-MybatisOutboxStore outboxStore = new MybatisOutboxStore(mapper, txOps);
+// 2. 装配（传统纯 XML 直调：IOutboxStatementExecutor 注入 SqlSessionTemplate，按 statementKey 直调 SQL，无需 Mapper 接口）
+//    XML 经 setMapperLocations 路径扫描加载，框架按 namespace.statementId 直接调用 SQL
+IOutboxStatementExecutor executor = ...;
+MybatisOutboxStore outboxStore = new MybatisOutboxStore(executor, txOps);
 ```
 
 ### 3.3 配置 `OutboxCommandExecutor`

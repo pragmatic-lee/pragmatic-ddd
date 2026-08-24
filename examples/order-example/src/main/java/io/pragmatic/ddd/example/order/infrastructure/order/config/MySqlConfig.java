@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.OrderStatus;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Address;
@@ -20,11 +21,11 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.type.TypeHandler;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -32,18 +33,21 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * 订单示例的 MySQL 数据访问配置。
  * 集中提供 DataSource、SqlSessionFactory、SqlSessionTemplate 与事务管理器四个核心 Bean，
  * 不依赖 Spring Boot 的 DataSourceAutoConfiguration（已在 AppStart 中排除）。
  *
- * <p>Mapper 通过 MyBatis 原生 SQL Mapper Config（mybatis-config.xml）组织，不使用 @MapperScan，
- * 也不在 Java 中持有 Mapper 接口类：所有 Mapper 的 XML 由 mybatis-config.xml 的
- * {@code <mappers>} 统一声明加载（含框架提供的 OutboxMapper / IdSegmentMapper）。</p>
+ * <p>Mapper 采用传统纯 XML 方式加载：不使用 @MapperScan，也不在 Java 中持有 Mapper 接口类。
+ * 框架与业务 Mapper 均通过 setMapperLocations 路径扫描 XML 加载（含框架提供的
+ * OutboxMapper / IdSegmentMapper 与业务 classpath 下 mapper 目录的 XML），框架按
+ * namespace.statementId 直接调用 SQL。</p>
  *
  * <p>MyBatis 复杂类型（枚举 / 值对象 JSON / 集合）通过 {@link TypeHandlerContext#registerInto}
  * 统一初始化，而非包扫描——因为 UniversalEnumTypeHandler、GenericJsonTypeHandler、ListTypeHandler
@@ -52,24 +56,63 @@ import java.util.Map;
  * @author wizard-lee
  */
 @Configuration
-@EnableConfigurationProperties(DataSourceProperties.class)
 @EnableTransactionManagement
 public class MySqlConfig {
 
-    private static final String MYBATIS_CONFIG_LOCATION = "classpath:mapper/mybatis-config.xml";
+    @Value("${spring.datasource.url}")
+    private String url;
+
+    @Value("${spring.datasource.username}")
+    private String username;
+
+    @Value("${spring.datasource.password}")
+    private String password;
+
+    @Value("${spring.datasource.driver-class-name}")
+    private String driverClassName;
+
+    @Value("${spring.datasource.hikari.maximum-pool-size:20}")
+    private int maximumPoolSize;
+
+    @Value("${spring.datasource.hikari.minimum-idle:5}")
+    private int minimumIdle;
+
+    @Value("${spring.datasource.hikari.connection-timeout:30000}")
+    private long connectionTimeout;
+
+    @Value("${spring.datasource.hikari.idle-timeout:600000}")
+    private long idleTimeout;
+
+    @Value("${spring.datasource.hikari.max-lifetime:1800000}")
+    private long maxLifetime;
+
+    @Value("${spring.datasource.hikari.keepalive-time:300000}")
+    private long keepaliveTime;
+
+    @Value("${spring.datasource.hikari.validation-timeout:5000}")
+    private long validationTimeout;
 
     /**
-     * 基于外部化配置（spring.datasource.*）构建 HikariCP 数据源。
-     * 连接参数从 application.properties 或环境变量读取，不在代码中硬编码。
+     * 直接读取 application.properties 中的 spring.datasource.* 配置项，手动构建 HikariCP 数据源。
+     * 连接参数从配置文件或环境变量占位符读取，不在代码中硬编码。
      *
-     * @param properties 数据源外部化配置
      * @return 数据源实例
      */
     @Bean
-    public DataSource dataSource(DataSourceProperties properties) {
-        return properties.initializeDataSourceBuilder()
-                .type(com.zaxxer.hikari.HikariDataSource.class)
-                .build();
+    public DataSource dataSource() {
+        HikariDataSource hikariDataSource = new HikariDataSource();
+        hikariDataSource.setJdbcUrl(url);
+        hikariDataSource.setUsername(username);
+        hikariDataSource.setPassword(password);
+        hikariDataSource.setDriverClassName(driverClassName);
+        hikariDataSource.setMaximumPoolSize(maximumPoolSize);
+        hikariDataSource.setMinimumIdle(minimumIdle);
+        hikariDataSource.setConnectionTimeout(connectionTimeout);
+        hikariDataSource.setIdleTimeout(idleTimeout);
+        hikariDataSource.setMaxLifetime(maxLifetime);
+        hikariDataSource.setKeepaliveTime(keepaliveTime);
+        hikariDataSource.setValidationTimeout(validationTimeout);
+        return hikariDataSource;
     }
 
     /**
@@ -117,7 +160,14 @@ public class MySqlConfig {
 
         // 6. 指定 Mapper XML 文件的路径
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        sessionFactory.setMapperLocations(resolver.getResources("classpath:mapper/**/*.xml"));
+        Resource[] frameworkOutboxMappers = resolver.getResources("classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml");
+        Resource[] frameworkIdGenMappers = resolver.getResources("classpath*:io/pragmatic/ddd/mybatis/id/*.xml");
+        Resource[] businessMappers = resolver.getResources("classpath*:mapper/**/*.xml");
+
+        Resource[] allMappers = Stream.of(frameworkIdGenMappers,frameworkOutboxMappers,businessMappers)
+                .flatMap(Arrays::stream)
+                .toArray(Resource[]::new);
+        sessionFactory.setMapperLocations(allMappers);
 
         // 7. (可选) 扫描实体类的包路径，用于类型别名 (TypeAliases)
         sessionFactory.setTypeAliasesPackage("com.example.entity");
