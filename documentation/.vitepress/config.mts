@@ -61,7 +61,8 @@ export default defineConfig({
           text: '集成模块',
           items: [
             { text: 'MyBatis 集成', link: '/integration/mybatis' },
-            { text: 'RocketMQ 集成', link: '/integration/rocketmq' }
+            { text: 'RocketMQ 集成', link: '/integration/rocketmq' },
+            { text: '事务性发件箱（Outbox）', link: '/integration/outbox' }
           ]
         }
       ],
@@ -85,7 +86,9 @@ export default defineConfig({
             { text: 'MySQL 配置设计原则', link: '/best-practices/mysql-config' },
             { text: 'Elasticsearch 配置设计原则', link: '/best-practices/elasticsearch-config' },
             { text: '事件建模指南', link: '/best-practices/event-modeling' },
-            { text: '事务性发件箱', link: '/best-practices/transactional-outbox' }
+            { text: '事务性发件箱', link: '/best-practices/transactional-outbox' },
+            { text: 'RocketMQ 配置设计原则', link: '/best-practices/rocketmq-config' },
+            { text: 'Outbox 链路装配', link: '/best-practices/outbox-config' }
           ]
         }
       ],

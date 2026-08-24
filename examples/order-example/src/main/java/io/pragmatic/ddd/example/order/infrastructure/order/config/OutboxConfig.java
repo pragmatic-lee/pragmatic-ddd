@@ -8,8 +8,11 @@ import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;
+import io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer;
 import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -77,21 +80,32 @@ public class OutboxConfig {
     }
 
     /**
-     * 兜底轮询器：周期补偿超时 PENDING 记录，构造后立即启动。
+     * 兜底轮询器：周期补偿超时 PENDING 记录。仅构造实例，不在此启动；
+     * 启动延后到 {@link ApplicationRunner}（应用完全就绪后）调用 start()。
      *
      * @param outboxStore Outbox 存储
      * @param eventManager 事件管理器
      * @param serializer 事件序列化器
-     * @return 已启动的 OutboxRelay 实例
+     * @return 未启动的 OutboxRelay 实例
      */
     @Bean
     public OutboxRelay outboxRelay(IOutboxStore outboxStore,
                                    IEventManager eventManager,
                                    IEventSerializer serializer) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        OutboxRelay relay = new OutboxRelay(outboxStore, eventManager, serializer, scheduler,
+        return new OutboxRelay(outboxStore, eventManager, serializer, scheduler,
                 OutboxRelayConfig.defaultConfig());
-        relay.start();
-        return relay;
+    }
+
+    /**
+     * 应用完全就绪（所有 Bean 初始化完成、Web 端口已监听）后，再启动兜底轮询。
+     * 避免 Relay 在依赖尚未完全就绪时提前轮询。
+     *
+     * @param outboxRelay 待启动的兜底轮询器
+     * @return ApplicationRunner 实例
+     */
+    @Bean
+    public ApplicationRunner startOutboxRelayOnReady(OutboxRelay outboxRelay) {
+        return (ApplicationArguments args) -> outboxRelay.start();
     }
 }

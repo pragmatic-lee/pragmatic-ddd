@@ -1,24 +1,24 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.config;
 
-import io.pragmatic.ddd.config.ConfigurationBinder;
-import io.pragmatic.ddd.config.IConfigurationSource;
 import io.pragmatic.ddd.config.MapConfigurationSource;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
 import io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver;
-import io.pragmatic.ddd.example.order.application.order.subscriber.OrderEventSubscriberRegistry;
 import io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer;
 import io.pragmatic.ddd.rocketmq.RocketMqConfig;
 import io.pragmatic.ddd.rocketmq.RocketMqEventManager;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 /**
  * RocketMQ 4.x（Remoting）事件基础设施配置。
- * 负责装配框架统一配置、订单域主题路由与事件管理器，并交由 Spring 容器受控启停。
- * 订阅登记由 {@link OrderEventSubscriberRegistry} 承担，本类不负责订阅绑定。
+ * 负责装配框架统一配置、订单域主题路由与事件管理器；事件管理器的启动延后到
+ * 应用完全就绪后（由 startRocketMqOnReady 触发），避免提前收发。
+ * 订阅登记由订单域订阅者注册表（EventSubscriberRegistry 实现）承担，本类不负责订阅绑定。
  *
  * @author wizard-lee
  */
@@ -77,15 +77,16 @@ public class RocketMQConfig {
 
     /**
      * 装配 RocketMQ 事件管理器（core 端口 IEventManager 的 Remoting 实现）。
-     * 必须先 build 再 start，故交由 Spring 在容器启动/销毁时调用 start/shutdown 受控启停；
-     * 外部注入的 Producer 由 {@link #rocketMqProducer(RocketMqConfig)} 自身生命周期回收。
+     * 仅 build 实例，不在此 start；启动延后到 {@link ApplicationRunner}（应用完全就绪后）调用 start()，
+     * 确保 Consumer 订阅与各通道收发在依赖全部就绪后再拉起。
+     * 外部注入的 Producer 由 {@link #rocketMqProducer(RocketMqConfig)} 自身生命周期回收（shutdown 守卫避免重复关闭）。
      *
      * @param config       RocketMQ 统一配置
      * @param topicResolver 订单域主题路由
      * @param producer     RocketMQ 生产者
-     * @return 事件管理器
+     * @return 事件管理器（未启动）
      */
-    @Bean(initMethod = "start", destroyMethod = "shutdown")
+    @Bean(destroyMethod = "shutdown")
     public IEventManager orderEventManager(
             RocketMqConfig config,
             ITopicResolver topicResolver,
@@ -96,5 +97,17 @@ public class RocketMQConfig {
                 .serializer(new Fastjson2EventSerializer())
                 .producer(producer)
                 .build();
+    }
+
+    /**
+     * 应用完全就绪（所有 Bean 初始化完成、Web 端口已监听）后，再启动事件管理器。
+     * 触发 Consumer 订阅与各通道收发，避免下游未就绪时提前拉消息。
+     *
+     * @param orderEventManager 待启动的事件管理器
+     * @return ApplicationRunner 实例
+     */
+    @Bean
+    public ApplicationRunner startRocketMqOnReady(IEventManager orderEventManager) {
+        return (ApplicationArguments args) -> orderEventManager.start();
     }
 }
