@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.example.order;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
@@ -12,12 +13,19 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
  *
  * @author wizard-lee
  */
+@Slf4j
 @SpringBootApplication(exclude = {
         DataSourceAutoConfiguration.class
 },scanBasePackages = "io.pragmatic.ddd.example.order")
 public class AppStart {
 
     public static void main(String[] args) {
-        SpringApplication.run(AppStart.class, args);
+        try{
+
+            SpringApplication.run(AppStart.class, args);
+        }
+        catch (Exception ex){
+            log.error("xx",ex);
+        }
     }
 }

@@ -46,7 +46,6 @@ class RocketMqDomainEventManagerTest {
         CountDownLatch latch = new CountDownLatch(2);
         List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("test1", MyDomainEvent.class, s -> {
             received.add(s.getName());
@@ -72,7 +71,6 @@ class RocketMqDomainEventManagerTest {
         RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC);
         CountDownLatch latch = new CountDownLatch(2);
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("shareTest1", ShareDomainEvent.class, s -> latch.countDown());
         manager.registerSubscriber("shareTest2", ShareDomainEvent.class, s -> latch.countDown());
@@ -92,7 +90,6 @@ class RocketMqDomainEventManagerTest {
         CountDownLatch latch = new CountDownLatch(2);
         List<String> executed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("test1", ShareDomainEvent.class, s -> {
             executed.add(s.getName());
@@ -120,7 +117,6 @@ class RocketMqDomainEventManagerTest {
         RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
         CountDownLatch latch = new CountDownLatch(4);
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("sub0", MyDomainEvent.class, s -> latch.countDown());
         manager.registerSubscriber("sub1", MyDomainEvent.class, s -> latch.countDown(), DELAYED);
@@ -142,7 +138,6 @@ class RocketMqDomainEventManagerTest {
         RocketMqEventManager manager = RocketMqTestSupport.create4xManager(DEFAULT_TOPIC, RocketMqTestSupport.orderManager());
         CountDownLatch latch = new CountDownLatch(3);
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("sub1", MyDomainEvent.class, s -> {
             if (latch.getCount() > 0) {
@@ -168,7 +163,6 @@ class RocketMqDomainEventManagerTest {
         CountDownLatch latch = new CountDownLatch(3);
         List<String> order = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("r1", MyDomainEvent.class, s -> {
             order.add("r1");
@@ -199,7 +193,6 @@ class RocketMqDomainEventManagerTest {
         CountDownLatch latch = new CountDownLatch(2);
         List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("a", MyDomainEvent.class, s -> {
             received.add("MyDomainEvent:" + s.getName());
@@ -235,7 +228,6 @@ class RocketMqDomainEventManagerTest {
         CountDownLatch latch = new CountDownLatch(2);
         List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
 
-        manager.initTopics();
         manager.start();
         manager.registerSubscriber("a", MyDomainEvent.class, s -> {
             received.add("A:" + s.getName());

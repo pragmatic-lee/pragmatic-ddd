@@ -10,7 +10,6 @@ import io.pragmatic.ddd.base.MessageCode;
  */
 public class OrderRuleRegistry extends BrokenRuleRegistry {
 
-    public static final OrderRuleRegistry INSTANCE = new OrderRuleRegistry();
 
     public static final MessageCode ORDER_AMOUNT_POSITIVE =
             MessageCode.of("ORDER_AMOUNT_POSITIVE", "订单金额必须为正数");
@@ -38,6 +37,9 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
 
     public static final MessageCode ORDER_CUSTOMER_QUALIFIED =
             MessageCode.of("ORDER_CUSTOMER_QUALIFIED", "下单用户未生效或不具备下单资格");
+
+    public static final OrderRuleRegistry INSTANCE = new OrderRuleRegistry();
+
 
     private OrderRuleRegistry() {
     }

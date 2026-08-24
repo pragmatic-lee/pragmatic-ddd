@@ -264,6 +264,9 @@ public class RocketMqEventManager extends AbstractMQEventManager
             log.warn("RocketMqEventManager already started, ignore");
             return;
         }
+        // 确保消费通道就绪：依据 topicResolver 创建并订阅各 topic 的 Consumer
+        // （此前由使用方手动调用，Spring 集成路径(initMethod="start")会遗漏，导致无消费者）
+        initTopics();
         // 1. Producer 受控 start
         if (this.sharedProducer instanceof DefaultMQProducer p) {
             try {

@@ -105,8 +105,9 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
      * 批量初始化所有 Topic 通道。
      * 基于 ITopicResolver.getAllTopics() 获取全量 topic 列表。
      * 应用启动时调用，取代逐个 registerDomainEvent 的模式。
+     * 该方法为框架内部初始化步骤，由子类 start() 自包含调用，不应由使用方手动调用。
      */
-    public void initTopics() {
+    protected void initTopics() {
         Set<String> allTopics = topicResolver.getAllTopics();
         Set<String> newTopics = new HashSet<>(allTopics);
         newTopics.removeAll(this.initializedTopics);

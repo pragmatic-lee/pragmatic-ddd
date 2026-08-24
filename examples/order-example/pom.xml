@@ -55,6 +55,13 @@
         <dependency>
             <groupId>io.pragmatic.ddd</groupId>
             <artifactId>pragmatic-ddd-rocketmq</artifactId>
+            <exclusions>
+                <!-- 排除 RocketMQ 传递的 commons-logging，统一由 spring-jcl 提供 org.apache.commons.logging API，避免双实现冲突警告 -->
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- ===== Spring Boot 核心（starter 仅引入传递依赖，装配全部手写） ===== -->
@@ -65,6 +72,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <!-- 排除掉 Tomcat 自带的老旧 annotations-api -->
+                <exclusion>
+                    <groupId>org.apache.tomcat</groupId>
+                    <artifactId>annotations-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- ===== 数据库：MyBatis（手写 DataSource/SqlSessionFactory 配置） ===== -->
         <dependency>
@@ -157,6 +171,31 @@
                         <goals>
                             <goal>repackage</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 构建时把 docker/Dockerfile 复制到 target 目录，方便直接基于 target 构建镜像 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-dockerfile</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/docker</directory>
+                                    <includes>
+                                        <include>Dockerfile</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
