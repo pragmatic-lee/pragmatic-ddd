@@ -5,6 +5,10 @@ import io.pragmatic.ddd.base.id.IdGeneratorRegistry;
 import io.pragmatic.ddd.base.id.IdSegment;
 import io.pragmatic.ddd.base.id.IdType;
 import io.pragmatic.ddd.mybatis.MysqlTestSupport;
+import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
+import io.pragmatic.ddd.mybatis.id.IdSegmentEntity;
+import io.pragmatic.ddd.mybatis.id.IdSegmentStatements;
+import io.pragmatic.ddd.mybatis.id.IIdSegmentStatementExecutor;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.assertj.core.api.Assertions;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Statement;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -51,7 +56,7 @@ class MysqlIdSegmentAllocatorTest {
     }
 
     private DbSegmentAllocator allocator() {
-        return new DbSegmentAllocator(sqlSessionFactory);
+        return new DbSegmentAllocator(new TestIdSegmentStatementExecutor(sqlSessionFactory), new NoopTransactionOperations());
     }
 
     @Test
@@ -135,8 +140,28 @@ class MysqlIdSegmentAllocatorTest {
 
     private long currentMaxOf(String bizKey) throws Exception {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
-            IdSegmentMapper mapper = session.getMapper(IdSegmentMapper.class);
-            return mapper.selectForUpdate(bizKey).getCurrentMaxId();
+            IdSegmentEntity row = session.selectOne(IdSegmentStatements.SELECT_FOR_UPDATE, Map.of("bizKey", bizKey));
+            return row.getCurrentMaxId();
+        }
+    }
+
+    /** 基于 openSession(true) 的 IIdSegmentStatementExecutor 测试实现（事务由 NoopTransactionOperations 控制，不依赖 Spring）。 */
+    static class TestIdSegmentStatementExecutor implements IIdSegmentStatementExecutor {
+
+        private final SqlSessionFactory sqlSessionFactory;
+
+        TestIdSegmentStatementExecutor(SqlSessionFactory sqlSessionFactory) {
+            this.sqlSessionFactory = sqlSessionFactory;
+        }
+
+        @Override
+        public IdSegment allocateNext(String selectKey, String updateKey, String bizKey) {
+            try (SqlSession session = sqlSessionFactory.openSession(true)) {
+                IdSegmentEntity row = session.selectOne(selectKey, Map.of("bizKey", bizKey));
+                long newMax = row.getCurrentMaxId() + row.getStep();
+                session.update(updateKey, Map.of("bizKey", bizKey, "newMax", newMax));
+                return new IdSegment(row.getCurrentMaxId() + 1, newMax, row.getStep());
+            }
         }
     }
 }

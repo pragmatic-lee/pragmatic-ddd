@@ -4,6 +4,8 @@ import io.pragmatic.ddd.application.outbox.OutboxMessage;
 import io.pragmatic.ddd.application.outbox.OutboxStatus;
 import io.pragmatic.ddd.mybatis.MysqlTestSupport;
 import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
+import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
+import io.pragmatic.ddd.mybatis.outbox.OutboxStatements;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -17,6 +19,8 @@ import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,7 +29,6 @@ class MybatisOutboxStoreMysqlTest {
     private static SqlSessionFactory ssf;
     private SqlSession session;
     private MybatisOutboxStore store;
-    private OutboxMapper mapper;
 
     @BeforeAll
     static void init() throws Exception {
@@ -40,14 +43,20 @@ class MybatisOutboxStoreMysqlTest {
         try (Statement st = session.getConnection().createStatement()) {
             st.execute("DELETE FROM outbox_message");
         }
-        mapper = session.getMapper(OutboxMapper.class);
-        store = new MybatisOutboxStore(mapper, new NoopTransactionOperations());
+        // 传统纯 XML 直调方式：基于 openSession(true) 的 IOutboxStatementExecutor 测试实现构造 store
+        store = new MybatisOutboxStore(new TestOutboxStatementExecutor(ssf), new NoopTransactionOperations());
     }
 
     @AfterEach
     void close() {
         if (session != null) {
             session.close();
+        }
+    }
+
+    private OutboxMessage selectById(String id) {
+        try (SqlSession s = ssf.openSession(true)) {
+            return s.selectOne(OutboxStatements.SELECT_BY_ID, id);
         }
     }
 
@@ -76,7 +85,7 @@ class MybatisOutboxStoreMysqlTest {
         assertThat(claimed.get(0).getStatus()).isEqualTo(OutboxStatus.PROCESSING);
 
         store.markSent("id-1");
-        OutboxMessage after = mapper.selectById("id-1");
+        OutboxMessage after = selectById("id-1");
         assertThat(after.getStatus()).isEqualTo(OutboxStatus.SENT);
         assertThat(after.getSentAt()).isNotNull();
     }
@@ -91,7 +100,7 @@ class MybatisOutboxStoreMysqlTest {
         // 重复 markSent 不应报错，也不应改变已终态
         store.markSent("id-2");
 
-        OutboxMessage after = mapper.selectById("id-2");
+        OutboxMessage after = selectById("id-2");
         assertThat(after.getStatus()).isEqualTo(OutboxStatus.SENT);
     }
 
@@ -100,10 +109,10 @@ class MybatisOutboxStoreMysqlTest {
         store.store(List.of(newMessage("id-3")));
         // 消息默认 createdAt=now-10s，grace 取 1s（< 10s）才能被认领为 PROCESSING。
         store.claimPending(10, Duration.ofSeconds(1));
-        assertThat(mapper.selectById("id-3").getStatus()).isEqualTo(OutboxStatus.PROCESSING);
+        assertThat(selectById("id-3").getStatus()).isEqualTo(OutboxStatus.PROCESSING);
 
         store.release("id-3");
-        assertThat(mapper.selectById("id-3").getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(selectById("id-3").getStatus()).isEqualTo(OutboxStatus.PENDING);
     }
 
     @Test
@@ -112,10 +121,10 @@ class MybatisOutboxStoreMysqlTest {
 
         int attempts = store.incrementAttempts("id-4");
         assertThat(attempts).isEqualTo(1);
-        assertThat(mapper.selectById("id-4").getAttempts()).isEqualTo(1);
+        assertThat(selectById("id-4").getAttempts()).isEqualTo(1);
 
         store.markFailed("id-4");
-        assertThat(mapper.selectById("id-4").getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(selectById("id-4").getStatus()).isEqualTo(OutboxStatus.FAILED);
     }
 
     @Test
@@ -135,6 +144,78 @@ class MybatisOutboxStoreMysqlTest {
         assertThat(claimed.get(0).getId()).isEqualTo("old-1");
 
         // fresh-1 不应被认领
-        assertThat(mapper.selectById("fresh-1").getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(selectById("fresh-1").getStatus()).isEqualTo(OutboxStatus.PENDING);
+    }
+
+    /** 基于 openSession(true) 的 IOutboxStatementExecutor 测试实现（不依赖 Spring）。 */
+    static class TestOutboxStatementExecutor implements IOutboxStatementExecutor {
+
+        private final SqlSessionFactory sqlSessionFactory;
+
+        TestOutboxStatementExecutor(SqlSessionFactory sqlSessionFactory) {
+            this.sqlSessionFactory = sqlSessionFactory;
+        }
+
+        private SqlSession session() {
+            return sqlSessionFactory.openSession(true);
+        }
+
+        @Override
+        public void store(String statementKey, List<OutboxMessage> messages) {
+            try (SqlSession s = session()) {
+                s.insert(statementKey, Map.of("list", messages));
+            }
+        }
+
+        @Override
+        public OutboxMessage claim(String statementKey, String id) {
+            try (SqlSession s = session()) {
+                s.update(statementKey, Map.of("id", id, "claimedAt", Instant.now()));
+                return s.selectOne(OutboxStatements.SELECT_BY_ID, Map.of("id", id));
+            }
+        }
+
+        @Override
+        public void markSent(String statementKey, String id) {
+            try (SqlSession s = session()) {
+                s.update(statementKey, Map.of("id", id));
+            }
+        }
+
+        @Override
+        public void release(String statementKey, String id) {
+            try (SqlSession s = session()) {
+                s.update(statementKey, Map.of("id", id));
+            }
+        }
+
+        @Override
+        public List<OutboxMessage> claimPending(String statementKey, int batchSize, Duration grace) {
+            try (SqlSession s = session()) {
+                String token = UUID.randomUUID().toString();
+                Instant cutoff = Instant.now().minus(grace);
+                int claimed = s.update(statementKey, Map.of("token", token, "cutoff", cutoff, "batchSize", batchSize));
+                if (claimed == 0) {
+                    return List.of();
+                }
+                return s.selectList(OutboxStatements.SELECT_BY_CLAIM_TOKEN, Map.of("token", token));
+            }
+        }
+
+        @Override
+        public int incrementAttempts(String statementKey, String id) {
+            try (SqlSession s = session()) {
+                s.update(statementKey, Map.of("id", id));
+                Integer attempts = s.selectOne(OutboxStatements.SELECT_ATTEMPTS, Map.of("id", id));
+                return attempts == null ? 0 : attempts;
+            }
+        }
+
+        @Override
+        public void markFailed(String statementKey, String id) {
+            try (SqlSession s = session()) {
+                s.update(statementKey, Map.of("id", id));
+            }
+        }
     }
 }

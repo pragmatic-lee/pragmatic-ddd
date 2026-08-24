@@ -7,11 +7,11 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Outbox 表 Mapper 通用接口（与具体数据库无关的契约定义）。
+ * Outbox 表 Mapper 契约接口（可选，与具体数据库无关的契约定义）。
  *
  * <p>仅声明方法签名，不含任何 SQL；具体 SQL 由同包同名 {@code OutboxMapper.xml} 提供（当前为 MySQL）。
- * 本接口不标注 {@code @Mapper}，采用手动注册：使用方在构建 {@code SqlSessionFactory} 后调用
- * {@code configuration.addMapper(OutboxMapper.class)} 即可，同级 XML 自动加载绑定；模块保持 Spring 无关。</p>
+ * 框架默认走传统纯 XML 直调方式（MybatisOutboxStore 按 namespace.statementId 直接调用），使用方无需引入本接口；
+ * 若偏好接口式仍可 addMapper + getMapper，与纯 XML 扫描不冲突。模块保持 Spring 无关。</p>
  *
  * @author wizard-lee
  */

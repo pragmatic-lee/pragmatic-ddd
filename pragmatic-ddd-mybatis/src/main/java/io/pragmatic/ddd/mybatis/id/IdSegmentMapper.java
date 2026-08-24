@@ -3,7 +3,9 @@ package io.pragmatic.ddd.mybatis.id;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * ID 号段 Mapper 契约接口：仅声明方法签名，具体 SQL 由同包同名 XML 提供。
+ * ID 号段 Mapper 契约接口（可选）：仅声明方法签名，具体 SQL 由同包同名 XML 提供。
+ * 框架默认走传统纯 XML 直调方式（DbSegmentAllocator 按 namespace.statementId 直接调用），
+ * 使用方无需引入本接口；若偏好接口式仍可 addMapper + getMapper，与纯 XML 扫描不冲突。
  *
  * @author wizard-lee
  */

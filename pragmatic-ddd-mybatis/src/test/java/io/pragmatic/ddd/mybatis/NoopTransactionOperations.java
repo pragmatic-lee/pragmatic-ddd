@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.mybatis;
 
+import io.pragmatic.ddd.application.outbox.spi.Propagation;
 import io.pragmatic.ddd.application.outbox.spi.TransactionCallback;
 import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
 
@@ -13,6 +14,11 @@ public final class NoopTransactionOperations implements TransactionOperations {
 
     @Override
     public <T> T execute(TransactionCallback<T> callback) {
+        return callback.doInTransaction();
+    }
+
+    @Override
+    public <T> T execute(TransactionCallback<T> callback, Propagation propagation) {
         return callback.doInTransaction();
     }
 }
