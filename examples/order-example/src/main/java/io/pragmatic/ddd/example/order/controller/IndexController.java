@@ -1,11 +1,13 @@
 package io.pragmatic.ddd.example.order.controller;
 
 import io.pragmatic.ddd.example.order.application.order.OrderWriteService;
+import io.pragmatic.ddd.example.order.application.order.input.ChangeOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderItemInput;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -38,6 +40,20 @@ public class IndexController {
     public String testOrder(){
         CreateOrderInput input = buildSampleInput();
         orderWriteService.placeOrder(input);
+        return "OK";
+    }
+
+    @GetMapping("/testChangeAddress")
+    public String testChangeAddress(@RequestParam Long orderId){
+        ChangeOrderAddressInput input = new ChangeOrderAddressInput();
+        input.setProvince("北京市");
+        input.setCity("北京市");
+        input.setDistrict("海淀区");
+        input.setDetail("中关村大街 5 号院腾讯大厦");
+        input.setReceiverName("李四");
+        input.setReceiverPhone("13900139000");
+
+        orderWriteService.changeOrderAddress(orderId, input);
         return "OK";
     }
 
