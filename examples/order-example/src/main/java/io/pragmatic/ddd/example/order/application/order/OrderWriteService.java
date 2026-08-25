@@ -12,8 +12,11 @@ import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.example.order.application.order.factory.OrderFactory;
 import io.pragmatic.ddd.example.order.application.order.input.ChangeOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
-import io.pragmatic.ddd.example.order.application.order.rule.OrderRuleAssembler;
+import io.pragmatic.ddd.example.order.application.order.input.PayOrderInput;
+import io.pragmatic.ddd.example.order.application.order.input.ShipOrderInput;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderAddressUpdater;
+import io.pragmatic.ddd.example.order.application.order.updater.OrderPayUpdater;
+import io.pragmatic.ddd.example.order.application.order.updater.OrderShipUpdater;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRule;
 import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
@@ -21,19 +24,23 @@ import io.pragmatic.ddd.event.spi.IEventManager;
 import org.springframework.stereotype.Service;
 
 /**
- * 订单写服务：下单命令的应用服务编排。
- * Input 接入 → 工厂建聚合 → 规则校验 → 仓储持久化 → 领域事件发布，置于同一事务单元。
+ * 订单写服务：下单、改址、发货与支付命令的应用服务编排。
+ * Input 接入 → 工厂建聚合 / Updater 改聚合 → 规则校验 → 仓储持久化 → 领域事件发布，置于同一事务单元。
  */
 @Service
 public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
 
     private final OrderFactory orderFactory;
 
-    private final OrderRuleAssembler orderRuleAssembler;
+    private final OrderRule orderRule;
 
     private final OrderRepository orderRepository;
 
     private final OrderAddressUpdater orderAddressUpdater;
+
+    private final OrderShipUpdater orderShipUpdater;
+
+    private final OrderPayUpdater orderPayUpdater;
 
     public OrderWriteService(IEventManager eventManager,
                              IOutboxStore iOutboxStore,
@@ -41,21 +48,24 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                              EagerOutboxPublisher eagerOutboxPublisher,
                              TransactionOperations txOps,
                              OrderFactory orderFactory,
-                             OrderRuleAssembler orderRuleAssembler,
+                             OrderRule orderRule,
                              OrderRepository orderRepository,
-                             OrderAddressUpdater orderAddressUpdater) {
+                             OrderAddressUpdater orderAddressUpdater,
+                             OrderShipUpdater orderShipUpdater,
+                             OrderPayUpdater orderPayUpdater) {
         super(eventManager, new OutboxCommandExecutor(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher));
         this.orderFactory = orderFactory;
-        this.orderRuleAssembler = orderRuleAssembler;
+        this.orderRule = orderRule;
         this.orderRepository = orderRepository;
         this.orderAddressUpdater = orderAddressUpdater;
+        this.orderShipUpdater = orderShipUpdater;
+        this.orderPayUpdater = orderPayUpdater;
     }
 
     /** 下单：创建并持久化订单。 */
     public Order placeOrder(CreateOrderInput input) {
         Order order = orderFactory.create(input);
-        OrderRule rule = orderRuleAssembler.assemble();
-        return super.execute(order, rule, orderRepository, t -> {
+        return super.execute(order, orderRule, orderRepository, t -> {
         });
     }
 
@@ -65,8 +75,7 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         if (order == null) {
             return null;
         }
-        OrderRule rule = orderRuleAssembler.assemble();
-        return super.execute(order, rule, orderRepository, t -> orderAddressUpdater.apply(t, input));
+        return super.execute(order, orderRule, orderRepository, t -> orderAddressUpdater.apply(t, input));
     }
 
     /** 预校验变更收货地址：不落库、不发布，仅返回结构化校验结果。 */
@@ -75,7 +84,42 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         if (order == null) {
             return null;
         }
-        OrderRule rule = orderRuleAssembler.assemble();
-        return super.tryExecute(order, rule, orderRepository, t -> orderAddressUpdater.apply(t, input));
+        return super.tryExecute(order, orderRule, orderRepository, t -> orderAddressUpdater.apply(t, input));
+    }
+
+    /** 发货：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。 */
+    public Order shipOrder(Long orderId, ShipOrderInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.execute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
+    }
+
+    /** 预校验发货：不落库、不发布，仅返回结构化校验结果。 */
+    public DryRunResult tryShipOrder(Long orderId, ShipOrderInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.tryExecute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
+    }
+
+    /** 支付：加载聚合后经 Updater 完成 Input→PaymentInfo 转换与充血方法调用，再统一校验与持久化。 */
+    public Order payOrder(Long orderId, PayOrderInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.execute(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input));
+    }
+
+    /** 预校验支付：不落库、不发布，仅返回结构化校验结果。 */
+    public DryRunResult tryPayOrder(Long orderId, PayOrderInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.tryExecute(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input));
     }
 }

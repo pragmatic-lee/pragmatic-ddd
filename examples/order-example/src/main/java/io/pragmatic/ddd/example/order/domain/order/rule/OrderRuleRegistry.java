@@ -35,6 +35,12 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
     public static final MessageCode ORDER_ADDRESS_REQUIRED =
             MessageCode.of("ORDER_ADDRESS_REQUIRED", "收货地址不能为空");
 
+    public static final MessageCode ORDER_SHIP_STATUS_INVALID =
+            MessageCode.of("ORDER_SHIP_STATUS_INVALID", "仅已支付状态的订单可发货");
+
+    public static final MessageCode ORDER_PAY_STATUS_INVALID =
+            MessageCode.of("ORDER_PAY_STATUS_INVALID", "仅已创建状态的订单可支付");
+
     public static final MessageCode ORDER_CUSTOMER_QUALIFIED =
             MessageCode.of("ORDER_CUSTOMER_QUALIFIED", "下单用户未生效或不具备下单资格");
 
