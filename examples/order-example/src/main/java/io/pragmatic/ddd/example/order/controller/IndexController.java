@@ -44,7 +44,7 @@ public class IndexController {
     }
 
     @GetMapping("/testChangeAddress")
-    public String testChangeAddress(@RequestParam Long orderId){
+    public String testChangeAddress(@RequestParam("orderId") Long orderId){
         ChangeOrderAddressInput input = new ChangeOrderAddressInput();
         input.setProvince("北京市");
         input.setCity("北京市");
