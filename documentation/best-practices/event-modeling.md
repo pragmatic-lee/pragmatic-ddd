@@ -117,26 +117,27 @@ public class OrderPaidEvent extends BaseDomainEvent {
 
 ## 5. 即时事件 vs 延迟事件
 
-```java
-// 即时事件：立即构造，适用于事件内容在业务方法中已确定
-this.collectEvent(new OrderCancelledEvent(
-        String.valueOf(this.getEntityId()),
-        this.customerId,
-        this.refundAmount,
-        this.cancelReason));
+选择依据以**构造期 ID 是否确定**为主：
 
-// 延迟事件：发布时才构造，适用于事件内容依赖最终状态
-this.collectEvent(() -> new OrderSubmittedEvent(
-        String.valueOf(this.getEntityId()),
-        this.getTotalAmount()));  // 发布时取最新金额
+- **ID 由持久化后生成（自增主键、仓储回填雪花 ID）→ 延迟事件**：构造期 `getEntityId()` 还是 `null`，用 `collectEvent(Supplier<IDomainEvent>)`，`Supplier` 在事件真正发布时才执行，届时读到真实 ID。
+- **ID 由业务传入（UUID / 雪花 ID）→ 即时事件**：事件内容在业务方法中已确定，直接构造。
+
+```java
+// 即时事件：ID 已确定，业务方法中直接经 buildEvent 构造
+this.collectEvent(OrderCancelledEvent.buildEvent(this));
+
+// 延迟事件：ID 构造期未知，发布时才经 buildEvent 构造、读真实 ID
+this.collectEvent(() -> OrderCreatedEvent.buildEvent(this));
 ```
+
+> ⚠️ **重要约束**：事件一律经 `buildEvent(聚合)` 静态工厂构造（见 §4）。延迟事件写 `() -> XxxEvent.buildEvent(this)`，不要在业务方法里手写 `new Event(...)` 拼零散参数——ID 后生成场景会定格错误的 `entityId`。延迟事件的完整时序见 [应用层落地模式](./application-collaboration.md)。
 
 选择依据：
 
 | 场景 | 推荐 |
 | --- | --- |
-| 事件内容在业务方法中已确定 | 即时事件 |
-| 事件内容依赖后续计算或最终状态 | 延迟事件 |
+| 构造期拿不到确定 ID（自增主键、仓储回填雪花 ID） | 延迟事件（强制） |
+| 事件内容在业务方法中已确定、ID 已有 | 即时事件 |
 | 事件构造开销大、可能不被发布 | 延迟事件 |
 
 ## 6. 事件粒度
@@ -150,9 +151,9 @@ public void pay() {
     this.recordOperation(OrderOperationRegistry.PAY);
 
     // 一个操作产生多个事件
-    this.collectEvent(new OrderPaidEvent(...));
-    this.collectEvent(new PaymentReceivedEvent(...));
-    this.collectEvent(new LoyaltyPointsEarnedEvent(...));
+    this.collectEvent(OrderPaidEvent.buildEvent(this));
+    this.collectEvent(PaymentReceivedEvent.buildEvent(this));
+    this.collectEvent(LoyaltyPointsEarnedEvent.buildEvent(this));
 }
 ```
 
@@ -160,12 +161,12 @@ public void pay() {
 
 ```java
 // ❌ 反模式：一个事件塞多个事实
-this.collectEvent(new OrderPaidAndInventoryDeductedAndPointsEarnedEvent(...));
+this.collectEvent(OrderPaidAndInventoryDeductedAndPointsEarnedEvent.buildEvent(this));
 
 // ✅ 推荐：拆分为独立事件
-this.collectEvent(new OrderPaidEvent(...));
-this.collectEvent(new InventoryDeductedEvent(...));
-this.collectEvent(new LoyaltyPointsEarnedEvent(...));
+this.collectEvent(OrderPaidEvent.buildEvent(this));
+this.collectEvent(InventoryDeductedEvent.buildEvent(this));
+this.collectEvent(LoyaltyPointsEarnedEvent.buildEvent(this));
 ```
 
 ## 7. 事件与操作的关系
@@ -178,7 +179,7 @@ public void cancel() {
     this.recordOperation(OrderOperationRegistry.CANCEL);  // 操作：取消
 
     // 事件：订单已取消（operationCode 自动取 "CANCEL"）
-    this.collectEvent(new OrderCancelledEvent(...));
+    this.collectEvent(OrderCancelledEvent.buildEvent(this));
 }
 ```
 
@@ -190,5 +191,5 @@ public void cancel() {
 
 下一步：
 
-- [事务性发件箱](./transactional-outbox.md)
+- [Outbox 链路装配](./outbox-config.md)
 - [领域事件](../core/domain-events.md)

@@ -74,7 +74,7 @@ IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明
 | 返回值 | `RuleCheckResult.pass()` / `RuleCheckResult.fail(Object[])` |
 | 语义边界 | 只判断、不改状态、不写库 |
 
-与聚合根内部 `IRule<T>` / `ICheckRule<T>` 细粒度不变量校验互补：跨聚合、入参前置、复杂组合业务规则用本类。详见 [校验规则领域服务最佳实践](../best-practices/rule-validation.md)。
+与聚合根内部 `IRule<T>` / `ICheckRule<T>` 细粒度不变量校验互补：跨聚合、入参前置、复杂组合业务规则用本类。详见 [聚合业务规则（OrderRule 范式）](../best-practices/order-rule-pattern.md)。
 
 ### 2.3 第三类：属性计算（类型转换）领域服务（ATTRIBUTE_CALCULATOR）
 
@@ -408,4 +408,4 @@ application/
 - [业务规则引擎](./business-rules.md)：聚合根上的细粒度不变量校验
 - [领域事件](./domain-events.md)：`IHandle` 与事件总线注册
 - [应用服务](./application-service.md)：`execute()` 中集成校验规则领域服务
-- [校验规则领域服务最佳实践](../best-practices/rule-validation.md)：校验规则领域服务的应用层落地
+- [聚合业务规则（OrderRule 范式）](../best-practices/order-rule-pattern.md)：校验规则的落地

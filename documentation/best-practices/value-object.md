@@ -85,7 +85,7 @@ public class Address extends ValueObject {
 - **内部不变量**：在 `EntityRule` 子类的 `init()` 里 `addRule` 编写
 - **外部依赖校验**：定义校验规则领域服务（`extends IDomainService`），注入 `EntityRule` 执行
 
-详见 [校验规则领域服务](./rule-validation.md)。
+详见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)。
 
 **为什么**：同一值对象在不同业务上下文中合法性约束可能不同（如订单金额要求 `> 0`，退款金额要求 `>= 0`）。把校验写死在值对象内部会耦合固定、无法按场景复用；统一由规则类按场景校验，值对象保持纯粹、可预测。
 
@@ -106,7 +106,7 @@ public class Address extends ValueObject {
 
 - [聚合设计原则](./aggregate-design.md)：聚合根中的值对象使用与 Lombok 约定
 - [普通实体设计](./entity-design.md)：有身份的子实体
-- [校验规则领域服务](./rule-validation.md)：值对象字段校验的统一执行
+- [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)：值对象字段校验的统一执行
 - [枚举值对象最佳实践](./enum-value.md)：`IEnumValue` 的定义与 CODE 持久化
 - [核心：领域建模](../core/domain-modeling.md)：`ValueObject` / `IValueObject` / `IEnumValue` 基类机制详解
 - [MyBatis 集成](../integration/mybatis.md)：JSON TypeHandler 与 `IValueObject` 登记

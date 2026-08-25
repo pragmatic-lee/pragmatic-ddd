@@ -198,7 +198,7 @@ findRuleByMessageCode(MessageCode) / findRulesByMessageCode(MessageCode...);    
 
 #### 关键约束
 
-> **重要约束**：业务规则只校验**聚合自身**的不变量，不发起跨聚合、跨服务的调用。需要外部数据时，应通过参数在构造规则时注入（参考 `PersonEntityRule` 注入 `BasePersonScoreValidator`），而非在规则内部直接依赖仓储或远程服务。
+> **重要约束**：业务规则只校验**聚合自身**的不变量，不发起跨聚合、跨服务的调用。需要外部数据时，应通过参数在构造规则时注入（参考 `InvoiceEntityRule` 注入 `BaseInvoiceScoreValidator`），而非在规则内部直接依赖仓储或远程服务。
 
 #### 示例代码
 
@@ -239,7 +239,7 @@ public abstract class BaseRuleValidator<T> {
 }
 ```
 
-外部依赖（如评分校验器 `BasePersonScoreValidator`）经构造器注入规则，使规则保持无状态且可单例共享。
+外部依赖（如评分校验器 `BaseInvoiceScoreValidator`）经构造器注入规则，使规则保持无状态且可单例共享。
 
 ### 2.8 聚合根集成：AggregateRoot
 
@@ -364,5 +364,5 @@ RuntimeException
 | 注册表类 | `{聚合}BrokenRuleRegistry`，继承 `BrokenRuleRegistry` | `InvoiceBrokenRuleRegistry` |
 | 注册表实例 | `{聚合}BrokenRuleRegistry.INSTANCE` | `InvoiceBrokenRuleRegistry.INSTANCE` |
 | 规则容器类 | `{聚合}EntityRule`，继承 `EntityRule<{聚合}>` | `InvoiceEntityRule` |
-| 校验器类 | `Base{聚合}{维度}Validator`，继承 `BaseRuleValidator<{聚合}>` | `BasePersonScoreValidator` |
-| 外部注入规则 | 构造器入参注入，规则内部不直接依赖仓储/远程 | `new PersonEntityRule(scoreValidator, gradeValidator)` |
+| 校验器类 | `Base{聚合}{维度}Validator`，继承 `BaseRuleValidator<{聚合}>` | `BaseInvoiceScoreValidator` |
+| 外部注入规则 | 构造器入参注入，规则内部不直接依赖仓储/远程 | `new InvoiceEntityRule(scoreValidator, gradeValidator)` |

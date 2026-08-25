@@ -13,7 +13,7 @@ export default defineConfig({
       { text: '指南', link: '/getting-started/overview' },
       { text: '核心', link: '/core/domain-modeling' },
       { text: '集成', link: '/integration/mybatis' },
-      { text: '最佳实践', link: '/best-practices/aggregate-design' },
+      { text: '最佳实践', link: '/best-practices/' },
       { text: '参考', link: '/reference/api-index' },
       {
         text: '2.0.0',
@@ -69,26 +69,63 @@ export default defineConfig({
       '/best-practices/': [
         {
           text: '最佳实践',
+          collapsed: false,
           items: [
             { text: '模式库总览', link: '/best-practices/' },
-            { text: '聚合设计原则', link: '/best-practices/aggregate-design' },
-            { text: '聚合数据库设计原则', link: '/best-practices/aggregate-database-design' },
-            { text: '普通实体设计', link: '/best-practices/entity-design' },
-            { text: '应用服务层协作', link: '/best-practices/application-collaboration' },
-            { text: '注册表设计', link: '/best-practices/registry-design' },
-            { text: '操作注册表设计', link: '/best-practices/operation-registry-design' },
-            { text: '值对象', link: '/best-practices/value-object' },
-            { text: '枚举值对象', link: '/best-practices/enum-value' },
-            { text: '聚合业务规则（OrderRule 范式）', link: '/best-practices/order-rule-pattern' },
-            { text: '校验规则领域服务', link: '/best-practices/rule-validation' },
-            { text: '仓储设计原则', link: '/best-practices/repository-design' },
-            { text: '投影读模型设计原则', link: '/best-practices/projection-design' },
-            { text: 'MySQL 配置设计原则', link: '/best-practices/mysql-config' },
-            { text: 'Elasticsearch 配置设计原则', link: '/best-practices/elasticsearch-config' },
-            { text: '事件建模指南', link: '/best-practices/event-modeling' },
-            { text: '事务性发件箱', link: '/best-practices/transactional-outbox' },
-            { text: 'RocketMQ 配置设计原则', link: '/best-practices/rocketmq-config' },
-            { text: 'Outbox 链路装配', link: '/best-practices/outbox-config' }
+            {
+              text: '① 写模型建模',
+              collapsed: true,
+              items: [
+                { text: '聚合目录落地骨架', link: '/best-practices/aggregate-structure' },
+                { text: '聚合设计原则', link: '/best-practices/aggregate-design' },
+                { text: '聚合数据库设计原则', link: '/best-practices/aggregate-database-design' },
+                { text: '普通实体设计原则', link: '/best-practices/entity-design' },
+                { text: '值对象最佳实践', link: '/best-practices/value-object' },
+                { text: '枚举值对象最佳实践', link: '/best-practices/enum-value' },
+                { text: '规则注册表设计', link: '/best-practices/registry-design' },
+                { text: '操作注册表设计', link: '/best-practices/operation-registry-design' },
+                { text: '领域服务落地模式', link: '/best-practices/domain-service' }
+              ]
+            },
+            {
+              text: '② 业务规则与校验',
+              collapsed: true,
+              items: [
+                { text: '聚合业务规则（OrderRule 范式）', link: '/best-practices/order-rule-pattern' }
+              ]
+            },
+            {
+              text: '③ 应用编排',
+              collapsed: true,
+              items: [
+                { text: '应用层落地模式', link: '/best-practices/application-collaboration' }
+              ]
+            },
+            {
+              text: '④ 持久化与读模型',
+              collapsed: true,
+              items: [
+                { text: '仓储设计原则', link: '/best-practices/repository-design' },
+                { text: '投影读模型代码落地指南', link: '/best-practices/projection-design' }
+              ]
+            },
+            {
+              text: '⑤ 基础设施装配',
+              collapsed: true,
+              items: [
+                { text: 'MySQL 配置设计原则', link: '/best-practices/mysql-config' },
+                { text: 'Elasticsearch 配置设计原则', link: '/best-practices/elasticsearch-config' },
+                { text: 'RocketMQ 配置设计原则', link: '/best-practices/rocketmq-config' },
+                { text: 'Outbox 链路装配', link: '/best-practices/outbox-config' }
+              ]
+            },
+            {
+              text: '⑥ 事件与一致性',
+              collapsed: true,
+              items: [
+                { text: '事件建模指南', link: '/best-practices/event-modeling' }
+              ]
+            }
           ]
         }
       ],

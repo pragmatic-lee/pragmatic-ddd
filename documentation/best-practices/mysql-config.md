@@ -228,5 +228,5 @@ public PlatformTransactionManager transactionManager(DataSource dataSource) {
 - [聚合设计原则](./aggregate-design.md)：聚合根、`TrackedList` 子集合与懒加载
 - [值对象最佳实践](./value-object.md)：值对象 JSON 序列化往返
 - [枚举值](./enum-value.md)：枚举按 CODE 持久化
-- [事务性发件箱](./transactional-outbox.md)：`OutboxMapper` 与异构事件投递
+- [Outbox 链路装配](./outbox-config.md)：`OutboxMapper` 与异构事件投递
 - [MyBatis 集成](./../integration/mybatis.md)：框架 mybatis 模块架构详解

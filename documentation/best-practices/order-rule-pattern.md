@@ -1,4 +1,4 @@
-# 聚合业务规则落地模式（OrderRule 范式）
+# 聚合业务规则（OrderRule 范式）
 
 > 本文档以 `io.pragmatic.ddd.example.order.domain.order.rule` 包为蓝本，说明如何在聚合的 `domain.order.rule` 下落地业务规则：将聚合的全部不变量集中到 `{聚合}Rule` 容器中，错误码统一声明在 `{聚合}RuleRegistry` 注册表里，外部依赖校验通过领域服务契约构造注入。
 
@@ -13,7 +13,7 @@
 - 规则容器是**无状态**的，不持有 per-call 可变状态，可作为单例在多线程下安全共享。
 
 ::: tip
-`OrderRule` 范式与「校验规则领域服务」范式（[rule-validation](./rule-validation.md)）是同一能力的两种组织方式：本模式把规则容器命名为 `{聚合}Rule`、注册表命名为 `{聚合}RuleRegistry`，规则在私有 `registerRules()` 中注册，且通过构造器接收领域服务契约；另一模式则把规则容器命名为 `{聚合}EntityRule`、注册表命名为 `{聚合}ValidationRegistry`。两者底层 API 完全一致，按团队既有约定择一即可。
+本范式是校验规则的**标准组织方式**：规则容器命名 `{聚合}Rule`、注册表命名 `{聚合}RuleRegistry`，规则在私有 `registerRules()` 中注册，通过构造器接收领域服务契约。
 :::
 
 ## 2. 命名与包结构
@@ -289,6 +289,5 @@ if (!order.satisfiesRule(orderRule)) {
 
 ## 7. 下一步
 
-- [校验规则领域服务](./rule-validation.md)：另一种规则组织范式（EntityRule + ValidationRegistry）
 - [聚合设计原则](./aggregate-design.md)：聚合边界与不变量来源
 - [业务规则引擎详解](../core/business-rules.md)：`EntityRule` / `MessageCode` / `BrokenRule` 底层契约

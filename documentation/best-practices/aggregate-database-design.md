@@ -1,4 +1,4 @@
-# 聚合的数据库设计原则
+# 聚合数据库设计原则
 
 > 本文档介绍使用 Pragmatic DDD 进行聚合数据库设计的最佳实践：先明确"一个聚合对应一组表、一张主表还是多张子表"的判定标准，再给出表结构设计的字段与列映射规范，最后落到复杂类型存储形态与一致性策略。
 
@@ -187,4 +187,4 @@ CREATE TABLE t_order_item (
 - [MySQL 配置设计原则](./mysql-config.md)：TypeHandler 三通道装配、全局开关
 - [值对象最佳实践](./value-object.md)：值对象 JSON 序列化往返
 - [枚举值](./enum-value.md)：枚举按 CODE 持久化
-- [事务性发件箱](./transactional-outbox.md)：`OutboxMapper` 与异构事件投递
+- [Outbox 链路装配](./outbox-config.md)：`OutboxMapper` 与异构事件投递

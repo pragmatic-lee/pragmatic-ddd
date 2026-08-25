@@ -119,7 +119,7 @@ IEntity<T>                    实体标识契约（暴露 getEntityId）
 | `getDomainEvents()` | `public`，应用层读取本工作单元已收集事件 |
 | `triggerDataSyncHook()` | `public`，仓储落库前调用，子类覆写以发异构事件 |
 
-> 事件成因约束：使用无显式操作参数的 `collectEvent(BaseDomainEvent)` 前，必须先 `recordOperation(...)`，否则启用了操作体系时抛 `OperationException`。操作与事件的顺序详见 [应用服务层协作](./application-collaboration.md)。
+> 事件成因约束：使用无显式操作参数的 `collectEvent(BaseDomainEvent)` 前，必须先 `recordOperation(...)`，否则启用了操作体系时抛 `OperationException`。操作与事件的顺序详见 [应用层落地模式](./application-collaboration.md)。
 
 **操作追踪**
 
@@ -151,12 +151,12 @@ protected abstract OperationRegistry operationRegistry();     // 操作注册表
 ```java
 @Override
 protected BrokenRuleRegistry brokenRuleRegistry() {
-    return PersonBrokenRuleRegistry.INSTANCE;
+    return OrderBrokenRuleRegistry.INSTANCE;
 }
 
 @Override
 protected OperationRegistry operationRegistry() {
-    return PersonOperationRegistry.INSTANCE;
+    return OrderOperationRegistry.INSTANCE;
 }
 ```
 
@@ -170,15 +170,15 @@ protected OperationRegistry operationRegistry() {
 - **无参构造函数（`protected`）**：仅供持久化框架（MyBatis 反射、JSON 反序列化）重建对象，不触发任何业务逻辑。
 
 ```java
-public Person(PersonInitData data) {
+public Order(OrderInitData data) {
     this.name = data.getName();
     this.age = data.getAge();
-    this.recordOperation(PersonOperationRegistry.CREATE);
+    this.recordOperation(OrderOperationRegistry.CREATE);
     this.markCreated();
-    this.collectEvent(() -> PersonCreatedEvent.buildEvent(this));
+    this.collectEvent(() -> OrderCreatedEvent.buildEvent(this));
 }
 
-protected Person() {
+protected Order() {
     // 持久化重建专用，空实现
 }
 ```
@@ -190,12 +190,12 @@ protected Person() {
 业务方法内聚聚合根的状态变更，本质是**纯粹的赋值**：把「准备好的」入参赋给自身字段，再收尾（更新审计时间、记录 Operation、收集事件）。它**不需要任何守卫**，也不携带任何其他职责。
 
 ```java
-public void update(PersonUpdateData data) {
+public void update(OrderUpdateData data) {
     this.name = data.getName();
     this.age = data.getAge();
     this.markModified();
-    this.recordOperation(PersonOperationRegistry.UPDATE);
-    this.collectEvent(PersonUpdatedEvent.buildEvent(this));
+    this.recordOperation(OrderOperationRegistry.UPDATE);
+    this.collectEvent(OrderUpdatedEvent.buildEvent(this));
 }
 ```
 
@@ -211,7 +211,7 @@ public void update(PersonUpdateData data) {
 
 ```java
 // ❌ 反模式：业务方法内加守卫、做数据组装与转换
-public void update(PersonUpdateData data) {
+public void update(OrderUpdateData data) {
     if (data.getAge() < 0) {
         throw new IllegalArgumentException("年龄不能为负");                     // 守卫
     }
@@ -234,22 +234,22 @@ public void update(PersonUpdateData data) {
 
 ```java
 @Data // 纯数据容器：加注解即可，无需手写构造函数
-public class PersonInitData implements IParamObject {
+public class OrderInitData implements IParamObject {
     private String name;
     private int age;
     private String email;
 }
 
 @Data
-public class PersonUpdateData implements IParamObject {
+public class OrderUpdateData implements IParamObject {
     private String name;
     private int age;
 }
 
 // 构造函数与业务方法都只收一个参数对象
-public Person(PersonInitData data) { ... }
+public Order(OrderInitData data) { ... }
 
-public void update(PersonUpdateData data) { ... }
+public void update(OrderUpdateData data) { ... }
 ```
 
 **判定原则**：入参 ≤ 3 个且短小稳定时可直接列参；一旦超过 5 个，或参数经常成组出现、未来可能继续增加，就应封装为 `IParamObject` 数据容器。
@@ -265,18 +265,18 @@ public void update(PersonUpdateData data) { ... }
 ```java
 @Getter
 @Setter(AccessLevel.PROTECTED)
-@NoArgsConstructor(access = AccessLevel.PROTECTED) // 取代手写 protected Person(){}
-public class Person extends AggregateRoot<Long> {
+@NoArgsConstructor(access = AccessLevel.PROTECTED) // 取代手写 protected Order(){}
+public class Order extends AggregateRoot<Long> {
     private String name;
     private int age;
 
     // 全参业务构造手写，含副作用
-    public Person(PersonInitData data) {
+    public Order(OrderInitData data) {
         this.name = data.getName();
         this.age = data.getAge();
-        this.recordOperation(PersonOperationRegistry.CREATE);
+        this.recordOperation(OrderOperationRegistry.CREATE);
         this.markCreated();
-        this.collectEvent(() -> PersonCreatedEvent.buildEvent(this));
+        this.collectEvent(() -> OrderCreatedEvent.buildEvent(this));
     }
 }
 ```
@@ -300,12 +300,12 @@ public class Person extends AggregateRoot<Long> {
 ## 下一步
 
 - [普通实体设计](./entity-design.md)：聚合内子实体的设计
-- [应用服务层协作](./application-collaboration.md)：操作/事件顺序、延迟事件、工作单元清理与异常响应
+- [应用层落地模式](./application-collaboration.md)：WriteService 编排、`execute` 模板与异常响应
 - [规则注册表设计](./registry-design.md)：校验消息码（`BrokenRuleRegistry`）的编写规范
 - [操作注册表设计](./operation-registry-design.md)：领域操作（`OperationRegistry`）的编写规范
 - [值对象最佳实践](./value-object.md)：值对象的取舍与编写规范
 - [事件建模指南](./event-modeling.md)
-- [校验规则领域服务](./rule-validation.md)
-- [事务性发件箱](./transactional-outbox.md)
+- [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)
+- [Outbox 链路装配](./outbox-config.md)
 - [聚合根实现详解](../core/domain-modeling.md)
 - [领域事件体系](../core/domain-events.md)

@@ -236,4 +236,4 @@ elasticsearchClient.index(req -> req.index(...)
 - [聚合设计原则](./aggregate-design.md)：聚合根与投影数据来源
 - [MySQL 配置设计原则](./mysql-config.md)：对比学习外部化配置与显式装配的通用模式
 - [仓储设计原则](./repository-design.md)：写模型与读模型分离
-- [事务性发件箱](./transactional-outbox.md)：写模型到异构存储的事件驱动链路
+- [Outbox 链路装配](./outbox-config.md)：写模型到异构存储的事件驱动链路

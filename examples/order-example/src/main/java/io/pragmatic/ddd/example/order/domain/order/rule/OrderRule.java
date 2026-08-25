@@ -37,7 +37,7 @@ public class OrderRule extends EntityRule<Order> {
         this.registerRules();
     }
 
-    // 支付前置状态守卫需要「支付前」的旧快照，因此启用旧实体加载机制（见 rule-validation.md §4.4）
+    // 支付前置状态守卫需要「支付前」的旧快照，因此启用旧实体加载机制（见 order-rule-pattern.md §5.3）
     @Override
     protected boolean requireOldEntity() {
         return true;

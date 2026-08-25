@@ -369,8 +369,8 @@ void cleanup() {
 
 - [聚合设计原则](./aggregate-design.md)：聚合根边界、`TrackedList` 子集合、版本号与乐观锁
 - [普通实体设计](./entity-design.md)：聚合内子实体的设计
-- [应用服务层协作](./application-collaboration.md)：事务边界、操作/事件顺序与工作单元清理
+- [应用层落地模式](./application-collaboration.md)：事务边界与 WriteService 编排
 - [值对象最佳实践](./value-object.md)：值对象的持久化序列化往返
-- [事务性发件箱](./transactional-outbox.md)：`triggerDataSyncHook` 与异构事件投递
+- [Outbox 链路装配](./outbox-config.md)：`triggerDataSyncHook` 与异构事件投递
 - [聚合根实现详解](../core/domain-modeling.md)
 - [领域事件体系](../core/domain-events.md)
