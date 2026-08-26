@@ -60,7 +60,8 @@
 | --- | --- | --- |
 | [MySQL 配置设计原则](./mysql-config.md) | SqlSessionFactory / TypeHandler / 事务管理器装配 | MySQL → 任何数据访问基础设施 |
 | [Elasticsearch 配置设计原则](./elasticsearch-config.md) | RestClient → Transport → Client 三层构建、认证超时 | ES → 任何外部存储客户端 |
-| [RocketMQ 配置设计原则](./rocketmq-config.md) | 连接装配、事件管理器与序列化器成对注册、订阅落地 | Order → MQ → 任何聚合事件 |
+| [事件管理器装配与选择](./event-manager-config.md) | `IEventManager` 二选一装配原则、本地线程池实现与数据丢失风险 | 事件管理器 → 任何应用 |
+| [RocketMQ 配置设计原则](./rocketmq-config.md) | 应用级 MQ 装配、主题路由、订阅落地 | Order → MQ → 任何聚合事件 |
 | [Outbox 链路装配](./outbox-config.md) | 事务性发件箱五个协作 Bean 的装配 | Order → Outbox → 任何聚合事件 |
 
 ### ⑥ 事件与一致性
