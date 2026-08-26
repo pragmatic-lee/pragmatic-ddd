@@ -1,0 +1,132 @@
+version: '3.8'
+
+# 定义统一的自定义网络，容器间通过服务名（如 mysql, redis）直接通信
+networks:
+  dev-network:
+    driver: bridge
+
+services:
+  # 1. Redis (基于镜像 redis:7.2)
+  redis:
+    image: redis:7.2
+    container_name: my-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - dev-network
+    restart: always
+
+  # 2. MySQL (基于镜像 mysql:8.0)
+  mysql:
+    image: mysql:8.0
+    container_name: my-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: MySqlXXL123  # 请修改为你的密码
+      TZ: Asia/Shanghai
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/conf:/etc/mysql/conf.d
+      - ./mysql/logs:/var/log/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro  # 首次启动自动建库建表（幂等脚本，已有数据卷不触发）
+    networks:
+      - dev-network
+    restart: always
+
+  # 3. Elasticsearch (基于镜像 docker.elastic.co/elasticsearch/elasticsearch:8.17.0)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: my-es
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false  # 开发环境建议关闭安全认证，方便调试
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # 限制内存，防止占满电脑
+    volumes:
+      - ./es/data:/usr/share/elasticsearch/data
+      - ./es/plugins:/usr/share/elasticsearch/plugins
+    networks:
+      - dev-network
+    restart: always
+
+  # 4. RocketMQ NameServer (基于镜像 apache/rocketmq:5.3.2)
+  rmqnamesrv:
+    image: apache/rocketmq:5.3.2
+    container_name: rmqnamesrv
+    ports:
+      - "9876:9876"
+    command: sh mqnamesrv
+    networks:
+      - dev-network
+    restart: always
+
+  # 5. RocketMQ Broker (基于镜像 apache/rocketmq:5.3.2)
+  rmqbroker:
+    image: apache/rocketmq:5.3.2
+    container_name: rmqbroker
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "8081:8081"
+    environment:
+      - NAMESRV_ADDR=rmqnamesrv:9876
+    command: sh mqbroker -n rmqnamesrv:9876 -c /home/rocketmq/rocketmq-5.3.2/conf/broker.conf --enable-proxy
+    volumes:
+      - ./rocketmq/conf/broker.conf:/home/rocketmq/rocketmq-5.3.2/conf/broker.conf
+      - ./rocketmq/broker/logs:/home/rocketmq/logs
+      - ./rocketmq/broker/store:/home/rocketmq/store
+    depends_on:
+      - rmqnamesrv
+    networks:
+      - dev-network
+    restart: always
+
+  # 6. RocketMQ Dashboard (基于镜像 apacherocketmq/rocketmq-dashboard:2.1.0)
+  rmqdashboard:
+    image: apacherocketmq/rocketmq-dashboard:2.1.0
+    container_name: rmqdashboard
+    ports:
+      - "8080:8082"
+    environment:
+      - JAVA_OPTS=-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false
+    depends_on:
+      - rmqnamesrv
+    networks:
+      - dev-network
+    restart: always
+
+  # 7. Qdrant (向量数据库，基于镜像 qdrant/qdrant)
+  qdrant:
+    image: qdrant/qdrant
+    container_name: my-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant/storage:/qdrant/storage
+    networks:
+      - dev-network
+    restart: always
+
+  # 8. Order Example (业务示例应用，基于镜像 order-example:2.0.0)
+  order-example:
+    image: order-example:2.0.0
+    container_name: my-order-example
+    ports:
+      - "9500:9500"
+      - "5005:5005"  # 远程调试端口
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      JAVA_DEBUG: "true"
+    volumes:
+      - ./order-example/config:/app/config
+      - ./order-example/logs:/app/logs
+    networks:
+      - dev-network
+    restart: always

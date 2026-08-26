@@ -1,0 +1,11 @@
+# 运行期数据与日志（禁止提交）
+mysql/data/
+mysql/logs/
+es/data/
+es/plugins/
+redis/data/
+rocketmq/broker/logs/
+rocketmq/broker/store/
+qdrant/storage/
+order-example/logs/
+.DS_Store
