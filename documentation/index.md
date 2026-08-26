@@ -11,6 +11,9 @@ hero:
       text: 快速开始
       link: /getting-started/quick-start
     - theme: alt
+      text: 完整示例运行
+      link: /getting-started/order-example
+    - theme: alt
       text: 核心概念
       link: /core/domain-modeling
   image:
@@ -54,6 +57,7 @@ Pragmatic DDD 选择了一条更底层的路——**纯 Java、SPI 驱动、不�
 ## 快速导航
 
 - [指南](/getting-started/overview)：框架概览、设计理念、快速开始、推荐项目结构
+- [完整示例（Order Example）](/getting-started/order-example)：Docker 一键跑通 MySQL + RocketMQ + ES 全链路（30 分钟），支持已有环境单独初始化
 - [核心概念](/core/domain-modeling)：领域建模、领域服务、领域事件、业务规则、应用服务、仓储、变更追踪、防腐层、配置体系、对外广播
 - [集成](/integration/mybatis)：MyBatis 集成、RocketMQ 集成
 - [最佳实践](/best-practices/)：聚合目录落地骨架、聚合设计原则、领域服务落地模式、应用层落地模式、仓储设计、投影读模型、配置装配、事件建模

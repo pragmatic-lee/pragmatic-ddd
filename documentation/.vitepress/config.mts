@@ -6,6 +6,12 @@ export default defineConfig({
   description: "Pragmatic DDD 是一个以\"务实\"为设计哲学的领域驱动设计（DDD）框架",
   ignoreDeadLinks: true,
   lastUpdated: true,
+  vite: {
+    resolve: {
+      // 软链页面（getting-started/order-example.md → examples/README.md）按软链路径解析依赖，避免真实路径越出 srcDir
+      preserveSymlinks: true
+    }
+  },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     logo: '/logo2.svg',
@@ -18,8 +24,8 @@ export default defineConfig({
       {
         text: '2.0.0',
         items: [
-          { text: '更新日志', link: 'https://github.com/lixiaojing/pragmatic-ddd/blob/main/CHANGELOG.md' },
-          { text: '参与贡献', link: 'https://github.com/lixiaojing/pragmatic-ddd/blob/main/CONTRIBUTING.md' }
+          { text: '更新日志', link: 'https://github.com/pragmatic-lee/pragmatic-ddd/blob/main/CHANGELOG.md' },
+          { text: '参与贡献', link: 'https://github.com/pragmatic-lee/pragmatic-ddd/blob/main/CONTRIBUTING.md' }
         ]
       }
     ],
@@ -32,6 +38,7 @@ export default defineConfig({
             { text: '框架概览', link: '/getting-started/overview' },
             { text: '设计理念', link: '/getting-started/design-philosophy' },
             { text: '快速开始', link: '/getting-started/quick-start' },
+            { text: '完整示例（Order Example）', link: '/getting-started/order-example' },
             { text: '推荐项目结构', link: '/getting-started/project-structure' }
           ]
         }
