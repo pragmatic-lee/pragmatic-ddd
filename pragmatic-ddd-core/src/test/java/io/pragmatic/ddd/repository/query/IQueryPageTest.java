@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.fixture.StubProjection;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,21 +15,22 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class IQueryPageTest {
 
-    private record Criteria(String key) {}
+    private record Criteria(String key) implements PageQueryCriteria {}
 
-    private static final class InMemoryQuery implements IQueryPage<String, Criteria> {
+    private static final class InMemoryQuery implements IQueryPage<StubProjection, Criteria> {
         @Override
-        public PageResult<String> queryPage(Criteria query, PageRequest pageRequest) {
-            return PageResult.of(List.of("a"), 1L, pageRequest);
+        public <X extends StubProjection> PageResult<X> queryPage(
+                Criteria query, PageRequest pageRequest, Class<X> projectionType) {
+            return PageResult.of(List.of((X) new StubProjection(1L, "a")), 1L, pageRequest);
         }
     }
 
     @Test
     void queryPage_returnsResultWithMeta() {
-        IQueryPage<String, Criteria> query = new InMemoryQuery();
+        IQueryPage<StubProjection, Criteria> query = new InMemoryQuery();
         PageRequest request = PageRequest.of(1, 10);
-        PageResult<String> result = query.queryPage(new Criteria("k"), request);
-        assertThat(result.data()).containsExactly("a");
+        PageResult<StubProjection> result = query.queryPage(new Criteria("k"), request, StubProjection.class);
+        assertThat(result.data().stream().map(StubProjection::name)).containsExactly("a");
         assertThat(result.totalCount()).isEqualTo(1L);
         assertThat(result.request()).isSameAs(request);
     }

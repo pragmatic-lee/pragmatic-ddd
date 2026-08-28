@@ -21,10 +21,10 @@ public class PersonReadService implements IQueryApplicationService {
     }
 
     public PersonDetailProjection getPerson(long id) {
-        return (PersonDetailProjection) query.queryById(id);
+        return query.queryById(id, PersonDetailProjection.class);
     }
 
     public List<PersonProjection> listPersons(List<Long> ids) {
-        return query.queryByIds(ids);
+        return query.queryByIds(ids, PersonProjection.class);
     }
 }

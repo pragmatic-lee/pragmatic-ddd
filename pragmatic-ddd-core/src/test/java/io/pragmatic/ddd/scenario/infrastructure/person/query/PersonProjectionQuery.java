@@ -6,6 +6,9 @@ import io.pragmatic.ddd.repository.query.ScrollPosition;
 import io.pragmatic.ddd.repository.query.ScrollResult;
 import io.pragmatic.ddd.scenario.domain.person.projection.IPersonQuery;
 import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
+import io.pragmatic.ddd.scenario.domain.person.query.PersonListQuery;
+import io.pragmatic.ddd.scenario.domain.person.query.PersonOneQuery;
+import io.pragmatic.ddd.scenario.domain.person.query.PersonPageQuery;
 
 import java.util.List;
 
@@ -18,37 +21,39 @@ import java.util.List;
 public class PersonProjectionQuery implements IPersonQuery {
 
     @Override
-    public PersonProjection queryById(Long id) {
+    public <X extends PersonProjection> X queryById(Long id, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return null;
     }
 
     @Override
-    public List<PersonProjection> queryByIds(List<Long> ids) {
+    public <X extends PersonProjection> List<X> queryByIds(List<Long> ids, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return List.of();
     }
 
     @Override
-    public PersonProjection queryOne(Object query) {
+    public <X extends PersonProjection> X queryOne(PersonOneQuery query, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return null;
     }
 
     @Override
-    public List<PersonProjection> queryList(Object query) {
+    public <X extends PersonProjection> List<X> queryList(PersonListQuery query, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return List.of();
     }
 
     @Override
-    public PageResult<PersonProjection> queryPage(Object query, PageRequest pageRequest) {
+    public <X extends PersonProjection> PageResult<X> queryPage(
+            PersonPageQuery query, PageRequest pageRequest, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return PageResult.of(List.of(), 0L, pageRequest);
     }
 
     @Override
-    public ScrollResult<PersonProjection> queryScroll(Object query, ScrollPosition cursor, int pageSize) {
+    public <X extends PersonProjection> ScrollResult<X> queryScroll(
+            PersonPageQuery query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return ScrollResult.of(List.of(), null);
     }

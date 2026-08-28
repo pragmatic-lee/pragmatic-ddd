@@ -5,6 +5,10 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderEsProjector;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderByIdSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderListSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderOneSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderPageSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.materializer.OrderEsMaterializer;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.materializer.OrderEsResynchronizer;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.materializer.OrderEsVersionResolver;
@@ -54,11 +58,19 @@ public class OrderProjectionConfig {
     @Bean
     public ProjectorRegistry projectorRegistry(
             OrderEsProjector orderEsProjector,
-            OrderEsMaterializer orderEsMaterializer) {
+            OrderEsMaterializer orderEsMaterializer,
+            OrderByIdSearcher orderByIdSearcher,
+            OrderOneSearcher orderOneSearcher,
+            OrderListSearcher orderListSearcher,
+            OrderPageSearcher orderPageSearcher) {
         ProjectorRegistry registry = new ProjectorRegistry();
 
         registry.register(Order.class, orderEsProjector);
         registry.register(orderEsMaterializer);
+        registry.register(orderByIdSearcher);
+        registry.register(orderOneSearcher);
+        registry.register(orderListSearcher);
+        registry.register(orderPageSearcher);
 
         return registry;
     }
