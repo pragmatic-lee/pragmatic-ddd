@@ -6,7 +6,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.repository.query.IProjectionSearcher;
@@ -21,10 +21,13 @@ import java.util.List;
  * 订单列表查询（queryList）的 ES 检索器，覆盖 OrderListQuery 一族，族内按子类分发。
  * 对应框架 {@link IProjectionSearcher}，注册键 (OrderListQuery.class, projectionType)。
  *
+ * <p>本检索器绑定索引 {@code order_index} 的索引级全量投影 {@link OrderEsProjection}，
+ * 只负责取回该全量形状；业务子投影由 {@link IProjectionReducer} 在内存裁剪。</p>
+ *
  * @author wizard-lee
  */
 @Component
-public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, IOrderProjection> {
+public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, OrderEsProjection> {
 
     private final ElasticsearchClient elasticsearchClient;
 
@@ -38,12 +41,12 @@ public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, IO
     }
 
     @Override
-    public Class<IOrderProjection> projectionType() {
-        return IOrderProjection.class;
+    public Class<OrderEsProjection> projectionType() {
+        return OrderEsProjection.class;
     }
 
     @Override
-    public List<IOrderProjection> search(OrderListQuery condition, Class<IOrderProjection> projectionType) {
+    public List<OrderEsProjection> search(OrderListQuery condition, Class<OrderEsProjection> projectionType) {
         return ProjectionExceptions.retrieve(() -> {
             if (condition instanceof OrderListQuery.TopByAmount c) {
                 return searchTopByAmount(c, projectionType);
@@ -51,13 +54,13 @@ public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, IO
             if (condition instanceof OrderListQuery.TopRecent c) {
                 return searchTopRecent(c, projectionType);
             }
-            return List.<IOrderProjection>of();
+            return List.<OrderEsProjection>of();
         }, "search");
     }
 
     @SneakyThrows
-    private List<IOrderProjection> searchTopByAmount(
-            OrderListQuery.TopByAmount condition, Class<IOrderProjection> projectionType) {
+    private List<OrderEsProjection> searchTopByAmount(
+            OrderListQuery.TopByAmount condition, Class<OrderEsProjection> projectionType) {
         Query query = buildCustomerStatusQuery(condition.customerId(), condition.status());
         return elasticsearchClient.search(req -> req
                         .index(OrderEsTargets.ORDER_INDEX_NAME)
@@ -69,8 +72,8 @@ public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, IO
     }
 
     @SneakyThrows
-    private List<IOrderProjection> searchTopRecent(
-            OrderListQuery.TopRecent condition, Class<IOrderProjection> projectionType) {
+    private List<OrderEsProjection> searchTopRecent(
+            OrderListQuery.TopRecent condition, Class<OrderEsProjection> projectionType) {
         Query query = buildCustomerStatusQuery(condition.customerId(), condition.status());
         return elasticsearchClient.search(req -> req
                         .index(OrderEsTargets.ORDER_INDEX_NAME)

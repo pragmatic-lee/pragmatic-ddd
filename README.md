@@ -15,6 +15,7 @@
 - [特性](#特性)
 - [模块结构](#模块结构)
 - [快速开始](#快速开始)
+  - [安装到本地仓库](#安装到本地仓库)
   - [引入依赖](#引入依赖)
   - [定义聚合根](#定义聚合根)
   - [定义业务规则](#定义业务规则)
@@ -72,7 +73,42 @@ pragmatic-ddd/
 
 ## 快速开始
 
+### 安装到本地仓库
+
+> 当前版本尚未推送到 Maven 中央仓库，需先克隆仓库并执行 `install-local.sh`，把框架各模块安装到本地 `~/.m2/repository` 后再引入依赖。
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/pragmatic-lee/pragmatic-ddd.git
+cd pragmatic-ddd
+
+# 2. 赋予脚本执行权限并安装到本地仓库（默认跳过单元测试执行）
+chmod +x install-local.sh
+./install-local.sh
+```
+
+常用参数：
+
+| 参数 | 说明 |
+|------|------|
+| *（无参数）* | 全量安装整个 reactor 的 7 个框架模块（推荐，Maven 自动按依赖拓扑排序） |
+| `<模块名>...` | 选择性安装指定模块，`-am` 自动带上其依赖。可用模块：`pragmatic-ddd-parent`、`pragmatic-ddd-bom`、`pragmatic-ddd-core`、`pragmatic-ddd-rocketmq`、`pragmatic-ddd-kafka`、`pragmatic-ddd-mybatis`、`pragmatic-ddd-spring-boot` |
+| `--with-examples` | 全量安装并连 `examples` 一起构建（启用 `-Pexamples`） |
+| `--run-tests` | 安装时执行单元测试（默认 `-DskipTests` 跳过测试执行、保留测试编译） |
+
+```bash
+# 示例：只安装核心库（自动带上 parent / bom 等依赖）
+./install-local.sh pragmatic-ddd-core
+
+# 示例：连同示例模块一起安装并执行测试
+./install-local.sh --with-examples --run-tests
+```
+
+> 若不想使用脚本，等价命令为：`mvn -f pom.xml install -DskipTests`。
+
 ### 引入依赖
+
+> 版本号需与本地安装的仓库版本保持一致（当前为 `2.0.0`，见根 `pom.xml` 的 `<version>`）。
 
 核心库：
 

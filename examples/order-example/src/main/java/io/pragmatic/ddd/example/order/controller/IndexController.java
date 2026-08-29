@@ -1,12 +1,16 @@
 package io.pragmatic.ddd.example.order.controller;
 
+import com.alibaba.fastjson2.JSON;
+import io.pragmatic.ddd.example.order.application.order.OrderReadService;
 import io.pragmatic.ddd.example.order.application.order.OrderWriteService;
 import io.pragmatic.ddd.example.order.application.order.input.ChangeOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderAddressInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderItemInput;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,6 +29,8 @@ public class IndexController {
 
     @Resource
     private OrderWriteService orderWriteService;
+    @Resource
+    private OrderReadService orderReadService;
 
     @GetMapping("/")
     public String index() {
@@ -83,5 +89,11 @@ public class IndexController {
         input.setOrderItems(List.of(item));
 
         return input;
+    }
+    @GetMapping("/order/{orderId}")
+    public String getOrderById(@PathVariable(name = "orderId") Long orderId){
+
+        var order   = orderReadService.queryById(orderId, OrderSummaryProjection.class);
+        return JSON.toJSONString(order);
     }
 }

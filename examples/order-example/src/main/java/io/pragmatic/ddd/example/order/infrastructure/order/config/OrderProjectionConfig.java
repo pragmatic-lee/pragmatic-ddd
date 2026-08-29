@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
+import io.pragmatic.ddd.example.order.domain.order.projection.reducer.IOrderSummaryReducer;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderEsProjector;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderByIdSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderListSearcher;
@@ -49,10 +50,15 @@ public class OrderProjectionConfig {
     }
 
     /**
-     * 构建投影注册表，登记订单投影器与 ES 物化器供事件订阅与对账复用。
+     * 构建投影注册表，登记订单投影器、ES 物化器、读侧检索器与裁剪器。
      *
      * @param orderEsProjector 订单 ES 投影器
      * @param orderEsMaterializer 订单 ES 物化器
+     * @param orderByIdSearcher 订单按主键检索器
+     * @param orderOneSearcher 订单单投影检索器
+     * @param orderListSearcher 订单列表检索器
+     * @param orderPageSearcher 订单分页 / 滚动检索器
+     * @param orderSummaryReducer 订单概要投影裁剪器（依赖领域契约，由基础设施层实现注入）
      * @return 投影注册表
      */
     @Bean
@@ -62,15 +68,25 @@ public class OrderProjectionConfig {
             OrderByIdSearcher orderByIdSearcher,
             OrderOneSearcher orderOneSearcher,
             OrderListSearcher orderListSearcher,
-            OrderPageSearcher orderPageSearcher) {
+            OrderPageSearcher orderPageSearcher,
+            IOrderSummaryReducer orderSummaryReducer) {
         ProjectorRegistry registry = new ProjectorRegistry();
 
+        // 写侧：projector 按 (聚合类型, 投影类型)、materializer 按 (投影类型, target)
         registry.register(Order.class, orderEsProjector);
         registry.register(orderEsMaterializer);
+
+        // 读侧检索器：按主键一维键、按条件与分页二维键；键的第二维为索引级全量投影
         registry.register(orderByIdSearcher);
         registry.register(orderOneSearcher);
         registry.register(orderListSearcher);
         registry.register(orderPageSearcher);
+
+        // 索引级全量投影：对齐 order_index 文档形状，可被直接查询（门面短路、跳过裁剪）
+        registry.markSourceProjection(OrderEsProjection.class);
+
+        // 裁剪器：全量投影 → 业务子投影，同时建立子投影到来源的反查
+        registry.register(orderSummaryReducer);
 
         return registry;
     }

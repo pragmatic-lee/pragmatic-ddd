@@ -9,6 +9,7 @@ import io.pragmatic.ddd.repository.query.IProjectionPagedSearcher;
 import io.pragmatic.ddd.repository.query.IProjectionSearcher;
 import io.pragmatic.ddd.repository.query.PageRequest;
 import io.pragmatic.ddd.repository.query.PageResult;
+import io.pragmatic.ddd.repository.query.ProjectionReducerNotFoundException;
 import io.pragmatic.ddd.repository.query.ProjectionSearcherNotFoundException;
 import io.pragmatic.ddd.repository.query.ProjectorRegistry;
 import io.pragmatic.ddd.repository.query.ScrollPosition;
@@ -59,6 +60,8 @@ class OrderQueryTest {
         registry.register(listSearcher);
         registry.register(oneSearcher);
         registry.register(pagedSearcher);
+        // 本组用例查询的即索引级全量投影，需先标记来源，门面方可短路直取
+        registry.markSourceProjection(OrderEsProjection.class);
         query = new OrderQuery(registry);
     }
 
@@ -169,7 +172,7 @@ class OrderQueryTest {
     @Test
     @DisplayName("按主键检索器未注册时 queryById 抛出 ProjectionSearcherNotFoundException")
     void queryById_withoutSearcher_shouldThrow() {
-        OrderQuery emptyRegistryQuery = new OrderQuery(new ProjectorRegistry());
+        OrderQuery emptyRegistryQuery = new OrderQuery(registryWithoutSearchers());
 
         assertThatThrownBy(() -> emptyRegistryQuery.queryById(1L, OrderEsProjection.class))
                 .isInstanceOf(ProjectionSearcherNotFoundException.class);
@@ -178,11 +181,23 @@ class OrderQueryTest {
     @Test
     @DisplayName("分页检索器未注册时 queryPage 抛出 ProjectionSearcherNotFoundException")
     void queryPage_withoutSearcher_shouldThrow() {
-        OrderQuery emptyRegistryQuery = new OrderQuery(new ProjectorRegistry());
+        OrderQuery emptyRegistryQuery = new OrderQuery(registryWithoutSearchers());
 
         assertThatThrownBy(() ->
                 emptyRegistryQuery.queryPage(anyPageQuery(), PageRequest.of(1, 10), OrderEsProjection.class))
                 .isInstanceOf(ProjectionSearcherNotFoundException.class);
+    }
+
+    /**
+     * 只标记索引级全量投影、不登记任何检索器的注册表。
+     *
+     * <p>必须先标记来源投影，否则门面会先因子投影无来源而抛
+     * {@link ProjectionReducerNotFoundException}，无法触达检索器未登记的分支。</p>
+     */
+    private ProjectorRegistry registryWithoutSearchers() {
+        ProjectorRegistry empty = new ProjectorRegistry();
+        empty.markSourceProjection(OrderEsProjection.class);
+        return empty;
     }
 
     // ==================== 测试数据与假检索器 ====================

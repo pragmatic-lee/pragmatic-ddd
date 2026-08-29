@@ -11,7 +11,7 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
 import co.elastic.clients.elasticsearch.core.search.TotalHits;
-import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
 import io.pragmatic.ddd.repository.query.IProjectionPagedSearcher;
@@ -32,10 +32,16 @@ import java.util.Optional;
  * 对应框架 {@link IProjectionPagedSearcher}，注册键 (OrderPageQuery.class, projectionType)；
  * queryPage 与 queryScroll 共用同一条件族，仅分页装配与游标装配不同。
  *
+ * <p>本检索器绑定索引 {@code order_index} 的索引级全量投影 {@link OrderEsProjection}，
+ * 只负责取回该全量形状；业务子投影由 {@link IProjectionReducer} 在内存裁剪。</p>
+ *
+ * <p>分页 / 滚动在本检索器内完成，裁剪只做逐条转换、不改变集合规模；
+ * 因此 {@link PageResult#totalCount()} 取的是裁剪前的总量。</p>
+ *
  * @author wizard-lee
  */
 @Component
-public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuery, IOrderProjection> {
+public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection> {
 
     private final ElasticsearchClient elasticsearchClient;
 
@@ -49,27 +55,27 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
     }
 
     @Override
-    public Class<IOrderProjection> projectionType() {
-        return IOrderProjection.class;
+    public Class<OrderEsProjection> projectionType() {
+        return OrderEsProjection.class;
     }
 
     @Override
-    public PageResult<IOrderProjection> searchPage(
-            OrderPageQuery condition, PageRequest pageRequest, Class<IOrderProjection> projectionType) {
+    public PageResult<OrderEsProjection> searchPage(
+            OrderPageQuery condition, PageRequest pageRequest, Class<OrderEsProjection> projectionType) {
         return ProjectionExceptions.retrieve(
                 () -> doSearchPage(condition, pageRequest, projectionType), "searchPage");
     }
 
     @Override
-    public ScrollResult<IOrderProjection> searchScroll(
-            OrderPageQuery condition, ScrollPosition cursor, int pageSize, Class<IOrderProjection> projectionType) {
+    public ScrollResult<OrderEsProjection> searchScroll(
+            OrderPageQuery condition, ScrollPosition cursor, int pageSize, Class<OrderEsProjection> projectionType) {
         return ProjectionExceptions.retrieve(
                 () -> doSearchScroll(condition, cursor, pageSize, projectionType), "searchScroll");
     }
 
     @SneakyThrows
-    private PageResult<IOrderProjection> doSearchPage(
-            OrderPageQuery condition, PageRequest pageRequest, Class<IOrderProjection> projectionType) {
+    private PageResult<OrderEsProjection> doSearchPage(
+            OrderPageQuery condition, PageRequest pageRequest, Class<OrderEsProjection> projectionType) {
         Query query = buildConditionQuery(condition);
         var response = elasticsearchClient.search(req -> req
                 .index(OrderEsTargets.ORDER_INDEX_NAME)
@@ -78,7 +84,7 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
                 .from(pageRequest.offset())
                 .size(pageRequest.pageSize())
                 .trackTotalHits(t -> t.enabled(true)), projectionType);
-        List<IOrderProjection> data = response.hits().hits().stream()
+        List<OrderEsProjection> data = response.hits().hits().stream()
                 .map(Hit::source)
                 .toList();
         Long total = Optional.of(response)
@@ -90,8 +96,8 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
     }
 
     @SneakyThrows
-    private ScrollResult<IOrderProjection> doSearchScroll(
-            OrderPageQuery condition, ScrollPosition cursor, int pageSize, Class<IOrderProjection> projectionType) {
+    private ScrollResult<OrderEsProjection> doSearchScroll(
+            OrderPageQuery condition, ScrollPosition cursor, int pageSize, Class<OrderEsProjection> projectionType) {
         Query query = buildConditionQuery(condition);
         var response = elasticsearchClient.search(req -> {
             var b = req.index(OrderEsTargets.ORDER_INDEX_NAME)
@@ -103,8 +109,8 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
             }
             return b;
         }, projectionType);
-        List<co.elastic.clients.elasticsearch.core.search.Hit<IOrderProjection>> hits = response.hits().hits();
-        List<IOrderProjection> data = hits.stream()
+        List<co.elastic.clients.elasticsearch.core.search.Hit<OrderEsProjection>> hits = response.hits().hits();
+        List<OrderEsProjection> data = hits.stream()
                 .map(Hit::source)
                 .toList();
         String nextCursor = hits.isEmpty() ? null : hits.get(hits.size() - 1).id();

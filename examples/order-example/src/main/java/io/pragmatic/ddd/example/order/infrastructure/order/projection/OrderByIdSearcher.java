@@ -4,7 +4,7 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.IdsQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.search.Hit;
-import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.repository.query.IProjectionByIdSearcher;
 import io.pragmatic.ddd.repository.query.ProjectionExceptions;
@@ -17,10 +17,13 @@ import java.util.List;
  * 订单按主键 / 批量主键直取投影的 ES 检索器，覆盖 IOrderQuery 的 queryById / queryByIds。
  * 对应框架 {@link IProjectionByIdSearcher}，注册键仅 (projectionType) 一维。
  *
+ * <p>本检索器绑定索引 {@code order_index} 的索引级全量投影 {@link OrderEsProjection}，
+ * 只负责取回该全量形状；业务子投影由 {@link IProjectionReducer} 在内存裁剪。</p>
+ *
  * @author wizard-lee
  */
 @Component
-public class OrderByIdSearcher implements IProjectionByIdSearcher<IOrderProjection> {
+public class OrderByIdSearcher implements IProjectionByIdSearcher<OrderEsProjection> {
 
     private final ElasticsearchClient elasticsearchClient;
 
@@ -29,29 +32,29 @@ public class OrderByIdSearcher implements IProjectionByIdSearcher<IOrderProjecti
     }
 
     @Override
-    public Class<IOrderProjection> projectionType() {
-        return IOrderProjection.class;
+    public Class<OrderEsProjection> projectionType() {
+        return OrderEsProjection.class;
     }
 
     @Override
-    public IOrderProjection getById(Object id, Class<IOrderProjection> projectionType) {
+    public OrderEsProjection getById(Object id, Class<OrderEsProjection> projectionType) {
         return ProjectionExceptions.retrieve(() -> doGetById(id.toString(), projectionType), "getById");
     }
 
     @Override
-    public List<IOrderProjection> getByIds(List<Object> ids, Class<IOrderProjection> projectionType) {
+    public List<OrderEsProjection> getByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
         return ProjectionExceptions.retrieve(() -> doGetByIds(ids, projectionType), "getByIds");
     }
 
     @SneakyThrows
-    private IOrderProjection doGetById(String id, Class<IOrderProjection> projectionType) {
+    private OrderEsProjection doGetById(String id, Class<OrderEsProjection> projectionType) {
         return elasticsearchClient.get(req -> req
                 .index(OrderEsTargets.ORDER_INDEX_NAME)
                 .id(id), projectionType).source();
     }
 
     @SneakyThrows
-    private List<IOrderProjection> doGetByIds(List<Object> ids, Class<IOrderProjection> projectionType) {
+    private List<OrderEsProjection> doGetByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
         List<String> docIds = ids.stream()
                 .map(Object::toString)
                 .toList();
