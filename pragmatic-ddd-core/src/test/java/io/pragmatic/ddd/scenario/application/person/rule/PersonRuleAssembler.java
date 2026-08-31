@@ -1,7 +1,5 @@
 package io.pragmatic.ddd.scenario.application.person.rule;
 
-import io.pragmatic.ddd.scenario.application.person.service.PersonGradeValidator;
-import io.pragmatic.ddd.scenario.application.person.service.PersonScoreValidator;
 import io.pragmatic.ddd.scenario.domain.person.rule.PersonEntityRule;
 
 /**
@@ -12,6 +10,6 @@ import io.pragmatic.ddd.scenario.domain.person.rule.PersonEntityRule;
 public class PersonRuleAssembler {
 
     public PersonEntityRule build() {
-        return new PersonEntityRule(new PersonScoreValidator(), new PersonGradeValidator());
+        return new PersonEntityRule();
     }
 }

@@ -36,7 +36,7 @@
 
 | 能力 | 说明 |
 |------|------|
-| 无状态规则容器 | `EntityRule<T>` 规则容器 + `BaseRuleValidator` / `ICheckRule` 校验项，校验项接收「新模型 + 旧模型」双参数，可单例化、多线程安全共享 |
+| 无状态规则容器 | `EntityRule<T>` 规则容器 + `ICheckRule` 校验项，校验项接收「新模型 + 旧模型」双参数，可单例化、多线程安全共享 |
 | 激活条件 | `IActiveRuleCondition<T>` 支持「规则码级开关」与「模型级条件」两级激活判定 |
 | 运行时编排 | 支持 `appendRule` / `replaceRule` / `removeRule` 运行时增删改，以及 failFast 短路与新旧模型对比 |
 | 领域服务分类 | `@DomainService` 划分四类原子能力：`CAPABILITY_PROVIDER` / `BUSINESS_RULE` / `ATTRIBUTE_CALCULATOR` / `EVENT_SUBSCRIBER` |
@@ -247,16 +247,16 @@ public class OrderOperation extends OperationRegistry {
 ```java
 import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.rules.ActiveStatus;
-import io.pragmatic.ddd.rules.BaseRuleValidator;
 import io.pragmatic.ddd.rules.EntityRule;
+import io.pragmatic.ddd.rules.ICheckRule;
 import io.pragmatic.ddd.rules.IActiveRuleCondition;
 
 public class OrderEntityRule extends EntityRule<Order> {
     public OrderEntityRule() {
-        // 1) 继承 BaseRuleValidator 的校验器（推荐：可复用、可测试）
+        // 1) 实现 ICheckRule 的校验器（推荐：可复用、可测试）
         this.addRule(new PinNotEmptyRule(), OrderBrokenRuleRegistry.PIN_IS_EMPTY);
 
-        // 2) 或使用 ICheckRuleBuilder / Lambda 校验项（新模型 + 旧模型双参数）
+        // 2) 或使用 Lambda 校验项（新模型 + 旧模型双参数）
         this.addRule((newModel, oldModel) ->
                         newModel.getTotalPrice() != null
                                 && newModel.getTotalPrice().compareTo(java.math.BigDecimal.ZERO) > 0
@@ -276,10 +276,10 @@ public class OrderEntityRule extends EntityRule<Order> {
     }
 
     /** 示例校验器：复用且可单测 */
-    static class PinNotEmptyRule extends BaseRuleValidator<Order> {
+    static class PinNotEmptyRule implements ICheckRule<Order> {
         @Override
-        protected boolean validate(Order newModel, Order oldModel) {
-            return newModel.getPin() != null && !newModel.getPin().isBlank();
+        public RuleCheckResult check(Order newModel, Order oldModel) {
+            return RuleCheckResult.of(newModel.getPin() != null && !newModel.getPin().isBlank());
         }
     }
 }

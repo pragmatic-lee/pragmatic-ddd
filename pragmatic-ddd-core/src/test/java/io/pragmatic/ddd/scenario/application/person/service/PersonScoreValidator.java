@@ -1,17 +1,18 @@
 package io.pragmatic.ddd.scenario.application.person.service;
 
+import io.pragmatic.ddd.rules.ICheckRule;
+import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.scenario.domain.person.model.Person;
-import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonScoreValidator;
 
 /**
  * 人员积分校验（BUSINESS_RULE 实现）。
  *
  * @author wizard-lee
  */
-public class PersonScoreValidator extends BasePersonScoreValidator {
+public class PersonScoreValidator implements ICheckRule<Person> {
 
     @Override
-    protected boolean validate(Person model, Person oldModel) {
-        return model != null && model.getName() != null && !model.getName().isBlank();
+    public RuleCheckResult check(Person model, Person oldModel) {
+        return RuleCheckResult.of(model != null && model.getName() != null && !model.getName().isBlank());
     }
 }

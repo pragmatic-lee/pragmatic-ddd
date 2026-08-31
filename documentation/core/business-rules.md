@@ -29,8 +29,6 @@ io.pragmatic.ddd.rules          校验项契约 + 容器与扩展实现（依赖
   ├─ IActiveRuleCondition<T>    激活条件（code 级开关 + 模型级条件）
   ├─ ActiveStatus               激活状态枚举（ACTIVE / INACTIVE）
   ├─ RulePosition               插入位置枚举（LAST / BEFORE / AFTER）
-  ├─ ICheckRuleBuilder<T>       校验项构建器（携带激活条件）
-  └─ BaseRuleValidator<T>       校验器适配器（boolean → ICheckRule）
 ```
 
 ### 1.3 类型与包路径
@@ -45,7 +43,6 @@ io.pragmatic.ddd.rules          校验项契约 + 容器与扩展实现（依赖
 | `EntityRule<T>` | `io.pragmatic.ddd.rules` | 实体规则容器 |
 | `RuleItem<T>` / `IRuleBuild` | `io.pragmatic.ddd.rules` | 规则项与生命周期钩子 |
 | `IActiveRuleCondition<T>` / `ActiveStatus` / `RulePosition` | `io.pragmatic.ddd.rules` | 激活条件与定位 |
-| `ICheckRuleBuilder<T>` / `BaseRuleValidator<T>` | `io.pragmatic.ddd.rules` | 校验器适配器 |
 
 ## 2. 核心概念详解
 
@@ -165,8 +162,6 @@ public EntityRule(boolean failFast) { ... }
 ```java
 addRule(ICheckRule<T> rule, MessageCode messageCode);
 addRule(ICheckRule<T> rule, MessageCode messageCode, IActiveRuleCondition<T> condition);
-addRule(BaseRuleValidator<T> rule, MessageCode messageCode);   // 适配器，取其内部激活条件
-addRule(ICheckRuleBuilder<T> rule, MessageCode messageCode);   // 构建器，取其内部激活条件
 ```
 
 #### 运行时增删改
@@ -198,7 +193,7 @@ findRuleByMessageCode(MessageCode) / findRulesByMessageCode(MessageCode...);    
 
 #### 关键约束
 
-> **重要约束**：业务规则只校验**聚合自身**的不变量，不发起跨聚合、跨服务的调用。需要外部数据时，应通过参数在构造规则时注入（参考 `InvoiceEntityRule` 注入 `BaseInvoiceScoreValidator`），而非在规则内部直接依赖仓储或远程服务。
+> **重要约束**：业务规则只校验**聚合自身**的不变量，不发起跨聚合、跨服务的调用。需要外部数据时，应通过参数在构造规则时注入（参考 `InvoiceEntityRule` 注入 `ScoreValidator`），而非在规则内部直接依赖仓储或远程服务。
 
 #### 示例代码
 
@@ -227,19 +222,20 @@ public class InvoiceEntityRule extends EntityRule<Invoice> {
 | `IActiveRuleCondition.of(BiFunction<T, T, ActiveStatus>)` | 需要新旧对比 |
 | `AlwaysActiveRuleCondition<T>` | 无条件生效的默认实现 |
 
-### 2.7 校验器适配器：BaseRuleValidator
+### 2.7 统一校验项契约：ICheckRule
 
-将「`validate(newModel, oldModel)` 返回 boolean」的校验逻辑包装为 `ICheckRule` 并携带默认激活条件：
+框架不提供「`validate(newModel, oldModel)` 返回 boolean」的适配基类/构造器，校验项统一通过实现 `ICheckRule<T>` 承载：
 
 ```java
-public abstract class BaseRuleValidator<T> {
-    protected abstract boolean validate(T newModel, T oldModel);
-    public ICheckRule<T> rule() { return (n, o) -> RuleCheckResult.of(validate(n, o)); }
-    public IActiveRuleCondition<T> ruleCondition() { return (n, o) -> ActiveStatus.ACTIVE; }
+public class ScoreValidator implements ICheckRule<Order> {
+    @Override
+    public RuleCheckResult check(Order newModel, Order oldModel) {
+        return RuleCheckResult.of(newModel.getScore() != null);
+    }
 }
 ```
 
-外部依赖（如评分校验器 `BaseInvoiceScoreValidator`）经构造器注入规则，使规则保持无状态且可单例共享。
+外部依赖（如评分校验器 `ScoreValidator`）经构造器注入规则，使规则保持无状态且可单例共享；需自定义激活条件时，通过 `addRule(ICheckRule<T>, MessageCode, IActiveRuleCondition<T>)` 传入即可，无需额外的适配器类型。
 
 ### 2.8 聚合根集成：AggregateRoot
 
@@ -364,5 +360,5 @@ RuntimeException
 | 注册表类 | `{聚合}BrokenRuleRegistry`，继承 `BrokenRuleRegistry` | `InvoiceBrokenRuleRegistry` |
 | 注册表实例 | `{聚合}BrokenRuleRegistry.INSTANCE` | `InvoiceBrokenRuleRegistry.INSTANCE` |
 | 规则容器类 | `{聚合}EntityRule`，继承 `EntityRule<{聚合}>` | `InvoiceEntityRule` |
-| 校验器类 | `Base{聚合}{维度}Validator`，继承 `BaseRuleValidator<{聚合}>` | `BaseInvoiceScoreValidator` |
+| 校验器类 | `{聚合}{维度}Validator`，实现 `ICheckRule<{聚合}>` | `InvoiceScoreValidator` |
 | 外部注入规则 | 构造器入参注入，规则内部不直接依赖仓储/远程 | `new InvoiceEntityRule(scoreValidator, gradeValidator)` |

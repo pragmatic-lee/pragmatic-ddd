@@ -6,8 +6,6 @@ import io.pragmatic.ddd.scenario.domain.person.model.Person;
 import io.pragmatic.ddd.scenario.domain.person.event.PersonUpdateEvent;
 import io.pragmatic.ddd.scenario.domain.person.model.enums.Status;
 import io.pragmatic.ddd.scenario.domain.person.rule.PersonEntityRule;
-import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonGradeValidator;
-import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonScoreValidator;
 import io.pragmatic.ddd.scenario.domain.person.operation.PersonOperations;
 import org.junit.Test;
 
@@ -21,24 +19,18 @@ public class PersonTest {
     @Test
     public void testCase1() {
 
-        BasePersonScoreValidator personScoreValidator = this.mockScoreValidator();
-        BasePersonGradeValidator personGradeValidator = this.mockGradeValidator();
-
         Person person = this.mockData();
 
-        Boolean validate = person.satisfiesRule(new PersonEntityRule(personScoreValidator,personGradeValidator));
+        Boolean validate = person.satisfiesRule(new PersonEntityRule());
         assert validate;
     }
 
     @Test
     public void testCase2() {
 
-        BasePersonScoreValidator personScoreValidator = this.mockScoreValidator();
-        BasePersonGradeValidator personGradeValidator = this.mockGradeValidator();
-
         Person person = this.mockData();
         person.update(new PersonUpdateData());
-        Boolean validate = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
+        Boolean validate = person.satisfiesRule(new PersonEntityRule());
 
         assert !validate;
         assert person.hasOperation(PersonOperations.UPDATE);
@@ -48,12 +40,9 @@ public class PersonTest {
     @Test
     public void testCase3() {
 
-        BasePersonScoreValidator personScoreValidator = this.mockScoreValidator();
-        BasePersonGradeValidator personGradeValidator = this.mockGradeValidator();
-
         Person person = this.mockData();
         person.updateStatus(Status.ACTIVE);
-        Boolean validate1 = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
+        Boolean validate1 = person.satisfiesRule(new PersonEntityRule());
 
 
         assert validate1;
@@ -64,12 +53,9 @@ public class PersonTest {
     @Test
     public void testCase4() {
 
-        BasePersonScoreValidator personScoreValidator = this.mockScoreValidator();
-        BasePersonGradeValidator personGradeValidator = this.mockGradeValidator();
-
         Person person = this.mockData();
         person.updateStatus(Status.ILLEGAL);
-        Boolean validate1 = person.satisfiesRule(new PersonEntityRule(personScoreValidator, personGradeValidator));
+        Boolean validate1 = person.satisfiesRule(new PersonEntityRule());
 
         assert validate1;
         assert person.hasOperation(PersonOperations.UPDATE_STATUS);
@@ -106,25 +92,6 @@ public class PersonTest {
 
 
 
-    private BasePersonGradeValidator mockGradeValidator() {
-        return new BasePersonGradeValidator(){
 
-            @Override
-            protected boolean validate(Person model, Person oldModel) {
-                return true;
-            }
 
-        };
-    }
-
-    private BasePersonScoreValidator mockScoreValidator() {
-        return new BasePersonScoreValidator(){
-
-            @Override
-            protected boolean validate(Person model, Person oldModel) {
-                return true;
-            }
-
-        };
-    }
 }

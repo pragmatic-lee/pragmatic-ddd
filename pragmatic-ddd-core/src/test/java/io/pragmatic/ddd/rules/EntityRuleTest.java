@@ -112,39 +112,7 @@ class EntityRuleTest {
         }
     }
 
-    // ==================== BaseRuleValidator / ICheckRuleBuilder ====================
-
-    static class NotEmptyNameValidator extends BaseRuleValidator<SampleEntity> {
-        @Override
-        protected boolean validate(SampleEntity model, SampleEntity oldModel) {
-            return model.getName() != null && !model.getName().isEmpty();
-        }
-    }
-
-    static class ValidatorRule extends EntityRule<SampleEntity> {
-        ValidatorRule() {
-            this.init();
-        }
-
-        @Override
-        public void init() {
-            this.addRule(new NotEmptyNameValidator(), Registry.NAME_EMPTY);
-        }
-    }
-
-    static class NameUsedBuilder implements ICheckRuleBuilder<SampleEntity> {
-        @Override
-        public ICheckRule<SampleEntity> rule() {
-            return (en, old) -> en.getName().equals("used")
-                    ? RuleCheckResult.fail(new Object[]{en.getName()})
-                    : RuleCheckResult.pass();
-        }
-
-        @Override
-        public IActiveRuleCondition<SampleEntity> ruleCondition() {
-            return (m, old) -> m.getName().isEmpty() ? ActiveStatus.INACTIVE : ActiveStatus.ACTIVE;
-        }
-    }
+    // ==================== 自定义激活条件规则 ====================
 
     static class BuilderRule extends EntityRule<SampleEntity> {
         BuilderRule() {
@@ -153,7 +121,12 @@ class EntityRuleTest {
 
         @Override
         public void init() {
-            this.addRule(new NameUsedBuilder(), Registry.NAME_USED);
+            this.addRule((en, old) ->
+                            en.getName().equals("used")
+                                    ? RuleCheckResult.fail(new Object[]{en.getName()})
+                                    : RuleCheckResult.pass(),
+                    Registry.NAME_USED,
+                    (m, old) -> m.getName().isEmpty() ? ActiveStatus.INACTIVE : ActiveStatus.ACTIVE);
         }
     }
 
@@ -416,18 +389,6 @@ class EntityRuleTest {
         EntityRule<SampleEntity> rule = new ParamAutoFormatRule(false);
         assertThat(rule.satisfiesRule(entity)).isFalse();
         assertThat(entity.getBrokenRules().get(0).getDescription()).isEqualTo("%s 已被使用");
-    }
-
-    @Test
-    void addRule_withBaseRuleValidator_wrapsLogic() {
-        SampleEntity empty = new SampleEntity();
-        EntityRule<SampleEntity> rule = new ValidatorRule();
-        assertThat(rule.satisfiesRule(empty)).isFalse();
-        assertThat(empty.getBrokenRules().get(0).getName()).isEqualTo(Registry.NAME_EMPTY.code());
-
-        empty.clearBrokenRules();
-        empty.setName("ok");
-        assertThat(rule.satisfiesRule(empty)).isTrue();
     }
 
     @Test

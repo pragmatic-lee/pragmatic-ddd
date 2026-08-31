@@ -114,20 +114,6 @@ public abstract class EntityRule<T extends AggregateRoot<?>> implements IRule<T>
         this.rules.add(new RuleItem<>(rule, messageCode, condition));
     }
 
-    /** 追加校验器规则（取其内部激活条件）。 */
-    public void addRule(BaseRuleValidator<T> rule, MessageCode messageCode) {
-        IActiveRuleCondition<T> condition =
-                Optional.ofNullable(rule.ruleCondition()).orElse(defaultCondition);
-        this.rules.add(new RuleItem<>(rule.rule(), messageCode, condition));
-    }
-
-    /** 追加校验项构造器（取其内部激活条件）。 */
-    public void addRule(ICheckRuleBuilder<T> rule, MessageCode messageCode) {
-        IActiveRuleCondition<T> condition =
-                Optional.ofNullable(rule.ruleCondition()).orElse(defaultCondition);
-        this.rules.add(new RuleItem<>(rule.rule(), messageCode, condition));
-    }
-
     // ========== appendRule ==========
 
     /** 在参照规则指定位置插入校验项。 */

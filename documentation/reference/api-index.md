@@ -31,9 +31,7 @@
 | 类型 | 名称 | 说明 |
 | --- | --- | --- |
 | 抽象类 | `EntityRule<T extends AggregateRoot<?>>` | 规则列表容器（实现 `IRule<T>` + `IRuleBuild`），继承并覆写 `init()` |
-| 抽象类 | `BaseRuleValidator<T>` | 单规则校验器，实现 `validate(T, T)` |
 | 接口 | `ICheckRule<T>` | 校验项契约，`check(T, T) → RuleCheckResult` |
-| 接口 | `ICheckRuleBuilder<T>` | 校验项构造器 |
 | 接口 | `IRuleBuild` | 规则构建标记 |
 | 类 | `RuleItem<T>` | 规则项封装（rule + messageCode + condition） |
 | 枚举 | `RulePosition` | 插入位置（LAST / BEFORE / AFTER） |
