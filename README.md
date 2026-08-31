@@ -1,59 +1,94 @@
-
+<div align="center">
+  <img src="documentation/public/LOGO.svg" alt="Pragmatic DDD" width="260"/>
+</div>
 
 # Pragmatic DDD
 
-> 🚀 **务实可落地的领域驱动设计框架（Pragmatic Domain-Driven Design Framework）**
+> **务实可落地的领域驱动设计框架（Pragmatic Domain-Driven Design Framework）**
 >
 > 不追求 CQRS / Event Sourcing 的"全家桶"复杂度，聚焦于 DDD 核心战术模式的标准化表达：实体、值对象、聚合根、领域规则、领域事件。让团队用最小的学习成本，把 DDD 真正写进代码里。
+
+<div align="center">
 
 [![Java](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://openjdk.org/)
 [![Maven Central](https://img.shields.io/badge/Maven%20Central-pragmatic--ddd--core-blue.svg)](https://central.sonatype.com/artifact/io.pragmatic.ddd/pragmatic-ddd-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-## 目录
+[完整示例 · Order Example](./examples/order-example/README.md) · [使用文档](./documentation/) · [最佳实践](./documentation/best-practices/)
 
-- [特性](#特性)
-- [模块结构](#模块结构)
-- [快速开始](#快速开始)
-  - [安装到本地仓库](#安装到本地仓库)
-  - [引入依赖](#引入依赖)
-  - [定义聚合根](#定义聚合根)
-  - [定义业务规则](#定义业务规则)
-  - [定义领域事件](#定义领域事件)
-  - [发布与订阅事件](#发布与订阅事件)
-  - [事务性 Outbox](#事务性-outbox)
-  - [MyBatis 集成](#mybatis-集成)
-  - [RocketMQ 集成](#rocketmq-集成)
-- [设计理念](#设计理念)
-- [文档](#文档)
-- [贡献](#贡献)
-- [许可证](#许可证)
+</div>
 
 ---
 
-## 特性
+## 框架特性
 
-| 特性 | 说明 |
+### 领域建模
+
+| 能力 | 说明 |
 |------|------|
-| **实体与聚合根** | `AbstractEntity<T>`、`AggregateRoot<T>`，提供统一标识、软删标记、审计字段、乐观锁版本号与基于标识的等同性 |
-| **值对象** | `ValueObject` 基于 `equalityComponents()` 提供结构相等性，`IValueObject` 作为语义标记 |
-| **业务规则引擎** | `EntityRule` 无状态规则容器，校验项接收「新模型 + 旧模型」双参数，支持 failFast、激活条件、运行时增删改 |
-| **规则激活条件** | `IActiveRuleCondition` 支持「规则码级开关」与「模型级条件」两级激活判定 |
-| **领域事件** | `BaseDomainEvent`、`IDomainEvent`，聚合根 `collectEvent` 收集，事件自动归因到操作编码与版本号 |
-| **有序执行** | `ISubscriberOrderManager` 基于 DAG 的订阅者执行顺序编排，支持依赖顺序与延迟投递 |
-| **操作追踪** | `OperationRegistry` / `recordOperation`，事件自动归因到触发操作与聚合版本号 |
-| **仓储与查询** | `IRepository`、`AbstractRepository`（落库前数据同步钩子）、Q 侧聚合查询与读模型投影（query） |
-| **读模型对账** | `Reconciler` / `ReconciliationManager` 读模型补偿、去重与版本对账 |
-| **应用层** | `AbstractApplicationService`、`UnitOfWork`、命令执行器（含 DryRun 试跑）与事务性 Outbox |
-| **事务性 Outbox** | `OutboxUnitOfWork` 同事务落 outbox + 提交后主动推送，`OutboxRelay` 兜底轮询补偿、死信兜底 |
-| **变更追踪** | `track` 包提供 `TrackedList` / `TrackedMap` 变更追踪集合 |
-| **ID 生成** | `base.id` 号段 ID 生成器体系，可扩展自定义分配器 |
+| 实体与聚合根 | `AbstractEntity<T>` / `AggregateRoot<T>` 统一托管标识、软删标记、审计字段、乐观锁版本号与基于标识的等同性 |
+| 值对象 | `ValueObject` 基于 `equalityComponents()` 提供结构相等性，`IValueObject` 作为语义标记 |
+| 枚举值对象 | `IEnumValue<T, K>` 以 CODE 持久化替代 Java enum 序号，避免枚举重排导致的数据错乱 |
+| 参数对象 | `IParamObject` 标记构造与业务方法入参对象，收敛多参数签名 |
+| 消息码 | `MessageCode`（Java 17 record）+ `BrokenRuleRegistry` 集中声明校验消息，消灭魔法字符串，静态字段自动注册 |
+
+### 业务规则引擎
+
+| 能力 | 说明 |
+|------|------|
+| 无状态规则容器 | `EntityRule<T>` 规则容器 + `BaseRuleValidator` / `ICheckRule` 校验项，校验项接收「新模型 + 旧模型」双参数，可单例化、多线程安全共享 |
+| 激活条件 | `IActiveRuleCondition<T>` 支持「规则码级开关」与「模型级条件」两级激活判定 |
+| 运行时编排 | 支持 `appendRule` / `replaceRule` / `removeRule` 运行时增删改，以及 failFast 短路与新旧模型对比 |
+| 领域服务分类 | `@DomainService` 划分四类原子能力：`CAPABILITY_PROVIDER` / `RULE_VALIDATOR` / `ATTRIBUTE_CALCULATOR` / `EVENT_SUBSCRIBER` |
+
+### 领域事件与一致性
+
+| 能力 | 说明 |
+|------|------|
+| 事件建模 | `BaseDomainEvent` 不可变事件基类，聚合根 `collectEvent` 收集，支持即时与延迟两种投递 |
+| 事件管理器 | `IEventManager` 组合发布、注册、生命周期三类端口；内置 `ThreadPoolEventManager` 本地实现 |
+| 有序执行 | `ISubscriberOrderManager` 基于 DAG 编排订阅者执行顺序，支持前置依赖、条件执行与投递策略组合 |
+| 操作追踪 | `OperationRegistry` / `recordOperation` 让事件自动归因到触发操作编码与聚合版本号，形成完整因果链 |
+| 事务性 Outbox | `OutboxUnitOfWork` 同事务落库 + 落 outbox，`EagerOutboxPublisher` 提交后主动推送，`OutboxRelay` 兜底轮询补偿并转死信 |
+| 对外广播 | `IBroadcastMessenger` + `AggregateMessageEnvelope` 统一信封，跨系统广播与领域事件分离 |
+
+### 应用编排
+
+| 能力 | 说明 |
+|------|------|
+| 命令执行器 | `ICommandExecutor` 封装「领域逻辑 → 规则校验 → 落库 → 发布事件 → 清理状态」固定模板 |
+| 工作单元 | `IUnitOfWork` 多聚合同事务编排，支持 `tryCommit()` 零副作用试跑（DryRun） |
+| 应用服务基类 | `AbstractApplicationService` + `ICommandApplicationService` / `IQueryApplicationService` 读写分离契约 |
+| 工厂与更新器 | `EntityFactory` / `EntityUpdater` 分离创建与修改场景的 Input → 实体转换 |
+| 属性解析 | `IEntityPropertyResolver` 单字段派生计算，配合 `EntityPropertyResolvers` 装配 |
+
+### 持久化与读模型
+
+| 能力 | 说明 |
+|------|------|
+| 写模型仓储 | `IRepository<ID, T>` + `AbstractRepository` 聚合级持久化契约，含落库前数据同步钩子 |
+| 读模型投影 | `IAggregateProjection` / `IAggregateProjector` + `ProjectorRegistry` 寻址，把聚合映射为异构存储视图 |
+| 查询端口族 | `IQueryById` / `IQueryByIds` / `IQueryOne` / `IQueryList` / `IQueryPage` / `IQueryScroll`，含分页与游标滚动值对象 |
+| 物化与对账 | `IProjectionMaterializer` 写入异构存储；`Reconciler` / `ReconciliationManager` 提供补偿、去重与版本对账 |
+| 变更追踪 | `TrackedList` / `TrackedMap` 把一对多集合拆为「新增 / 修改 / 删除」三桶，持久化只做增量而非全删全插 |
+| 号段 ID | `base.id` 号段 ID 生成器体系（`IIdGenerator` / `IIdSegmentAllocator`），支持 Long 与 String 两种类型 |
+
+### 集成与扩展
+
+| 能力 | 说明 |
+|------|------|
+| 防腐层 | `AbstractQueryGateway` / `AbstractWriteGateway` / `AbstractIdempotentWriteGateway` 继承式套路，或 `ExternalCall` 组合式调用；`AclExceptions` 区分可重试与不可重试异常 |
+| 外部依赖声明 | `@ExternalDependency` + `DependencyType` 声明式标注聚合依赖的外部系统端口 |
+| 配置体系 | `IConfigurationSource` / `ConfigurationBinder` / `AbstractConfiguration` 三层配置，含 `IFeatureToggle` 特性开关与灰度策略 |
+| MyBatis | `TypeHandlerContext` 一次性注册枚举、JSON、集合三类 TypeHandler；`MybatisOutboxStore`、`DbSegmentAllocator` 开箱即用 |
+| RocketMQ | `RocketMqEventManager`（Remoting）与 `RocketMqGrpcEventManager`（gRPC 5.x Proxy）双通道事件管理器 |
+| 零框架依赖 | 核心库只依赖 JDK 与 Lombok（provided），不依赖 Spring / MyBatis / MQ，领域层保持纯净可测 |
 
 ---
 
 ## 模块结构
 
-```
+```text
 pragmatic-ddd/
 ├── pragmatic-ddd-parent        ← 统一父 POM（Java 17、插件、依赖版本）
 ├── pragmatic-ddd-bom           ← BOM，集中管理内部模块版本，供消费者一键引入
@@ -63,7 +98,7 @@ pragmatic-ddd/
 ├── pragmatic-ddd-spring-boot   ← Spring Boot Starter（规划中）
 ├── pragmatic-ddd-mybatis       ← MyBatis 辅助能力（类型处理器、Outbox 存储、号段 ID 分配）
 └── examples/
-    └── order-example           ← 电商订单示例（构建示例见下）
+    └── order-example           ← 电商订单完整示例（见下方「完整示例」）
 ```
 
 > **模块状态说明**：`pragmatic-ddd-kafka` 与 `pragmatic-ddd-spring-boot` 当前为占位模块（仅有 `pom.xml`）。
@@ -397,7 +432,8 @@ import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
 // 基于 MyBatis 的号段 ID 分配器（传统纯 XML 直调，执行器自管独立短事务）
 IIdSegmentStatementExecutor idExecutor = ...; // 由集成层实现：注入 SqlSessionFactory，自管独立短事务
 IIdSegmentAllocator allocator = new DbSegmentAllocator(idExecutor);
-IdSegment segment = allocator.allocateNext("order"); // 当前号段 [segment.getStart(), segment.getMax()]
+IdSegment segment = allocator.allocateNext("order"); // record IdSegment(current, max, step)
+long currentId = segment.current();                  // 当前号段 [current, max]
 
 // 基于 MyBatis 的事件箱存储（与聚合同事务，执行器按 statementKey 直调 SQL）
 IOutboxStatementExecutor outboxExecutor = ...; // 由集成层实现：注入 SqlSessionTemplate
@@ -451,6 +487,44 @@ eventManager.shutdown();
 
 ---
 
+## 完整示例：Order Example
+
+> 想要看框架在真实工程里怎么落地，直接看 **[examples/order-example](./examples/order-example/README.md)**。
+
+`order-example` 是一个完整的电商订单服务，覆盖从聚合建模到异构存储查询的全链路：
+
+| 环节 | 示例中的内容 |
+|------|-------------|
+| 领域建模 | `Order` 聚合根 + `OrderItem` 实体 + 值对象 + `IEnumValue` 枚举 |
+| 业务规则 | `OrderRule` 规则容器 + `OrderRuleRegistry` 消息码 + 外部依赖校验注入 |
+| 应用编排 | `OrderWriteService` / `OrderReadService` + Factory / Updater / Resolver |
+| 持久化 | MyBatis 仓储 + 手写 `SqlSessionFactory` 与 TypeHandler 三通道装配 |
+| 读模型 | ES 投影：Projector + Materializer + Query 门面 + 四个 Searcher + 读模型对账 |
+| 事件与一致性 | RocketMQ 事件管理器 + Outbox 事务性发件箱完整装配 |
+| 基础设施 | MySQL / Redis / Elasticsearch / RocketMQ 配置类 |
+
+```bash
+# 启动示例前需先安装框架到本地仓库
+./install-local.sh
+# 按 examples/order-example/README.md 中的说明准备依赖中间件并启动
+```
+
+---
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [使用文档](./documentation/) | VitePress 文档站：入门指南、核心能力、集成模块、最佳实践 |
+| [快速开始](./documentation/getting-started/quick-start.md) | 5 分钟跑通第一个聚合根 |
+| [核心能力](./documentation/core/domain-modeling.md) | 领域建模、业务规则、领域事件、应用服务、读写模型 |
+| [最佳实践模式库](./documentation/best-practices/) | 20 篇落地模式：原则 + 代码骨架 + 约束 + 反模式 |
+| [推荐项目结构](./documentation/getting-started/project-structure.md) | 四层分包规范与层间边界 |
+| [API 速查索引](./documentation/reference/api-index.md) | 全部 public 类型与接口清单 |
+| [设计提案与重构计划](./docs/design/core/) | 各模块的设计提案、分析与重构计划 |
+
+---
+
 ## 设计理念
 
 > **Pragmatic DDD** —— 务实可落地的领域驱动设计框架。
@@ -463,15 +537,7 @@ eventManager.shutdown();
 - **框架通用性**：作为基础库，设计上保持通用、零 Spring 强依赖，便于其他项目引用并快速集成。
 - **现代 Java 特性**：基于 Java 17 开发，充分利用记录类（record）、密封类（sealed）、模式匹配、方法引用等特性。
 - **规则无状态化**：校验项接收「新模型 + 旧模型」双参数，规则对象可单例化、多线程安全共享。
-
----
-
-## 文档
-
-- [使用文档](./documentation/core/) —— 领域建模、业务规则使用指引
-- [设计提案与重构计划](./docs/design/core/) —— 各模块的设计提案、分析与重构计划
-- [最佳实践](./docs/best-practice/) —— 聚合根、规则校验、领域服务等最佳实践
-- [示例代码](./examples/)
+- **约束显式化**：把业务约束写进代码结构（注册表、操作归因、聚合边界），而非依赖约定与口头规范。
 
 ---
 
