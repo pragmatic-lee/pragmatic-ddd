@@ -18,4 +18,7 @@ public interface IUserDependency extends IDependency {
 
     /** 根据用户标识返回用户等级（整数）。 */
     int getUserLevel(String userId);
+
+    /** 根据用户标识返回用户手机号，未绑定返回空串。 */
+    String getUserMobile(String userId);
 }
