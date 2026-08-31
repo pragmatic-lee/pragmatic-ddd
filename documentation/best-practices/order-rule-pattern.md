@@ -88,7 +88,7 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
 仅当某条不变量需要查库、调用 RPC 或依赖其他聚合时，才在 `service` 包声明契约接口（继承 `IDomainService`），由应用层提供实现，规则容器只持有接口引用。
 
 ```java
-@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+@DomainService(category = DomainServiceCategory.BUSINESS_RULE,
         targetName = "Order",
         description = "校验下单用户是否生效且具备下单资格")
 public interface IOrderCustomerPermissionService extends IDomainService {

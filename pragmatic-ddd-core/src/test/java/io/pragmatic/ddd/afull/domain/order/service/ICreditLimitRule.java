@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  *
  * @author wizard-lee
  */
-@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+@DomainService(category = DomainServiceCategory.BUSINESS_RULE,
         targetName = "Order",
         description = "校验用户信用额度是否足够覆盖订单金额")
 public interface ICreditLimitRule extends IDomainService {

@@ -63,11 +63,11 @@ application/order/
 | 判定序 | 检查项 | 归类 | 枚举值 |
 | --- | --- | --- | --- |
 | 1 | 是否 `extends IHandle<T>`（响应领域事件） | 事件订阅 | `EVENT_SUBSCRIBER` |
-| 2 | 方法是否返回 `RuleCheckResult`（校验给出通过/拒绝） | 校验规则 | `RULE_VALIDATOR` |
+| 2 | 方法是否返回 `RuleCheckResult`（校验给出通过/拒绝） | 业务规则 | `BUSINESS_RULE` |
 | 3 | 方法是否"由领域输入推导领域输出"（`calculate(...)`） | 属性计算 | `ATTRIBUTE_CALCULATOR` |
 | 4 | 方法是否"无/少输入却新生产领域原语/对象"（`generate()` / `nextId()`） | 能力供给 | `CAPABILITY_PROVIDER` |
 
-> ⚠️ **重要约束**：机器可读的分类**只来自 `@DomainService` 注解**，方法形态只是编写时的语义判断辅助。基类接口（`IRuleValidatorService` 等）都是空标记，不承载任何方法。契约必须标注 `@DomainService(category = ...)`；未标注则 `category()` 返回 `UNKNOWN`，丢失分类元信息（不影响方法调用，但依赖分类的扫描/校验逻辑无法识别）。
+> ⚠️ **重要约束**：机器可读的分类**只来自 `@DomainService` 注解**，方法形态只是编写时的语义判断辅助。基类接口（`ICheckRuleService` 等）都是空标记，不承载任何方法。契约必须标注 `@DomainService(category = ...)`；未标注则 `category()` 返回 `UNKNOWN`，丢失分类元信息（不影响方法调用，但依赖分类的扫描/校验逻辑无法识别）。
 
 ## 5. 落地方式（核心）
 
@@ -77,9 +77,9 @@ application/order/
 2. **应用层** `@Service` / `@Component` 实现，可依赖基础设施。
 3. 按分类接入运行机制（事件订阅注册 / 校验规则注入规则容器 / 属性计算进工厂 / 能力供给进构造）。
 
-### 5.2 校验规则（RULE_VALIDATOR）——见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)
+### 5.2 业务规则（BUSINESS_RULE）——见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)
 
-外部校验契约（如 `IOrderCustomerPermissionService`）属于本类：接口方法返回 `RuleCheckResult`，标注 `@DomainService(category = RULE_VALIDATOR)`，实现放应用/基础设施层，经构造器注入规则容器 `OrderRule`。完整的「契约注入 → 规则容器 → 触发」落地见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)。
+外部校验契约（如 `IOrderCustomerPermissionService`）属于本类：接口方法返回 `RuleCheckResult`，标注 `@DomainService(category = BUSINESS_RULE)`，实现放应用/基础设施层，经构造器注入规则容器 `OrderRule`。完整的「契约注入 → 规则容器 → 触发」落地见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)。
 
 ### 5.3 事件订阅（EVENT_SUBSCRIBER）——见 [投影读模型代码落地指南](./projection-design.md)
 
@@ -230,7 +230,7 @@ public class OrderIdGenerator implements IOrderIdGenerator {
 ## 8. 下一步
 
 - [聚合设计原则](./aggregate-design.md)：聚合根编码规范与派生属性的边界
-- [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)：校验规则领域服务（RULE_VALIDATOR）的落地
+- [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)：业务规则领域服务（BUSINESS_RULE）的落地
 - [投影读模型代码落地指南](./projection-design.md)：事件订阅领域服务（EVENT_SUBSCRIBER）的落地
 - [核心：领域服务](../core/domain-service.md)：四类契约与注解机制详解
 - [核心：领域建模](../core/domain-modeling.md)：`IEntityPropertyCalculator` 与值对象

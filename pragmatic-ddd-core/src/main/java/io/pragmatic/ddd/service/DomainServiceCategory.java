@@ -8,8 +8,8 @@ package io.pragmatic.ddd.service;
 public enum DomainServiceCategory {
     /** 事件订阅 */
     EVENT_SUBSCRIBER,
-    /** 校验规则 */
-    RULE_VALIDATOR,
+    /** 业务规则 */
+    BUSINESS_RULE,
     /** 属性计算 */
     ATTRIBUTE_CALCULATOR,
     /** 领域工厂 / 能力供给 */

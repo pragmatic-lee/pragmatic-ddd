@@ -23,8 +23,8 @@ class DomainServiceCategoryTest {
     public interface SampleEventSubscriber extends IEventSubscriberService<OrderCreatedEvent> {
     }
 
-    @DomainService(category = DomainServiceCategory.RULE_VALIDATOR, targetName = "Sample")
-    public interface SampleRuleValidator extends IRuleValidatorService {
+    @DomainService(category = DomainServiceCategory.BUSINESS_RULE, targetName = "Sample")
+    public interface SampleRuleValidator extends ICheckRuleService<String> {
     }
 
     @DomainService(category = DomainServiceCategory.ATTRIBUTE_CALCULATOR, targetName = "Sample")
@@ -62,7 +62,11 @@ class DomainServiceCategoryTest {
             }
         }.category()).isEqualTo(DomainServiceCategory.EVENT_SUBSCRIBER);
         assertThat(new SampleRuleValidator() {
-        }.category()).isEqualTo(DomainServiceCategory.RULE_VALIDATOR);
+            @Override
+            public RuleCheckResult check(String newModel, String oldModel) {
+                return RuleCheckResult.pass();
+            }
+        }.category()).isEqualTo(DomainServiceCategory.BUSINESS_RULE);
         assertThat(new SampleAttributeCalculator() {
         }.category()).isEqualTo(DomainServiceCategory.ATTRIBUTE_CALCULATOR);
         assertThat(new SampleCapabilityProvider() {
@@ -73,7 +77,7 @@ class DomainServiceCategoryTest {
     void baseInterfacesShouldExtendDomainServiceAndHandle() {
         assertThat(IDomainService.class.isAssignableFrom(IEventSubscriberService.class)).isTrue();
         assertThat(IHandle.class.isAssignableFrom(IEventSubscriberService.class)).isTrue();
-        assertThat(IDomainService.class.isAssignableFrom(IRuleValidatorService.class)).isTrue();
+        assertThat(IDomainService.class.isAssignableFrom(ICheckRuleService.class)).isTrue();
         assertThat(IDomainService.class.isAssignableFrom(IAttributeCalculatorService.class)).isTrue();
         assertThat(IDomainService.class.isAssignableFrom(ICapabilityProviderService.class)).isTrue();
     }
@@ -92,7 +96,7 @@ class DomainServiceCategoryTest {
             public RuleCheckResult check(String pin) {
                 return RuleCheckResult.pass();
             }
-        }.category()).isEqualTo(DomainServiceCategory.RULE_VALIDATOR);
+        }.category()).isEqualTo(DomainServiceCategory.BUSINESS_RULE);
 
         assertThat(new IOrderCreatedNoticeWarehouseHandler() {
             @Override

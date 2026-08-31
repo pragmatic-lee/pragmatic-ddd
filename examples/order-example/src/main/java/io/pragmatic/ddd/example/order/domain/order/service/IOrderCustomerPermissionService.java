@@ -11,7 +11,7 @@ import io.pragmatic.ddd.service.IDomainService;
  *
  * @author wizard-lee
  */
-@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+@DomainService(category = DomainServiceCategory.BUSINESS_RULE,
         targetName = "Order",
         description = "校验下单用户是否生效且具备下单资格")
 public interface IOrderCustomerPermissionService extends IDomainService {

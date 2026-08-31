@@ -4,7 +4,7 @@ import io.pragmatic.ddd.scenario.domain.person.model.Person;
 import io.pragmatic.ddd.scenario.domain.person.rule.validator.BasePersonScoreValidator;
 
 /**
- * 人员积分校验（RULE_VALIDATOR 实现）。
+ * 人员积分校验（BUSINESS_RULE 实现）。
  *
  * @author wizard-lee
  */

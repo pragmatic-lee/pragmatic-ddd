@@ -49,7 +49,7 @@
 | 注解 | `@DomainService` | 领域服务声明注解（携带分类） |
 | 枚举 | `DomainServiceCategory` | 领域服务分类 |
 | 接口 | `IDomainService` | 领域服务标记接口 |
-| 接口 | `IRuleValidatorService` | 第一类：规则校验领域服务标记 |
+| 接口 | `ICheckRuleService<T>` | 第二类：业务规则领域服务标记（同时是 `ICheckRule<T>` 子类型） |
 | 接口 | `IEventSubscriberService<T extends IDomainEvent>` | 第二类：事件订阅领域服务标记 |
 | 接口 | `IAttributeCalculatorService` | 第三类：属性计算领域服务标记 |
 | 接口 | `ICapabilityProviderService` | 第四类：能力提供领域服务标记 |

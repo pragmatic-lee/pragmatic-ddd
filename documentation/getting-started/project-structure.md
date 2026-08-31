@@ -104,7 +104,7 @@ domain/{agg}/
 │   └── IUserDependency.java
 ├── service/                        # 领域服务接口（四类，每文件一能力）
 │   ├── IOrderIdGenerator.java      # @DomainService(CAPABILITY_PROVIDER)
-│   ├── IOrderItemAmountRule.java   # @DomainService(RULE_VALIDATOR)
+│   ├── IOrderItemAmountRule.java   # @DomainService(BUSINESS_RULE)
 │   ├── IOrderTotalPriceCalculator.java # @DomainService(ATTRIBUTE_CALCULATOR)
 │   └── IOrderCreatedNoticeWarehouse.java # @DomainService(EVENT_SUBSCRIBER)
 ├── config/OrderConfiguration.java           # 继承 AbstractConfiguration
@@ -121,7 +121,7 @@ domain/{agg}/
 | 分类 | 含义 | 接口定义位置 | 实现位置 |
 |------|------|--------------|----------|
 | `CAPABILITY_PROVIDER` | 领域能力供给 | 领域层 `service/` | 应用层 `service/` |
-| `RULE_VALIDATOR` | 单条校验规则 | 领域层 `service/` | 应用层 `service/` |
+| `BUSINESS_RULE` | 单条业务规则校验 | 领域层 `service/` | 应用层 `service/` |
 | `ATTRIBUTE_CALCULATOR` | 属性计算 | 领域层 `service/` | 应用层 `service/` |
 | `EVENT_SUBSCRIBER` | 事件订阅处理 | 领域层 `service/` | 应用层 `service/` |
 
@@ -164,13 +164,13 @@ public class OrderCancelledEvent extends BaseDomainEvent { ... }
 | `factory/` | `{Agg}Factory` | 子包 | 创建场景 Input→实体编排（一个聚合根一个） |
 | `updater/` | `{Agg}{Action}Updater` | 子包 | 修改场景 Input→实体编排（按动作拆分） |
 | `resolver/` | `{Field}Resolver` | 子包 | 单字段计算，实现 `IEntityPropertyResolver` |
-| `rule/` | `{Agg}RuleAssembler` | 子包 | 把各 `RULE_VALIDATOR` 串成 `EntityRule` |
+| `rule/` | `{Agg}RuleAssembler` | 子包 | 把各 `BUSINESS_RULE` 串成 `EntityRule` |
 | `subscriber/` | `{Agg}EventSubscriberRegistry` | 子包 | 登记本聚合关注的事件与订阅者（引用 `service/` 实现） |
 
 #### 2.2.2 包分工
 
 - `service/`：原子能力零件（CAPABILITY/RULE/ATTRIBUTE/EVENT_SUBSCRIBER），纯原子可复用。
-- `rule/`：把 `service/` 的 `RULE_VALIDATOR` 串联进 `EntityRule`，本身不承载单条校验。
+- `rule/`：把 `service/` 的 `BUSINESS_RULE` 串联进 `EntityRule`，本身不承载单条校验。
 - 外部依赖（防腐层）由基础设施层 `dependency/` 统一承载；应用服务/订阅者直接注入基础设施层 ACL 网关做并列编排，网关之间不相互依赖。
 - `subscriber/`：把本聚合事件与 `service/` 的 `EVENT_SUBSCRIBER` 处理器登记为清单，不重复实现。
 
@@ -185,7 +185,7 @@ application/{agg}/
 │   └── CancelOrderInput.java
 ├── service/                         # 四类原子领域服务实现（每文件一能力）
 │   ├── OrderIdGenerator.java        # 实现 IOrderIdGenerator（CAPABILITY_PROVIDER）
-│   ├── OrderItemAmountRule.java     # 实现 IOrderItemAmountRule（RULE_VALIDATOR）
+│   ├── OrderItemAmountRule.java     # 实现 IOrderItemAmountRule（BUSINESS_RULE）
 │   ├── OrderTotalPriceCalculator.java  # 实现 IOrderTotalPriceCalculator（ATTRIBUTE_CALCULATOR）
 │   └── OrderCreatedNoticeWarehouseHandler.java  # 实现 IOrderCreatedNoticeWarehouse（EVENT_SUBSCRIBER）
 ├── factory/OrderFactory.java

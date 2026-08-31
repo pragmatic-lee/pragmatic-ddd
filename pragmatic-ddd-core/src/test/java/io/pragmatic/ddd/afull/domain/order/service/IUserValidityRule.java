@@ -2,7 +2,7 @@ package io.pragmatic.ddd.afull.domain.order.service;
 
 import io.pragmatic.ddd.rules.RuleCheckResult;
 import io.pragmatic.ddd.service.DomainService;
-import io.pragmatic.ddd.service.IDomainService;
+import io.pragmatic.ddd.service.ICheckRuleService;
 import io.pragmatic.ddd.service.DomainServiceCategory;
 
 /**
@@ -11,10 +11,10 @@ import io.pragmatic.ddd.service.DomainServiceCategory;
  *
  * @author wizard-lee
  */
-@DomainService(category = DomainServiceCategory.RULE_VALIDATOR,
+@DomainService(category = DomainServiceCategory.BUSINESS_RULE,
         targetName = "Order",
         description = "校验指定用户是否存在且有效")
-public interface IUserValidityRule extends IDomainService {
+public interface IUserValidityRule extends ICheckRuleService<String> {
 
     /**
      * 校验指定用户是否存在且有效。
@@ -23,4 +23,16 @@ public interface IUserValidityRule extends IDomainService {
      * @return 校验结果
      */
     RuleCheckResult check(String pin);
+
+    /**
+     * 实现 {@code ICheckRule} 抽象契约，忽略新旧模型对比，委托给 {@link #check(String)}。
+     *
+     * @param newPin 当前用户 PIN
+     * @param oldPin 修改前的用户 PIN，本规则不关心，传 null
+     * @return 校验结果
+     */
+    @Override
+    default RuleCheckResult check(String newPin, String oldPin) {
+        return check(newPin);
+    }
 }

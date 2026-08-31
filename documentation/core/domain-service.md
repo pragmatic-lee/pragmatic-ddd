@@ -16,7 +16,7 @@
 ```text
 IDomainService (io.pragmatic.ddd.service)           标记接口，提供 category()
 ├── IEventSubscriberService<T>  (service)            extends IDomainService, IHandle<T>
-├── IRuleValidatorService       (service)            extends IDomainService
+├── ICheckRuleService<T>        (service)            extends IDomainService, ICheckRule<T>
 ├── IAttributeCalculatorService (service)            extends IDomainService （第三类属性计算标记子接口）
 ├── ICapabilityProviderService  (service)            extends IDomainService
 └── IEntityPropertyCalculator<T,E,R> (base)          extends IDomainService （第三类绑定实体属性的泛型契约）
@@ -62,13 +62,13 @@ IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明
 | 触发 | 事件总线在 `T` 发布后路由调用（Spring 环境下框架自动扫描 `IHandle` 实现；非 Spring 需 `IEventRegistry.registerSubscriber` 注册） |
 | 语义边界 | 仅响应已发生事件做后续动作；不主动编排跨聚合写操作链路 |
 
-### 2.2 第二类：校验规则领域服务（RULE_VALIDATOR）
+### 2.2 第二类：业务规则领域服务（BUSINESS_RULE）
 
 领域层声明"对某业务对象执行一条可复用校验，给出通过/拒绝结论"的契约。形态标志：**方法返回 `RuleCheckResult`**。
 
 | 项 | 说明 |
 | --- | --- |
-| 基类接口 | `IRuleValidatorService extends IDomainService` |
+| 基类接口 | `ICheckRuleService<T> extends IDomainService, ICheckRule<T>` |
 | 方法 | 自定义校验方法，返回 `RuleCheckResult`（通常命名为 `check(...)`） |
 | 参数 | 领域对象、值对象或领域参数（**不得**是应用层 `Command` / `HttpRequest`） |
 | 返回值 | `RuleCheckResult.pass()` / `RuleCheckResult.fail(Object[])` |
@@ -105,7 +105,7 @@ IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明
 | 判定序 | 检查项 | 命中条件 | 归类 | 枚举值 |
 | --- | --- | --- | --- | --- |
 | 1 | 是否 `extends IHandle<T>` | 继承 `IHandle`，响应领域事件 | 事件订阅 | `EVENT_SUBSCRIBER` |
-| 2 | 方法是否返回 `RuleCheckResult` | 校验方法返回 `RuleCheckResult` | 校验规则 | `RULE_VALIDATOR` |
+| 2 | 方法是否返回 `RuleCheckResult` | 校验方法返回 `RuleCheckResult` | 业务规则 | `BUSINESS_RULE` |
 | 3 | 方法是否"由领域输入推导领域输出" | 有 `calculate(...)`，输入输出均为领域类型 | 属性计算 | `ATTRIBUTE_CALCULATOR` |
 | 4 | 方法是否"无/少输入却新生产领域原语/对象" | 有 `generate()` / `nextId()` 等产出方法 | 能力供给 | `CAPABILITY_PROVIDER` |
 
@@ -154,7 +154,7 @@ public @interface DomainService {
 | `category` | `targetName` 语义 |
 | --- | --- |
 | `EVENT_SUBSCRIBER` | 处理的事件名（如 `OrderPaidEvent`） |
-| `RULE_VALIDATOR` | 作用的领域对象（如 `Order`） |
+| `BUSINESS_RULE` | 作用的领域对象（如 `Order`） |
 | `ATTRIBUTE_CALCULATOR` | 作用的领域对象（如 `Order/OrderItem`） |
 | `CAPABILITY_PROVIDER` | 产出的领域原语/对象（如 `OrderId`） |
 
@@ -165,7 +165,7 @@ package io.pragmatic.ddd.service;
 
 public enum DomainServiceCategory {
     EVENT_SUBSCRIBER,     // 事件订阅
-    RULE_VALIDATOR,       // 校验规则
+    BUSINESS_RULE,        // 业务规则
     ATTRIBUTE_CALCULATOR, // 属性计算（类型转换）
     CAPABILITY_PROVIDER,  // 领域工厂 / 能力供给
     UNKNOWN               // 未分类（向后兼容）
@@ -181,8 +181,8 @@ public enum DomainServiceCategory {
 public interface IEventSubscriberService<T extends IDomainEvent>
         extends IDomainService, IHandle<T> { }
 
-// 第二类：校验规则（service 包）
-public interface IRuleValidatorService extends IDomainService { }
+// 第二类：业务规则（service 包）
+public interface ICheckRuleService<T> extends IDomainService, ICheckRule<T> { }
 
 // 第三类：属性计算（service 包，标记子接口）
 public interface IAttributeCalculatorService extends IDomainService { }
@@ -398,7 +398,7 @@ application/
 | 概念 | 基类接口（包） | 形态标志 | 方法形态 | 最关键的约束 |
 | --- | --- | --- | --- | --- |
 | 事件订阅 `EVENT_SUBSCRIBER` | `IEventSubscriberService<T>`（service） | `extends IHandle<T>` | `void handleEvent(T)` | 仅响应已发生事件；非 Spring 需手动注册 |
-| 校验规则 `RULE_VALIDATOR` | `IRuleValidatorService`（service） | 返回 `RuleCheckResult` | `RuleCheckResult check(...)` | 入参须为领域类型；只判断不改状态不写库 |
+| 业务规则 `BUSINESS_RULE` | `ICheckRuleService<T>`（service） | 返回 `RuleCheckResult`；同时是 `ICheckRule<T>` 子类型 | `RuleCheckResult check(...)` | 入参须为领域类型；只判断不改状态不写库 |
 | 属性计算 `ATTRIBUTE_CALCULATOR` | `IAttributeCalculatorService`（service）；绑定实体属性时复用 `IEntityPropertyCalculator`（base） | `calculate(...)` | `R calculate(...)` / `R calculate(T,E)` | 无 `ITypeConverterService`；输出须由输入推导 |
 | 能力供给 `CAPABILITY_PROVIDER` | `ICapabilityProviderService`（service） | 产出方法 | `T generate()` / `nextId()` | 通常依赖基础设施；输出非由输入推导 |
 | 未分类 `UNKNOWN` | — | 未标注 `@DomainService` | 任意 | `category()` 恒返回 `UNKNOWN`，丢失分类元信息 |
