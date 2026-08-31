@@ -13,8 +13,9 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://openjdk.org/)
 [![Maven Central](https://img.shields.io/badge/Maven%20Central-pragmatic--ddd--core-blue.svg)](https://central.sonatype.com/artifact/io.pragmatic.ddd/pragmatic-ddd-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Website](https://img.shields.io/badge/Website-pragmatic--ddd.com-blue?logo=google-chrome&logoColor=white)](https://www.pragmatic-ddd.com/)
 
-[完整示例 · Order Example](./examples/order-example/README.md) · [使用文档](./documentation/) · [最佳实践](./documentation/best-practices/)
+[官网](https://www.pragmatic-ddd.com/) · [完整示例 · Order Example](./examples/order-example/README.md) · [使用文档](./documentation/) · [最佳实践](./documentation/best-practices/)
 
 </div>
 
@@ -515,6 +516,7 @@ eventManager.shutdown();
 
 | 文档 | 说明 |
 |------|------|
+| [官方网站](https://www.pragmatic-ddd.com/) | 在线文档与资源站点（入门指南、核心能力、集成模块、最佳实践） |
 | [使用文档](./documentation/) | VitePress 文档站：入门指南、核心能力、集成模块、最佳实践 |
 | [快速开始](./documentation/getting-started/quick-start.md) | 5 分钟跑通第一个聚合根 |
 | [核心能力](./documentation/core/domain-modeling.md) | 领域建模、业务规则、领域事件、应用服务、读写模型 |
