@@ -57,6 +57,22 @@ public class OrderQuery implements IOrderQuery {
     }
 
     /**
+     * 按主键直取单个投影，显式指定取数来源的物理投影类型，再裁剪为目标子投影。
+     *
+     * @param id 聚合主键
+     * @param sourceProjection 取数来源的物理投影类型
+     * @param projectionType 目标业务子投影类型
+     * @param <X> 目标投影子类型
+     * @return 命中的投影，未命中返回 null
+     */
+    @Override
+    public <X extends IOrderProjection> X queryById(Object id, Class<?> sourceProjection, Class<X> projectionType) {
+        Class<IAggregateProjection> source = asProjectionClass(sourceProjection);
+        IProjectionByIdSearcher<IAggregateProjection> searcher = registry.getByIdSearcher(source);
+        return reduceOne(searcher.getById(id, source), sourceProjection, projectionType);
+    }
+
+    /**
      * 按批量主键取回投影列表，按需裁剪为目标子投影。
      *
      * @param ids 订单号列表
