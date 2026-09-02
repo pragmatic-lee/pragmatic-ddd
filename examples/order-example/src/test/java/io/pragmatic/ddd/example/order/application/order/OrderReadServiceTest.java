@@ -2,6 +2,7 @@ package io.pragmatic.ddd.example.order.application.order;
 
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderQuery;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
@@ -9,6 +10,7 @@ import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuer
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
 import io.pragmatic.ddd.repository.query.PageRequest;
 import io.pragmatic.ddd.repository.query.PageResult;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
 import io.pragmatic.ddd.repository.query.ScrollPosition;
 import io.pragmatic.ddd.repository.query.ScrollResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +74,37 @@ class OrderReadServiceTest {
 
         assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
         assertThat(summary).isSameAs(recordingQuery.summary);
+    }
+
+    @Test
+    @DisplayName("指定来源投影的主键查询转发到三参 queryById 并分别透传来源与目标投影类型")
+    void queryByIdWithSource_forwardsToDomainQuery() {
+        OrderSummaryProjection result =
+                readService.queryById(1001L, OrderEsProjection.class, OrderSummaryProjection.class);
+
+        assertThat(recordingQuery.lastMethod).isEqualTo("queryByIdWithSource");
+        assertThat(recordingQuery.lastId).isEqualTo(1001L);
+        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderEsProjection.class);
+        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
+        assertThat(result).isSameAs(recordingQuery.summary);
+    }
+
+    @Test
+    @DisplayName("同一目标投影可指定不同来源投影，来源按调用方指定透传")
+    void queryByIdWithSource_supportsSwitchingSource() {
+        OrderSummaryProjection fromEs =
+                readService.queryById(1001L, OrderEsProjection.class, OrderSummaryProjection.class);
+
+        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderEsProjection.class);
+        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
+        assertThat(fromEs).isSameAs(recordingQuery.summary);
+
+        OrderSummaryProjection fromCache =
+                readService.queryById(1001L, OrderCacheProjection.class, OrderSummaryProjection.class);
+
+        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderCacheProjection.class);
+        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
+        assertThat(fromCache).isSameAs(recordingQuery.summary);
     }
 
     @Test
@@ -154,7 +187,9 @@ class OrderReadServiceTest {
 
         private String lastMethod;
 
-        private Long lastId;
+        private Object lastId;
+
+        private Class<?> lastSourceProjection;
 
         private List<Long> lastIds;
 
@@ -230,6 +265,32 @@ class OrderReadServiceTest {
                 return (X) detail;
             }
             return (X) summary;
+        }
+
+        @Override
+        public <X extends IOrderProjection> X queryById(Object id, Class<?> sourceProjection, Class<X> projectionType) {
+            lastMethod = "queryByIdWithSource";
+            lastId = id;
+            lastSourceProjection = sourceProjection;
+            lastProjectionType = projectionType;
+            return pick(projectionType);
+        }
+
+        @Override
+        public io.pragmatic.ddd.repository.query.ProjectionSource source() {
+            return null;
+        }
+
+        @Override
+        public io.pragmatic.ddd.repository.query.IProjectionSourceQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> source(
+                io.pragmatic.ddd.repository.query.ProjectionSource source) {
+            return this;
+        }
+
+        @Override
+        public io.pragmatic.ddd.repository.query.IProjectionSourceQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> fallbackChain(
+                List<io.pragmatic.ddd.repository.query.ProjectionSource> sources) {
+            return this;
         }
     }
 }

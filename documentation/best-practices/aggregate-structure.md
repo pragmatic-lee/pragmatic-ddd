@@ -38,11 +38,11 @@
 │   ├── calculator/            #   属性计算契约
 │   ├── dependency/            #   外部依赖声明
 │   ├── repository/            #   仓储抽象
-│   ├── projection/            #   投影契约（含 materializer/）
+│   ├── projection/            #   投影契约（含 materializer/ 版本 / 补偿专属契约）
 │   └── config/                #   领域配置
 └── infrastructure/{agg}/      # Infrastructure：技术实现，落地领域层契约
     ├── repository/            #   仓储实现（MyBatis）
-    ├── projection/            #   投影器（含 materializer/ 物化器 / 版本 / 对账）
+    ├── projection/            #   投影器（含 materializer/ 写读一体源 / 版本 / 对账）
     ├── dependency/            #   外部依赖实现
     ├── service/               #   领域服务实现（依赖基础设施类）
     └── config/                #   @Configuration 装配（MySQL / ES / MQ / Outbox）

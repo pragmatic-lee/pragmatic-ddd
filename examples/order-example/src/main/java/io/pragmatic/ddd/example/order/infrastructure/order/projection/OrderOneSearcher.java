@@ -38,23 +38,17 @@ public class OrderOneSearcher implements IProjectionSearcher<OrderOneQuery, Orde
     }
 
     @Override
-    public Class<OrderEsProjection> projectionType() {
-        return OrderEsProjection.class;
-    }
-
-    @Override
-    public List<OrderEsProjection> search(OrderOneQuery condition, Class<OrderEsProjection> projectionType) {
+    public List<OrderEsProjection> search(OrderOneQuery condition) {
         return ProjectionExceptions.retrieve(() -> {
             if (condition instanceof OrderOneQuery.LatestByCustomer c) {
-                return searchLatestByCustomer(c, projectionType);
+                return searchLatestByCustomer(c);
             }
             return List.<OrderEsProjection>of();
         }, "search");
     }
 
     @SneakyThrows
-    private List<OrderEsProjection> searchLatestByCustomer(
-            OrderOneQuery.LatestByCustomer condition, Class<OrderEsProjection> projectionType) {
+    private List<OrderEsProjection> searchLatestByCustomer(OrderOneQuery.LatestByCustomer condition) {
         TermQuery term = TermQuery.of(t -> t.field("customer.customerId").value(condition.customerId()));
         Query query = Query.of(q -> q.term(term));
         return elasticsearchClient.search(req -> req
@@ -62,7 +56,7 @@ public class OrderOneSearcher implements IProjectionSearcher<OrderOneQuery, Orde
                 .query(query)
                 .sort(sort -> sort.field(f -> f.field("createdAt")
                         .order(co.elastic.clients.elasticsearch._types.SortOrder.Desc)))
-                .size(1), projectionType).hits().hits().stream()
+                .size(1), OrderEsProjection.class).hits().hits().stream()
                 .map(Hit::source)
                 .toList();
     }

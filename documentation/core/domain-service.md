@@ -59,7 +59,7 @@ IHandle<T> (io.pragmatic.ddd.event.spi)              事件处理端口，声明
 | --- | --- |
 | 基类接口 | `IEventSubscriberService<T extends IDomainEvent> extends IDomainService, IHandle<T>` |
 | 方法 | `void handleEvent(T event)`（来自 `IHandle<T>`，领域层不实现） |
-| 触发 | 事件总线在 `T` 发布后路由调用（Spring 环境下框架自动扫描 `IHandle` 实现；非 Spring 需 `IEventRegistry.registerSubscriber` 注册） |
+| 触发 | 事件总线在 `T` 发布后路由调用；框架**不扫描** `IHandle` 实现，Spring 与非 Spring 环境都须经 `IEventRegistry.registerSubscriber` 显式注册 |
 | 语义边界 | 仅响应已发生事件做后续动作；不主动编排跨聚合写操作链路 |
 
 ### 2.2 第二类：业务规则领域服务（BUSINESS_RULE）
@@ -200,8 +200,8 @@ public interface IEntityPropertyCalculator<T, E, R> extends IDomainService {
 ```java
 @DomainService(category = DomainServiceCategory.EVENT_SUBSCRIBER,
         targetName = "OrderPaidEvent",
-        description = "订单支付成功后扣减库存")
-public interface IOrderPaidInventoryDeducer
+        description = "订单支付成功后按实付金额发放积分")
+public interface IOrderPaidPointsGrantHandle
         extends IDomainService, IHandle<OrderPaidEvent> { }
 ```
 :::
@@ -213,11 +213,16 @@ public interface IOrderPaidInventoryDeducer
 ### 4.1 事件订阅契约
 
 ```java
-public interface IOrderPaidNotificationSender
+@DomainService(category = DomainServiceCategory.EVENT_SUBSCRIBER,
+        targetName = "OrderPaidEvent",
+        description = "订单支付成功后向用户发送短信通知")
+public interface IOrderPaidSmsNotifyHandle
         extends IDomainService, IHandle<OrderPaidEvent> {
     // 继承 IHandle<T> 即声明 handleEvent(OrderPaidEvent)，无需重复声明
 }
 ```
+
+继承 `IEventSubscriberService<T>` 与上式的双继承写法等价；同一项目内选定一种并保持统一。一个契约只订阅一类事件，同一事件可有多个平级订阅者（发短信 / 发积分 / 物化 ES 副本 / 物化 Redis 副本）。
 
 ### 4.2 校验规则契约
 
@@ -260,24 +265,43 @@ public interface IOrderIdGenerator extends IDomainService {
 
 ```java
 @Component
-public class OrderPaidInventoryDeductionHandler
-        implements IOrderPaidInventoryDeducer {
+public class OrderPaidSmsNotifyHandle implements IOrderPaidSmsNotifyHandle {
 
-    private final IRepository<String, Inventory> inventoryRepository;
+    private final OrderRepository orderRepository;
 
-    public OrderPaidInventoryDeductionHandler(
-            IRepository<String, Inventory> inventoryRepository) {
-        this.inventoryRepository = inventoryRepository;
+    private final IUserDependency userDependency;
+
+    private final ISmsDependency smsDependency;
+
+    public OrderPaidSmsNotifyHandle(
+            OrderRepository orderRepository,
+            IUserDependency userDependency,
+            ISmsDependency smsDependency) {
+        this.orderRepository = orderRepository;
+        this.userDependency = userDependency;
+        this.smsDependency = smsDependency;
     }
 
     @Override
     public void handleEvent(OrderPaidEvent event) {
-        Inventory inventory = inventoryRepository.findById(event.getOrderId());
-        inventory.deduct();
-        inventoryRepository.save(inventory);
+        Long id = Long.valueOf(event.getEntityId());
+        Order order = orderRepository.findById(id);
+        if (order == null) {
+            return;
+        }
+        Customer customer = order.getCustomer();
+        String mobile = userDependency.getUserMobile(customer.getCustomerId().toString());
+        if (mobile == null || mobile.isBlank()) {
+            return;
+        }
+        String content = "您的订单 " + order.getEntityId()
+                + " 已支付成功，实付金额 " + order.getActualAmount().getAmount() + " 元";
+        smsDependency.sendSms(new SmsMessage(mobile, content));
     }
 }
 ```
+
+事件只携带聚合标识，因此 `handleEvent` 内先 `findById` 回源聚合再取权威状态；对外部系统的调用经领域依赖端口（`IDependency` 子接口），其防腐适配器由基础设施层提供。
 
 ```java
 @Component
@@ -298,14 +322,24 @@ public class OrderAmountLimitRule implements IOrderAmountLimitRule {
 }
 ```
 
-事件订阅实现在 Spring 环境下由框架自动扫描 `IHandle` 实现并注册；非 Spring 环境需手动注册到事件总线：
+事件订阅实现必须显式注册到事件总线（框架不扫描 `IHandle` 实现，Spring 环境同样如此）。注册集中在应用层的一张注册表里：
 
 ```java
-eventManager.registerSubscriber(
-    "order-paid-inventory-deduction",   // 订阅者别名
-    OrderPaidEvent.class,                // 监听的事件类型
-    orderPaidInventoryDeductionHandler   // IHandle<OrderPaidEvent> 实现
-);
+@Configuration
+public class OrderEventSubscriberRegistry {
+
+    public OrderEventSubscriberRegistry(IEventRegistry evtManager,
+                                        OrderDataSyncEsProjectionHandle orderDataSyncEsProjectionHandle,
+                                        OrderRedisCacheHandle orderRedisCacheHandle,
+                                        OrderPaidSmsNotifyHandle orderPaidSmsNotifyHandle,
+                                        OrderPaidPointsGrantHandle orderPaidPointsGrantHandle) {
+
+        evtManager.registerSubscriber("es", OrderDataSyncEvent.class, orderDataSyncEsProjectionHandle);
+        evtManager.registerSubscriber("redis-cache", OrderDataSyncEvent.class, orderRedisCacheHandle);
+        evtManager.registerSubscriber("sms-notify-on-order-paid", OrderPaidEvent.class, orderPaidSmsNotifyHandle);
+        evtManager.registerSubscriber("points-grant-on-order-paid", OrderPaidEvent.class, orderPaidPointsGrantHandle);
+    }
+}
 ```
 
 ## 6. 与属性计算（类型转换）的边界
@@ -327,7 +361,7 @@ eventManager.registerSubscriber(
 
 | 类型 | 命名格式 | 示例 |
 | --- | --- | --- |
-| 事件订阅 | `I{事件}{业务动作意图}` | `IOrderPaidNotificationSender` |
+| 事件订阅 | `I{事件}{业务动作意图}Handle` | `IOrderPaidSmsNotifyHandle` |
 | 校验规则 | `I{业务对象}{具体规则意图}Rule` | `IOrderAmountLimitRule` |
 | 属性计算 | `I{输入}To{输出}Converter` / `I{结果}Calculator` | `IOrderTotalCalculator` |
 | 能力供给 | `I{产物}Generator` / `I{产物}Provider` | `IOrderIdGenerator` |
@@ -336,32 +370,37 @@ eventManager.registerSubscriber(
 
 | 类型 | 命名格式 | 示例 |
 | --- | --- | --- |
-| 事件订阅 | `{事件}{业务意图}Handler` | `OrderPaidInventoryDeductionHandler` |
+| 事件订阅 | 接口名去 `I` | `OrderPaidSmsNotifyHandle` |
 | 校验规则 | 与接口同名（去 `I`） | `OrderAmountLimitRule` |
 | 属性计算 | 与接口同名（去 `I`） | `OrderTotalCalculator` |
 | 能力供给 | 与接口同名（去 `I`） | `OrderIdGenerator` |
 
-> 命名中的"业务意图"指领域层承诺的具体领域动作（发通知 / 扣库存 / 金额上限 / 生成 ID），而非技术占位词。接口名本身即成为领域文档。
+> 命名中的"业务意图"指领域层承诺的具体领域动作（发短信 / 发积分 / 物化 ES 副本 / 金额上限 / 生成 ID），而非技术占位词。接口名本身即成为领域文档。
 
 ## 8. 包结构建议
 
 ```
 domain/
 └── {bounded-context}/
-    ├── model/       # 聚合根、实体、值对象
-    ├── event/       # 领域事件定义
-    └── service/     # 领域服务接口定义（仅接口！）
-        ├── IOrderPaidNotificationSender.java  # 事件订阅契约
-        ├── IOrderAmountLimitRule.java         # 校验规则契约
-        ├── IOrderTotalCalculator.java          # 属性计算契约
-        └── IOrderIdGenerator.java              # 能力供给契约
+    ├── model/        # 聚合根、实体、值对象
+    ├── event/        # 领域事件定义
+    ├── dependency/   # 外部依赖端口（IDependency 子接口）
+    └── service/      # 领域服务接口定义（仅接口！）
+        ├── IOrderPaidSmsNotifyHandle.java        # 事件订阅契约
+        ├── IOrderDataSyncEsProjectionHandle.java # 事件订阅契约（读模型副本）
+        ├── IOrderAmountLimitRule.java            # 校验规则契约
+        ├── IOrderTotalCalculator.java            # 属性计算契约
+        └── IOrderIdGenerator.java                # 能力供给契约
 
 application/
 └── {bounded-context}/
-    ├── command/     # 命令应用服务
-    ├── query/       # 查询应用服务
-    └── service/     # 领域服务实现
-        ├── OrderPaidInventoryDeductionHandler.java
+    ├── command/       # 命令应用服务
+    ├── query/         # 查询应用服务
+    ├── subscriber/    # 事件订阅绑定（{聚合}EventSubscriberRegistry）
+    │   └── OrderEventSubscriberRegistry.java
+    └── service/       # 领域服务实现
+        ├── OrderPaidSmsNotifyHandle.java
+        ├── OrderDataSyncEsProjectionHandle.java
         ├── OrderAmountLimitRule.java
         ├── OrderTotalCalculator.java
         └── OrderIdGenerator.java
@@ -385,7 +424,9 @@ application/
 
 ### 9.4 事件订阅的注册路径
 
-> **重要约束**：事件订阅实现（`IHandle<T>`）在 Spring 环境下由框架自动扫描注册；**非 Spring 环境必须显式调用 `IEventRegistry.registerSubscriber`**，否则事件发布后不会触发 `handleEvent`。不要假设非 Spring 场景下存在自动装配。
+> **重要约束**：事件订阅实现（`IHandle<T>`）**必须显式调用 `IEventRegistry.registerSubscriber`** 才会生效，框架不扫描 `IHandle` 实现，也不提供 Spring Boot 自动装配做这件事。未注册时事件发布后不会触发 `handleEvent`，且没有日志或异常提示。
+>
+> 注册以事件类的**简单类名**为路由 key（`subscribedToEventType().getSimpleName()`），同一事件下的订阅者别名不可重复（重复抛 `IllegalArgumentException("<alias> is duplication")`）。执行顺序不按注册顺序，需顺序保证时用 `dependSubscriber` 重载显式声明。
 
 ## 10. 向后兼容
 
@@ -397,7 +438,7 @@ application/
 
 | 概念 | 基类接口（包） | 形态标志 | 方法形态 | 最关键的约束 |
 | --- | --- | --- | --- | --- |
-| 事件订阅 `EVENT_SUBSCRIBER` | `IEventSubscriberService<T>`（service） | `extends IHandle<T>` | `void handleEvent(T)` | 仅响应已发生事件；非 Spring 需手动注册 |
+| 事件订阅 `EVENT_SUBSCRIBER` | `IEventSubscriberService<T>`（service） | `extends IHandle<T>` | `void handleEvent(T)` | 仅响应已发生事件；必须显式 `registerSubscriber`，框架不扫描 |
 | 业务规则 `BUSINESS_RULE` | `ICheckRuleService<T>`（service） | 返回 `RuleCheckResult`；同时是 `ICheckRule<T>` 子类型 | `RuleCheckResult check(...)` | 入参须为领域类型；只判断不改状态不写库 |
 | 属性计算 `ATTRIBUTE_CALCULATOR` | `IAttributeCalculatorService`（service）；绑定实体属性时复用 `IEntityPropertyCalculator`（base） | `calculate(...)` | `R calculate(...)` / `R calculate(T,E)` | 无 `ITypeConverterService`；输出须由输入推导 |
 | 能力供给 `CAPABILITY_PROVIDER` | `ICapabilityProviderService`（service） | 产出方法 | `T generate()` / `nextId()` | 通常依赖基础设施；输出非由输入推导 |
@@ -408,4 +449,5 @@ application/
 - [业务规则引擎](./business-rules.md)：聚合根上的细粒度不变量校验
 - [领域事件](./domain-events.md)：`IHandle` 与事件总线注册
 - [应用服务](./application-service.md)：`execute()` 中集成校验规则领域服务
+- [事件订阅领域服务落地模式](../best-practices/event-subscriber-pattern.md)：EVENT_SUBSCRIBER 的契约、实现与注册绑定
 - [聚合业务规则（OrderRule 范式）](../best-practices/order-rule-pattern.md)：校验规则的落地

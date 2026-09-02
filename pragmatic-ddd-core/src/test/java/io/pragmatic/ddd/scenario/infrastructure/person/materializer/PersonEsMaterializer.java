@@ -1,37 +1,47 @@
 package io.pragmatic.ddd.scenario.infrastructure.person.materializer;
 
-import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
-import io.pragmatic.ddd.scenario.domain.person.materializer.IPersonEsMaterializer;
+import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
+import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.IAggregateProjector;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
 import io.pragmatic.ddd.scenario.domain.person.model.Person;
 import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
 
 /**
- * ES 物化器（壳子）。
- * 示例框架不连真实 ES，方法体为空实现；真实项目在此写/删 ES 副本并登记到 Registry。
- * 仅实现 IProjectionMaterializer 链（IPersonEsMaterializer），由 target() 表达对账目标；
- * 补同步 resync / supportedTarget 由框架对账引擎经 Registry 驱动，壳子阶段不强制实现。
+ * ES 投影源（壳子）。
+ * 示例框架不连真实 ES，写方法体为空实现；真实项目在此写/删 ES 副本并登记到 Registry。
+ * 以「源」为中心聚合写（materialize / purge）与读（检索器由子类 bind），
+ * 寻址串 es:person 由源标识承载，写读共享同一份副本地址。
  *
  * @author wizard-lee
  */
-public class PersonEsMaterializer implements IPersonEsMaterializer {
+public final class PersonEsMaterializer extends AbstractProjectionSource<Person, PersonProjection> {
 
-    @Override
-    public Class<PersonProjection> projectionType() {
-        return PersonProjection.class;
+    public PersonEsMaterializer() {
+        super(ProjectionSource.of("es:person"), Person.class, PersonProjection.class, new ShellProjector(), null);
     }
 
     @Override
-    public ReconciliationTarget target() {
-        return new ReconciliationTarget(Person.class, "es:person");
-    }
-
-    @Override
-    public void materialize(PersonProjection projection, long version) {
+    public void materialize(IAggregateProjection projection, long version) {
         // 壳子：真实项目在此写/更新 ES 副本
     }
 
     @Override
     public void purge(Object aggregateId) {
         // 壳子：真实项目在此清理 ES 残留条目
+    }
+
+    /** 壳子投影器：不真正投影，仅满足源构造约束。 */
+    private static final class ShellProjector extends AbstractAggregateProjector<Person, PersonProjection> {
+
+        private ShellProjector() {
+            super(PersonProjection.class);
+        }
+
+        @Override
+        public PersonProjection project(Person aggregateRoot) {
+            return null;
+        }
     }
 }

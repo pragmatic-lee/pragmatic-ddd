@@ -81,9 +81,11 @@ application/order/
 
 外部校验契约（如 `IOrderCustomerPermissionService`）属于本类：接口方法返回 `RuleCheckResult`，标注 `@DomainService(category = BUSINESS_RULE)`，实现放应用/基础设施层，经构造器注入规则容器 `OrderRule`。完整的「契约注入 → 规则容器 → 触发」落地见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)。
 
-### 5.3 事件订阅（EVENT_SUBSCRIBER）——见 [投影读模型代码落地指南](./projection-design.md)
+### 5.3 事件订阅（EVENT_SUBSCRIBER）——见 [事件订阅领域服务落地模式](./event-subscriber-pattern.md)
 
-`IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>` 即本类：继承 `IHandle<T>` 声明关注事件与 `handleEvent`，标注 `@DomainService(category = EVENT_SUBSCRIBER)`。订阅绑定与「事件物化 vs 对账补偿」的完整落地见 [投影读模型代码落地指南](./projection-design.md)。
+`IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>` 即本类：继承 `IHandle<T>` 声明关注事件与 `handleEvent`，标注 `@DomainService(category = EVENT_SUBSCRIBER)`。
+
+契约声明、三类订阅者实现形态（外部系统联动 / 读模型副本物化）、`OrderEventSubscriberRegistry` 显式注册绑定与全部避坑点见 [事件订阅领域服务落地模式](./event-subscriber-pattern.md)。读模型副本的投影 / 物化 / 对账构件落地见 [投影读模型代码落地指南](./projection-design.md)。
 
 ### 5.4 属性计算（ATTRIBUTE_CALCULATOR）——完整落地
 
@@ -213,7 +215,7 @@ public class OrderIdGenerator implements IOrderIdGenerator {
 
 - **`category()` 的注解查找链**：`IDomainService.category()` 沿 实现类 → 所实现接口 → 父类 递归查找 `@DomainService`。注解标在实现类上，子类接口同样能读到；未标注返回 `UNKNOWN`。
 - **契约参数必须是领域类型**：方法入参只能是领域对象 / 值对象 / 领域上下文，**不得**用应用层 `Command` / `HttpRequest` / DTO——否则破坏领域层零基础设施依赖，契约无法在领域层独立单测。若输入来自应用层入参，用 resolver 先转领域类型再进契约。
-- **事件订阅的注册路径**：`IHandle<T>` 实现 Spring 环境自动扫描注册；**非 Spring 必须显式 `IEventRegistry.registerSubscriber`**，否则事件发布后不触发。
+- **事件订阅的注册路径**：框架**不扫描** `@Component` 的 `IHandle` 实现，Spring 与非 Spring 环境都必须在 `{聚合}EventSubscriberRegistry` 里显式 `IEventRegistry.registerSubscriber`，否则事件发布后不触发且无任何提示。
 - **分类必须与接口语义一致**：标注的 `category` 须与 §4 判定结果一致；一个契约只属一类，若同时命中多项说明接口抽象错误，应拆分。
 
 ## 7. 常见反模式
@@ -231,6 +233,7 @@ public class OrderIdGenerator implements IOrderIdGenerator {
 
 - [聚合设计原则](./aggregate-design.md)：聚合根编码规范与派生属性的边界
 - [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)：业务规则领域服务（BUSINESS_RULE）的落地
-- [投影读模型代码落地指南](./projection-design.md)：事件订阅领域服务（EVENT_SUBSCRIBER）的落地
+- [事件订阅领域服务落地模式](./event-subscriber-pattern.md)：事件订阅领域服务（EVENT_SUBSCRIBER）的落地
+- [投影读模型代码落地指南](./projection-design.md)：读模型副本的投影 / 物化 / 对账构件
 - [核心：领域服务](../core/domain-service.md)：四类契约与注解机制详解
 - [核心：领域建模](../core/domain-modeling.md)：`IEntityPropertyCalculator` 与值对象

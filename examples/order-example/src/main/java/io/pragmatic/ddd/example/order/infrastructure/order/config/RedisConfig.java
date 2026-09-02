@@ -68,7 +68,7 @@ public class RedisConfig {
     }
 
     /**
-     * 暴露同步命令对象，供 OrderRedisMaterializer / OrderRedisByIdSearcher 注入使用。
+     * 暴露同步命令对象，供 OrderRedisSource / OrderRedisByIdSearcher 注入使用。
      * 命令门面不持有底层资源，生命周期随 StatefulRedisConnection 关闭而失效，无需单独销毁。
      *
      * @param connection StatefulRedisConnection 实例

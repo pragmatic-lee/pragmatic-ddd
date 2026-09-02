@@ -19,9 +19,10 @@ io.pragmatic.ddd.repository
 │     ├─ IAggregateQuery           (6 类查询能力全量组合)
 │     ├─ IAggregateProjection      读模型投影标记接口
 │     ├─ IAggregateProjector / AbstractAggregateProjector  (聚合 → 投影)
-│     ├─ IProjectionMaterializer   投影 → 异构存储写入
-│     ├─ AggregateProjectorSupport  project→materialize 门面
-│     ├─ ProjectorRegistry          构件登记中心
+│     ├─ ProjectionSource / AbstractProjectionSource  (源标识 / 写读一体源：materialize + 检索器 + 裁剪器)
+│     ├─ IProjectionSearcher / IProjectionByIdSearcher / IProjectionPagedSearcher / IProjectionReducer  (检索 / 裁剪构件，挂在源上)
+│     ├─ AggregateProjectorSupport  project→materialize 门面（按源）
+│     ├─ ProjectorRegistry          源登记中心
 │     └─ PageRequest / PageResult / ScrollPosition / ScrollResult  (分页/滚动值对象)
 └── reconciliation                读模型对账子包
       ├─ ReconciliationTarget / Reconciliation / ReconciliationStatus  (对账标识与结果)
@@ -37,7 +38,7 @@ io.pragmatic.ddd.repository
 | `query` 子包类型 | `io.pragmatic.ddd.repository.query` | 读模型查询端口与投影 |
 | `reconciliation` 子包类型 | `io.pragmatic.ddd.repository.reconciliation` | 读模型版本对账 |
 
-依赖边界：写侧 `IRepository` 只依赖 `io.pragmatic.ddd.base.AggregateRoot`；读侧物化器 `IProjectionMaterializer` 与对账子包共享 `ReconciliationTarget` 作为存储目标标识；`reconciliation` 反向依赖 `IRepository` 取 `currentVersion` 作为对账权威版本源。
+依赖边界：写侧 `IRepository` 只依赖 `io.pragmatic.ddd.base.AggregateRoot`；读侧源 `AbstractProjectionSource` 的 `source()` 标识与对账子包共享 `ReconciliationTarget.storeId()` 作为存储目标标识（同源同名）；`reconciliation` 反向依赖 `IRepository` 取 `currentVersion` 作为对账权威版本源。
 
 ### 1.3 读写分离
 
@@ -177,26 +178,27 @@ public class OrderQueryService implements
 | `IAggregateProjection` | 读模型投影标记接口 | 仅聚合拓扑级投影实现；嵌套子实体投影不需实现 |
 | `IAggregateProjector<T, P>` | 聚合 → 投影映射（纯映射，无存储细节，可独立单测） | `project(T)` 可返回 `null`；`projectionType()` 供 registry 按型定位 |
 | `AbstractAggregateProjector<T, P>` | 抽象基类 | 预置 `projectionType()`（`final`），子类只实现 `project`；**框架不提供任何默认映射逻辑**，字段取值手写 |
-| `IProjectionMaterializer<P>` | 投影 → 异构存储写入 | 各集成模块（ES / Redis / 读表）实现；`materialize(P, version)` 持久化 version；`purge(aggregateId)` 清残留 |
+| `AbstractProjectionSource<T, P>` | 投影 → 异构存储写入（写读一体） | 各集成模块（ES / Redis / 读表）继承；`materialize(P, version)` 持久化 version、`purge(aggregateId)` 清残留，并 `bind` 检索器 / 裁剪器 |
 
 投影类型 `P` 建议用 `sealed interface` 继承 `IAggregateProjection` 形成封闭体系，调用方通过 pattern match 获取具体投影。
 
-#### 物化与登记中心
+#### 源与登记中心
 
-`ProjectorRegistry`（纯 core、无 Spring 依赖）统一管理 `IAggregateProjector` 与 `IProjectionMaterializer`：
+`ProjectorRegistry`（纯 core、无 Spring 依赖）统一管理 `IAggregateProjector` 与 `AbstractProjectionSource`：
 
 | 方法 | 定位 key | 说明 |
 |------|----------|------|
 | `register(aggregateType, projector)` | （聚合类型 → 投影类型） | projector 按型登记 |
-| `register(materializer)` | （投影类型 → `ReconciliationTarget`） | materializer 的 `target()` 是唯一权威来源 |
+| `register(source)` | （源标识 `ProjectionSource`） | 源内已 `bind` 检索器 / 裁剪器；支持同一投影类多源共存 |
 | `resolveProjector(aggregateType, projectionType)` | （聚合类型, 投影类型） | 找不到返回 `null` |
-| `resolveMaterializer(projectionType, target)` | （投影类型, target） | 找不到返回 `null` |
+| `resolveSource(source, projectionType)` | （源标识, 投影类型） | 找不到返回 `null` |
+| `registerDefaultSource(projectionType, source)` | 子投影类 → 默认源 | 查该子投影未指定源时取默认源 |
 
-`AggregateProjectorSupport` 是聚合投影门面，封装 `project → materialize` 并暴露 `purge`：
+`AggregateProjectorSupport` 是聚合投影门面，按源封装 `project → materialize` 并暴露 `purge`：
 
-- 不持有 repository 与 materializer；聚合由调用方 `load` 后传入 `sync`，materializer 由 registry 按 target 取出。
-- `sync(aggregate, projectionType, target)`：projector / materializer 缺失或投影为 `null` 时**静默跳过**。
-- `purge(projectionType, aggregateId, target)`：ORPHAN 时清理残留条目。
+- 不持有 repository 与源；聚合由调用方 `load` 后传入 `sync`，源由 registry 按 source 标识取出。
+- `sync(aggregate, source)`：projector / 源缺失或投影为 `null` 时**静默跳过**。
+- `purge(source, aggregateId)`：ORPHAN 时清理残留条目。
 - `versionOf(aggregate)` 复用 `AggregateRoot.getOldVersion()` 作为物化版本。
 - 事件物化路径与对账 resync 路径共用本门面，保证转换逻辑唯一。
 
@@ -275,7 +277,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 
 > **重要约束**：延迟复核不在 core 内实现。`reconcileAndResync` 是同步原语，检测到不一致立即补救。若需规避"事件刚发布、副本尚未同步完"的竞态，延迟复核由调用方异步编排（调度器或将延迟消息发到 Kafka/RocketMQ 重试）。
 
-> **重要约束**：`materializer` 的 `target()` 是 `ReconciliationTarget` 的唯一权威来源；`ProjectorRegistry` 按（投影类型, target）定位 materializer，调用方只引用已定义的 target 常量，不要 `new ReconciliationTarget`。
+> **重要约束**：源 `source()` 标识即 `ReconciliationTarget.storeId()` 的同一身份，是存储目标的唯一权威来源；`AggregateProjectorSupport.sync(aggregate, source)` 依此定位源，调用方只引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），不要 `new ProjectionSource("es:orders")`。
 
 > **重要约束**：`ReconciliationTarget` 用 `record` 提供基于值的 `equals/hashCode`，可作 Map key；其构造器仅做非空校验，不校验聚合类型与 storeId 是否真实存在，错误登记将在 `targetsOf` / `resolverFor` 阶段表现为找不到组件。
 
@@ -307,7 +309,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 | 聚合查询组合接口 | `I{聚合}AggregateQuery`（继承 `IAggregateQuery`） | `IOrderAggregateQuery` |
 | 投影标记接口 | `{聚合}Projection`（实现 `IAggregateProjection`） | `OrderSummary` |
 | 投影抽象基类 | `Abstract{聚合}Projector`（继承 `AbstractAggregateProjector`） | `AbstractOrderProjector` |
-| 物化器接口 | `I{存储}Materializer`（实现 `IProjectionMaterializer`） | `IElasticsearchMaterializer` |
+| 写读一体源 | `{聚合}{存储}Source`（继承 `AbstractProjectionSource`） | `OrderEsSource` |
 | 查询条件对象 | `{聚合}{查询形态}Query`，sealed interface | `OrderPageQuery` |
 | 分页请求 / 结果 | `PageRequest` / `PageResult`（不可变值对象） | `PageResult<OrderSummary>` |
 | 对账目标常量 | `{聚合}_{存储}_TARGET`（`ReconciliationTarget` record） | `ORDER_ES_TARGET` |
@@ -324,8 +326,8 @@ V' <  V           → STALE       （副本落后，需补同步）
 | `AbstractRepository` | 继承并实现 `doInsert` / `doUpdate` / `doRemove` | `insert/update/remove` 为 `final`，落库前统一触发 `triggerDataSyncHook` |
 | `IAggregateQuery` | 继承组合 6 类查询，返回投影 | 投影非聚合根；未命中返回 `null` 或空列表 |
 | `AbstractAggregateProjector` | 继承、实现 `project` | 框架无默认映射逻辑，字段取值手写 |
-| `ProjectorRegistry` | 显式登记 projector / materializer | materializer 的 `target()` 是定位权威来源 |
-| `AggregateProjectorSupport` | 调用 `sync` / `purge` | projector / materializer 缺失或投影为 `null` 时静默跳过 |
+| `ProjectorRegistry` | 显式登记 projector / 源 | 源的 `source()` 标识即定位权威来源；同一投影类可多源共存 |
+| `AggregateProjectorSupport` | 调用 `sync(aggregate, source)` / `purge(source, id)` | projector / 源缺失或投影为 `null` 时静默跳过 |
 | `Reconciliation` | `Reconciliation.of(V', V)` | 先 UNTRACKED，再 ORPHAN（存在性），后 CONSISTENT/STALE |
 | `IReadModelResynchronizer` | 实现 `resync` / `purge` | `resync` 从写模型重建，不重放事件 |
 | `Reconciler` / `ReconciliationManager` | `reconcile(type, id)` 一行对账 | 同步原语，延迟复核由调用方异步编排 |

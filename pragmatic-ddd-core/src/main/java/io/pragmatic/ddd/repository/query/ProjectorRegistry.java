@@ -2,268 +2,241 @@ package io.pragmatic.ddd.repository.query;
 
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
- * 投影构件登记中心：统一管理 IAggregateProjector、IProjectionMaterializer 与三类读侧检索器。
- * 纯 core、无 Spring 依赖；调用方显式登记，或后续由 Spring 自动扫描接线。
- * projector 按 (聚合类型, 投影类型)、materializer 按 (投影类型, target) 定位；
- * materializer 的 target() 是 ReconciliationTarget 的唯一权威来源；
- * 检索器按型定位：按条件检索 {@link IProjectionSearcher} 与分页/滚动检索 {@link IProjectionPagedSearcher}
- * 均为 (条件类型, 投影类型) 二维键，按主键检索 {@link IProjectionByIdSearcher} 为一维 (投影类型) 键；
- * 读写两侧存储连接器同册管理。
+ * 投影源登记中心：管理读侧「源」与其挂接的投影器 / 检索器 / 裁剪器。
+ *
+ * <p>寻址第一维是 {@link ProjectionSource}（一份物理副本），源确定后其全量投影类型唯一确定，
+ * 因此检索器与裁剪器不再以「投影类型」为键，而以「源」为键：
+ * <ul>
+ *     <li>检索器：按 (源, 条件族) 定位。</li>
+ *     <li>裁剪器：按 (源, 子投影) 定位。</li>
+ * </ul>
+ *
+ * <p>注册期强约束（违反即 {@link ProjectionSourceConflictException}）：
+ * <ul>
+ *     <li>源 id 全局唯一；</li>
+ *     <li>同一 (源, 条件族) 不可重复绑定不同检索器；</li>
+ *     <li>同一 (源, 子投影) 不可重复绑定不同裁剪器。</li>
+ * </ul>
+ *
+ * <p>同一全量投影类可同时登记到多个源：多份异构副本共存是合法需求，
+ * 未指定源且多源又无默认源时，首次查询抛 {@link ProjectionSourceAmbiguousException}。
+ *
+ * <p>多源共存是合法需求（同一业务子投影可从多个副本取数）；未指定源且多源又无默认源时，
+ * 首次查询抛 {@link ProjectionSourceAmbiguousException}。</p>
  *
  * @author wizard-lee
  */
 public class ProjectorRegistry {
 
-    // projector：聚合类型 -> 投影类型 -> projector
-    private final Map<Class<?>, Map<Class<?>, IAggregateProjector<?, ?>>> projectors = new ConcurrentHashMap<>();
-    // materializer：投影类型 -> 存储目标(ReconciliationTarget) -> materializer
-    private final Map<Class<?>, Map<ReconciliationTarget, IProjectionMaterializer<?>>> materializers = new ConcurrentHashMap<>();
-    // 按条件检索器：条件类型 -> 投影类型 -> searcher
-    private final Map<Class<?>, Map<Class<?>, IProjectionSearcher<?, ?>>> searchers = new ConcurrentHashMap<>();
-    // 分页/滚动检索器：条件类型 -> 投影类型 -> pagedSearcher
-    private final Map<Class<?>, Map<Class<?>, IProjectionPagedSearcher<?, ?>>> pagedSearchers = new ConcurrentHashMap<>();
-    // 按主键检索器：投影类型 -> idSearcher（一维键）
-    private final Map<Class<?>, IProjectionByIdSearcher<?>> idSearchers = new ConcurrentHashMap<>();
-    // 裁剪器：源投影类型 -> 子投影类型 -> reducer
-    private final Map<Class<?>, Map<Class<?>, IProjectionReducer<?, ?>>> reducers = new ConcurrentHashMap<>();
-    // 反查：子投影类型 -> 源投影类型（唯一性在登记时校验）
-    private final Map<Class<?>, Class<?>> sourceByProjection = new ConcurrentHashMap<>();
-    // 已登记为"索引级全量投影"的类型集合（供门面短路判断）
-    private final Set<Class<?>> sourceProjections = ConcurrentHashMap.newKeySet();
+    /** 源 id -> 源实例。 */
+    private final Map<ProjectionSource, AbstractProjectionSource<?, ?>> sources = new ConcurrentHashMap<>();
+
+    /** 全量投影类 -> 承载该全量投影的所有源（多源共存，一份投影可落多份异构副本）。 */
+    private final Map<Class<?>, Set<ProjectionSource>> sourcesByProjection = new ConcurrentHashMap<>();
+
+    /** 子投影类 -> 提供该子投影裁剪的所有源（多源共存）。 */
+    private final Map<Class<?>, Set<ProjectionSource>> sourcesBySubProjection = new ConcurrentHashMap<>();
+
+    /** 子投影类 -> 默认源（多源时未指定源则取默认源）。 */
+    private final Map<Class<?>, ProjectionSource> defaultSources = new ConcurrentHashMap<>();
 
     /**
-     * 登记聚合投影器，按 (聚合类型, 投影类型) 定位。
+     * 登记一个源及其全部挂接构件。注册期仅校验源 id 全局唯一；
+     * 同一全量投影类可同时登记到多个源（多份异构副本共存）。
      *
-     * @param aggregateType 聚合根类型
-     * @param projector     聚合投影器实例
+     * @param source 源实例
      * @param <T> 聚合根类型
-     * @param <P> 投影类型
+     * @param <P> 全量投影类型
      */
-    public <T extends AggregateRoot<?>, P extends IAggregateProjection> void register(
-            Class<T> aggregateType, IAggregateProjector<T, P> projector) {
-        projectors.computeIfAbsent(aggregateType, k -> new ConcurrentHashMap<>())
-                .put(projector.projectionType(), projector);
-    }
-
-    /**
-     * 登记投影物化器，按 (投影类型, 存储目标) 定位。
-     *
-     * @param materializer 投影物化器实例
-     * @param <P> 投影类型
-     */
-    public <P extends IAggregateProjection> void register(IProjectionMaterializer<P> materializer) {
-        materializers.computeIfAbsent(materializer.projectionType(), k -> new ConcurrentHashMap<>())
-                .put(materializer.target(), materializer);
-    }
-
-    /**
-     * 登记按条件投影检索器，按 (条件类型, 投影类型) 定位，供读侧按型寻址。
-     *
-     * @param searcher 投影检索器实例
-     * @param <C> 业务条件类型
-     * @param <P> 投影类型
-     */
-    public <C extends QueryCriteria, P extends IAggregateProjection> void register(IProjectionSearcher<C, P> searcher) {
-        searchers.computeIfAbsent(searcher.criteriaType(), k -> new ConcurrentHashMap<>())
-                .put(searcher.projectionType(), searcher);
-    }
-
-    /**
-     * 登记分页 / 滚动投影检索器，按 (条件类型, 投影类型) 定位，供读侧按型寻址。
-     *
-     * @param searcher 分页 / 滚动检索器实例
-     * @param <C> 业务条件类型
-     * @param <P> 投影类型
-     */
-    public <C extends PageQueryCriteria, P extends IAggregateProjection> void register(IProjectionPagedSearcher<C, P> searcher) {
-        pagedSearchers.computeIfAbsent(searcher.criteriaType(), k -> new ConcurrentHashMap<>())
-                .put(searcher.projectionType(), searcher);
-    }
-
-    /**
-     * 登记按主键投影检索器，按 (投影类型) 定位，供读侧按型寻址。
-     *
-     * @param searcher 按主键检索器实例
-     * @param <P> 投影类型
-     */
-    public <P extends IAggregateProjection> void register(IProjectionByIdSearcher<P> searcher) {
-        idSearchers.put(searcher.projectionType(), searcher);
-    }
-
-    /**
-     * 登记投影裁剪器，按 (源投影类型, 子投影类型) 定位，供读侧内存裁剪使用。
-     *
-     * <p>同时建立"子投影 → 源投影"的反查关系。同一子投影只能有一个来源：
-     * 若已登记过不同的来源，抛 {@link ProjectionReducerConflictException}，
-     * 使接线错误在装配期暴露，而非延迟到首次查询时静默选错索引。</p>
-     *
-     * @param reducer 投影裁剪器实例
-     * @param <S> 源投影类型（索引级全量投影）
-     * @param <P> 目标投影类型（业务子投影）
-     */
-    public <S extends IAggregateProjection, P extends IAggregateProjection> void register(
-            IProjectionReducer<S, P> reducer) {
-        Class<?> existing = sourceByProjection.putIfAbsent(reducer.projectionType(), reducer.sourceType());
-        if (existing != null && existing != reducer.sourceType()) {
-            throw new ProjectionReducerConflictException(
-                    "子投影 " + reducer.projectionType().getName() + " 存在多个来源："
-                            + existing.getName() + " 与 " + reducer.sourceType().getName());
+    public <T extends AggregateRoot<?>, P extends IAggregateProjection> void register(AbstractProjectionSource<T, P> source) {
+        AbstractProjectionSource<?, ?> previous = sources.putIfAbsent(source.source(), source);
+        if (previous != null && previous != source) {
+            throw new ProjectionSourceConflictException(
+                    "源 id 重复：" + source.source().id() + " 已登记于 " + previous.getClass().getSimpleName());
         }
-        reducers.computeIfAbsent(reducer.sourceType(), k -> new ConcurrentHashMap<>())
-                .put(reducer.projectionType(), reducer);
+        sourcesByProjection
+                .computeIfAbsent(source.projectionType(), k -> new HashSet<>())
+                .add(source.source());
+        source.reducers().keySet().forEach(sub -> sourcesBySubProjection
+                .computeIfAbsent(sub, k -> new HashSet<>())
+                .add(source.source()));
     }
 
     /**
-     * 将某投影类型标记为"索引级全量投影"。
+     * 登记某子投影的默认源。多源时未指定源则取默认源；未指定且无默认则查询抛歧义。
      *
-     * <p>被标记的类型可直接被检索器返回（门面短路、跳过裁剪），
-     * 也可作为其他子投影的裁剪来源。通常由检索器登记时一并标记。</p>
-     *
-     * @param projectionType 索引级全量投影类型
+     * @param subProjection 子投影类型
+     * @param source 默认源
      */
-    public void markSourceProjection(Class<? extends IAggregateProjection> projectionType) {
-        sourceProjections.add(projectionType);
+    public void registerDefaultSource(Class<?> subProjection, ProjectionSource source) {
+        defaultSources.put(subProjection, source);
     }
 
-    /**
-     * 按 (聚合类型, 投影类型) 解析聚合投影器；未登记返回 null。
-     *
-     * @param aggregateType 聚合根类型
-     * @param projectionType 投影类型
-     * @param <T> 聚合根类型
-     * @param <P> 投影类型
-     * @return 对应的聚合投影器，未登记时为 null
-     */
+    /** 取源实例；未登记抛 {@link ProjectionSourceNotFoundException}。供查询链路（源必须存在）。 */
+    public AbstractProjectionSource<?, ?> getSource(ProjectionSource source) {
+        return Optional.ofNullable(sources.get(source))
+                .orElseThrow(() -> new ProjectionSourceNotFoundException("源未登记：" + source.id()));
+    }
+
+    /** 取源实例；未登记返回 empty。供写侧门面（装配可渐进，缺源静默跳过）。 */
+    public Optional<AbstractProjectionSource<?, ?>> findSource(ProjectionSource source) {
+        return Optional.ofNullable(sources.get(source));
+    }
+
+    /** 取源投影器；未登记抛 {@link ProjectionSourceNotFoundException}。 */
     @SuppressWarnings("unchecked")
-    public <T extends AggregateRoot<?>, P extends IAggregateProjection> IAggregateProjector<T, P> resolveProjector(
-            Class<T> aggregateType, Class<P> projectionType) {
-        Map<Class<?>, IAggregateProjector<?, ?>> byAgg = projectors.get(aggregateType);
-        return byAgg == null ? null : (IAggregateProjector<T, P>) byAgg.get(projectionType);
+    public <T extends AggregateRoot<?>, P extends IAggregateProjection> IAggregateProjector<T, P> getProjector(ProjectionSource source) {
+        return (IAggregateProjector<T, P>) getSource(source).projector();
     }
 
-    /**
-     * 按 (投影类型, 存储目标) 解析投影物化器；未登记返回 null。
-     *
-     * @param projectionType 投影类型
-     * @param target 存储目标
-     * @param <P> 投影类型
-     * @return 对应的投影物化器，未登记时为 null
-     */
+    /** 取按 id 检索器；未登记或源无该检索器抛 {@link ProjectionSourceNotFoundException}。 */
     @SuppressWarnings("unchecked")
-    public <P extends IAggregateProjection> IProjectionMaterializer<P> resolveMaterializer(
-            Class<P> projectionType, ReconciliationTarget target) {
-        Map<ReconciliationTarget, IProjectionMaterializer<?>> byProj = materializers.get(projectionType);
-        return byProj == null ? null : (IProjectionMaterializer<P>) byProj.get(target);
+    public <P extends IAggregateProjection> IProjectionByIdSearcher<P> getByIdSearcher(ProjectionSource source) {
+        AbstractProjectionSource<?, ?> src = getSource(source);
+        return (IProjectionByIdSearcher<P>) src.idSearcher()
+                .orElseThrow(() -> new ProjectionSourceNotFoundException(
+                        "源 " + source.id() + " 未绑定按主键检索器"));
     }
 
-    /**
-     * 按 (条件类型, 投影类型) 解析按条件投影检索器；未登记抛 {@link ProjectionSearcherNotFoundException}。
-     *
-     * @param criteriaType 业务条件类型
-     * @param projectionType 投影类型
-     * @param <C> 业务条件类型
-     * @param <P> 投影类型
-     * @return 对应的投影检索器
-     */
+    /** 取按条件检索器；未登记或源无该条件族检索器抛 {@link ProjectionSearcherNotFoundException}。 */
     @SuppressWarnings("unchecked")
     public <C extends QueryCriteria, P extends IAggregateProjection> IProjectionSearcher<C, P> getSearcher(
-            Class<C> criteriaType, Class<P> projectionType) {
-        Map<Class<?>, IProjectionSearcher<?, ?>> byCriteria = searchers.get(criteriaType);
-        IProjectionSearcher<?, ?> searcher = byCriteria == null ? null : byCriteria.get(projectionType);
+            ProjectionSource source, Class<C> criteriaType) {
+        AbstractProjectionSource<?, ?> src = getSource(source);
+        IProjectionSearcher<?, ?> searcher = src.searchers().get(criteriaType);
         if (searcher == null) {
             throw new ProjectionSearcherNotFoundException(
-                    "未找到检索器 criteriaType=" + criteriaType.getName() + ", projectionType=" + projectionType.getName());
+                    "源 " + source.id() + " 未登记条件族 " + criteriaType.getSimpleName()
+                            + " 的检索器；已支持：" + supportedCriteria(src.searchers().keySet()));
         }
         return (IProjectionSearcher<C, P>) searcher;
     }
 
-    /**
-     * 按 (条件类型, 投影类型) 解析分页 / 滚动投影检索器；未登记抛 {@link ProjectionSearcherNotFoundException}。
-     *
-     * @param criteriaType 业务条件类型
-     * @param projectionType 投影类型
-     * @param <C> 业务条件类型
-     * @param <P> 投影类型
-     * @return 对应的分页 / 滚动检索器
-     */
+    /** 取分页检索器；未登记或源无该条件族检索器抛 {@link ProjectionSearcherNotFoundException}。 */
     @SuppressWarnings("unchecked")
     public <C extends PageQueryCriteria, P extends IAggregateProjection> IProjectionPagedSearcher<C, P> getPagedSearcher(
-            Class<C> criteriaType, Class<P> projectionType) {
-        Map<Class<?>, IProjectionPagedSearcher<?, ?>> byCriteria = pagedSearchers.get(criteriaType);
-        IProjectionPagedSearcher<?, ?> searcher = byCriteria == null ? null : byCriteria.get(projectionType);
+            ProjectionSource source, Class<C> criteriaType) {
+        AbstractProjectionSource<?, ?> src = getSource(source);
+        IProjectionPagedSearcher<?, ?> searcher = src.pagedSearchers().get(criteriaType);
         if (searcher == null) {
             throw new ProjectionSearcherNotFoundException(
-                    "未找到分页检索器 criteriaType=" + criteriaType.getName() + ", projectionType=" + projectionType.getName());
+                    "源 " + source.id() + " 未登记分页条件族 " + criteriaType.getSimpleName()
+                            + " 的检索器；已支持：" + supportedCriteria(src.pagedSearchers().keySet()));
         }
         return (IProjectionPagedSearcher<C, P>) searcher;
     }
 
     /**
-     * 按 (投影类型) 解析按主键投影检索器；未登记抛 {@link ProjectionSearcherNotFoundException}。
-     *
-     * @param projectionType 投影类型
-     * @param <P> 投影类型
-     * @return 对应的按主键检索器
+     * 取裁剪器；未登记或源下无该子投影裁剪器抛 {@link ProjectionSourceNotFoundException}。
      */
     @SuppressWarnings("unchecked")
-    public <P extends IAggregateProjection> IProjectionByIdSearcher<P> getByIdSearcher(Class<P> projectionType) {
-        IProjectionByIdSearcher<?> searcher = idSearchers.get(projectionType);
-        if (searcher == null) {
-            throw new ProjectionSearcherNotFoundException(
-                    "未找到按主键检索器 projectionType=" + projectionType.getName());
-        }
-        return (IProjectionByIdSearcher<P>) searcher;
-    }
-
-    /**
-     * 按 (源投影类型, 子投影类型) 解析投影裁剪器；未登记抛 {@link ProjectionReducerNotFoundException}。
-     *
-     * @param sourceType 源投影类型（索引级全量投影）
-     * @param projectionType 子投影类型
-     * @param <S> 源投影类型
-     * @param <P> 子投影类型
-     * @return 对应的投影裁剪器
-     */
-    @SuppressWarnings("unchecked")
-    public <S extends IAggregateProjection, P extends IAggregateProjection> IProjectionReducer<S, P> getReducer(
-            Class<S> sourceType, Class<P> projectionType) {
-        Map<Class<?>, IProjectionReducer<?, ?>> bySource = reducers.get(sourceType);
-        IProjectionReducer<?, ?> reducer = bySource == null ? null : bySource.get(projectionType);
+    public <SRC extends IAggregateProjection, SUB extends IAggregateProjection> IProjectionReducer<SRC, SUB> getReducer(
+            ProjectionSource source, Class<SUB> subProjection) {
+        AbstractProjectionSource<?, ?> src = getSource(source);
+        IProjectionReducer<?, ?> reducer = src.reducers().get(subProjection);
         if (reducer == null) {
-            throw new ProjectionReducerNotFoundException(
-                    "未找到裁剪器 sourceType=" + sourceType.getName()
-                            + ", projectionType=" + projectionType.getName());
+            throw new ProjectionSourceNotFoundException(
+                    "源 " + source.id() + " 未登记子投影 " + subProjection.getSimpleName() + " 的裁剪器");
         }
-        return (IProjectionReducer<S, P>) reducer;
+        return (IProjectionReducer<SRC, SUB>) reducer;
+    }
+
+    /** 由全量投影类取其一承载源（多源时优先取已登记的首个）；无源返回空。 */
+    public Optional<ProjectionSource> fullProjectionOf(Class<?> projectionType) {
+        Set<ProjectionSource> sources = sourcesByProjection.get(projectionType);
+        return sources == null || sources.isEmpty()
+                ? Optional.empty()
+                : Optional.of(sources.iterator().next());
+    }
+
+    /** 由子投影类取提供该子投影的全部源（多源共存）。 */
+    public Set<ProjectionSource> sourcesOf(Class<?> subProjection) {
+        return sourcesBySubProjection.getOrDefault(subProjection, Set.of());
     }
 
     /**
-     * 按子投影反查其来源的索引级全量投影类型；未登记返回 null。
+     * 解析查询所使用的源：指定源则校验通过后返回；未指定源则按子投影/全量投影定位，
+     * 多源取默认源，无默认则抛 {@link ProjectionSourceAmbiguousException}。
      *
-     * <p>供读侧门面选路：调用方传入的是业务子投影，
-     * 需先反查出应先从哪个索引级全量投影取数，再定位检索器。</p>
-     *
-     * @param projectionType 子投影类型
-     * @return 来源的索引级全量投影类型，未登记时为 null
+     * @param projectionType 目标投影类型（全量或子投影）
+     * @param source 调用方显式指定的源，可为 null
+     * @param <P> 投影类型
+     * @return 解析后的源
      */
-    public Class<?> sourceTypeOf(Class<?> projectionType) {
-        return sourceByProjection.get(projectionType);
+    @SuppressWarnings("unchecked")
+    public <P extends IAggregateProjection> ProjectionSource resolveSource(Class<P> projectionType, ProjectionSource source) {
+        if (source != null) {
+            return resolveSpecifiedSource(projectionType, source);
+        }
+        Optional<ProjectionSource> byFull = fullProjectionOf(projectionType);
+        if (byFull.isPresent()) {
+            return byFull.get();
+        }
+        Set<ProjectionSource> candidates = sourcesOf(projectionType);
+        if (candidates.isEmpty()) {
+            throw new ProjectionSourceNotFoundException("无任何源提供投影 " + projectionType.getSimpleName());
+        }
+        if (candidates.size() == 1) {
+            return candidates.iterator().next();
+        }
+        ProjectionSource defaultSource = defaultSources.get(projectionType);
+        if (defaultSource != null) {
+            return defaultSource;
+        }
+        throw ProjectionSourceAmbiguousException.of(projectionType, candidates);
     }
 
-    /**
-     * 判断某投影类型是否已被登记为索引级全量投影。
-     *
-     * <p>门面据此短路：若调用方要的就是索引级全量投影本身，直接返回检索结果，无需裁剪。</p>
-     *
-     * @param projectionType 投影类型
-     * @return 是索引级全量投影时返回 true
-     */
-    public boolean isSourceProjection(Class<?> projectionType) {
-        return sourceProjections.contains(projectionType);
+    private <P extends IAggregateProjection> ProjectionSource resolveSpecifiedSource(Class<P> projectionType, ProjectionSource source) {
+        AbstractProjectionSource<?, ?> src = Optional.ofNullable(sources.get(source))
+                .orElseThrow(() -> new ProjectionSourceNotFoundException("源未登记：" + source.id()));
+        boolean isFull = src.projectionType().equals(projectionType);
+        boolean isSub = src.reducers().containsKey(projectionType);
+        if (!isFull && !isSub) {
+            throw new ProjectionSourceNotFoundException(
+                    "源 " + source.id() + " 既不承载全量投影 " + projectionType.getSimpleName()
+                            + " 也未登记其子投影裁剪器");
+        }
+        return source;
+    }
+
+    private static String supportedCriteria(Set<Class<?>> criteriaTypes) {
+        return criteriaTypes.stream()
+                .map(Class::getSimpleName)
+                .collect(Collectors.joining(", "));
+    }
+
+    /** 兼容旧返回的占位（无实际用途，保留避免破坏既有 toString）。 */
+    public Map<ProjectionSource, AbstractProjectionSource<?, ?>> sources() {
+        return sources;
+    }
+
+    /** 给定 storeId 解析源标识。供 {@link AggregateProjectorSupport} 由对账目标桥接（sync 路径）。 */
+    public Optional<ProjectionSource> sourceById(String id) {
+        Objects.requireNonNull(id, "id");
+        return sources.keySet().stream()
+                .filter(s -> s.id().equals(id))
+                .findFirst();
+    }
+
+    /** 给定 storeId 取源实例（源 id 与写侧 ReconciliationTarget.storeId 同名）。供 purge 路径。 */
+    public Optional<AbstractProjectionSource<?, ?>> getSource(String id) {
+        Objects.requireNonNull(id, "id");
+        return sources.values().stream()
+                .filter(s -> s.source().id().equals(id))
+                .findFirst();
+    }
+
+    /** 取源对应的对账目标（id 同名，由源派生）。 */
+    public Optional<ReconciliationTarget> targetOf(ProjectionSource source) {
+        return Optional.ofNullable(sources.get(source)).map(AbstractProjectionSource::target);
     }
 }

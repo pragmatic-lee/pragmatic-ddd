@@ -5,6 +5,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,10 +16,11 @@ import java.util.stream.Collectors;
  *
  * @author wizard-lee
  */
+@Component
 public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> {
 
-    public OrderEsProjector(Class<OrderEsProjection> projectionType) {
-        super(projectionType);
+    public OrderEsProjector() {
+        super(OrderEsProjection.class);
     }
 
     /**

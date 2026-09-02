@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.repository.query;
 
+import java.util.List;
+
 /**
  * 聚合级查询便捷组合接口（6 类查询能力全量组合）。
  *
@@ -17,6 +19,9 @@ package io.pragmatic.ddd.repository.query;
  * 跨族传参在编译期报错。所有查询方法额外接收 {@code Class<P> projectionType} 入参，
  * 由调用方显式指定返回的投影具体子类型（如概要投影或详情投影）。</p>
  *
+ * <p>读侧寻址第一维是「源」：默认视图按投影类型隐式选路；调用方可用 {@link #source(ProjectionSource)}
+ * 显式绑定来源，或用 {@link #fallbackChain(List)} 声明多源回源顺序。两种视图的方法调用形状一致。</p>
+ *
  * <p>若需更多独立条件类型（极少见），可不继承本接口，直接按需组合 ISP trait。</p>
  *
  * @param <ID>         聚合 ID 类型
@@ -31,10 +36,24 @@ public interface IAggregateQuery<ID, P extends IAggregateProjection,
         ONE_QUERY extends OneQueryCriteria,
         LIST_QUERY extends ListQueryCriteria,
         PAGE_QUERY extends PageQueryCriteria>
-        extends IQueryById<ID, P>,
-                IQueryByIds<ID, P>,
-                IQueryOne<P, ONE_QUERY>,
-                IQueryList<P, LIST_QUERY>,
-                IQueryPage<P, PAGE_QUERY>,
-                IQueryScroll<P, PAGE_QUERY> {
+        extends IProjectionSourceQuery<ID, P, ONE_QUERY, LIST_QUERY, PAGE_QUERY> {
+
+    /**
+     * 返回绑定指定源的查询视图；后续查询以该源寻址。
+     * 调用方拿到的视图方法调用形状与默认视图完全一致。
+     *
+     * @param source 查询所用源
+     * @return 绑定源的查询视图
+     */
+    IProjectionSourceQuery<ID, P, ONE_QUERY, LIST_QUERY, PAGE_QUERY> source(ProjectionSource source);
+
+    /**
+     * 返回按回源顺序查询的视图：前一源未取到结果时自动查询下一源。
+     * 仅列表 / 单条 / 批量查询参与回源；分页 / 滚动不回源（取链上首个支持该条件族的源）。
+     * 链上源不支持某条件族时自动跳过（区别于单源视图直接抛 {@link ProjectionSearcherNotFoundException}）。
+     *
+     * @param sources 回源顺序，越靠前优先级越高
+     * @return 带回源的查询视图
+     */
+    IProjectionSourceQuery<ID, P, ONE_QUERY, LIST_QUERY, PAGE_QUERY> fallbackChain(List<ProjectionSource> sources);
 }

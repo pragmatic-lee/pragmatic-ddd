@@ -2,6 +2,7 @@ package io.pragmatic.ddd.afull.domain.order.model;
 
 import io.pragmatic.ddd.afull.domain.order.event.OrderCreatedEvent;
 import io.pragmatic.ddd.afull.domain.order.event.OrderPayedEvent;
+import io.pragmatic.ddd.afull.domain.order.operation.OrderOperationRegistry;
 import io.pragmatic.ddd.afull.domain.order.param.OrderCreateData;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;

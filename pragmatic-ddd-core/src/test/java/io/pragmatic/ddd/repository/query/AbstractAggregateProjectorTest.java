@@ -2,7 +2,6 @@ package io.pragmatic.ddd.repository.query;
 
 import io.pragmatic.ddd.repository.query.fixture.StubAggregate;
 import io.pragmatic.ddd.repository.query.fixture.StubProjection;
-import io.pragmatic.ddd.repository.query.fixture.StubProjector;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,15 +13,31 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AbstractAggregateProjectorTest {
 
+    /** 有真实投影逻辑的具体子类：聚合 → 投影。 */
+    private static final class MappingProjector extends AbstractAggregateProjector<StubAggregate, StubProjection> {
+
+        private MappingProjector() {
+            super(StubProjection.class);
+        }
+
+        @Override
+        public StubProjection project(StubAggregate aggregateRoot) {
+            if (aggregateRoot == null) {
+                return null;
+            }
+            return new StubProjection(1L, aggregateRoot.name());
+        }
+    }
+
     @Test
     void projectionType_exposedByConstructor() {
-        StubProjector projector = new StubProjector();
+        MappingProjector projector = new MappingProjector();
         assertThat(projector.projectionType()).isEqualTo(StubProjection.class);
     }
 
     @Test
     void project_mapsAggregateToProjection() {
-        StubProjector projector = new StubProjector();
+        MappingProjector projector = new MappingProjector();
         StubAggregate aggregate = new StubAggregate();
         aggregate.setName("order-1");
         StubProjection projection = projector.project(aggregate);
@@ -33,7 +48,7 @@ class AbstractAggregateProjectorTest {
 
     @Test
     void project_nullAggregate_returnsNull() {
-        StubProjector projector = new StubProjector();
+        MappingProjector projector = new MappingProjector();
         assertThat(projector.project(null)).isNull();
     }
 }

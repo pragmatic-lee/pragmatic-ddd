@@ -1,19 +1,25 @@
 package io.pragmatic.ddd.example.order.projection;
 
+import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.example.order.domain.order.model.Order;
+import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
-import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderQuery;
-import io.pragmatic.ddd.example.order.domain.order.projection.reducer.IOrderSummaryReducer;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderSummaryReducer;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderQuery;
+import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.IProjectionByIdSearcher;
 import io.pragmatic.ddd.repository.query.IProjectionPagedSearcher;
 import io.pragmatic.ddd.repository.query.IProjectionSearcher;
+import io.pragmatic.ddd.repository.query.IAggregateProjection;
 import io.pragmatic.ddd.repository.query.PageRequest;
 import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ProjectionReducerNotFoundException;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.ProjectionSourceNotFoundException;
 import io.pragmatic.ddd.repository.query.ProjectorRegistry;
 import io.pragmatic.ddd.repository.query.ScrollPosition;
 import io.pragmatic.ddd.repository.query.ScrollResult;
@@ -29,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 验证 OrderQuery 读侧三跳链路：按子投影反查来源 → 检索器取全量 → 裁剪器内存裁剪。
  *
- * <p>以测试桩替代 ES 客户端，只验证门面的选路、短路与裁剪编排，不依赖真实存储。</p>
+ * <p>以测试桩替代 ES 客户端，只验证门面的选路、短路与裁剪编排，不依赖真实存储。
+ * 测试桩统一归入一个「源」对象（写读一体），由注册中心登记与寻址。</p>
  *
  * @author wizard-lee
  */
@@ -42,14 +49,9 @@ class OrderQueryRoutingTest {
     @BeforeEach
     void setUp() {
         registry = new ProjectorRegistry();
-        registry.register(new StubByIdSearcher());
-        registry.register(new StubOneSearcher());
-        registry.register(new StubListSearcher());
-        registry.register(new StubPagedSearcher());
-        registry.markSourceProjection(OrderEsProjection.class);
-        // 面向领域契约登记，具体实现由基础设施层提供
-        IOrderSummaryReducer summaryReducer = new OrderSummaryReducer();
-        registry.register(summaryReducer);
+        registry.register(new StubSource(
+                new StubByIdSearcher(), new StubOneSearcher(), new StubListSearcher(), new StubPagedSearcher()));
+        registry.registerDefaultSource(OrderSummaryProjection.class, ProjectionSource.of("es:orders"));
         orderQuery = new OrderQuery(registry);
     }
 
@@ -154,33 +156,67 @@ class OrderQueryRoutingTest {
     }
 
     @Test
-    void query_unregisteredSubProjection_throwsReducerNotFound() {
-        // UnregisteredProjection 既非索引级全量投影，也未登记裁剪器来源
+    void query_unregisteredSubProjection_throwsSourceNotFound() {
+        // UnregisteredProjection 既非索引级全量投影，也未登记任何来源
         assertThatThrownBy(() -> orderQuery.queryById(1L, UnregisteredProjection.class))
-                .isInstanceOf(ProjectionReducerNotFoundException.class)
-                .hasMessageContaining(UnregisteredProjection.class.getName());
+                .isInstanceOf(ProjectionSourceNotFoundException.class)
+                .hasMessageContaining(UnregisteredProjection.class.getSimpleName());
     }
 
     /** 未登记来源的子投影，用于验证选路失败时的异常。 */
-    private static final class UnregisteredProjection implements
-            io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection {
+    private static final class UnregisteredProjection implements IOrderProjection {
+    }
+
+    /** 桩「源」：聚合写读一体，绑定各检索器与裁剪器；projector 仅供构造，路由测试不触发 sync。 */
+    private final class StubSource extends AbstractProjectionSource<Order, OrderEsProjection> {
+
+        private StubSource(
+                StubByIdSearcher byIdSearcher,
+                StubOneSearcher oneSearcher,
+                StubListSearcher listSearcher,
+                StubPagedSearcher pagedSearcher) {
+            super(ProjectionSource.of("es:orders"), Order.class, OrderEsProjection.class,
+                    new StubProjector(), byIdSearcher);
+            bind(oneSearcher);
+            bind(listSearcher);
+            bind(pagedSearcher);
+            bind(new OrderSummaryReducer());
+        }
+
+        @Override
+        public void materialize(IAggregateProjection projection, long version) {
+            // 路由测试不触发写侧物化
+        }
+
+        @Override
+        public void purge(Object aggregateId) {
+            // 路由测试不触发写侧清理
+        }
+    }
+
+    /** 返回 null 的桩投影器，满足源构造约束。 */
+    private static final class StubProjector extends AbstractAggregateProjector<Order, OrderEsProjection> {
+
+        private StubProjector() {
+            super(OrderEsProjection.class);
+        }
+
+        @Override
+        public OrderEsProjection project(Order aggregateRoot) {
+            return null;
+        }
     }
 
     /** 按主键检索器桩：返回两份全量投影。 */
     private final class StubByIdSearcher implements IProjectionByIdSearcher<OrderEsProjection> {
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public OrderEsProjection getById(Object id, Class<OrderEsProjection> projectionType) {
+        public OrderEsProjection getById(Object id) {
             return fullProjection((Long) id, "张三");
         }
 
         @Override
-        public List<OrderEsProjection> getByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> getByIds(List<Object> ids) {
             return ids.stream().map(id -> fullProjection((Long) id, "张三")).toList();
         }
     }
@@ -194,12 +230,7 @@ class OrderQueryRoutingTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public List<OrderEsProjection> search(OrderOneQuery condition, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> search(OrderOneQuery condition) {
             if (condition instanceof OrderOneQuery.LatestByCustomer c
                     && Long.valueOf(1001L).equals(c.customerId())) {
                 return List.of(fullProjection(1L, "张三"));
@@ -217,12 +248,7 @@ class OrderQueryRoutingTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public List<OrderEsProjection> search(OrderListQuery condition, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> search(OrderListQuery condition) {
             return List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
         }
     }
@@ -236,21 +262,13 @@ class OrderQueryRoutingTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public PageResult<OrderEsProjection> searchPage(
-                OrderPageQuery condition, PageRequest pageRequest, Class<OrderEsProjection> projectionType) {
+        public PageResult<OrderEsProjection> searchPage(OrderPageQuery condition, PageRequest pageRequest) {
             List<OrderEsProjection> data = List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
             return PageResult.of(data, 2L, pageRequest);
         }
 
         @Override
-        public ScrollResult<OrderEsProjection> searchScroll(
-                OrderPageQuery condition, ScrollPosition cursor, int pageSize,
-                Class<OrderEsProjection> projectionType) {
+        public ScrollResult<OrderEsProjection> searchScroll(OrderPageQuery condition, ScrollPosition cursor, int pageSize) {
             List<OrderEsProjection> data = List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
             return ScrollResult.of(data, "cursor-2");
         }

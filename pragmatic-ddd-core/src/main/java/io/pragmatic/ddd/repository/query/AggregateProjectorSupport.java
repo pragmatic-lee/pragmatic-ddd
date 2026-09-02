@@ -5,9 +5,9 @@ import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 
 /**
  * 聚合投影门面：封装 project → materialize，并暴露 purge。
- * 不持有 repository 与 materializer——aggregate 由调用方 load 后传入 sync，
- * materializer 由 sync/purge 按 target 从 ProjectorRegistry 按型取出。
- * materializer 实例对调用方隐藏，调用方只引用已定义的 target 常量（不 new ReconciliationTarget）。
+ * 不持有 repository 与源——aggregate 由调用方 load 后传入 sync，
+ * 源实例（含投影器与物化器）由 sync/purge 按 {@link ProjectionSource} 从 ProjectorRegistry 取出。
+ * 源的 id 与写侧 {@link ReconciliationTarget#storeId()} 同名，故对账 resync 路径可通过 target 桥接。
  * 事件物化路径与对账 resync 路径共用本门面，保证转换逻辑唯一；一个 support 可服务多个存储副本。
  *
  * @author wizard-lee
@@ -21,46 +21,38 @@ public class AggregateProjectorSupport {
     }
 
     /**
-     * 物化当前聚合到指定存储目标（project → materialize）。
-     * 聚合由调用方 load 后传入；projector 或 materializer 缺失、无投影则静默跳过。
+     * 物化当前聚合到指定源（project → materialize）。
+     * 聚合由调用方 load 后传入；源缺失、投影器缺失、无投影则静默跳过。
      */
-    public <T extends AggregateRoot<?>, P extends IAggregateProjection> void sync(
-            T aggregate, Class<P> projectionType, ReconciliationTarget target) {
-        IAggregateProjector<T, P> projector =
-                registry.resolveProjector(aggregateTypeOf(aggregate), projectionType);
-        if (projector == null) {
-            return;
-        }
-        IProjectionMaterializer<P> materializer = registry.resolveMaterializer(projectionType, target);
-        if (materializer == null) {
-            return;
-        }
-        P projection = projector.project(aggregate);
-        if (projection == null) {
-            return;
-        }
-        materializer.materialize(projection, versionOf(aggregate));
+    @SuppressWarnings("unchecked")
+    public <T extends AggregateRoot<?>> void sync(T aggregate, ProjectionSource source) {
+        registry.<T>findSource(source).ifPresent(src -> {
+            @SuppressWarnings("unchecked")
+            AbstractProjectionSource<T, ?> typed = (AbstractProjectionSource<T, ?>) src;
+            IAggregateProjection projection = typed.projector().project(aggregate);
+            if (projection != null) {
+                typed.materialize(projection, aggregate.getOldVersion());
+            }
+        });
     }
 
-    /** ORPHAN 时清理指定存储目标中的残留条目。 */
-    public <P extends IAggregateProjection> void purge(
-            Class<P> projectionType, Object aggregateId, ReconciliationTarget target) {
-        IProjectionMaterializer<P> materializer = registry.resolveMaterializer(projectionType, target);
-        if (materializer == null) {
-            return;
-        }
-        materializer.purge(aggregateId);
+    /**
+     * 物化当前聚合到指定对账目标；内部转为按 {@code target.storeId()} 定位源。
+     * 供对账 resync 路径复用（resynchronizer 持有的是 target 而非源）。
+     */
+    public <T extends AggregateRoot<?>> void sync(T aggregate, ReconciliationTarget target) {
+        registry.sourceById(target.storeId())
+                .ifPresent(src -> sync(aggregate, src));
     }
 
-    /** 聚合运行时类型，作为 registry 的聚合类型 key。 */
-    private <T extends AggregateRoot<?>> Class<T> aggregateTypeOf(T aggregate) {
-        @SuppressWarnings("unchecked")
-        Class<T> type = (Class<T>) aggregate.getClass();
-        return type;
+    /** ORPHAN 时清理指定源中的残留条目。 */
+    public void purge(ProjectionSource source, Object aggregateId) {
+        registry.findSource(source).ifPresent(src -> src.purge(aggregateId));
     }
 
-    /** 写模型快照版本，复用 AggregateRoot.getOldVersion()。 */
-    private long versionOf(AggregateRoot<?> aggregate) {
-        return aggregate.getOldVersion();
+    /** ORPHAN 时清理指定对账目标中的残留条目；内部按 {@code target.storeId()} 定位源。 */
+    public void purge(ReconciliationTarget target, Object aggregateId) {
+        registry.getSource(target.storeId())
+                .ifPresent(src -> src.purge(aggregateId));
     }
 }

@@ -1,18 +1,20 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.fixture.SampleAggregate;
+import io.pragmatic.ddd.repository.query.fixture.StubProjector;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
-import org.junit.jupiter.api.Test;
-
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 聚合投影映射落地测试：覆盖 ProjectorRegistry 登记/解析与
+ * 聚合投影映射落地测试：覆盖 ProjectorRegistry 以「源」为中心的登记/解析与
  * AggregateProjectorSupport 门面编排（sync / purge）。
-  * @author wizard-lee
+ * @author wizard-lee
  */
 class AggregateProjectionMappingTest {
 
@@ -37,28 +39,26 @@ class AggregateProjectionMappingTest {
         }
     }
 
-    /** 内存 materializer：记录 materialize / purge 调用与入参。 */
-    static class SampleMaterializer implements IProjectionMaterializer<SampleProjection> {
-        static final ReconciliationTarget ES_TARGET =
-                new ReconciliationTarget(SampleAggregate.class, "es:orders");
+    /**
+     * 内存源适配器：模拟一份物理副本（如 ES 一个索引），记录 materialize / purge 调用与入参。
+     * 源 id 与写侧 ReconciliationTarget.storeId 同名，由基类构造器派生 target。
+     */
+    static class SampleSource extends AbstractProjectionSource<SampleAggregate, SampleProjection> {
+        static final ProjectionSource ES_SOURCE = ProjectionSource.of("es:orders");
+        static final ProjectionSource REDIS_SOURCE = ProjectionSource.of("redis:orders");
 
         final AtomicReference<Long> materializedVersion = new AtomicReference<>();
         final AtomicReference<Object> purgedId = new AtomicReference<>();
         final AtomicInteger materializeCount = new AtomicInteger();
         final AtomicInteger purgeCount = new AtomicInteger();
 
-        @Override
-        public Class<SampleProjection> projectionType() {
-            return SampleProjection.class;
+        SampleSource(ProjectionSource source) {
+            super(source, SampleAggregate.class, SampleProjection.class,
+                    new SampleProjector(false), null);
         }
 
         @Override
-        public ReconciliationTarget target() {
-            return ES_TARGET;
-        }
-
-        @Override
-        public void materialize(SampleProjection projection, long version) {
+        public void materialize(IAggregateProjection projection, long version) {
             materializedVersion.set(version);
             materializeCount.incrementAndGet();
         }
@@ -71,113 +71,104 @@ class AggregateProjectionMappingTest {
     }
 
     @Test
-    void registry_resolveProjector_registersAndFinds() {
+    void registry_register_source_resolvesById() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleProjector projector = new SampleProjector(false);
-        registry.register(SampleAggregate.class, projector);
+        SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
+        registry.register(es);
 
-        IAggregateProjector<SampleAggregate, SampleProjection> resolved =
-                registry.resolveProjector(SampleAggregate.class, SampleProjection.class);
-        assertThat(resolved).isSameAs(projector);
+        assertThat(registry.getSource(SampleSource.ES_SOURCE)).isSameAs(es);
     }
 
     @Test
-    void registry_resolveMaterializer_distinguishesByTarget() {
+    void registry_register_duplicateSourceId_conflicts() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleMaterializer es = new SampleMaterializer();
-        SampleMaterializer redis = new SampleMaterializer();
-        ReconciliationTarget redisTarget = new ReconciliationTarget(SampleAggregate.class, "redis:orders");
-        // 用匿名子类覆写 target 以模拟第二个存储目标
-        IProjectionMaterializer<SampleProjection> redisMaterializer = new SampleMaterializer() {
-            @Override
-            public ReconciliationTarget target() {
-                return redisTarget;
-            }
-        };
-        registry.register(es);
-        registry.register(redisMaterializer);
+        registry.register(new SampleSource(SampleSource.ES_SOURCE));
 
-        assertThat(registry.resolveMaterializer(SampleProjection.class, SampleMaterializer.ES_TARGET))
-                .isSameAs(es);
-        assertThat(registry.resolveMaterializer(SampleProjection.class, redisTarget))
-                .isSameAs(redisMaterializer);
+        try {
+            registry.register(new SampleSource(SampleSource.ES_SOURCE));
+            org.junit.jupiter.api.Assertions.fail("应抛 ProjectionSourceConflictException");
+        } catch (ProjectionSourceConflictException e) {
+            assertThat(e.getMessage()).contains("es:orders");
+        }
     }
 
     @Test
     void support_sync_projectsAndMaterializes_withVersion() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleProjector projector = new SampleProjector(false);
-        SampleMaterializer materializer = new SampleMaterializer();
-        registry.register(SampleAggregate.class, projector);
-        registry.register(materializer);
+        SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
+        registry.register(es);
 
         SampleAggregate aggregate = new SampleAggregate();
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
 
-        support.sync(aggregate, SampleProjection.class, SampleMaterializer.ES_TARGET);
+        support.sync(aggregate, SampleSource.ES_SOURCE);
 
-        assertThat(projector.lastInput.get()).isEqualTo(aggregate);
-        assertThat(materializer.materializeCount.get()).isEqualTo(1);
-        assertThat(materializer.materializedVersion.get()).isEqualTo(aggregate.getOldVersion());
+        assertThat(es.materializeCount.get()).isEqualTo(1);
+        assertThat(es.materializedVersion.get()).isEqualTo(aggregate.getOldVersion());
     }
 
     @Test
-    void support_sync_missingProjector_skipsSilently() {
+    void support_sync_missingSource_skipsSilently() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleMaterializer materializer = new SampleMaterializer();
-        registry.register(materializer);
-
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.sync(new SampleAggregate(), SampleProjection.class, SampleMaterializer.ES_TARGET);
 
-        assertThat(materializer.materializeCount.get()).isZero();
-    }
+        // 未登记任何源：sync 静默跳过，不抛异常
+        support.sync(new SampleAggregate(), SampleSource.ES_SOURCE);
 
-    @Test
-    void support_sync_missingMaterializer_skipsSilently() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        SampleProjector projector = new SampleProjector(false);
-        registry.register(SampleAggregate.class, projector);
-
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.sync(new SampleAggregate(), SampleProjection.class, SampleMaterializer.ES_TARGET);
-
-        assertThat(projector.lastInput.get()).isNull();
+        // 通过 target 桥接：storeId 无对应源同样跳过
+        support.sync(new SampleAggregate(),
+                new ReconciliationTarget(SampleAggregate.class, "es:orders"));
     }
 
     @Test
     void support_sync_nullProjection_skipsMaterialize() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleProjector projector = new SampleProjector(true);
-        SampleMaterializer materializer = new SampleMaterializer();
-        registry.register(SampleAggregate.class, projector);
-        registry.register(materializer);
+        NullProjectorSource source = new NullProjectorSource(SampleSource.ES_SOURCE);
+        registry.register(source);
 
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.sync(new SampleAggregate(), SampleProjection.class, SampleMaterializer.ES_TARGET);
+        support.sync(new SampleAggregate(), SampleSource.ES_SOURCE);
 
-        assertThat(projector.lastInput.get()).isNotNull();
-        assertThat(materializer.materializeCount.get()).isZero();
+        assertThat(source.materializeCount.get()).isZero();
     }
 
     @Test
-    void support_purge_invokesMaterializer() {
+    void support_purge_invokesSource() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        SampleMaterializer materializer = new SampleMaterializer();
-        registry.register(materializer);
+        SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
+        registry.register(es);
 
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.purge(SampleProjection.class, 42L, SampleMaterializer.ES_TARGET);
+        support.purge(SampleSource.ES_SOURCE, 42L);
 
-        assertThat(materializer.purgeCount.get()).isEqualTo(1);
-        assertThat(materializer.purgedId.get()).isEqualTo(42L);
+        assertThat(es.purgeCount.get()).isEqualTo(1);
+        assertThat(es.purgedId.get()).isEqualTo(42L);
     }
 
     @Test
-    void support_purge_missingMaterializer_skipsSilently() {
+    void support_purge_missingSource_skipsSilently() {
         ProjectorRegistry registry = new ProjectorRegistry();
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.purge(SampleProjection.class, 42L, SampleMaterializer.ES_TARGET);
-        // 无 materializer：应静默跳过（不抛异常）
+        support.purge(SampleSource.ES_SOURCE, 42L);
+        // 无源：应静默跳过（不抛异常）
+    }
+
+    /** 返回 null 投影的源，专门覆盖 null 投影分支。 */
+    static class NullProjectorSource extends AbstractProjectionSource<SampleAggregate, SampleProjection> {
+        final AtomicInteger materializeCount = new AtomicInteger();
+
+        NullProjectorSource(ProjectionSource source) {
+            super(source, SampleAggregate.class, SampleProjection.class,
+                    new StubProjector<>(SampleProjection.class), null);
+        }
+
+        @Override
+        public void materialize(IAggregateProjection projection, long version) {
+            materializeCount.incrementAndGet();
+        }
+
+        @Override
+        public void purge(Object aggregateId) {
+        }
     }
 }

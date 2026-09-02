@@ -41,45 +41,38 @@ public class OrderListSearcher implements IProjectionSearcher<OrderListQuery, Or
     }
 
     @Override
-    public Class<OrderEsProjection> projectionType() {
-        return OrderEsProjection.class;
-    }
-
-    @Override
-    public List<OrderEsProjection> search(OrderListQuery condition, Class<OrderEsProjection> projectionType) {
+    public List<OrderEsProjection> search(OrderListQuery condition) {
         return ProjectionExceptions.retrieve(() -> {
             if (condition instanceof OrderListQuery.TopByAmount c) {
-                return searchTopByAmount(c, projectionType);
+                return searchTopByAmount(c);
             }
             if (condition instanceof OrderListQuery.TopRecent c) {
-                return searchTopRecent(c, projectionType);
+                return searchTopRecent(c);
             }
             return List.<OrderEsProjection>of();
         }, "search");
     }
 
     @SneakyThrows
-    private List<OrderEsProjection> searchTopByAmount(
-            OrderListQuery.TopByAmount condition, Class<OrderEsProjection> projectionType) {
+    private List<OrderEsProjection> searchTopByAmount(OrderListQuery.TopByAmount condition) {
         Query query = buildCustomerStatusQuery(condition.customerId(), condition.status());
         return elasticsearchClient.search(req -> req
                         .index(OrderEsTargets.ORDER_INDEX_NAME)
                         .query(query)
                         .sort(sort -> sort.field(f -> f.field("totalAmount").order(SortOrder.Desc)))
-                        .size(condition.top()), projectionType).hits().hits().stream()
+                        .size(condition.top()), OrderEsProjection.class).hits().hits().stream()
                 .map(Hit::source)
                 .toList();
     }
 
     @SneakyThrows
-    private List<OrderEsProjection> searchTopRecent(
-            OrderListQuery.TopRecent condition, Class<OrderEsProjection> projectionType) {
+    private List<OrderEsProjection> searchTopRecent(OrderListQuery.TopRecent condition) {
         Query query = buildCustomerStatusQuery(condition.customerId(), condition.status());
         return elasticsearchClient.search(req -> req
                         .index(OrderEsTargets.ORDER_INDEX_NAME)
                         .query(query)
                         .sort(sort -> sort.field(f -> f.field("createdAt").order(SortOrder.Desc)))
-                        .size(condition.top()), projectionType).hits().hits().stream()
+                        .size(condition.top()), OrderEsProjection.class).hits().hits().stream()
                 .map(Hit::source)
                 .toList();
     }

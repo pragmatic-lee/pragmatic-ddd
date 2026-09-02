@@ -52,12 +52,19 @@ RestClient                 低层 HTTP 客户端（Apache HttpClient），管理
 
 ### 1.5 配置与使用分离
 
-配置类产出 Bean，物化器 / 版本解析器 / 查询服务消费 Bean（`ElasticsearchClient`）。使用方只关心"怎么用"，不关心"怎么建"；配置只关心"怎么建"，不关心"怎么查"。
+配置类产出 Bean，源（`OrderEsSource`）/ 版本解析器 / 查询服务消费 Bean（`ElasticsearchClient`）。使用方只关心"怎么用"，不关心"怎么建"；配置只关心"怎么建"，不关心"怎么查"。
 
 ```java
 @Bean
-public OrderEsMaterializer orderEsMaterializer(ElasticsearchClient elasticsearchClient) {
-    return new OrderEsMaterializer(elasticsearchClient);
+public OrderEsSource orderEsSource(
+        OrderEsProjector projector,
+        OrderByIdSearcher byIdSearcher,
+        OrderOneSearcher oneSearcher,
+        OrderListSearcher listSearcher,
+        OrderPageSearcher pageSearcher,
+        OrderSummaryReducer summaryReducer,
+        ElasticsearchClient elasticsearchClient) {
+    return new OrderEsSource(projector, byIdSearcher, oneSearcher, listSearcher, pageSearcher, summaryReducer, elasticsearchClient);
 }
 ```
 
@@ -174,7 +181,7 @@ public ElasticsearchClient elasticsearchClient(ElasticsearchTransport transport)
 
 ### 3.4 投影物化：External 版本乐观并发控制
 
-ES 客户端由物化器（`IProjectionMaterializer`）消费，把聚合投影 upsert 到索引。**写模型版本号写入 ES `_version` 元数据**（`VersionType.External`），以此实现跨存储的乐观并发控制与对账：
+ES 客户端由**源**（`AbstractProjectionSource` 子类，如 `OrderEsSource`）消费，把聚合投影 upsert 到索引。**写模型版本号写入 ES `_version` 元数据**（`VersionType.External`），以此实现跨存储的乐观并发控制与对账：
 
 ```java
 elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
@@ -192,25 +199,32 @@ elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
 - 版本解析器（`IReadModelVersionResolver`）读取 `_version` 作为 V'，文档缺失或异常时返回 `-1` 表示副本缺失或不可达。
 - 补偿器（`IReadModelResynchronizer`）从写模型重建副本：以聚合旧版本重新物化，覆盖落后或冲突的文档。
 
-### 3.5 失败不静默吞掉，交给对账补偿
+### 3.5 区分「版本冲突」与「写失败」
 
-物化写失败（含 External 版本冲突，ES 抛 `VersionConflictEngineException`）**不应在物化器内 catch 后静默吞掉**——吞掉会掩盖副本落后，对账机制无从发现。正确做法是让异常向上抛出，交由上层对账补偿（resync / purge）兜底。
+物化写入需区分两类失败，处理方式不同：
 
-```java
-// ❌ 反模式：catch 后吞掉，副本落后被掩盖
-try {
-    elasticsearchClient.index(...);
-} catch (RuntimeException | IOException ex) {
-    log.warn("ES 物化失败 orderId={}", projection.getOrderId(), ex);
-}
+- **External 版本冲突（409，`VersionConflictEngineException` / `ResponseException`）**：表示本次写入版本不前进（迟到或重复事件），**属于正常乐观锁拒绝，应静默丢弃**（仅 `log.debug`）。这不是副本落后，而是「新事件已先于旧事件到达」，丢弃旧事件即可，无需对账补偿。
 
-// ✅ 推荐：失败上抛，交给对账补偿机制
-elasticsearchClient.index(req -> req.index(...)
-        .id(projection.getOrderId().toString())
-        .versionType(VersionType.External)
-        .version(version)
-        .document(projection));
-```
+  ```java
+  try {
+      elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
+              .id(projection.getOrderId().toString())
+              .versionType(VersionType.External)
+              .version(version)
+              .document(projection));
+  } catch (ResponseException ex) {
+      // external 版本不前进（迟到/重复事件）时 ES 返回 409，按乐观锁语义静默丢弃
+      log.debug("订单 ES 投影物化被版本冲突忽略，orderId={}, version={}", projection.getOrderId(), version);
+  } catch (IOException ex) {
+      throw new RuntimeException(ex);
+  }
+  ```
+
+- **真正的写失败（连接断开、映射错误、集群不可用）**：这类**不应**在源内静默吞掉——吞掉会掩盖副本真正落后，对账机制无从发现。正确做法是让异常向上抛出（`IOException` 包装为运行时异常），交由上层事件重试 / 对账补偿（resync / purge）兜底。
+
+> **重要约束**：409 版本冲突与「副本落后」语义相反——前者是「旧事件迟到、新事件已落库」，后者是「事件未到达、副本版本低于写模型」。只有后者需要 resync；前者静默丢弃即可，错误地把 409 也上抛会让对账反复重建本已最新的副本。
+
+> **配套 `purge` 同理**：`delete` 时文档已不存在会抛 `ResponseException`，同样静默忽略（清理幂等）。
 
 ---
 
@@ -224,7 +238,8 @@ elasticsearchClient.index(req -> req.index(...)
 | 多节点硬编码单个地址 | 集群容灾缺失 | 逗号分隔 + 流式解析，支持多节点 |
 | 条件判断用三元表达式 | 可读性差、无法组合 | 用 `Optional` 表达可选装配 |
 | `RestClient` / `Client` 未声明 `destroyMethod` | 连接池泄漏 | 声明 `destroyMethod = "close"` |
-| 物化失败 catch 后静默吞掉 | 副本落后被掩盖、对账失效 | 异常上抛，交给对账补偿（resync / purge） |
+| 真正的写失败（连接/映射错误）catch 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给对账补偿（resync / purge） |
+| External 版本冲突（409）上抛而非静默丢弃 | 旧事件迟到触发无谓 resync、反复重建已最新副本 | 捕获 `ResponseException` 仅 `log.debug` 静默丢弃 |
 | 索引名散落在各处硬编码 | 写入读取漂移 | 集中定义于 `*Targets` 常量类 |
 | 用 ES 内部自增 `_version` | 无法与写模型版本对齐、对账失真 | 用 `VersionType.External` 写入写模型版本 |
 

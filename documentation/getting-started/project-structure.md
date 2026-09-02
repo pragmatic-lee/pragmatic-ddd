@@ -38,11 +38,11 @@ com/yourcompany/{module}/
 │   ├── subscriber/       # {Agg}EventSubscriberRegistry（事件订阅登记）
 │   └── factory/ updater/ resolver/
 ├── domain/{agg}/         # Domain（无 acl/ 包）
-│   ├── model/ projection/ repository/          # projection/ 内含 materializer/ 子目录
+│   ├── model/ projection/ repository/          # projection/ 内含 materializer/ 子目录（版本 / 补偿契约）
 │   ├── rule/ event/ dependency/ service/
 │   ├── config/ operation/ param/
 └── infrastructure/{agg}/ # Infrastructure
-    ├── repository/ projection/ dependency/ config/  # projection/ 内含 materializer/ 子目录，含查询实现
+    ├── repository/ projection/ dependency/ config/  # projection/ 内含 materializer/ 子目录（写读一体源的落地）
 ```
 
 > ⚠️ **分包维度**：以聚合 `{agg}` 为第一级目录（如 `order/`、`product/`）。不同聚合之间不共享包或实体；聚合间通信优先使用领域事件。
@@ -63,7 +63,7 @@ com/yourcompany/{module}/
 | `model/` | 聚合根、实体、值对象、`enums/`、`valueobject/` | `AggregateRoot` | 业务数据与行为载体 |
 | `repository/` | `I{Aggregate}Repository` | `IRepository<ID,T>` | 写模型持久化契约（仅接口） |
 | `projection/` | `{Agg}Projection`（sealed 基类）、具体投影、`I{Agg}ProjectionQuery` | `IAggregateProjection`、`IAggregateQuery` | 读模型视图 + 查询契约（`{Agg}Projection` 是视图容器，`I{Agg}ProjectionQuery` 是查询入口） |
-| `projection/materializer/` | `I{Agg}{Store}Materializer` | `IProjectionMaterializer` | 异构存储写入契约（`projectionType()`+`target()` 由框架 `ProjectorRegistry` 寻址） |
+| `projection/materializer/` | `I{Agg}{Store}Resynchronizer`、`I{Agg}{Store}VersionResolver` | `IReadModelResynchronizer`、`IReadModelVersionResolver` | 异构存储版本解析与补偿契约（仅接口，projection 子目录） |
 | `rule/` | `{Agg}EntityRule`、`{Agg}BrokenRuleRegistry` | `EntityRule`、`BrokenRuleRegistry` | 规则表类型（空壳）+ 消息码 |
 | `event/` | `{Agg}{Action}Event` | `IDomainEvent` | 领域业务事实（事件定义） |
 | `dependency/` | `I{External}Dependency` | `@ExternalDependency` | **仅声明**本聚合依赖哪些外部系统（端口/契约），实现在基础设施层 |
@@ -90,9 +90,9 @@ domain/{agg}/
 │   ├── OrderDetailProjection.java
 │   ├── OrderItemProjection.java     # 子实体投影（被聚合根投影包裹，自身不实现 IAggregateProjection）
 │   ├── IOrderProjectionQuery.java   # 继承 IAggregateQuery（查询契约）
-│   └── materializer/               # 异构存储写入契约（仅接口，projection 子目录）
-│       ├── IOrderEsMaterializer.java
-│       └── IOrderRedisMaterializer.java
+│   └── materializer/               # 异构存储版本 / 补偿契约（仅接口，projection 子目录）
+│       ├── IOrderEsVersionResolver.java
+│       └── IOrderReadModelResynchronizer.java
 ├── rule/                           # 规则表类型 + 消息码
 │   ├── OrderEntityRule.java        # 继承 EntityRule（空壳）
 │   └── OrderBrokenRuleRegistry.java # 继承 BrokenRuleRegistry
@@ -219,14 +219,14 @@ public class OrderReadService implements IQueryApplicationService { ... }
 |----|-----------|--------------|------|
 | `repository/` | `repository/` | `IRepository` | 持久化（主存储） |
 | `projection/` | `projection/` | `{Agg}Projector`、`{Agg}ProjectionQuery`（实现 `I{Agg}ProjectionQuery`） | 持久化（读模型查询 + 投影映射） |
-| `projection/materializer/` | `projection/materializer/` | `IProjectionMaterializer`、`IReadModelResynchronizer` | 持久化（异构存储，resync 一并落地） |
+| `projection/materializer/` | `projection/materializer/` | `{Agg}{Store}Source`（继承 `AbstractProjectionSource`）、`IReadModelResynchronizer` | 持久化（写读一体源 + 异构存储 resync 一并落地） |
 | `dependency/` | （外部依赖统一承载） | `ExternalCall`/`Abstract*Gateway`/`Acl*` 异常 | 外部依赖 ACL 执行模板：封装远程调用（纯技术通道） |
 | `config/` | `config/` | `IConfigurationSource` | 动态配置 |
 
 #### 2.3.2 框架已提供的能力（你无需自己建包）
 
 - **消息发布**：`IEventPublisher` + 集成包 `RocketMqEventManager` 等；你只需引入集成包并配置即可，不要自建 `event/` 包。
-- **读模型对账**：`Reconciler` / `ReconciliationManager` / `ReconciliationRegistry` 随 core 提供；你在 `projection/materializer/` 实现 `IReadModelResynchronizer` 并注册即可，不要自建 `reconciliation/` 包。
+- **读模型对账**：`Reconciler` / `ReconciliationManager` / `ReconciliationRegistry` 随 core 提供；你在 `projection/materializer/` 实现 `IReadModelResynchronizer` 与写读一体的 `{Agg}{Store}Source`（继承 `AbstractProjectionSource`）并注册即可，不要自建 `reconciliation/` 包。
 
 #### 2.3.3 包结构示例
 
@@ -239,8 +239,8 @@ infrastructure/{agg}/
 │   ├── OrderProjector.java          # 实现 IAggregateProjector（映射）
 │   ├── OrderProjectionQuery.java    # 实现 IOrderProjectionQuery（原 query/ 迁入）
 │   └── materializer/
-│       ├── OrderEsMaterializer.java # 实现 IOrderEsMaterializer
-│       └── OrderRedisMaterializer.java  # 实现 IOrderRedisMaterializer
+│       ├── OrderEsSource.java       # 继承 AbstractProjectionSource（写读一体源）
+│       └── OrderRedisSource.java    # 继承 AbstractProjectionSource（写读一体源）
 ├── dependency/                     # 外部依赖 ACL 执行模板（封装远程调用）
 │   ├── InventoryGateway.java        # 封装远程调用（防腐层，纯技术通道）
 │   └── PaymentGatewayClient.java    # RPC Client
@@ -304,7 +304,7 @@ public class OrderController {
 
 ### 3.1 依赖倒置（DIP）
 
-领域层定义所有契约接口（`IRepository`、`I{Agg}ProjectionQuery`、`IProjectionMaterializer`、`@ExternalDependency` 端口等）；基础设施层实现这些接口；应用层通过接口注入依赖。依赖方向为 `UI → Application → Domain ← Infrastructure`，领域层不感知任何外层。
+领域层定义所有契约接口（`IRepository`、`I{Agg}ProjectionQuery`、`@ExternalDependency` 端口等）；基础设施层实现这些接口（含写读一体的 `{Agg}{Store}Source` 继承 `AbstractProjectionSource`）；应用层通过接口注入依赖。依赖方向为 `UI → Application → Domain ← Infrastructure`，领域层不感知任何外层。
 
 ### 3.2 防腐层（ACL）怎么放
 
@@ -322,7 +322,7 @@ public class OrderController {
 | 消息发布 `IEventPublisher` | 框架 + 集成包 | 引入并配置，不建 `event/` 包 |
 | 读模型对账 `Reconciler` 等 | core | 实现 `IReadModelResynchronizer` 并注册，不建 `reconciliation/` 包 |
 
-> ⚠️ **易错点**：在业务代码里新建 `event/`、`reconciliation/`、`acl/`（领域层）、`remote/` 包，都属于放错位置。消息发布与对账引擎由框架提供，你只需引入/配置或在 `projection/materializer/` 实现 `IReadModelResynchronizer`。
+> ⚠️ **易错点**：在业务代码里新建 `event/`、`reconciliation/`、`acl/`（领域层）、`remote/` 包，都属于放错位置。消息发布与对账引擎由框架提供，你只需引入/配置或在 `projection/materializer/` 实现 `IReadModelResynchronizer` 与写读一体的 `{Agg}{Store}Source`。
 
 ---
 
@@ -370,7 +370,7 @@ order-service/
 | 用户接口 UI | `api/{agg}/` + `controller/{agg}/` | 协议 Request/Response、双向转换                                      | Controller 直连聚合/仓储；Request 与 Input、Projection 与 Response 混用 |
 
 **新建聚合时你需要落地的清单**
-- 领域层：聚合/实体/值对象/枚举、仓储接口、投影（含 `projection/materializer/` 的物化器契约、`I{Agg}ProjectionQuery` 查询契约）、`IAggregateProjection`、领域事件、规则、消息注册表、参数对象、领域服务接口（四类）、外部依赖声明接口（仅端口）。
+- 领域层：聚合/实体/值对象/枚举、仓储接口、投影（含 `projection/materializer/` 的版本 / 补偿专属契约、`I{Agg}ProjectionQuery` 查询契约）、`IAggregateProjection`、领域事件、规则、消息注册表、参数对象、领域服务接口（四类）、外部依赖声明接口（仅端口）。
 - 应用层：Input、WriteService、ReadService、Factory、Updater、Resolver、原子领域服务实现、规则表组装、事件订阅登记。
-- 基础设施层：Repository、ProjectionQuery、DAO/Mapper、dependency 网关（ACL 执行模板）、`projection/materializer/` 的 `IReadModelResynchronizer`、`IConfigurationSource`。
+- 基础设施层：Repository、ProjectionQuery、DAO/Mapper、dependency 网关（ACL 执行模板）、`projection/materializer/` 的写读一体 `{Agg}{Store}Source`（继承 `AbstractProjectionSource`）与 `IReadModelResynchronizer`、`IConfigurationSource`。
 - 用户接口层：Controller、协议 Request/Response、双向转换。

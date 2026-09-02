@@ -5,6 +5,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,10 +17,11 @@ import java.util.stream.Collectors;
  *
  * @author wizard-lee
  */
+@Component
 public class OrderCacheProjector extends AbstractAggregateProjector<Order, OrderCacheProjection> {
 
-    public OrderCacheProjector(Class<OrderCacheProjection> projectionType) {
-        super(projectionType);
+    public OrderCacheProjector() {
+        super(OrderCacheProjection.class);
     }
 
     /**

@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <p>一个 searcher 实例服务一个聚合族的某类条件 + 某索引级全量投影类型，由
  * {@link ProjectorRegistry} 按 {@code (criteriaType, projectionType)} 二维键定位。
- * {@link #projectionType()} 返回的是对齐某物理存储索引文档形状的具体投影类，
+ * 其服务的投影类型是对齐某物理存储索引文档形状的具体投影类，
  * 而非业务子投影；子投影由 {@link IProjectionReducer} 在 Java 内存中二次裁剪。</p>
  *
  * <p>分页 / 滚动在本接口内完成，裁剪只做逐条转换、不改变集合规模；
@@ -25,12 +25,15 @@ public interface IProjectionPagedSearcher<C extends PageQueryCriteria, P extends
     /** 本检索器服务的业务条件类型，供按型定位。 */
     Class<C> criteriaType();
 
-    /** 本检索器服务的索引级全量投影类型（对齐某物理存储索引的文档形状），供按型定位。 */
-    Class<P> projectionType();
+    /**
+     * 分页检索：返回带总量与请求信息的结果页。
+     * 检索器只服务所属源，投影类型由源持有，故此处无需再传投影类型。
+     */
+    PageResult<P> searchPage(C condition, PageRequest pageRequest);
 
-    /** 分页检索：返回带总量与请求信息的结果页。 */
-    PageResult<P> searchPage(C condition, PageRequest pageRequest, Class<P> projectionType);
-
-    /** 滚动检索：返回本页数据与下一页游标（游标为 null 表示已到末页）。 */
-    ScrollResult<P> searchScroll(C condition, ScrollPosition cursor, int pageSize, Class<P> projectionType);
+    /**
+     * 滚动检索：返回本页数据与下一页游标（游标为 null 表示已到末页）。
+     * 检索器只服务所属源，投影类型由源持有，故此处无需再传投影类型。
+     */
+    ScrollResult<P> searchScroll(C condition, ScrollPosition cursor, int pageSize);
 }

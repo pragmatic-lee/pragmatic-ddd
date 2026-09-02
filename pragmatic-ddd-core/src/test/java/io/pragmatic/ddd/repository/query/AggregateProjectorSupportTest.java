@@ -1,26 +1,64 @@
 package io.pragmatic.ddd.repository.query;
 
 import io.pragmatic.ddd.repository.query.fixture.StubAggregate;
-import io.pragmatic.ddd.repository.query.fixture.StubMaterializer;
 import io.pragmatic.ddd.repository.query.fixture.StubProjection;
 import io.pragmatic.ddd.repository.query.fixture.StubProjector;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 验证 AggregateProjectorSupport 编排 projector 注册、同步与物化。
+ * 验证 AggregateProjectorSupport 编排 projector 注册、同步与物化（以「源」为中心）。
  *
  * @author wizard-lee
  */
 class AggregateProjectorSupportTest {
 
+    private static final ProjectionSource STUB_SOURCE = ProjectionSource.of("es:stub");
+
+    /** 记录 materialize / purge 入参的内存源，覆盖门面编排断言。 */
+    private static final class RecordingSource extends AbstractProjectionSource<StubAggregate, StubProjection> {
+
+        final AtomicReference<StubProjection> lastProjection = new AtomicReference<>();
+        final AtomicReference<Object> lastPurgedId = new AtomicReference<>();
+
+        RecordingSource() {
+            super(STUB_SOURCE, StubAggregate.class, StubProjection.class, new ReturningProjector(), null);
+        }
+
+        RecordingSource(IAggregateProjector<StubAggregate, StubProjection> projector) {
+            super(STUB_SOURCE, StubAggregate.class, StubProjection.class, projector, null);
+        }
+
+        @Override
+        public void materialize(IAggregateProjection projection, long version) {
+            lastProjection.set((StubProjection) projection);
+        }
+
+        @Override
+        public void purge(Object aggregateId) {
+            lastPurgedId.set(aggregateId);
+        }
+    }
+
+    /** 返回真实投影（聚合 name 透传）的投影器，供默认 RecordingSource 验证 materialize 链路。 */
+    private static final class ReturningProjector extends AbstractAggregateProjector<StubAggregate, StubProjection> {
+
+        private ReturningProjector() {
+            super(StubProjection.class);
+        }
+
+        @Override
+        public StubProjection project(StubAggregate aggregateRoot) {
+            return new StubProjection(1L, aggregateRoot.name());
+        }
+    }
+
     private ProjectorRegistry newRegisteredRegistry() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        registry.register(StubAggregate.class, new StubProjector());
-        ReconciliationTarget target = new ReconciliationTarget(StubAggregate.class, "es:stub");
-        registry.register(new StubMaterializer(target));
+        registry.register(new RecordingSource());
         return registry;
     }
 
@@ -28,36 +66,64 @@ class AggregateProjectorSupportTest {
     void sync_projectsAndMaterializes() {
         ProjectorRegistry registry = newRegisteredRegistry();
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        ReconciliationTarget target = new ReconciliationTarget(StubAggregate.class, "es:stub");
         StubAggregate aggregate = new StubAggregate();
         aggregate.setName("v");
-        support.sync(aggregate, StubProjection.class, target);
-        // 通过 materializer 桩记录验证 project→materialize 链路
-        StubMaterializer materializer = (StubMaterializer) registry.resolveMaterializer(StubProjection.class, target);
-        assertThat(materializer.lastProjection.get()).isNotNull();
-        assertThat(materializer.lastProjection.get().name()).isEqualTo("v");
+
+        support.sync(aggregate, STUB_SOURCE);
+
+        RecordingSource source = (RecordingSource) registry.getSource(STUB_SOURCE);
+        assertThat(source.lastProjection.get()).isNotNull();
+        assertThat(source.lastProjection.get().name()).isEqualTo("v");
     }
 
     @Test
     void sync_missingProjector_skipsSilently() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        ReconciliationTarget target = new ReconciliationTarget(StubAggregate.class, "es:stub");
-        registry.register(new StubMaterializer(target));
+        // projector 返回 null：sync 不应抛异常，且 materialize 未被调用
+        registry.register(new RecordingSource(new StubProjector<>(StubProjection.class)));
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
         StubAggregate aggregate = new StubAggregate();
-        // 未登记 projector：sync 不应抛异常，且 materializer 未被调用
-        support.sync(aggregate, StubProjection.class, target);
-        StubMaterializer materializer = (StubMaterializer) registry.resolveMaterializer(StubProjection.class, target);
-        assertThat(materializer.lastProjection.get()).isNull();
+
+        support.sync(aggregate, STUB_SOURCE);
+
+        RecordingSource source = (RecordingSource) registry.getSource(STUB_SOURCE);
+        assertThat(source.lastProjection.get()).isNull();
     }
 
     @Test
-    void purge_delegatesToMaterializer() {
+    void sync_byTarget_bridgesToSource() {
+        ProjectorRegistry registry = newRegisteredRegistry();
+        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
+        StubAggregate aggregate = new StubAggregate();
+        aggregate.setName("t");
+        ReconciliationTarget target = new ReconciliationTarget(StubAggregate.class, "es:stub");
+
+        support.sync(aggregate, target);
+
+        RecordingSource source = (RecordingSource) registry.getSource(STUB_SOURCE);
+        assertThat(source.lastProjection.get()).isNotNull();
+    }
+
+    @Test
+    void purge_delegatesToSource() {
+        ProjectorRegistry registry = newRegisteredRegistry();
+        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
+
+        support.purge(STUB_SOURCE, 99L);
+
+        RecordingSource source = (RecordingSource) registry.getSource(STUB_SOURCE);
+        assertThat(source.lastPurgedId.get()).isEqualTo(99L);
+    }
+
+    @Test
+    void purge_byTarget_bridgesToSource() {
         ProjectorRegistry registry = newRegisteredRegistry();
         AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
         ReconciliationTarget target = new ReconciliationTarget(StubAggregate.class, "es:stub");
-        support.purge(StubProjection.class, 99L, target);
-        StubMaterializer materializer = (StubMaterializer) registry.resolveMaterializer(StubProjection.class, target);
-        assertThat(materializer.lastPurgedId.get()).isEqualTo(99L);
+
+        support.purge(target, 99L);
+
+        RecordingSource source = (RecordingSource) registry.getSource(STUB_SOURCE);
+        assertThat(source.lastPurgedId.get()).isEqualTo(99L);
     }
 }

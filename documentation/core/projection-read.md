@@ -6,12 +6,16 @@
 
 ### 1.1 核心定位
 
-读模型（Projection，读侧 / Q 侧）为聚合提供面向查询的投影视图，独立于写模型（仓储）的聚合根装配。框架按 ISP 拆分查询契约、分离「投影映射」与「存储物化」、并以版本对账补偿异构存储的最终一致性，开发者无需手写查询分流与副本同步样板。
+读模型（Projection，读侧 / Q 侧）为聚合提供面向查询的投影视图，独立于写模型（仓储）的聚合根装配。框架以**「源」（ProjectionSource）**为中心，把一份物理副本（ES 一个索引 / Redis 一个键空间）的「写（materialize / purge）」与「读（searcher / reducer）」收敛到同一个源对象中；并以 `AbstractProjectionQuery` 把「按投影类型选路 → 检索 → 裁剪」的通用三跳上收，开发者无需手写查询分流与副本同步样板。
+
+> 设计演进：旧版按「投影类型」拆分 `IProjectionMaterializer` / `IProjectionSearcher` / `IProjectionReducer` 三类独立构件，再以 `markSourceProjection` 绑定到投影类。现统一为**源对象**承载写读，检索器与裁剪器只挂在源上，寻址第一维从「投影类型」变为「源」，写读错位在结构上不可能。
 
 ### 1.2 概念层级与依赖关系
 
 ```text
 repository.query
+  ProjectionSource               源标识（寻址串，如 es:orders / redis:order_kv）
+  AbstractProjectionSource<T,P> 源基类：聚合 T + 全量投影 P，bind 检索器 / 裁剪器，实现 materialize / purge
   IAggregateQuery (组合 6 个 ISP trait)
     ├─ IQueryById     按 ID 查一个
     ├─ IQueryByIds    批量按 ID 查
@@ -19,16 +23,16 @@ repository.query
     ├─ IQueryList     按条件查多个
     ├─ IQueryPage     分页
     └─ IQueryScroll   滚动 / 游标
-  IAggregateProjection            投影标记接口
-  IAggregateProjector<T,P>        投影器：聚合根 → 投影
+  IProjectionSourceQuery         指定源 / 回源链视图（由 source(...) / fallbackChain(...) 返回）
+  IAggregateProjection          投影标记接口
+  IAggregateProjector<T,P>      投影器：聚合根 → 全量投影
     └─ AbstractAggregateProjector 投影器抽象基类（final projectionType）
-  IProjectionMaterializer<P>      物化器：投影 → 异构存储
-  IProjectionSearcher<C,P>        按条件检索器：存储 → 索引级全量投影
-  IProjectionByIdSearcher<P>      按主键 / 批量主键检索器
-  IProjectionPagedSearcher<C,P>   分页 / 滚动检索器
-  IProjectionReducer<S,P>         裁剪器：索引级全量投影 → 业务子投影（Java 内存）
-  ProjectorRegistry               纯 core 登记中心
-  AggregateProjectorSupport       project→materialize 门面
+  IProjectionByIdSearcher<P>    按主键 / 批量主键检索器
+  IProjectionSearcher<C,P>      按条件检索器：存储 → 索引级全量投影
+  IProjectionPagedSearcher<C,P> 分页 / 滚动检索器
+  IProjectionReducer<S,P>       裁剪器：索引级全量投影 → 业务子投影（Java 内存）
+  ProjectorRegistry             源登记中心（按源登记，支持多源共存）
+  AggregateProjectorSupport     project→materialize / purge 门面（按源取源实例）
   PageRequest / PageResult / ScrollPosition / ScrollResult   分页滚动值对象
 
 repository.reconciliation
@@ -40,16 +44,18 @@ repository.reconciliation
 
 | 类型 | 包路径 | 用途 |
 | --- | --- | --- |
-| `IAggregateQuery` / 6 个 trait | `io.pragmatic.ddd.repository.query` | 聚合级查询契约 |
+| `ProjectionSource` | `io.pragmatic.ddd.repository.query` | 源标识（寻址串） |
+| `AbstractProjectionSource` | `io.pragmatic.ddd.repository.query` | 源基类：写读一体 |
+| `IAggregateQuery` / 6 个 trait / `IProjectionSourceQuery` | `io.pragmatic.ddd.repository.query` | 聚合级查询契约与源视图 |
 | `IAggregateProjection` | `io.pragmatic.ddd.repository.query` | 投影标记接口 |
 | `IAggregateProjector` / `AbstractAggregateProjector` | `io.pragmatic.ddd.repository.query` | 投影映射 |
-| `IProjectionMaterializer` | `io.pragmatic.ddd.repository.query` | 异构存储物化 |
-| `ProjectorRegistry` / `AggregateProjectorSupport` | `io.pragmatic.ddd.repository.query` | 登记与门面 |
+| `IProjectionByIdSearcher` / `IProjectionSearcher` / `IProjectionPagedSearcher` / `IProjectionReducer` | `io.pragmatic.ddd.repository.query` | 检索 / 裁剪构件（挂在源上） |
+| `ProjectorRegistry` / `AggregateProjectorSupport` | `io.pragmatic.ddd.repository.query` | 源登记与物化门面 |
 | `ReconciliationTarget` / `Reconciliation` | `io.pragmatic.ddd.repository.reconciliation` | 对账标识与状态判定 |
 | `IReadModelVersionResolver` / `IReadModelResynchronizer` | `io.pragmatic.ddd.repository.reconciliation` | 版本解析与补救 |
 | `ReconciliationRegistry` / `ReconciliationManager` / `Reconciler` | `io.pragmatic.ddd.repository.reconciliation` | 对账编排 |
 
-读模型不持有仓储实例，`reconciliation` 子包反向依赖 `IRepository`，按聚合类型经 `ReconciliationRegistry` 取 `currentVersion` 权威版本 V。
+读模型不持有仓储实例；`reconciliation` 子包反向依赖 `IRepository`，按聚合类型经 `ReconciliationRegistry` 取 `currentVersion` 权威版本 V。源 `id` 与对账 `ReconciliationTarget.storeId()` 同名，写侧 resync 路径可直接按 target 桥接源。
 
 ## 2. 核心概念详解
 
@@ -57,7 +63,7 @@ repository.reconciliation
 
 #### 契约 / 接口
 
-查询能力按 ISP 拆分为 6 个独立 trait，按业务需要组合或继承 `IAggregateQuery` 全量组合。
+查询能力按 ISP 拆分为 6 个独立 trait，由 `IAggregateQuery` 全量组合；调用方的聚合查询类继承 `AbstractProjectionQuery` 后默认获得全部能力，无需手写分流。
 
 | Trait | 方法 | 语义 | 返回值约定 |
 | --- | --- | --- | --- |
@@ -91,11 +97,12 @@ public interface IOrderQuery extends
 | 类型 | 角色 |
 | --- | --- |
 | `IAggregateProjection` | 聚合投影标记接口；与 `AggregateRoot` 严格区分。仅聚合拓扑级投影实现本接口，嵌套子实体投影不实现 |
-| `IAggregateProjector<T, P>` | 投影器：聚合根 → 投影，纯映射、不含存储细节、可独立单测 |
+| `IAggregateProjector<T, P>` | 投影器：聚合根 → 全量投影，纯映射、不含存储细节、可独立单测 |
 | `AbstractAggregateProjector<T, P>` | 投影器抽象基类：预置 `projectionType()`，子类只实现 `project` |
-| `IProjectionMaterializer<P>` | 物化器：把中立投影写入某异构存储；同一投影 P 可对应多个 materializer（不同 `target`） |
-| `IProjectionSearcher<C, P>` | 按条件检索器：条件 → 索引级全量投影列表；`criteriaType()` + `projectionType()` 供按型定位 |
-| `IProjectionByIdSearcher<P>` | 按主键 / 批量主键检索器；`getById` 未命中返回 `null`，`getByIds` 未命中返回空列表 |
+| `ProjectionSource` | 源标识：一段寻址串（`es:orders` / `redis:order_kv`），同时充当「读寻址」「写寻址」「对账 target」三者同一身份 |
+| `AbstractProjectionSource<T, P>` | 源基类：聚合 T + 全量投影 P；通过 `bind` 挂检索器 / 裁剪器，实现 `materialize` / `purge`。**写读一体**，替代旧 `IProjectionMaterializer` |
+| `IProjectionSearcher<C, P>` | 按条件检索器：条件 → 索引级全量投影列表；挂在源上，由源按条件类型定位 |
+| `IProjectionByIdSearcher<P>` | 按主键 / 批量主键检索器；`getById` 未命中返回 `null`，`getByIds` 未命中返回空列表；通过源构造器第 5 参注入 |
 | `IProjectionPagedSearcher<C, P>` | 分页 / 滚动检索器；分页在检索器侧完成，裁剪只做逐条转换 |
 | `IProjectionReducer<S, P>` | 裁剪器：索引级全量投影 → 业务子投影；`reduce(S)` 为纯函数，源为 `null` 返回 `null` |
 
@@ -105,11 +112,20 @@ public interface IAggregateProjector<T extends AggregateRoot<?>, P extends IAggr
     Class<P> projectionType();             // 供 Registry 按型定位
 }
 
-public interface IProjectionMaterializer<P extends IAggregateProjection> {
-    Class<P> projectionType();
-    ReconciliationTarget target();         // 本物化器服务的对账目标
-    void materialize(P projection, long version);  // 写入/更新副本，持久化 version
-    void purge(Object aggregateId);        // ORPHAN 时清理残留
+// 源：写读一体，替代原 IProjectionMaterializer
+public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P extends IAggregateProjection> {
+    // super(source, aggregateType, fullProjectionType, projector, byIdSearcher)
+    protected AbstractProjectionSource(ProjectionSource source,
+            Class<T> aggregateType, Class<P> projectionType,
+            IAggregateProjector<T, P> projector, IProjectionByIdSearcher<P> byIdSearcher);
+
+    public ProjectionSource source();                       // 源标识
+    protected void bind(IProjectionSearcher<?, P> s);       // 挂按条件检索器
+    protected void bind(IProjectionPagedSearcher<?, P> s);  // 挂分页检索器
+    protected void bind(IProjectionReducer<?, P> r);        // 挂裁剪器
+
+    public abstract void materialize(P projection, long version);  // 写入/更新副本，持久化 version
+    public abstract void purge(Object aggregateId);                  // ORPHAN 时清理残留
 }
 ```
 
@@ -125,9 +141,13 @@ public interface IProjectionMaterializer<P extends IAggregateProjection> {
 
 > **重要约束**：投影与聚合根不可混用。`IAggregateProjection` 与 `AggregateRoot` 是两套体系。投影是读视图、可裁剪字段；聚合根是写模型、含不变量。不要「把聚合根直接当投影返回」——这会泄露写模型内部结构并破坏读写边界。
 
-> **重要约束**：`project` 返回 `null` 表示聚合不满足该投影条件。`AggregateProjectorSupport.sync` 会静默跳过；若调用方直接调用 projector 需自行判空，否则 `materialize(null, ...)` 行为由 materializer 实现决定。
+> **重要约束**：`project` 返回 `null` 表示聚合不满足该投影条件。`AggregateProjectorSupport.sync` 会静默跳过；若调用方直接调用 projector 需自行判空，否则 `materialize(null, ...)` 会 NPE。
 
-> **重要约束**：`project` 为纯映射、不含存储细节，可独立单测；持久化细节只在 `IProjectionMaterializer` 实现内。`AbstractAggregateProjector` 不提供反射式默认映射，字段映射必须手写。
+> **重要约束**：`project` 为纯映射、不含存储细节，可独立单测；持久化细节只在 `AbstractProjectionSource` 实现内。`AbstractAggregateProjector` 不提供反射式默认映射，字段映射必须手写。
+
+> **重要约束（版本冲突语义）**：异构存储写入应使用 **external 版本号**（如 ES `versionType(External).version(v)`、Redis 写入前比对当前版本）。迟到 / 重复事件导致版本不前进时，存储返回 409（或检出当前版本 ≥ 写入版本），`materialize` 应**静默丢弃**该次写入（仅记 debug 日志）——这是 external 版本乐观锁的标准语义，不是「副本落后需 resync」。真正的写失败（连接断开、映射错误）仍应上抛。
+
+> **重要约束（源标识唯一性）**：同一进程内 `ProjectionSource` 的寻址串全局唯一。`ProjectorRegistry` 允许「同一全量投影类落到多个源」（如 `OrderEsProjection` 同时进 ES 源与 Redis 源），但**不允许两个不同源共用同一 `source()` 串**——重复登记会抛 `ProjectionSourceConflictException`。
 
 #### 示例代码
 
@@ -140,23 +160,26 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 }
 ```
 
-### 2.3 物化与登记中心（Registry / Support）
+### 2.3 源登记中心（Registry / Support）
 
 #### 契约 / 接口：`ProjectorRegistry`
 
-`ProjectorRegistry` 是纯 core、无 Spring 依赖的构件登记中心：
+`ProjectorRegistry` 是纯 core、无 Spring 依赖的**源**登记中心：
 
 | 方法 | 说明 |
 | --- | --- |
 | `register(Class<T>, IAggregateProjector)` | 按 `(聚合类型, 投影类型)` 登记 projector |
 | `resolveProjector(Class<T>, Class<P>)` | 按 `(聚合类型, 投影类型)` 定位 projector |
-| `register(IProjectionMaterializer)` | 按 `(投影类型, target)` 登记 materializer |
-| `resolveMaterializer(Class<P>, ReconciliationTarget)` | 按 `(投影类型, target)` 定位 materializer |
-| `register(IProjectionSearcher)` | 按 `(条件类型, 索引级投影类型)` 登记按条件检索器，覆写同键 |
-| `register(IProjectionPagedSearcher)` | 按 `(条件类型, 索引级投影类型)` 登记分页 / 滚动检索器 |
-| `register(IProjectionByIdSearcher)` | 按 `索引级投影类型` 登记按主键检索器 |
-| `register(IProjectionReducer)` | 按 `(源投影类型, 子投影类型)` 登记裁剪器；同一子投影多来源抛 `ProjectionReducerConflictException` |
-| `markSourceProjection(Class<P>)` | 将类型标记为索引级全量投影，可被直接查询（门面短路、跳过裁剪） |
+| `register(AbstractProjectionSource)` | 按源标识登记源，支持「同一全量投影类 → 多个源」共存 |
+| `fullProjectionOf(Class<P>)` | 取投影类对应的全量物理投影类（按型定位源用） |
+| `sourceByProjection(Class<P>)` | 取投影类对应的全部源集合（支持多源与回源链） |
+| `resolveSource(ProjectionSource, Class<P>)` | 按 `(源标识, 投影类)` 定位具体源实例 |
+| `registerDefaultSource(Class<P>, ProjectionSource)` | 登记「某业务子投影默认落在哪个源」 |
+| `register(IProjectionSearcher)` | 按 `(条件类型, 索引级投影类型)` 登记按条件检索器（源内 `bind`），覆写同键 |
+| `register(IProjectionPagedSearcher)` | 按 `(条件类型, 索引级投影类型)` 登记分页 / 滚动检索器（源内 `bind`） |
+| `register(IProjectionByIdSearcher)` | 按 `索引级投影类型` 登记按主键检索器（源构造器第 5 参注入） |
+| `register(IProjectionReducer)` | 按 `(源投影类型, 子投影类型)` 登记裁剪器（源内 `bind`）；同一子投影多来源抛 `ProjectionReducerConflictException` |
+| `register(AbstractProjectionSource<T,P>)` | 登记索引级全量投影源（写读一体，替代旧 `markSourceProjection`） |
 | `getSearcher(Class<C>, Class<P>)` | 定位按条件检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
 | `getPagedSearcher(Class<C>, Class<P>)` | 定位分页 / 滚动检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
 | `getByIdSearcher(Class<P>)` | 定位按主键检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
@@ -164,27 +187,28 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 | `sourceTypeOf(Class<?>)` | 按子投影反查其索引级全量投影来源；未登记返回 `null` |
 | `isSourceProjection(Class<?>)` | 判断类型是否已被标记为索引级全量投影 |
 
-> **重要约束**：`resolveProjector` / `resolveMaterializer` 未登记返回 `null`，而四个 `get*Searcher` / `getReducer` 未登记**抛异常**。前者是「可选构件缺失、静默跳过」，后者是「接线 / 配置缺失、必须暴露」，二者行为刻意不同。
+> **重要约束**：`resolveProjector` / `resolveSource` 未登记返回 `null`（或空），而四个 `get*Searcher` / `getReducer` 未登记**抛异常**。前者是「可选构件缺失、静默跳过」，后者是「接线 / 配置缺失、必须暴露」，二者行为刻意不同。
 
-`AggregateProjectorSupport` 是 project→materialize 门面：
+`AggregateProjectorSupport` 是 project→materialize / purge 门面，按**源**桥接：
 
 | 方法 | 说明 |
 | --- | --- |
-| `sync(aggregate, projectionType, target)` | 从 registry 取 projector 与 materializer，project 后 materialize；缺失或投影为 `null` 静默跳过 |
-| `purge(projectionType, aggregateId, target)` | 清理指定 target 的残留条目 |
+| `sync(aggregate, source)` | 从 registry 取源实例（按 `source` 标识），project 后 `materialize`；缺失或投影为 `null` 静默跳过 |
+| `purge(source, aggregateId)` | 按源标识清理残留条目 |
 
 #### 关键约束
 
-> **重要约束**：`IProjectionMaterializer.target()` 是 `ReconciliationTarget` 的唯一权威来源，registry 不单独登记 target。业务方不要自行 `new ReconciliationTarget`，应引用已定义的 target 常量，避免 registry 中 key 不一致导致寻址失败。
+> **重要约束**：源 `source()` 标识即 `ReconciliationTarget` 的 `storeId()`，写侧 `sync` 与对账 `resync` 共享同源标识，registry 不单独登记 target。业务方应引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），避免 key 不一致导致寻址失败。
 
-> **重要约束**：事件物化路径与对账 resync 路径共用 `AggregateProjectorSupport` 门面，保证转换逻辑唯一。`sync` 不持有 repository 与 materializer；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。
+> **重要约束**：事件物化路径与对账 resync 路径共用 `AggregateProjectorSupport` 门面，保证转换逻辑唯一。`sync` 不持有 repository 与源；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。
 
-> **重要约束**：`sync` 在 projector / materializer 缺失或投影为 `null` 时**静默跳过**，不抛异常。需要强制物化的场景，调用方应先 `resolveProjector` / `resolveMaterializer` 判空。
+> **重要约束**：`sync` 在源缺失或投影为 `null` 时**静默跳过**，不抛异常。需要强制物化的场景，调用方应先 `resolveSource` 判空。
 
 #### 示例代码
 
 ```java
-projectorSupport.sync(order, OrderSummary.class, TARGET_ES_ORDERS);
+projectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS);
+projectorSupport.purge(OrderCacheTargets.TARGET_REDIS_ORDERS, orderId);
 ```
 
 ### 2.4 分页与滚动值对象
@@ -248,29 +272,31 @@ if (status == ReconciliationStatus.STALE) {
 
 ### 3.1 project→materialize 门面唯一性
 
-事件物化路径（领域事件触发）与对账 resync 路径（版本不一致触发）都经 `AggregateProjectorSupport` 完成 project→materialize，转换逻辑在 projector / materializer 内只实现一次。若绕过门面直接在事件处理器里手写投影更新，会出现与 resync 不一致的双份逻辑。
+事件物化路径（领域事件触发）与对账 resync 路径（版本不一致触发）都经 `AggregateProjectorSupport` 完成 project→materialize，转换逻辑在 projector / 源内只实现一次。若绕过门面直接在事件处理器里手写投影更新，会出现与 resync 不一致的双份逻辑。
 
 ### 3.2 版本号语义（V 与 V'）
 
 - V（写模型权威版本）来自 `IRepository.currentVersion`，无版本返回 `-1`（写模型无此聚合）。
-- V'（副本版本）来自 `IReadModelVersionResolver`，由 materializer 在 `materialize` 时持久化。
+- V'（副本版本）来自 `IReadModelVersionResolver`，由源在 `materialize` 时持久化。
 - 判定 `STALE` / `ORPHAN` 完全依赖 V 与 V' 的纯函数比较，见 §2.5。
 
 ### 3.3 缺失组件的静默跳过
 
-`sync` 在 projector / materializer 缺失或投影为 `null` 时静默跳过。批量事件处理中，单条聚合的配置缺失不会中断整批，但会导致该聚合副本不被更新；排查副本陈旧时优先确认 registry 是否已登记对应 projector / materializer / target。
+`sync` 在 projector / 源缺失或投影为 `null` 时静默跳过。批量事件处理中，单条聚合的配置缺失不会中断整批，但会导致该聚合副本不被更新；排查副本陈旧时优先确认 registry 是否已登记对应 projector / 源 / target。
 
 注意：读侧的 `get*Searcher` / `getReducer` 与此相反，未登记即抛异常——读侧构件缺失属于接线错误，不应静默降级为空结果。
 
-### 3.3.1 读侧三跳链路：选路 → 查全量 → 内存裁剪
+### 3.3.1 读侧三跳链路：选源 → 查全量 → 内存裁剪
 
-读模型取数分三跳完成，核心是**检索器与业务投影解耦**：
+读模型取数由 `AbstractProjectionQuery` 完成，分三跳，核心是**检索器与业务投影解耦**、**寻址第一维为源**：
 
-1. **选路**：调用方传入的是业务子投影 `Class<X>`，门面先 `isSourceProjection` 判断是否为索引级全量投影；是则短路，否则 `sourceTypeOf` 反查其唯一来源。
-2. **查全量**：按 `(条件类型, 索引级投影类型)` 定位检索器，从存储取回索引级全量投影。
-3. **内存裁剪**：按 `(索引级投影类型, 子投影类型)` 定位裁剪器，在 Java 内存中执行 `reduce` 得到业务子投影。
+1. **选源**：调用方通过 `source(ProjectionSource)` / `fallbackChain(List<ProjectionSource>)` 指定目标源（默认源由 `registerDefaultSource` 决定）。未指定且无默认源且投影类对应多源时，抛源歧义异常。
+2. **查全量**：按 `(条件类型, 索引级投影类型)` 从源上定位检索器，从存储取回索引级全量投影。
+3. **内存裁剪**：按 `(索引级投影类型, 子投影类型)` 从源上定位裁剪器，在 Java 内存中执行 `reduce` 得到业务子投影。
 
 > **重要约束**：检索器的 `projectionType()` 返回的是**索引级全量投影的具体类**（对齐某物理索引的文档形状），不是业务子投影、也不是投影体系接口。Registry 以 `Class` 精确键匹配（`Map.get`），**不做 `isAssignableFrom` 向上查找**——按接口类型登记、按子类型查询无法命中并抛 `ProjectionSearcherNotFoundException`。
+
+> **重要约束（按源选路）**：当通过 `source(X)` 指定单源时，若该源不挂对应条件族的检索器，`get*Searcher` 抛 `ProjectionSearcherNotFoundException`（信息含该源支持的条件族）；当通过 `fallbackChain` 指定回源链时，跳过不支持该条件族的源、推进下一源，链上源均不支持才抛异常。分页 / 滚动不回源，只取链上第一个支持该条件族的原。
 
 > **重要约束**：分页 / 滚动必须留在检索器侧完成，裁剪只做逐条转换、不改变集合规模。因此 `PageResult.totalCount()` 与 `ScrollResult.nextCursor()` 均取自**裁剪前**的全量结果。
 
@@ -312,7 +338,7 @@ RuntimeException
 | 场景 | 行为 | 位置 |
 | --- | --- | --- |
 | `PageRequest` 越界 | 抛 `IllegalArgumentException` | `PageRequest.of` |
-| projector / materializer 缺失 | `sync` 静默跳过 | `AggregateProjectorSupport` |
+| projector / 源缺失 | `sync` 静默跳过 | `AggregateProjectorSupport` |
 | 检索执行失败（通信 / 反序列化） | 抛 `ProjectionRetrieveException` | `ProjectionExceptions.retrieve` |
 | 条件无法翻译 | 抛 `ProjectionConditionException` | `ProjectionExceptions.translate` |
 | searcher 未登记 | 抛 `ProjectionSearcherNotFoundException` | `ProjectorRegistry.get*Searcher` |
@@ -336,7 +362,7 @@ RuntimeException
 | 查询契约 | 按需组合 6 个 trait 或继承 `IAggregateQuery` | 精确规约条件字段全必填；按需过滤全 `Optional` |
 | 投影 | 实现 `IAggregateProjection`，用 sealed interface 封闭 | 投影与聚合根是两套体系，不可混用 |
 | 投影器 | 继承 `AbstractAggregateProjector` | `project` 纯映射不含存储；返回 `null` 表示不满足 |
-| 物化器 | 实现 `IProjectionMaterializer` | `target()` 是 `ReconciliationTarget` 唯一权威来源 |
+| 源 | 继承 `AbstractProjectionSource` | 写读一体；`source()` 标识即对账 target；external 版本冲突静默丢弃 |
 | 登记 / 门面 | `ProjectorRegistry` + `AggregateProjectorSupport.sync` | 事件与 resync 共用门面；缺失静默跳过 |
 | 检索器 | 实现三类 `IProjection*Searcher` | `projectionType()` 用索引级全量投影具体类；未登记抛异常 |
 | 裁剪器 | 实现 `IProjectionReducer` | `reduce` 纯函数；分页留在检索器侧 |

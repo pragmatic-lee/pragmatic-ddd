@@ -1,16 +1,22 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.projection;
 
+import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderQuery;
+import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.IProjectionByIdSearcher;
 import io.pragmatic.ddd.repository.query.IProjectionPagedSearcher;
 import io.pragmatic.ddd.repository.query.IProjectionSearcher;
+import io.pragmatic.ddd.repository.query.IAggregateProjection;
 import io.pragmatic.ddd.repository.query.PageRequest;
 import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ProjectionReducerNotFoundException;
 import io.pragmatic.ddd.repository.query.ProjectionSearcherNotFoundException;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.ProjectionSourceNotFoundException;
 import io.pragmatic.ddd.repository.query.ProjectorRegistry;
 import io.pragmatic.ddd.repository.query.ScrollPosition;
 import io.pragmatic.ddd.repository.query.ScrollResult;
@@ -56,12 +62,7 @@ class OrderQueryTest {
         listSearcher = new RecordingListSearcher();
         oneSearcher = new RecordingOneSearcher();
         pagedSearcher = new RecordingPagedSearcher();
-        registry.register(byIdSearcher);
-        registry.register(listSearcher);
-        registry.register(oneSearcher);
-        registry.register(pagedSearcher);
-        // 本组用例查询的即索引级全量投影，需先标记来源，门面方可短路直取
-        registry.markSourceProjection(OrderEsProjection.class);
+        registry.register(new RecordingSource(byIdSearcher, oneSearcher, listSearcher, pagedSearcher));
         query = new OrderQuery(registry);
     }
 
@@ -77,7 +78,6 @@ class OrderQueryTest {
 
         assertThat(result).isSameAs(expected);
         assertThat(byIdSearcher.capturedId).isEqualTo(1001L);
-        assertThat(byIdSearcher.capturedType).isEqualTo(OrderEsProjection.class);
     }
 
     @Test
@@ -95,7 +95,7 @@ class OrderQueryTest {
     // ==================== queryList / queryOne ====================
 
     @Test
-    @DisplayName("queryList 按 (OrderListQuery, 投影类型) 定位列表检索器并透传条件")
+    @DisplayName("queryList 按 (OrderListQuery) 定位列表检索器并透传条件")
     void queryList_forwardsToSearcher() {
         OrderListQuery criteria = new OrderListQuery.TopByAmount(10, 1, 2001L);
         List<OrderEsProjection> expected = List.of(projection(1L));
@@ -105,7 +105,6 @@ class OrderQueryTest {
 
         assertThat(result).isEqualTo(expected);
         assertThat(listSearcher.capturedCriteria).isSameAs(criteria);
-        assertThat(listSearcher.capturedType).isEqualTo(OrderEsProjection.class);
     }
 
     @Test
@@ -144,7 +143,9 @@ class OrderQueryTest {
 
         PageResult<OrderEsProjection> result = query.queryPage(criteria, pageRequest, OrderEsProjection.class);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.data()).containsExactlyElementsOf(expected.data());
+        assertThat(result.totalCount()).isEqualTo(42L);
+        assertThat(result.request()).isSameAs(pageRequest);
         assertThat(pagedSearcher.capturedCriteria).isSameAs(criteria);
         assertThat(pagedSearcher.capturedPageRequest).isSameAs(pageRequest);
     }
@@ -161,7 +162,8 @@ class OrderQueryTest {
         ScrollResult<OrderEsProjection> result =
                 query.queryScroll(criteria, cursor, 50, OrderEsProjection.class);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.data()).containsExactlyElementsOf(expected.data());
+        assertThat(result.nextCursor()).isEqualTo("cursor-2");
         assertThat(pagedSearcher.capturedCriteria).isSameAs(criteria);
         assertThat(pagedSearcher.capturedCursor).isSameAs(cursor);
         assertThat(pagedSearcher.capturedPageSize).isEqualTo(50);
@@ -170,12 +172,12 @@ class OrderQueryTest {
     // ==================== 检索器未注册兜底 ====================
 
     @Test
-    @DisplayName("按主键检索器未注册时 queryById 抛出 ProjectionSearcherNotFoundException")
+    @DisplayName("按主键检索器未注册时 queryById 抛出 ProjectionSourceNotFoundException")
     void queryById_withoutSearcher_shouldThrow() {
         OrderQuery emptyRegistryQuery = new OrderQuery(registryWithoutSearchers());
 
         assertThatThrownBy(() -> emptyRegistryQuery.queryById(1L, OrderEsProjection.class))
-                .isInstanceOf(ProjectionSearcherNotFoundException.class);
+                .isInstanceOf(ProjectionSourceNotFoundException.class);
     }
 
     @Test
@@ -189,14 +191,14 @@ class OrderQueryTest {
     }
 
     /**
-     * 只标记索引级全量投影、不登记任何检索器的注册表。
+     * 登记「源」但不绑定分页检索器的注册表。
      *
-     * <p>必须先标记来源投影，否则门面会先因子投影无来源而抛
-     * {@link ProjectionReducerNotFoundException}，无法触达检索器未登记的分支。</p>
+     * <p>源内仅绑定按主键 / 单条 / 列表检索器，分页检索器缺失；门面查询分页路径时
+     * 触达检索器未登记分支，抛出 {@link ProjectionSearcherNotFoundException}。</p>
      */
     private ProjectorRegistry registryWithoutSearchers() {
         ProjectorRegistry empty = new ProjectorRegistry();
-        empty.markSourceProjection(OrderEsProjection.class);
+        empty.register(new RecordingSource(oneSearcher, listSearcher));
         return empty;
     }
 
@@ -217,31 +219,78 @@ class OrderQueryTest {
                 Optional.of(2001L));
     }
 
+    /** 记录型假「源」：聚合写读一体，绑定各记录型检索器；写方法留空（本测试只验读转发）。 */
+    private static class RecordingSource extends AbstractProjectionSource<Order, OrderEsProjection> {
+
+        private RecordingSource(
+                RecordingOneSearcher oneSearcher,
+                RecordingListSearcher listSearcher) {
+            super(ProjectionSource.of("es:orders"), Order.class, OrderEsProjection.class,
+                    new StubProjector(), null);
+            bind(oneSearcher);
+            bind(listSearcher);
+        }
+
+        private RecordingSource(
+                RecordingByIdSearcher byIdSearcher,
+                RecordingOneSearcher oneSearcher,
+                RecordingListSearcher listSearcher) {
+            super(ProjectionSource.of("es:orders"), Order.class, OrderEsProjection.class,
+                    new StubProjector(), byIdSearcher);
+            bind(oneSearcher);
+            bind(listSearcher);
+        }
+
+        private RecordingSource(
+                RecordingByIdSearcher byIdSearcher,
+                RecordingOneSearcher oneSearcher,
+                RecordingListSearcher listSearcher,
+                RecordingPagedSearcher pagedSearcher) {
+            this(byIdSearcher, oneSearcher, listSearcher);
+            bind(pagedSearcher);
+        }
+
+        @Override
+        public void materialize(IAggregateProjection projection, long version) {
+            // 本测试只验证读转发，写侧留空
+        }
+
+        @Override
+        public void purge(Object aggregateId) {
+            // 本测试只验证读转发，写侧留空
+        }
+    }
+
+    /** 返回 null 的桩投影器，满足源构造约束。 */
+    private static class StubProjector extends AbstractAggregateProjector<Order, OrderEsProjection> {
+
+        private StubProjector() {
+            super(OrderEsProjection.class);
+        }
+
+        @Override
+        public OrderEsProjection project(Order aggregateRoot) {
+            return null;
+        }
+    }
+
     /** 记录型假检索器：捕获入参并返回预置结果，用于验证 OrderQuery 的纯转发行为。 */
     private static class RecordingByIdSearcher implements IProjectionByIdSearcher<OrderEsProjection> {
 
         private Object capturedId;
         private List<Object> capturedIds;
-        private Class<OrderEsProjection> capturedType;
         private OrderEsProjection nextResult;
         private List<OrderEsProjection> nextResults = List.of();
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public OrderEsProjection getById(Object id, Class<OrderEsProjection> projectionType) {
+        public OrderEsProjection getById(Object id) {
             this.capturedId = id;
-            this.capturedType = projectionType;
             return nextResult;
         }
 
         @Override
-        public List<OrderEsProjection> getByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> getByIds(List<Object> ids) {
             this.capturedIds = ids;
-            this.capturedType = projectionType;
             return nextResults;
         }
     }
@@ -250,7 +299,6 @@ class OrderQueryTest {
     private static class RecordingListSearcher implements IProjectionSearcher<OrderListQuery, OrderEsProjection> {
 
         private OrderListQuery capturedCriteria;
-        private Class<OrderEsProjection> capturedType;
         private List<OrderEsProjection> nextResults = List.of();
 
         @Override
@@ -259,14 +307,8 @@ class OrderQueryTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public List<OrderEsProjection> search(OrderListQuery condition, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> search(OrderListQuery condition) {
             this.capturedCriteria = condition;
-            this.capturedType = projectionType;
             return nextResults;
         }
     }
@@ -283,12 +325,7 @@ class OrderQueryTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public List<OrderEsProjection> search(OrderOneQuery condition, Class<OrderEsProjection> projectionType) {
+        public List<OrderEsProjection> search(OrderOneQuery condition) {
             this.capturedCriteria = condition;
             return nextResults;
         }
@@ -310,26 +347,14 @@ class OrderQueryTest {
         }
 
         @Override
-        public Class<OrderEsProjection> projectionType() {
-            return OrderEsProjection.class;
-        }
-
-        @Override
-        public PageResult<OrderEsProjection> searchPage(
-                OrderPageQuery condition,
-                PageRequest pageRequest,
-                Class<OrderEsProjection> projectionType) {
+        public PageResult<OrderEsProjection> searchPage(OrderPageQuery condition, PageRequest pageRequest) {
             this.capturedCriteria = condition;
             this.capturedPageRequest = pageRequest;
             return nextPageResult;
         }
 
         @Override
-        public ScrollResult<OrderEsProjection> searchScroll(
-                OrderPageQuery condition,
-                ScrollPosition cursor,
-                int pageSize,
-                Class<OrderEsProjection> projectionType) {
+        public ScrollResult<OrderEsProjection> searchScroll(OrderPageQuery condition, ScrollPosition cursor, int pageSize) {
             this.capturedCriteria = condition;
             this.capturedCursor = cursor;
             this.capturedPageSize = pageSize;

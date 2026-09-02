@@ -52,6 +52,25 @@ public class OrderReadService implements IQueryApplicationService {
     }
 
     /**
+     * 按主键查询单个投影，并显式指定取数来源的物理投影类型。
+     *
+     * <p>与 {@link #queryById(Long, Class)} 的区别：后者按目标投影自动反查唯一来源，
+     * 本方法由调用方直接指定来源，用于同一业务子投影可从多个物理副本（如 ES / Redis）取数的场景。</p>
+     *
+     * @param orderId 订单号
+     * @param sourceProjection 取数来源的物理投影类型，如 {@code OrderEsProjection} / {@code OrderCacheProjection}
+     * @param projectionType 目标投影类型
+     * @param <X> 投影子类型
+     * @return 命中的投影；未命中返回 null
+     */
+    public <X extends IOrderProjection> X queryById(
+            Long orderId,
+            Class<?> sourceProjection,
+            Class<X> projectionType) {
+        return orderQuery.queryById(orderId, sourceProjection, projectionType);
+    }
+
+    /**
      * 按批量主键查询投影列表。
      *
      * @param orderIds 订单号列表

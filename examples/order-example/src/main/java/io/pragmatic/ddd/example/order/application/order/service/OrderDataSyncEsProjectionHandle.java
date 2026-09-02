@@ -3,18 +3,16 @@ package io.pragmatic.ddd.example.order.application.order.service;
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderDataSyncEsProjectionHandle;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.IAggregateProjector;
-import io.pragmatic.ddd.repository.query.IProjectionMaterializer;
-import io.pragmatic.ddd.repository.query.ProjectorRegistry;
+import io.pragmatic.ddd.repository.query.AggregateProjectorSupport;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
 import org.springframework.stereotype.Component;
 
 /**
- * 订单 ES 投影订阅实现：监听 OrderDataSyncEvent，load 最新聚合后写入 ES。
+ * 订单 ES 投影订阅实现：监听 OrderDataSyncEvent，经「源」统一物化到 ES。
  * 本类位于应用层，负责把领域事件与基础设施投影构件组装编排；
- * 纯技术实现（投影映射、ES 读写）仍留在基础设施层。
+ * 纯技术实现（投影映射、ES 读写）由「源」在基础设施层承载。
  *
  * @author wizard-lee
  */
@@ -23,17 +21,20 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 
     private final OrderRepository orderRepository;
 
-    private final ProjectorRegistry projectorRegistry;
+    private final AggregateProjectorSupport projectorSupport;
+
+    private final ProjectionSource source;
 
     public OrderDataSyncEsProjectionHandle(
             OrderRepository orderRepository,
-            ProjectorRegistry projectorRegistry) {
+            AggregateProjectorSupport projectorSupport) {
         this.orderRepository = orderRepository;
-        this.projectorRegistry = projectorRegistry;
+        this.projectorSupport = projectorSupport;
+        this.source = ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId());
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，经投影器生成视图后物化到 ES，写入版本取自事件携带的副本版本。
+     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 ES，版本取自事件携带的副本版本。
      *
      * @param event 订单数据同步事件
      */
@@ -44,20 +45,6 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
         if (order == null) {
             return;
         }
-        IAggregateProjector<Order, OrderEsProjection> projector =
-                projectorRegistry.resolveProjector(Order.class, OrderEsProjection.class);
-        if (projector == null) {
-            return;
-        }
-        OrderEsProjection projection = projector.project(order);
-        if (projection == null) {
-            return;
-        }
-        IProjectionMaterializer<OrderEsProjection> materializer =
-                projectorRegistry.resolveMaterializer(OrderEsProjection.class, OrderEsTargets.TARGET_ES_ORDERS);
-        if (materializer == null) {
-            return;
-        }
-        materializer.materialize(projection, event.getVersion());
+        projectorSupport.sync(order, source);
     }
 }

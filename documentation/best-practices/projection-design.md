@@ -23,7 +23,7 @@
 | 角色 | 方向 | 职责 | 不负责 |
 | --- | --- | --- | --- |
 | 投影器 `Projector` | 聚合 → 投影 | 字段取值 / 裁剪 / 派生（含按需的单位换算） | 存储读写、版本控制 |
-| 物化器 `Materializer` | 投影 → 存储 | 写入、删除、副本版本元数据 | 字段派生、条件翻译 |
+| 源 `Source` | 投影 → 存储（写）、存储 → 投影（读） | 写读一体：materialize / purge、绑定检索器与裁剪器、external 版本控制 | 字段派生（由投影器负责）、条件翻译（由检索器负责） |
 | 检索器 `Searcher` | 存储 → 索引级全量投影 | 条件翻译、查询、分页 / 滚动、游标 | 字段裁剪、层级重排、派生 |
 | 裁剪器 `Reducer` | 索引级全量投影 → 业务子投影 | 字段裁剪 / 层级重排 / 派生（Java 内存） | 存储访问、条件翻译、分页 |
 | 门面 `IOrderQuery` | 读侧入口 | 选路 + 查全量 + 裁剪 三跳编排 | 直接持有存储客户端 |
@@ -45,22 +45,22 @@ domain/order/projection/                       领域：读模型视图 + 条件
   │   └── OrderPageQuery                       extends PageQueryCriteria
   ├── reducer/                                 领域：裁剪专属契约（窄化框架接口）
   │   └── IOrderSummaryReducer                 extends IProjectionReducer<OrderEsProjection, OrderSummaryProjection>
-  └── materializer/                            领域：物化/版本/补偿 专属契约（窄化框架接口）
-      ├── IOrderProjectionMaterializer         extends IProjectionMaterializer<OrderEsProjection>
+  └── materializer/                            领域：版本/补偿 专属契约（窄化框架接口）
       ├── IOrderReadModelVersionResolver       extends IReadModelVersionResolver<Long>
       └── IOrderReadModelResynchronizer        extends IReadModelResynchronizer<Long>
 
 infrastructure/order/projection/               基础设施：聚合 → 视图 纯映射 + 读侧检索
   ├── OrderEsProjector                         extends AbstractAggregateProjector<Order, OrderEsProjection>
-  ├── OrderQuery                               implements IOrderQuery（选路 + 查全量 + 裁剪 三跳）
+  ├── OrderQuery                               extends AbstractProjectionQuery（基类承载选源 + 查全量 + 裁剪 三跳）
   ├── OrderByIdSearcher                        implements IProjectionByIdSearcher<OrderEsProjection>
   ├── OrderOneSearcher                         implements IProjectionSearcher<OrderOneQuery, OrderEsProjection>
   ├── OrderListSearcher                        implements IProjectionSearcher<OrderListQuery, OrderEsProjection>
   └── OrderPageSearcher                        implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection>
 infrastructure/order/projection/reducer/       基础设施：索引级全量投影 → 业务子投影（Java 内存）
   └── OrderSummaryReducer                      implements IOrderSummaryReducer（领域契约）
-infrastructure/order/projection/materializer/  基础设施：异构存储写入 + 对账
-  ├── OrderEsMaterializer                      implements IOrderProjectionMaterializer
+infrastructure/order/projection/materializer/  基础设施：写读一体的源（继承框架基类）
+  ├── OrderEsSource                           extends AbstractProjectionSource<Order, OrderEsProjection>
+  ├── OrderRedisSource                        extends AbstractProjectionSource<Order, OrderCacheProjection>
   ├── OrderEsVersionResolver                   implements IOrderReadModelVersionResolver
   └── OrderEsResynchronizer                    implements IOrderReadModelResynchronizer
 infrastructure/order/config/                   Spring 装配（登记 registry、产出 Bean）
@@ -80,17 +80,16 @@ application/order/subscriber/                  事件订阅绑定
 public interface IOrderProjection extends IAggregateProjection { }
 public interface IOrderQuery extends IAggregateQuery<
         Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> { }
-public interface IOrderProjectionMaterializer extends IProjectionMaterializer<OrderEsProjection> { }
 
-// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储
+// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（继承框架基类，不再定义领域专属 materializer 接口）
 public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> { }
-public class OrderEsMaterializer implements IOrderProjectionMaterializer { }
+public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjection> { }
 
 // ❌ 反模式：基础设施直接实现框架通用接口，领域层无专属契约、替换存储需改基础设施与框架的直接契约
-public class OrderEsMaterializer implements IProjectionMaterializer<OrderEsProjection> { }
+// （旧版曾定义 IOrderProjectionMaterializer extends IProjectionMaterializer<...>，现源已直接继承框架基类，无需领域层 materializer 接口）
 ```
 
-> **命名约定**：接口一律 `I` 开头；领域专属接口以 `Order` 前缀区分框架通用接口（`IOrderProjection` / `IOrderQuery` 等，不含存储标记）；实现类不用 `Impl` 后缀，用 `OrderEs*` 标明聚合与存储（`OrderEsProjector` / `OrderEsMaterializer` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；对账目标常量集中在 `OrderEsTargets`。
+> **命名约定**：接口一律 `I` 开头；领域专属接口以 `Order` 前缀区分框架通用接口（`IOrderProjection` / `IOrderQuery` 等，不含存储标记）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；对账目标常量集中在 `OrderEsTargets` / `OrderCacheTargets`。
 >
 > ⚠️ **索引级全量投影的命名要体现「存储文档形状」而非「业务用途」**：它对齐的是物理索引 Mapping，本质上是存储契约在 Java 侧的镜像。`OrderEsProjection`（索引 `order_index` 的全量文档）是好名字；`OrderProjection` 这类不带存储标记的名字会与业务投影混淆，无法区分「哪个是索引级、哪个是裁剪产物」。
 
@@ -168,7 +167,7 @@ public void handleEvent(OrderDataSyncEvent event) {
     if (order == null) {
         return;
     }
-    // resolveProjector → project → resolveMaterializer → materialize(projection, event.getVersion())
+    // aggregateProjectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS)  // 内部 resolveProjector → project → 源.materialize(projection, event.getVersion())
 }
 
 // ❌ 反模式：事件携带整份业务快照，延迟处理后会用旧数据覆盖新副本
@@ -190,9 +189,6 @@ public void handleEvent(OrderDataSyncEvent event) {
 // domain/order/projection/IOrderProjection.java
 public interface IOrderProjection extends IAggregateProjection { }
 
-// domain/order/projection/materializer/IOrderProjectionMaterializer.java
-public interface IOrderProjectionMaterializer extends IProjectionMaterializer<OrderEsProjection> { }
-
 // domain/order/projection/materializer/IOrderReadModelVersionResolver.java
 public interface IOrderReadModelVersionResolver extends IReadModelVersionResolver<Long> { }
 
@@ -200,7 +196,7 @@ public interface IOrderReadModelVersionResolver extends IReadModelVersionResolve
 public interface IOrderReadModelResynchronizer extends IReadModelResynchronizer<Long> { }
 ```
 
-> **为什么**：领域层清晰声明聚合读模型的物化 / 版本 / 补偿契约边界；基础设施只依赖领域专属接口，框架升级或存储替换时影响面收敛到基础设施层。
+> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不再定义领域专属 materializer 接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面收敛到基础设施层。
 
 ### 4.2 投影 DTO：`OrderEsProjection`
 
@@ -306,57 +302,71 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
 
 > ⚠️ **`project` 不含任何存储细节**：存储读写只存在于物化器与检索器；投影器不知道「写入哪个索引、如何控制版本、如何检索」。
 
-### 4.4 物化器：`OrderEsMaterializer`
+### 4.4 源：`OrderEsSource`
 
-实现 `IOrderProjectionMaterializer`，注入既有存储客户端（ES 场景为 `ElasticsearchClient`）：
+写读一体收敛到**源**（`AbstractProjectionSource` 子类），注入投影器、检索器、裁剪器与存储客户端（ES 场景为 `ElasticsearchClient`）。`super` 第 5 参注入了 byId 检索器，其余检索器与裁剪器以 `bind` 挂载：
 
 ```java
 @Component
-public class OrderEsMaterializer implements IOrderProjectionMaterializer {
+public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjection> {
 
     private final ElasticsearchClient elasticsearchClient;
 
-    public OrderEsMaterializer(ElasticsearchClient elasticsearchClient) {
+    public OrderEsSource(
+            OrderEsProjector projector,
+            OrderByIdSearcher byIdSearcher,
+            OrderOneSearcher oneSearcher,
+            OrderListSearcher listSearcher,
+            OrderPageSearcher pageSearcher,
+            OrderSummaryReducer summaryReducer,
+            ElasticsearchClient elasticsearchClient) {
+        super(OrderEsTargets.TARGET_ES_ORDERS, Order.class, OrderEsProjection.class, projector, byIdSearcher);
+        bind(oneSearcher);
+        bind(listSearcher);
+        bind(pageSearcher);
+        bind(summaryReducer);
         this.elasticsearchClient = elasticsearchClient;
     }
 
     @Override
-    public Class<OrderEsProjection> projectionType() {
-        return OrderEsProjection.class;
-    }
-
-    @Override
-    public ReconciliationTarget target() {
-        return OrderEsTargets.TARGET_ES_ORDERS;
-    }
-
-    @Override
-    @SneakyThrows
     public void materialize(OrderEsProjection projection, long version) {
-        elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
-                .id(projection.getOrderId().toString())
-                .versionType(VersionType.External)
-                .version(version)
-                .document(projection));
+        try {
+            elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
+                    .id(projection.getOrderId().toString())
+                    .versionType(VersionType.External)
+                    .version(version)
+                    .document(projection));
+        } catch (ResponseException ex) {
+            // external 版本不前进（迟到/重复事件）时 ES 返回 409，按乐观锁语义静默丢弃
+            log.debug("订单 ES 投影物化被版本冲突忽略，orderId={}, version={}", projection.getOrderId(), version);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Override
-    @SneakyThrows
     public void purge(Object aggregateId) {
-        elasticsearchClient.delete(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
-                .id(aggregateId.toString()));
+        try {
+            elasticsearchClient.delete(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
+                    .id(aggregateId.toString()));
+        } catch (ResponseException ignored) {
+            // 文档可能不存在，清理时忽略删除异常
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }
 ```
 
 编写规则：
 
-- `projectionType()` 返回 `OrderEsProjection.class`；`target()` 返回 `OrderEsTargets.TARGET_ES_ORDERS`。
-- **版本控制用 External 版本**：写模型版本 V 落到副本版本元数据（ES 为 `_version`），副本落后时存储拒绝写入并抛版本冲突异常。
-- **异常不吞掉**：用 `@SneakyThrows` 上抛 checked 异常，版本冲突交给对账 `resync` 兜底。
-- `purge` 删除文档，文档不存在时静默成功。
+- `super(OrderEsTargets.TARGET_ES_ORDERS, Order.class, OrderEsProjection.class, projector, byIdSearcher)`：源标识即 `ProjectionSource` 串（同时也是读寻址与对账 target 的同名身份）；byId 检索器经构造器第 5 参注入（查询门面 `queryById` 需按源取 byId searcher）。
+- 其他检索器与裁剪器以 `bind(...)` 挂载，源持有它们的引用。
+- **版本控制用 External 版本**：写模型版本 V 落到副本版本元数据（ES 为 `_version`），副本落后时存储拒绝写入并抛 409 版本冲突。
+- **区分失败**：409 版本冲突（迟到/重复事件）静默丢弃，仅 `log.debug`；真正的写失败（连接/映射错误）以 `IOException` 上抛，交给事件重试 / 对账 resync 兜底。
+- `purge` 删除文档，文档不存在时静默忽略（清理幂等）。
 
-> ⚠️ **`target()` 是 `ReconciliationTarget` 的唯一权威来源**：Registry 按 `materializer.target()` 登记；业务方不要自行 `new ReconciliationTarget`，应引用 `OrderEsTargets.TARGET_ES_ORDERS`，否则 Registry 中 key 不一致导致寻址失败。
+> ⚠️ **源标识 `source()` 即 `ReconciliationTarget.storeId()` 的同一身份**：写侧 `AggregateProjectorSupport.sync(aggregate, source)` 与对账 resync 共享同源标识；业务方应引用 `OrderEsTargets.TARGET_ES_ORDERS`，不要自行 `new ProjectionSource("es:orders")`，否则 key 不一致导致寻址失败。
 
 ### 4.5 目标常量：`OrderEsTargets`
 
@@ -459,145 +469,45 @@ public interface IOrderQuery extends IAggregateQuery<
 
 ### 4.8 读侧门面实现：`OrderQuery`
 
-基础设施层实现 `IOrderQuery`，编排**三跳取数**：选路 → 查全量 → 内存裁剪。不持有存储客户端与字段映射：
+基础设施层继承 `AbstractProjectionQuery`，**三跳取数（选源 → 查全量 → 裁剪）由基类统一承载**，业务门面只声明聚合类型、投影顶层接口与三个条件族类型，不持有存储客户端、不写分流样板：
 
 ```java
 @Service
-public class OrderQuery implements IOrderQuery {
-
-    private final ProjectorRegistry registry;
+public class OrderQuery extends AbstractProjectionQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> {
 
     public OrderQuery(ProjectorRegistry registry) {
-        this.registry = registry;
-    }
-
-    @Override
-    public <X extends IOrderProjection> X queryById(Long id, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionByIdSearcher<IAggregateProjection> searcher = registry.getByIdSearcher(source);
-        return reduceOne(searcher.getById(id, source), sourceType, projectionType);
-    }
-
-    @Override
-    public <X extends IOrderProjection> List<X> queryByIds(List<Long> ids, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionByIdSearcher<IAggregateProjection> searcher = registry.getByIdSearcher(source);
-        return reduceAll(searcher.getByIds(List.copyOf(ids), source), sourceType, projectionType);
-    }
-
-    @Override
-    public <X extends IOrderProjection> List<X> queryList(OrderListQuery query, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionSearcher<OrderListQuery, IAggregateProjection> searcher =
-                registry.getSearcher(OrderListQuery.class, source);
-        return reduceAll(searcher.search(query, source), sourceType, projectionType);
-    }
-
-    @Override
-    public <X extends IOrderProjection> X queryOne(OrderOneQuery query, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionSearcher<OrderOneQuery, IAggregateProjection> searcher =
-                registry.getSearcher(OrderOneQuery.class, source);
-        return searcher.search(query, source).stream()
-                .findFirst()
-                .map(full -> reduceOne(full, sourceType, projectionType))
-                .orElse(null);
-    }
-
-    @Override
-    public <X extends IOrderProjection> PageResult<X> queryPage(
-            OrderPageQuery query, PageRequest pageRequest, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionPagedSearcher<OrderPageQuery, IAggregateProjection> searcher =
-                registry.getPagedSearcher(OrderPageQuery.class, source);
-        PageResult<IAggregateProjection> fullPage = searcher.searchPage(query, pageRequest, source);
-        if (sourceType == projectionType) {
-            return castPage(fullPage);           // 短路：直接复用检索结果，避免重建拷贝
-        }
-        List<X> data = reduceAll(fullPage.data(), sourceType, projectionType);
-        return PageResult.of(data, fullPage.totalCount(), pageRequest);
-    }
-
-    @Override
-    public <X extends IOrderProjection> ScrollResult<X> queryScroll(
-            OrderPageQuery query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
-        Class<?> sourceType = resolveSourceType(projectionType);
-        Class<IAggregateProjection> source = asProjectionClass(sourceType);
-        IProjectionPagedSearcher<OrderPageQuery, IAggregateProjection> searcher =
-                registry.getPagedSearcher(OrderPageQuery.class, source);
-        ScrollResult<IAggregateProjection> fullScroll =
-                searcher.searchScroll(query, cursor, pageSize, source);
-        if (sourceType == projectionType) {
-            return castScroll(fullScroll);
-        }
-        return ScrollResult.of(
-                reduceAll(fullScroll.data(), sourceType, projectionType),
-                fullScroll.nextCursor());
-    }
-
-    /** 第 0 跳：选路——目标即索引级全量投影则短路，否则反查其唯一来源。 */
-    private Class<?> resolveSourceType(Class<?> projectionType) {
-        if (registry.isSourceProjection(projectionType)) {
-            return projectionType;
-        }
-        Class<?> sourceType = registry.sourceTypeOf(projectionType);
-        if (sourceType == null) {
-            throw new ProjectionReducerNotFoundException(
-                    "未找到子投影 " + projectionType.getName() + " 对应的裁剪器，未登记其来源投影");
-        }
-        return sourceType;
-    }
-
-    /** 第 2 跳：逐条裁剪；目标即全量投影时跳过。 */
-    @SuppressWarnings("unchecked")
-    private <X extends IOrderProjection> X reduceOne(
-            IAggregateProjection full, Class<?> sourceType, Class<X> projectionType) {
-        if (full == null) {
-            return null;
-        }
-        if (sourceType == projectionType) {
-            return (X) full;
-        }
-        IProjectionReducer<IAggregateProjection, X> reducer =
-                (IProjectionReducer<IAggregateProjection, X>) registry.getReducer(
-                        asProjectionClass(sourceType), projectionType);
-        return reducer.reduce(full);
-    }
-
-    /** 批量裁剪；短路时直接复用原集合，避免额外拷贝。 */
-    @SuppressWarnings("unchecked")
-    private <X extends IOrderProjection> List<X> reduceAll(
-            List<? extends IAggregateProjection> fullList, Class<?> sourceType, Class<X> projectionType) {
-        if (sourceType == projectionType) {
-            return (List<X>) fullList;
-        }
-        return fullList.stream()
-                .map(full -> reduceOne(full, sourceType, projectionType))
-                .toList();
+        super(registry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
     }
 }
 ```
 
+基类从 registry 取全量投影、按源定位检索器与裁剪器，自动完成三跳；调用方通过返回的源视图指定数据源：
+
+```java
+// 默认源（由 registerDefaultSource 决定）按主键取一个概要投影
+OrderSummary summary = orderQuery.queryById(orderId, OrderSummary.class);
+
+// 指定单源：直接打 Redis 源（仅支持 byId，调 queryList 抛 ProjectionSearcherNotFoundException）
+OrderCacheProjection cache = orderQuery.source(OrderCacheTargets.TARGET_REDIS_ORDERS)
+        .queryById(orderId, OrderCacheProjection.class);
+
+// 回源链：先 Redis 未命中则推进 ES
+OrderProjection full = orderQuery.fallbackChain(List.of(OrderCacheTargets.TARGET_REDIS_ORDERS, OrderEsTargets.TARGET_ES_ORDERS))
+        .queryById(orderId, OrderEsProjection.class);
+```
+
 编写规则：
 
-- **门面不含任何存储逻辑**：不注入 `ElasticsearchClient`，不拼查询 DSL。
-- **条件族类型用族父类传入**：`getSearcher(OrderListQuery.class, ...)` 传的是**族 sealed 接口**，不是族内某个 `record`——检索器按族登记、族内自行分发。
-- **投影类型传的是索引级全量投影**：第 1 跳取数用反查出的 `sourceType`，不是调用方传入的 `projectionType`。
-- **`queryOne` 由门面取首条**：检索器返回列表，门面 `.stream().findFirst().orElse(null)` 收敛为单条。
-- **`queryByIds` 做防御性拷贝**：`List.copyOf(ids)`，避免调用方后续修改入参列表影响检索。
-- **`queryPage` 与 `queryScroll` 共用同一个 `getPagedSearcher`**：二者同族同检索器，只是分页装配与游标装配不同。
-- **短路路径直接复用检索结果**：目标即索引级全量投影时不重建 `PageResult` / `ScrollResult`、不重新拷贝列表，既省开销也保持对象同一性。
+- **门面不含任何存储逻辑**：不注入 `ElasticsearchClient`，不拼查询 DSL，不手写 `reduceOne` / `resolveSourceType`。
+- **构造器 `super(registry, oneType, listType, pageType)`**：三个条件族类型对应 `IQueryOne` / `IQueryList` / `IQueryPage`；`queryById` / `queryByIds` 复用源的 byId searcher（构造器第 5 参注入源），`queryScroll` 复用 page 族检索器。
+- **条件族类型用族父类传入**：`OrderListQuery.class` 传的是**族 sealed 接口**，检索器按族登记、族内自行分发。
+- **`source(X)` 指定单源**：若该源不挂对应条件族检索器，抛 `ProjectionSearcherNotFoundException`（信息含该源支持的条件族）。
+- **`fallbackChain(List)` 回源链**：前源未命中（byId 返回 null / list 返回空）推进下一源；分页 / 滚动不回源，取链上第一个支持该条件族的原。
+- **短路路径由基类处理**：目标即索引级全量投影时不重建 `PageResult` / `ScrollResult`、不重新拷贝列表，既省开销也保持对象同一性。
 
 > ⚠️ **重要约束：`totalCount` 与 `nextCursor` 必须取自裁剪前的全量结果**。分页 / 滚动在检索器侧完成，裁剪只做逐条 `.map`、不改变集合规模。若误在裁剪后重新计算总数或游标，会得到错误的页边界与游标。
 
-> ⚠️ **泛型收敛提示**：`Class<?>` 无法直接传给需要 `Class<P>` 的方法（每次使用产生新的 wildcard capture）。门面内用 `asProjectionClass` 统一转为 `Class<IAggregateProjection>`——运行时仍是同一个 `Class` 实例，不影响精确寻址。
-
-> ⚠️ **重要约束：`getSearcher` / `getPagedSearcher` / `getByIdSearcher` 未登记时抛异常，不是返回 `null`**。这三个方法与 `resolveProjector` / `resolveMaterializer`（未登记返回 `null`）行为不同：检索器缺失属于「接线/配置缺失」，必须暴露。因此装配时必须登记全部检索器，否则首次查询即抛 `ProjectionSearcherNotFoundException`。
+> ⚠️ **重要约束：`getSearcher` / `getPagedSearcher` / `getByIdSearcher` 未登记时抛异常，不是返回 `null`**。这与 `resolveProjector` / `resolveSource`（未登记返回 `null`）行为不同：检索器缺失属于「接线/配置缺失」，必须暴露。因此装配时必须 `bind` 全部检索器，否则首次查询即抛 `ProjectionSearcherNotFoundException`。
 
 ### 4.9 检索器：四个 ES Searcher
 
@@ -882,7 +792,7 @@ public class OrderSummaryReducer implements IOrderSummaryReducer {
 
 编写规则：
 
-- **领域层定义专属契约，基础设施层实现它**：`IOrderSummaryReducer extends IProjectionReducer<...>`，`OrderSummaryReducer implements IOrderSummaryReducer`。与 `IOrderProjectionMaterializer` / `OrderEsMaterializer` 保持同构，装配参数也声明为领域接口类型。
+- **领域层定义专属契约，基础设施层实现它**：`IOrderSummaryReducer extends IProjectionReducer<...>`，`OrderSummaryReducer implements IOrderSummaryReducer`。与 `IOrderReadModelVersionResolver` / `IOrderReadModelResynchronizer` 保持同构（领域层定契约、基础设施层实现），装配参数也声明为领域接口类型。
 - **`reduce` 是纯函数**：无状态、无存储访问、无远程调用，可独立单测。
 - **源为 `null` 返回 `null`**：由门面过滤，不在裁剪器内抛异常。
 - **不改变集合规模**：一次只转换一条；分页 / 滚动在检索器侧完成。
@@ -909,29 +819,29 @@ public class OrderProjectionConfig {
     }
 
     @Bean
-    public OrderEsMaterializer orderEsMaterializer(ElasticsearchClient elasticsearchClient) {
-        return new OrderEsMaterializer(elasticsearchClient);
-    }
-
-    @Bean
-    public ProjectorRegistry projectorRegistry(
+    public OrderEsSource orderEsSource(
             OrderEsProjector orderEsProjector,
-            OrderEsMaterializer orderEsMaterializer,
             OrderByIdSearcher orderByIdSearcher,
             OrderOneSearcher orderOneSearcher,
             OrderListSearcher orderListSearcher,
-            OrderPageSearcher orderPageSearcher) {
+            OrderPageSearcher orderPageSearcher,
+            OrderSummaryReducer orderSummaryReducer,
+            ElasticsearchClient elasticsearchClient) {
+        return new OrderEsSource(orderEsProjector, orderByIdSearcher, orderOneSearcher,
+                orderListSearcher, orderPageSearcher, orderSummaryReducer, elasticsearchClient);
+    }
+
+    @Bean
+    public ProjectorRegistry projectorRegistry(OrderEsSource orderEsSource, OrderRedisSource orderRedisSource) {
         ProjectorRegistry registry = new ProjectorRegistry();
 
-        // 写侧：projector 按 (聚合类型, 投影类型)、materializer 按 (投影类型, target)
-        registry.register(Order.class, orderEsProjector);
-        registry.register(orderEsMaterializer);
+        // 写侧：projector 按 (聚合类型, 投影类型)；源按源标识登记（源内已 bind 检索器 / 裁剪器）
+        registry.register(Order.class, orderEsSource.projector());
+        registry.register(orderEsSource);
+        registry.register(orderRedisSource);
 
-        // 读侧：按主键一维键、按条件与分页二维键
-        registry.register(orderByIdSearcher);
-        registry.register(orderOneSearcher);
-        registry.register(orderListSearcher);
-        registry.register(orderPageSearcher);
+        // 默认源：概要投影默认落在 ES 源（读默认源也走 ES）
+        registry.registerDefaultSource(OrderSummaryProjection.class, orderEsSource.source());
 
         return registry;
     }
@@ -955,46 +865,48 @@ public class OrderProjectionConfig {
 }
 ```
 
-`ProjectorRegistry` 登记键对照（写满 6 类构件）：
+`ProjectorRegistry` 登记键对照（源模型）：
 
 | 构件 | 登记键 | 登记方法 | 解析方法 | 未登记 |
 | --- | --- | --- | --- | --- |
 | `IAggregateProjector` | `(聚合类型, 投影类型)` | `register(Class<T>, projector)` | `resolveProjector` | 返回 `null` |
-| `IProjectionMaterializer` | `(投影类型, target)` | `register(materializer)` | `resolveMaterializer` | 返回 `null` |
-| `IProjectionByIdSearcher` | `(索引级投影类型)` | `register(idSearcher)` | `getByIdSearcher` | 抛异常 |
-| `IProjectionSearcher` | `(条件类型, 索引级投影类型)` | `register(searcher)` | `getSearcher` | 抛异常 |
-| `IProjectionPagedSearcher` | `(条件类型, 索引级投影类型)` | `register(pagedSearcher)` | `getPagedSearcher` | 抛异常 |
-| `IProjectionReducer` | `(索引级投影类型, 子投影类型)` | `register(reducer)` | `getReducer` | 抛异常 |
+| `AbstractProjectionSource` | `(源标识)` | `register(source)` | `resolveSource` / `sourceByProjection` | 返回 `null`（多源共存） |
+| `IProjectionByIdSearcher` | `(索引级投影类型)` | 源构造器第 5 参 / `register(idSearcher)` | `getByIdSearcher` | 抛异常 |
+| `IProjectionSearcher` | `(条件类型, 索引级投影类型)` | 源内 `bind(searcher)` / `register(searcher)` | `getSearcher` | 抛异常 |
+| `IProjectionPagedSearcher` | `(条件类型, 索引级投影类型)` | 源内 `bind(pagedSearcher)` / `register(pagedSearcher)` | `getPagedSearcher` | 抛异常 |
+| `IProjectionReducer` | `(索引级投影类型, 子投影类型)` | 源内 `bind(reducer)` / `register(reducer)` | `getReducer` | 抛异常 |
 
 另有两类辅助登记，不按「构件」寻址：
 
 | 调用 | 作用 | 未做时的影响 |
 | --- | --- | --- |
-| `markSourceProjection(OrderEsProjection.class)` | 标记为索引级全量投影 | 门面无法短路，直查全量投影时抛 `ProjectionReducerNotFoundException` |
-| `register(orderSummaryReducer)` | 建立子投影 → 来源的反查 | 查概要投影时无法选路，抛 `ProjectionReducerNotFoundException` |
+| `register(源实例)` | 登记索引级全量投影源（写读一体，替代旧 `markSourceProjection`） | 门面无法选源，直查全量投影时抛 `ProjectionSourceNotFoundException` |
+| `registerDefaultSource(子投影类, 源)` | 建立子投影 → 默认源的绑定 | 查该子投影未指定源且无歧义判断时无法选默认源 |
 
 装配方法的裁剪器参数声明为**领域契约** `IOrderSummaryReducer`（而非实现类 `OrderSummaryReducer`），使配置层依赖领域层而非基础设施实现——替换实现时无需改动装配代码。
 
-> ⚠️ **重要约束：`ProjectorRegistry` 是读写两侧的唯一同册**。同一个 `ProjectorRegistry` Bean 同时登记物化器（写侧）与检索器、裁剪器（读侧），不要拆成多个 registry——「写入哪个索引」与「从哪个索引读回」必须同源于 `OrderEsTargets`。
+> ⚠️ **重要约束：`ProjectorRegistry` 是读写两侧的唯一同册**。同一个 `ProjectorRegistry` Bean 同时登记源（写读一体）与裁剪器（读侧），不要拆成多个 registry——「写入哪个索引」与「从哪个索引读回」必须同源于 `OrderEsTargets` / `OrderCacheTargets`。
 
-> ⚠️ **重要约束：装配三件事缺一不可**——登记检索器、`markSourceProjection`、`register(reducer)`。只做前两件，查子投影时选路失败；只做前一件，连直查全量投影也会失败。这三类缺失都在**首次查询**才暴露，建议在配置类里就近写注释或加启动自检。
+> ⚠️ **重要约束：装配核心是登记源 + 默认源**。检索器与裁剪器在源构造器内 `bind`（或经构造器参数注入），无需在 registry 上逐个登记。漏登记检索器会在首次查询抛 `ProjectionSearcherNotFoundException`、漏登记 reducer 会让子投影选路失败抛 `ProjectionReducerNotFoundException`——建议在配置类里就近写注释或加启动自检。
+
+> ⚠️ **同一全量投影可落到多个源**：`OrderEsProjection` 同时进 ES 源与 Redis 源是允许的（`sourceByProjection` 返回集合）；但两个源**不能共用同一 `source()` 串**，重复登记抛 `ProjectionSourceConflictException`。
 
 ### 4.12 事件订阅：应用层编排 + 绑定
 
-事件路径**绕过 `AggregateProjectorSupport.sync`**（其版本口径为 `getOldVersion()`），由应用层实现经 `ProjectorRegistry` 直连编排，以使用事件携带的 `event.getVersion()`（= `getNewVersion()`）：
+事件路径经 `AggregateProjectorSupport.sync(aggregate, source)` 桥接——门面内部 project 后调源 `materialize`，以传入的 `event.getVersion()`（= `getNewVersion()`）作为 external 版本写入：
 
 ```java
 @Component
 public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjectionHandle {
 
     private final OrderRepository orderRepository;
-    private final ProjectorRegistry projectorRegistry;
+    private final AggregateProjectorSupport projectorSupport;
 
     public OrderDataSyncEsProjectionHandle(
             OrderRepository orderRepository,
-            ProjectorRegistry projectorRegistry) {
+            AggregateProjectorSupport projectorSupport) {
         this.orderRepository = orderRepository;
-        this.projectorRegistry = projectorRegistry;
+        this.projectorSupport = projectorSupport;
     }
 
     @Override
@@ -1003,26 +915,12 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
         if (order == null) {
             return;
         }
-        IAggregateProjector<Order, OrderEsProjection> projector =
-                projectorRegistry.resolveProjector(Order.class, OrderEsProjection.class);
-        if (projector == null) {
-            return;
-        }
-        OrderEsProjection projection = projector.project(order);
-        if (projection == null) {
-            return;
-        }
-        IProjectionMaterializer<OrderEsProjection> materializer =
-                projectorRegistry.resolveMaterializer(OrderEsProjection.class, OrderEsTargets.TARGET_ES_ORDERS);
-        if (materializer == null) {
-            return;
-        }
-        materializer.materialize(projection, event.getVersion());
+        projectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS);
     }
 }
 ```
 
-领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与基础设施构件**组装编排**。
+领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与 `AggregateProjectorSupport` 门面**组装编排**。`sync` 内部按源标识取 `AbstractProjectionSource` 实例，缺失或投影为 `null` 时静默跳过。
 
 订阅绑定在 `OrderEventSubscriberRegistry`（非 Spring 事件总线环境必须显式注册）：
 
@@ -1038,7 +936,7 @@ public class OrderEventSubscriberRegistry {
 
 ## 5. 三条路径：写入、读取、对账
 
-投影副本经三条路径维护，**转换逻辑共用** `ProjectorRegistry`。
+投影副本经三条路径维护，**转换逻辑共用** `ProjectorRegistry` 与源（`AbstractProjectionSource`）。
 
 ### 5.1 事件物化（写路径）
 
@@ -1048,23 +946,25 @@ Order 业务方法 → markModified() / markCreated()
        └─ IEventRegistry 订阅("es", OrderDataSyncEvent.class, OrderDataSyncEsProjectionHandle)
             └─ handleEvent(event)
                  ├─ orderRepository.findById(id)
-                 ├─ projectorRegistry.resolveProjector(Order.class, OrderEsProjection.class) → project
-                 ├─ projectorRegistry.resolveMaterializer(OrderEsProjection.class, TARGET_ES_ORDERS)
-                 └─ materialize(projection, event.getVersion())   // version = getNewVersion()
+                 └─ aggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)
+                      ├─ registry.resolveProjector(Order.class, OrderEsProjection.class) → project
+                      └─ 源 OrderEsSource.materialize(projection, event.getVersion())   // version = getNewVersion()
 ```
+
+> `sync` 内部按 `TARGET_ES_ORDERS` 定位 `OrderEsSource` 实例，project 后调其 `materialize`；缺失或投影为 `null` 静默跳过。避免事件处理器内手写 project→materialize 双份逻辑。
 
 ### 5.2 读侧检索（读路径）
 
 ```text
-调用方 → IOrderQuery.queryPage(OrderPageQuery.ByConditions, PageRequest.of(1, 20), OrderSummaryProjection.class)
-  └─ OrderQuery（门面，三跳编排）
-       ├─ 第 0 跳 选路：sourceTypeOf(OrderSummaryProjection) → OrderEsProjection
-       ├─ 第 1 跳 查全量：getPagedSearcher(OrderPageQuery.class, OrderEsProjection.class)
+调用方 → orderQuery.queryPage(OrderPageQuery.ByConditions, PageRequest.of(1, 20), OrderSummaryProjection.class)
+  └─ AbstractProjectionQuery（三跳编排，第一维为源）
+       ├─ 第 0 跳 选源：默认源（registerDefaultSource 决定）= OrderEsSource；或显式 source(X) / fallbackChain
+       ├─ 第 1 跳 查全量：源上 getPagedSearcher(OrderPageQuery.class, OrderEsProjection.class)
        │    └─ OrderPageSearcher.searchPage(...)
        │         ├─ buildConditionQuery(condition)   // Optional 字段 → bool.must
        │         ├─ ES search（from = pageRequest.offset(), size = pageRequest.pageSize(), trackTotalHits）
        │         └─ PageResult.of(fullData, total, pageRequest)
-       └─ 第 2 跳 裁剪：getReducer(OrderEsProjection.class, OrderSummaryProjection.class)
+       └─ 第 2 跳 裁剪：源上 getReducer(OrderEsProjection.class, OrderSummaryProjection.class)
             └─ OrderSummaryReducer.reduce(full) 逐条转换
                  └─ PageResult.of(summaryData, total /* 取自裁剪前 */, pageRequest)
 ```
@@ -1082,9 +982,9 @@ ReconciliationManager.reconcile(Order.class, id)
   ├─ OrderEsVersionResolver.resolve(id)     读副本版本 → V'（不存在/未追踪返回 -1）
   ├─ IRepository.currentVersion(id)         → V
   ├─ Reconciliation.of(V', V)               判定 CONSISTENT / STALE / ORPHAN / UNTRACKED
-  └─ OrderEsResynchronizer
-       ├─ resync(id)（STALE）：findById → project → materialize(projection, getOldVersion())
-       └─ purge(id)（ORPHAN）：materializer.purge(id)
+  └─ OrderEsResynchronizer（implements IOrderReadModelResynchronizer）
+       ├─ resync(id)（STALE）：findById → aggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)
+       └─ purge(id)（ORPHAN）：aggregateProjectorSupport.purge(TARGET_ES_ORDERS, id)
 ```
 
 ### 5.4 对比
@@ -1094,10 +994,10 @@ ReconciliationManager.reconcile(Order.class, id)
 | 触发 | 领域事件（正常更新） | 调用方主动查询 | 调度 / 延迟消息 / 手动 |
 | 方向 | 聚合 → 投影 → 存储 | 存储 → 投影 | 聚合 → 投影 → 存储 / 删除 |
 | 版本来源 | `event.getVersion()`（= `getNewVersion()`） | 不参与版本 | `order.getOldVersion()`（与 `currentVersion` 一致） |
-| 关键构件 | Projector + Materializer | Searcher | VersionResolver + Resynchronizer |
+| 关键构件 | Projector + Source（materialize） | Searcher + Reducer（挂源上） | VersionResolver + Resynchronizer（桥接 sync/purge） |
 | 目的 | 更新副本 | 取回副本 | 副本落后 / 残留时重建或清理 |
 
-> ⚠️ **`resync` 必须从写模型当前快照重建**（`findById` → `project` → `materialize`），而非重放那条被漏消费的事件——丢失的事件已不在事件流里，重放单条事件无法补齐副本。
+> ⚠️ **`resync` 必须从写模型当前快照重建**（`findById` → `sync`），而非重放那条被漏消费的事件——丢失的事件已不在事件流里，重放单条事件无法补齐副本。
 
 ## 6. 分页与滚动值对象
 
@@ -1162,14 +1062,15 @@ Optional.ofNullable(first.nextCursor())
 | --- | --- | --- |
 | 领域包引入存储客户端 / Spring 依赖 | 契约层与存储耦合、无法替换存储 | 领域只定义契约、投影 DTO 与条件族；存储实现在 infrastructure |
 | 把聚合根当投影返回 | 泄露写模型内部结构、破坏读写边界 | 定义中立投影 DTO，投影器裁剪字段 |
-| 投影器内做存储读写 / 版本控制 | 投影器无法单测、存储细节扩散 | 投影器纯映射；持久化只在物化器，检索只在检索器 |
+| 投影器内做存储读写 / 版本控制 | 投影器无法单测、存储细节扩散 | 投影器纯映射；持久化只在源（`AbstractProjectionSource.materialize`），检索只在检索器 |
 | 无理由地把金额统一转成「分」 | 单位换算成了默认约定，投影与聚合单位不一致、排查困难 | 默认原样承载；仅当存储 Mapping 明确要求时才换算并注明 |
 | 投影器与裁剪器各换算一次金额 | 重复进位，金额翻倍 | 换算只发生在聚合 → 全量投影这一次，裁剪器同单位直取 |
 | 单位换算散落在字段赋值语句中 | 换算规则无法统一审计、改 Mapping 时易漏改 | 集中在具名方法内（如 `toFen`），并注明换算原因 |
-| 门面 `OrderQuery` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改门面 | 门面只按型定位 + 转发，DSL 翻译下沉到 Searcher |
+| 门面 `OrderQuery` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改门面 | 门面继承 `AbstractProjectionQuery`，不注入客户端，DSL 翻译下沉到 Searcher |
 | 事件携带业务快照 | 延迟处理用旧数据覆盖新副本 | 事件只带聚合标识，处理时重新 load 聚合 |
-| 物化失败 `catch` 后静默吞掉 | 副本落后被掩盖、对账失效 | 异常上抛，交给 `resync` 补偿 |
-| 业务方自行 `new ReconciliationTarget` | Registry 中 key 不一致、寻址失败 | 引用 `OrderEsTargets` 已定义的 target 常量 |
+| 真正的写失败（连接 / 映射错误）`catch` 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给 `resync` 补偿 |
+| External 版本冲突（409）上抛而非静默丢弃 | 旧事件迟到触发无谓 `resync`、反复重建已最新副本 | 捕获 `ResponseException` 仅 `log.debug` 静默丢弃 |
+| 业务方自行 `new ReconciliationTarget` / `new ProjectionSource("es:orders")` | Registry 中 key 不一致、寻址失败 | 引用 `OrderEsTargets` / `OrderCacheTargets` 已定义的源常量 |
 | 为每个查询场景建一个条件类 / 一个检索器 | 类爆炸、条件失去穷举约束 | 按族建 `sealed interface`，族内场景为 `record`，检索器按族登记 |
 | 跨族复用条件（`ListQuery` 传给 `queryPage`） | 编译期报错，语义混用 | 分页场景建 `PageQueryCriteria` 子族，字段全 `Optional` |
 | 分页参数塞进条件 `record` | 条件与分页语义耦合、无法复用条件做滚动 | 分页由 `PageRequest` / `ScrollPosition` 单独传入 |
@@ -1181,7 +1082,7 @@ Optional.ofNullable(first.nextCursor())
 | 投影用聚合根的 Lombok 约定 | 数据容器被 @Builder 等污染 | 投影 DTO 用 `@Data`；聚合根禁用 `@Data` |
 | 检索器 `projectionType()` 返回投影体系接口（如 `IOrderProjection.class`） | 与门面按索引级投影查询的键不一致，**运行期必然**抛 `ProjectionSearcherNotFoundException`，且编译期看不出来 | 检索器返回索引级全量投影具体类（如 `OrderEsProjection.class`） |
 | 门面直接把调用方的 `Class<X>` 传给 `getSearcher` | 传的是业务子投影，与检索器登记的索引级投影键不匹配 | 先 `sourceTypeOf` 反查来源，用来源类型取检索器 |
-| 装配只登记检索器、忘记 `markSourceProjection` | 连直查索引级全量投影都选路失败 | 装配三件事：检索器 + `markSourceProjection` + `register(reducer)` |
+| 装配只登记检索器、忘记 `register(源)` | 连直查索引级全量投影都选路失败 | 装配核心是登记源 + `registerDefaultSource`；检索器 / 裁剪器在源内 `bind`，子投影需登记 reducer 反查 |
 | 裁剪后重新计算 `totalCount` / `nextCursor` | 页边界与游标错误 | 分页留在检索器侧，二者取裁剪前的全量结果 |
 | 裁剪器内查库 / 调远程 | 破坏纯函数性，造成 N+1 | `reduce` 只做内存转换，所需数据由检索器一次取全 |
 | 一个裁剪器内按目标类型 `instanceof` 分支 | 与「一个实例服务一个 (源, 子)」契约相悖、无法按型寻址 | 一个子投影一个裁剪器 |

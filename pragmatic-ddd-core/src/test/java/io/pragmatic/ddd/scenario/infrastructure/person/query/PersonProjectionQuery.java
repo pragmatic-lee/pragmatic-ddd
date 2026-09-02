@@ -1,7 +1,10 @@
 package io.pragmatic.ddd.scenario.infrastructure.person.query;
 
+import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.IProjectionSourceQuery;
 import io.pragmatic.ddd.repository.query.PageRequest;
 import io.pragmatic.ddd.repository.query.PageResult;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
 import io.pragmatic.ddd.repository.query.ScrollPosition;
 import io.pragmatic.ddd.repository.query.ScrollResult;
 import io.pragmatic.ddd.scenario.domain.person.projection.IPersonQuery;
@@ -56,5 +59,24 @@ public class PersonProjectionQuery implements IPersonQuery {
             PersonPageQuery query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
         // 壳子：真实项目直查异构存储
         return ScrollResult.of(List.of(), null);
+    }
+
+    @Override
+    public ProjectionSource source() {
+        return null;
+    }
+
+    @Override
+    public IProjectionSourceQuery<Long, PersonProjection, PersonOneQuery, PersonListQuery, PersonPageQuery> source(
+            ProjectionSource source) {
+        // 壳子：真实项目按指定源直查异构存储
+        return this;
+    }
+
+    @Override
+    public IProjectionSourceQuery<Long, PersonProjection, PersonOneQuery, PersonListQuery, PersonPageQuery> fallbackChain(
+            List<ProjectionSource> sources) {
+        // 壳子：真实项目按回源顺序查询异构存储
+        return this;
     }
 }

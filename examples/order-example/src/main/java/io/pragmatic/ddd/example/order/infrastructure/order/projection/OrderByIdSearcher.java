@@ -32,29 +32,24 @@ public class OrderByIdSearcher implements IProjectionByIdSearcher<OrderEsProject
     }
 
     @Override
-    public Class<OrderEsProjection> projectionType() {
-        return OrderEsProjection.class;
+    public OrderEsProjection getById(Object id) {
+        return ProjectionExceptions.retrieve(() -> doGetById(id.toString()), "getById");
     }
 
     @Override
-    public OrderEsProjection getById(Object id, Class<OrderEsProjection> projectionType) {
-        return ProjectionExceptions.retrieve(() -> doGetById(id.toString(), projectionType), "getById");
-    }
-
-    @Override
-    public List<OrderEsProjection> getByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
-        return ProjectionExceptions.retrieve(() -> doGetByIds(ids, projectionType), "getByIds");
+    public List<OrderEsProjection> getByIds(List<Object> ids) {
+        return ProjectionExceptions.retrieve(() -> doGetByIds(ids), "getByIds");
     }
 
     @SneakyThrows
-    private OrderEsProjection doGetById(String id, Class<OrderEsProjection> projectionType) {
+    private OrderEsProjection doGetById(String id) {
         return elasticsearchClient.get(req -> req
                 .index(OrderEsTargets.ORDER_INDEX_NAME)
-                .id(id), projectionType).source();
+                .id(id), OrderEsProjection.class).source();
     }
 
     @SneakyThrows
-    private List<OrderEsProjection> doGetByIds(List<Object> ids, Class<OrderEsProjection> projectionType) {
+    private List<OrderEsProjection> doGetByIds(List<Object> ids) {
         List<String> docIds = ids.stream()
                 .map(Object::toString)
                 .toList();
@@ -63,7 +58,7 @@ public class OrderByIdSearcher implements IProjectionByIdSearcher<OrderEsProject
         return elasticsearchClient.search(req -> req
                 .index(OrderEsTargets.ORDER_INDEX_NAME)
                 .query(query)
-                .size(docIds.size()), projectionType).hits().hits().stream()
+                .size(docIds.size()), OrderEsProjection.class).hits().hits().stream()
                 .map(Hit::source)
                 .toList();
     }

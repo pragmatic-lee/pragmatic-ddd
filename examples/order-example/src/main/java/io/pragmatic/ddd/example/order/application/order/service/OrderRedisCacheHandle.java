@@ -2,17 +2,15 @@ package io.pragmatic.ddd.example.order.application.order.service;
 
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderRedisCacheHandle;
 import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.IAggregateProjector;
-import io.pragmatic.ddd.repository.query.IProjectionMaterializer;
-import io.pragmatic.ddd.repository.query.ProjectorRegistry;
+import io.pragmatic.ddd.repository.query.AggregateProjectorSupport;
+import io.pragmatic.ddd.repository.query.ProjectionSource;
 import org.springframework.stereotype.Component;
 
 /**
- * 订单 Redis 缓存副本投影订阅实现：监听 OrderDataSyncEvent，load 最新聚合后写入 Redis。
+ * 订单 Redis 缓存副本投影订阅实现：监听 OrderDataSyncEvent，经「源」统一物化到 Redis。
  * 与 {@code OrderDataSyncEsProjectionHandle} 平级、互不引用，各自驱动自己的副本物化。
  *
  * @author wizard-lee
@@ -22,17 +20,20 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 
     private final OrderRepository orderRepository;
 
-    private final ProjectorRegistry projectorRegistry;
+    private final AggregateProjectorSupport projectorSupport;
+
+    private final ProjectionSource source;
 
     public OrderRedisCacheHandle(
             OrderRepository orderRepository,
-            ProjectorRegistry projectorRegistry) {
+            AggregateProjectorSupport projectorSupport) {
         this.orderRepository = orderRepository;
-        this.projectorRegistry = projectorRegistry;
+        this.projectorSupport = projectorSupport;
+        this.source = ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId());
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，经投影器生成缓存副本后物化到 Redis。
+     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 Redis，版本取自事件携带的副本版本。
      *
      * @param event 订单数据同步事件
      */
@@ -43,20 +44,6 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
         if (order == null) {
             return;
         }
-        IAggregateProjector<Order, OrderCacheProjection> projector =
-                projectorRegistry.resolveProjector(Order.class, OrderCacheProjection.class);
-        if (projector == null) {
-            return;
-        }
-        OrderCacheProjection projection = projector.project(order);
-        if (projection == null) {
-            return;
-        }
-        IProjectionMaterializer<OrderCacheProjection> materializer =
-                projectorRegistry.resolveMaterializer(OrderCacheProjection.class, OrderCacheTargets.TARGET_REDIS_ORDERS);
-        if (materializer == null) {
-            return;
-        }
-        materializer.materialize(projection, event.getVersion());
+        projectorSupport.sync(order, source);
     }
 }

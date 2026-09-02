@@ -10,8 +10,13 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.infrastructure.order.projection.materializer.OrderEsMaterializer;
-import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderByIdSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderEsProjector;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderListSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderOneSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderPageSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderSummaryReducer;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.materializer.OrderEsSource;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.AfterEach;
@@ -34,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *
  * @author wizard-lee
  */
-@DisplayName("OrderEsMaterializer 集成测试")
+@DisplayName("OrderEsSource 集成测试")
 class OrderEsMaterializerTest {
 
     private static final String INDEX_NAME = "order_index";
@@ -45,7 +50,7 @@ class OrderEsMaterializerTest {
 
     private RestClient restClient;
 
-    private OrderEsMaterializer materializer;
+    private OrderEsSource materializer;
 
     private long versionSeed = System.currentTimeMillis();
 
@@ -56,7 +61,14 @@ class OrderEsMaterializerTest {
         objectMapper.registerModule(new JavaTimeModule());
         ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper(objectMapper));
         elasticsearchClient = new ElasticsearchClient(transport);
-        materializer = new OrderEsMaterializer(elasticsearchClient);
+        materializer = new OrderEsSource(
+                new OrderEsProjector(),
+                new OrderByIdSearcher(elasticsearchClient),
+                new OrderOneSearcher(elasticsearchClient),
+                new OrderListSearcher(elasticsearchClient),
+                new OrderPageSearcher(elasticsearchClient),
+                new OrderSummaryReducer(),
+                elasticsearchClient);
         deleteTestDocumentSilently();
     }
 
@@ -167,12 +179,10 @@ class OrderEsMaterializerTest {
     }
 
     @Test
-    @DisplayName("target 返回订单 ES 对账目标 es:orders")
-    void targetReturnsOrderEsReconciliationTarget() {
-        ReconciliationTarget target = materializer.target();
-        assertThat(target).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS);
-        assertThat(target.storeId()).isEqualTo("es:orders");
-        assertThat(target.aggregateType()).isEqualTo(Order.class);
+    @DisplayName("source 返回订单 ES 源标识 es:orders")
+    void sourceReturnsOrderEsIdentifier() {
+        assertThat(materializer.source().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        assertThat(materializer.projectionType()).isEqualTo(OrderEsProjection.class);
     }
 
     @Test

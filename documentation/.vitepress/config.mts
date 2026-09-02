@@ -131,7 +131,8 @@ export default defineConfig({
               text: '⑥ 事件与一致性',
               collapsed: true,
               items: [
-                { text: '事件建模指南', link: '/best-practices/event-modeling' }
+                { text: '事件建模指南', link: '/best-practices/event-modeling' },
+                { text: '事件订阅领域服务落地模式', link: '/best-practices/event-subscriber-pattern' }
               ]
             }
           ]

@@ -25,12 +25,7 @@ public class OrderRedisByIdSearcher implements IProjectionByIdSearcher<OrderCach
     }
 
     @Override
-    public Class<OrderCacheProjection> projectionType() {
-        return OrderCacheProjection.class;
-    }
-
-    @Override
-    public OrderCacheProjection getById(Object id, Class<OrderCacheProjection> projectionType) {
+    public OrderCacheProjection getById(Object id) {
         String json = redis.get(OrderCacheTargets.ORDER_CACHE_KEY_PREFIX + id);
         if (json == null) {
             return null;
@@ -39,9 +34,9 @@ public class OrderRedisByIdSearcher implements IProjectionByIdSearcher<OrderCach
     }
 
     @Override
-    public List<OrderCacheProjection> getByIds(List<Object> ids, Class<OrderCacheProjection> projectionType) {
+    public List<OrderCacheProjection> getByIds(List<Object> ids) {
         return ids.stream()
-                .map(id -> getById(id, projectionType))
+                .map(this::getById)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
