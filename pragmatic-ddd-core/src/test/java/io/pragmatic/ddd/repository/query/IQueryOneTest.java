@@ -1,6 +1,8 @@
 package io.pragmatic.ddd.repository.query;
 
-import io.pragmatic.ddd.repository.query.fixture.StubProjection;
+import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
+
+import io.pragmatic.ddd.repository.query.projection.fixture.StubProjection;
 
 import org.junit.jupiter.api.Test;
 

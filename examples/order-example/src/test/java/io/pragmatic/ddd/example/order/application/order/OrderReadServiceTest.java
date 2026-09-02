@@ -1,18 +1,29 @@
 package io.pragmatic.ddd.example.order.application.order;
 
+import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
-import io.pragmatic.ddd.example.order.domain.order.projection.IOrderQuery;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
-import io.pragmatic.ddd.repository.query.PageRequest;
-import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
-import io.pragmatic.ddd.repository.query.ScrollPosition;
-import io.pragmatic.ddd.repository.query.ScrollResult;
+import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderSummaryReducer;
+import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.IProjectionByIdSearcher;
+import io.pragmatic.ddd.repository.query.projection.IProjectionPagedSearcher;
+import io.pragmatic.ddd.repository.query.projection.IProjectionSearcher;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+import io.pragmatic.ddd.repository.query.exception.ProjectionSourceNotFoundException;
+import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,276 +32,297 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 验证 OrderReadService 按查询方式转发到领域查询契约，并透传调用方指定的投影类型。
+ * OrderReadService 单元测试：验证合并后的应用服务既承担查询转发，又集中负责 Redis→ES 多源编排。
  *
- * <p>用记录型桩件替代真实 IOrderQuery，断言每个方法走的是哪个查询能力、
- * 参数与投影类型是否原样透传、返回值是否原样回传。</p>
+ * <p>使用真实的 {@link ProjectorRegistry}，登记 Redis 源与 ES 源两份内存副本（均挂载检索器与订单摘要裁剪器），
+ * 以手写记录型检索器捕获来源与入参，不连接真实存储，也不依赖 Spring 容器。</p>
  *
  * @author wizard-lee
  */
+@DisplayName("OrderReadService 单元测试")
 class OrderReadServiceTest {
 
-    private RecordingOrderQuery recordingQuery;
+    private ProjectorRegistry registry;
 
     private OrderReadService readService;
 
+    private RedisByIdSearcher redisByIdSearcher;
+
+    private EsByIdSearcher esByIdSearcher;
+
     @BeforeEach
     void setUp() {
-        recordingQuery = new RecordingOrderQuery();
-        readService = new OrderReadService(recordingQuery);
+        registry = new ProjectorRegistry();
+        redisByIdSearcher = new RedisByIdSearcher();
+        esByIdSearcher = new EsByIdSearcher();
+        registry.register(new OrderSource(
+                ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId()), redisByIdSearcher));
+        registry.register(new OrderSource(
+                ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId()), esByIdSearcher));
+        registry.registerDefaultSource(OrderSummaryProjection.class,
+                ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId()));
+        readService = new OrderReadService(registry);
     }
 
-    private OrderPageQuery.ByConditions anyPageCondition() {
-        return new OrderPageQuery.ByConditions(
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty());
+    // ==================== 多源编排：getById / getByIds ====================
+
+    @Test
+    @DisplayName("getById 命中 Redis 时只查询 Redis 源")
+    void getById_hitsRedisOnly() {
+        redisByIdSearcher.nextResult = fullProjection(1001L, "张三");
+
+        OrderSummaryProjection result = readService.getById(1001L, OrderSummaryProjection.class);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getCustomerName()).isEqualTo("张三");
+        assertThat(esByIdSearcher.called).isFalse();
     }
 
     @Test
-    @DisplayName("按主键查询转发到 queryById 并透传投影类型")
-    void queryById_forwardsToDomainQuery() {
+    @DisplayName("getById Redis 未命中时回退查询 ES 源")
+    void getById_fallsBackToEsWhenRedisMisses() {
+        redisByIdSearcher.nextResult = null;
+        esByIdSearcher.nextResult = fullProjection(1001L, "张三");
+
+        OrderSummaryProjection result = readService.getById(1001L, OrderSummaryProjection.class);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getCustomerName()).isEqualTo("张三");
+        assertThat(redisByIdSearcher.called).isTrue();
+        assertThat(esByIdSearcher.called).isTrue();
+    }
+
+    @Test
+    @DisplayName("getByIds 命中 Redis 源时返回裁剪后的投影列表")
+    void getByIds_returnsReducedList() {
+        redisByIdSearcher.nextResults =
+                List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
+
+        List<OrderSummaryProjection> results =
+                readService.getByIds(List.of(1L, 2L), OrderSummaryProjection.class);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getCustomerName()).isEqualTo("张三");
+        assertThat(results.get(1).getCustomerName()).isEqualTo("张三");
+        assertThat(esByIdSearcher.called).isFalse();
+    }
+
+    // ==================== 三跳链路：queryById ====================
+
+    @Test
+    @DisplayName("queryById 指定索引级全量投影时短路，直接返回检索结果")
+    void queryById_fullProjection_skipsReduction() {
+        OrderEsProjection result = readService.queryById(1001L, OrderEsProjection.class);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getOrderId()).isEqualTo(1001L);
+        assertThat(result.getCustomer()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("queryById 指定子投影时按默认源裁剪并提升层级")
+    void queryById_subProjection_appliesReduction() {
         OrderSummaryProjection result = readService.queryById(1001L, OrderSummaryProjection.class);
 
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryById");
-        assertThat(recordingQuery.lastId).isEqualTo(1001L);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(result).isSameAs(recordingQuery.summary);
+        assertThat(result).isNotNull();
+        assertThat(result.getOrderId()).isEqualTo(1001L);
+        assertThat(result.getStatus()).isEqualTo(2);
+        assertThat(result.getActualAmount()).isEqualTo(8800L);
+        assertThat(result.getCustomerName()).isEqualTo("张三");
     }
 
     @Test
-    @DisplayName("同一方法可返回不同投影，由调用方指定")
-    void queryById_supportsAnyProjectionType() {
-        OrderEsProjection detail = readService.queryById(1001L, OrderEsProjection.class);
-
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderEsProjection.class);
-        assertThat(detail).isSameAs(recordingQuery.detail);
-
-        OrderSummaryProjection summary = readService.queryById(1001L, OrderSummaryProjection.class);
-
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(summary).isSameAs(recordingQuery.summary);
-    }
-
-    @Test
-    @DisplayName("指定来源投影的主键查询转发到三参 queryById 并分别透传来源与目标投影类型")
-    void queryByIdWithSource_forwardsToDomainQuery() {
+    @DisplayName("queryById(id, 源投影, 目标投影) 用源投影反查来源并裁剪到目标")
+    void queryById_withSourceProjection_resolvesSourceThenReduces() {
         OrderSummaryProjection result =
                 readService.queryById(1001L, OrderEsProjection.class, OrderSummaryProjection.class);
 
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryByIdWithSource");
-        assertThat(recordingQuery.lastId).isEqualTo(1001L);
-        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderEsProjection.class);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(result).isSameAs(recordingQuery.summary);
+        assertThat(result).isNotNull();
+        assertThat(result.getCustomerName()).isEqualTo("张三");
     }
 
     @Test
-    @DisplayName("同一目标投影可指定不同来源投影，来源按调用方指定透传")
-    void queryByIdWithSource_supportsSwitchingSource() {
-        OrderSummaryProjection fromEs =
-                readService.queryById(1001L, OrderEsProjection.class, OrderSummaryProjection.class);
+    @DisplayName("queryById 未登记来源的子投影抛出 ProjectionSourceNotFoundException")
+    void queryById_unregisteredProjection_throws() {
+        assertThatThrownBy(() -> readService.queryById(1L, UnregisteredProjection.class))
+                .isInstanceOf(ProjectionSourceNotFoundException.class)
+                .hasMessageContaining(UnregisteredProjection.class.getSimpleName());
+    }
 
-        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderEsProjection.class);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(fromEs).isSameAs(recordingQuery.summary);
+    // ==================== 条件查询转发 ====================
 
-        OrderSummaryProjection fromCache =
-                readService.queryById(1001L, OrderCacheProjection.class, OrderSummaryProjection.class);
+    @Test
+    @DisplayName("queryOne 将条件与投影类型透传给检索器")
+    void queryOne_forwardsToSearcher() {
+        OrderSummaryProjection result =
+                readService.queryOne(new OrderOneQuery.LatestByCustomer(1001L), OrderSummaryProjection.class);
 
-        assertThat(recordingQuery.lastSourceProjection).isEqualTo(OrderCacheProjection.class);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(fromCache).isSameAs(recordingQuery.summary);
+        assertThat(result).isNotNull();
+        assertThat(result.getCustomerName()).isEqualTo("张三");
     }
 
     @Test
-    @DisplayName("批量主键查询转发到 queryByIds 并透传投影类型")
-    void queryByIds_forwardsToDomainQuery() {
-        List<Long> ids = List.of(1001L, 1002L);
+    @DisplayName("queryPage 将条件与分页请求透传给分页检索器")
+    void queryPage_forwardsToSearcher() {
+        PageResult<OrderSummaryProjection> result = readService.queryPage(
+                new OrderPageQuery.ByConditions(
+                        Optional.of(1001L), Optional.empty(), Optional.empty(),
+                        Optional.of("机械键盘"), Optional.of(2001L)),
+                PageRequest.of(1, 10),
+                OrderSummaryProjection.class);
 
-        List<OrderSummaryProjection> results = readService.queryByIds(ids, OrderSummaryProjection.class);
-
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryByIds");
-        assertThat(recordingQuery.lastIds).isSameAs(ids);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(results).containsExactly(recordingQuery.summary);
+        assertThat(result.data()).hasSize(2);
+        assertThat(result.totalCount()).isEqualTo(2L);
     }
 
-    @Test
-    @DisplayName("单条条件查询转发到 queryOne 并透传条件与投影类型")
-    void queryOne_forwardsToDomainQuery() {
-        OrderOneQuery.LatestByCustomer condition = new OrderOneQuery.LatestByCustomer(2001L);
+    // ==================== 测试数据与假检索器 ====================
 
-        OrderSummaryProjection result = readService.queryOne(condition, OrderSummaryProjection.class);
-
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryOne");
-        assertThat(recordingQuery.lastCondition).isSameAs(condition);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(result).isSameAs(recordingQuery.summary);
+    private OrderEsProjection fullProjection(Long id, String customerName) {
+        OrderEsProjection full = new OrderEsProjection();
+        full.setOrderId(id);
+        full.setStatus(2);
+        full.setStatusName("PAID");
+        full.setActualAmount(8800L);
+        OrderEsProjection.CustomerProjection customer = new OrderEsProjection.CustomerProjection();
+        customer.setCustomerId(1001L);
+        customer.setCustomerName(customerName);
+        full.setCustomer(customer);
+        return full;
     }
 
-    @Test
-    @DisplayName("列表条件查询转发到 queryList 并透传条件与投影类型")
-    void queryList_forwardsToDomainQuery() {
-        OrderListQuery.TopRecent condition = new OrderListQuery.TopRecent(2001L, 2, 5);
-
-        List<OrderEsProjection> results = readService.queryList(condition, OrderEsProjection.class);
-
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryList");
-        assertThat(recordingQuery.lastCondition).isSameAs(condition);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderEsProjection.class);
-        assertThat(results).containsExactly(recordingQuery.detail);
+    /** 未登记来源的子投影，用于验证选路失败的异常。 */
+    private static final class UnregisteredProjection implements IOrderProjection {
     }
 
-    @Test
-    @DisplayName("分页查询转发到 queryPage 并透传分页请求与投影类型")
-    void queryPage_forwardsToDomainQuery() {
-        PageRequest pageRequest = PageRequest.of(2, 20);
+    /** 桩「源」：聚合写读一体，绑定各检索器与裁剪器。 */
+    private final class OrderSource extends AbstractProjectionSource<Order, OrderEsProjection> {
 
-        PageResult<OrderSummaryProjection> page =
-                readService.queryPage(anyPageCondition(), pageRequest, OrderSummaryProjection.class);
+        private OrderSource(ProjectionSource source, IProjectionByIdSearcher<OrderEsProjection> byIdSearcher) {
+            super(source, Order.class, OrderEsProjection.class, new StubProjector(), byIdSearcher);
+            bind(new StubOneSearcher());
+            bind(new StubListSearcher());
+            bind(new StubPagedSearcher());
+            bind(new OrderSummaryReducer());
+        }
 
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryPage");
-        assertThat(recordingQuery.lastPageRequest).isSameAs(pageRequest);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(page.data()).containsExactly(recordingQuery.summary);
-        assertThat(page.totalCount()).isEqualTo(1L);
+        @Override
+        public void materialize(IAggregateProjection projection, long version) {
+        }
+
+        @Override
+        public void purge(Object aggregateId) {
+        }
     }
 
-    @Test
-    @DisplayName("滚动查询转发到 queryScroll 并透传游标、批大小与投影类型")
-    void queryScroll_forwardsToDomainQuery() {
-        ScrollPosition cursor = ScrollPosition.initial();
+    /** 返回 null 的桩投影器，满足源构造约束。 */
+    private static final class StubProjector extends AbstractAggregateProjector<Order, OrderEsProjection> {
 
-        ScrollResult<OrderSummaryProjection> scroll =
-                readService.queryScroll(anyPageCondition(), cursor, 100, OrderSummaryProjection.class);
-
-        assertThat(recordingQuery.lastMethod).isEqualTo("queryScroll");
-        assertThat(recordingQuery.lastCursor).isSameAs(cursor);
-        assertThat(recordingQuery.lastPageSize).isEqualTo(100);
-        assertThat(recordingQuery.lastProjectionType).isEqualTo(OrderSummaryProjection.class);
-        assertThat(scroll.data()).containsExactly(recordingQuery.summary);
-    }
-
-    /**
-     * 记录型查询桩件：记录被调用的方法、入参与投影类型，并按投影类型返回预设实例。
-     */
-    private static final class RecordingOrderQuery implements IOrderQuery {
-
-        private final OrderEsProjection detail = new OrderEsProjection();
-
-        private final OrderSummaryProjection summary = new OrderSummaryProjection();
-
-        private String lastMethod;
-
-        private Object lastId;
-
-        private Class<?> lastSourceProjection;
-
-        private List<Long> lastIds;
-
-        private Object lastCondition;
-
-        private PageRequest lastPageRequest;
-
-        private ScrollPosition lastCursor;
-
-        private int lastPageSize;
-
-        private Class<?> lastProjectionType;
-
-        @Override
-        public <X extends IOrderProjection> X queryById(Long id, Class<X> projectionType) {
-            lastMethod = "queryById";
-            lastId = id;
-            lastProjectionType = projectionType;
-            return pick(projectionType);
+        private StubProjector() {
+            super(OrderEsProjection.class);
         }
 
         @Override
-        public <X extends IOrderProjection> List<X> queryByIds(List<Long> ids, Class<X> projectionType) {
-            lastMethod = "queryByIds";
-            lastIds = ids;
-            lastProjectionType = projectionType;
-            return List.of(pick(projectionType));
-        }
-
-        @Override
-        public <X extends IOrderProjection> X queryOne(OrderOneQuery query, Class<X> projectionType) {
-            lastMethod = "queryOne";
-            lastCondition = query;
-            lastProjectionType = projectionType;
-            return pick(projectionType);
-        }
-
-        @Override
-        public <X extends IOrderProjection> List<X> queryList(OrderListQuery query, Class<X> projectionType) {
-            lastMethod = "queryList";
-            lastCondition = query;
-            lastProjectionType = projectionType;
-            return List.of(pick(projectionType));
-        }
-
-        @Override
-        public <X extends IOrderProjection> PageResult<X> queryPage(
-                OrderPageQuery query, PageRequest pageRequest, Class<X> projectionType) {
-            lastMethod = "queryPage";
-            lastCondition = query;
-            lastPageRequest = pageRequest;
-            lastProjectionType = projectionType;
-            List<X> data = List.of(pick(projectionType));
-            return PageResult.of(data, 1L, pageRequest);
-        }
-
-        @Override
-        public <X extends IOrderProjection> ScrollResult<X> queryScroll(
-                OrderPageQuery query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
-            lastMethod = "queryScroll";
-            lastCondition = query;
-            lastCursor = cursor;
-            lastPageSize = pageSize;
-            lastProjectionType = projectionType;
-            List<X> data = List.of(pick(projectionType));
-            return ScrollResult.of(data, null);
-        }
-
-        /** 按目标投影类型返回对应预设实例，用于验证投影类型的透传关系。 */
-        @SuppressWarnings("unchecked")
-        private <X> X pick(Class<X> projectionType) {
-            if (projectionType == OrderEsProjection.class) {
-                return (X) detail;
-            }
-            return (X) summary;
-        }
-
-        @Override
-        public <X extends IOrderProjection> X queryById(Object id, Class<?> sourceProjection, Class<X> projectionType) {
-            lastMethod = "queryByIdWithSource";
-            lastId = id;
-            lastSourceProjection = sourceProjection;
-            lastProjectionType = projectionType;
-            return pick(projectionType);
-        }
-
-        @Override
-        public io.pragmatic.ddd.repository.query.ProjectionSource source() {
+        public OrderEsProjection project(Order aggregateRoot) {
             return null;
         }
+    }
+
+    /** Redis 按主键检索器桩：记录是否被调用，可注入 null 模拟未命中。 */
+    private final class RedisByIdSearcher implements IProjectionByIdSearcher<OrderEsProjection> {
+
+        private boolean called;
+        private OrderEsProjection nextResult = fullProjection(1001L, "张三");
+        private List<OrderEsProjection> nextResults =
+                List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
 
         @Override
-        public io.pragmatic.ddd.repository.query.IProjectionSourceQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> source(
-                io.pragmatic.ddd.repository.query.ProjectionSource source) {
-            return this;
+        public OrderEsProjection getById(Object id) {
+            this.called = true;
+            return nextResult;
         }
 
         @Override
-        public io.pragmatic.ddd.repository.query.IProjectionSourceQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> fallbackChain(
-                List<io.pragmatic.ddd.repository.query.ProjectionSource> sources) {
-            return this;
+        public List<OrderEsProjection> getByIds(List<Object> ids) {
+            this.called = true;
+            return nextResults;
+        }
+    }
+
+    /** ES 按主键检索器桩：记录是否被调用，总返回数据。 */
+    private final class EsByIdSearcher implements IProjectionByIdSearcher<OrderEsProjection> {
+
+        private boolean called;
+        private OrderEsProjection nextResult = fullProjection(1001L, "张三");
+        private List<OrderEsProjection> nextResults =
+                List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
+
+        @Override
+        public OrderEsProjection getById(Object id) {
+            this.called = true;
+            return nextResult;
+        }
+
+        @Override
+        public List<OrderEsProjection> getByIds(List<Object> ids) {
+            this.called = true;
+            return nextResults;
+        }
+    }
+
+    /** 单投影检索器桩：客户 ID 为 1001 时命中。 */
+    private final class StubOneSearcher implements IProjectionSearcher<OrderOneQuery, OrderEsProjection> {
+
+        @Override
+        public Class<OrderOneQuery> criteriaType() {
+            return OrderOneQuery.class;
+        }
+
+        @Override
+        public List<OrderEsProjection> search(OrderOneQuery condition) {
+            if (condition instanceof OrderOneQuery.LatestByCustomer c
+                    && Long.valueOf(1001L).equals(c.customerId())) {
+                return List.of(fullProjection(1L, "张三"));
+            }
+            return List.of();
+        }
+    }
+
+    /** 列表检索器桩：返回两份全量投影。 */
+    private final class StubListSearcher implements IProjectionSearcher<OrderListQuery, OrderEsProjection> {
+
+        @Override
+        public Class<OrderListQuery> criteriaType() {
+            return OrderListQuery.class;
+        }
+
+        @Override
+        public List<OrderEsProjection> search(OrderListQuery condition) {
+            return List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
+        }
+    }
+
+    /** 分页 / 滚动检索器桩：固定返回两页数据与游标。 */
+    private final class StubPagedSearcher implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection> {
+
+        @Override
+        public Class<OrderPageQuery> criteriaType() {
+            return OrderPageQuery.class;
+        }
+
+        @Override
+        public PageResult<OrderEsProjection> searchPage(OrderPageQuery condition, PageRequest pageRequest) {
+            List<OrderEsProjection> data = List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
+            return PageResult.of(data, 2L, pageRequest);
+        }
+
+        @Override
+        public ScrollResult<OrderEsProjection> searchScroll(
+                OrderPageQuery condition, ScrollPosition cursor, int pageSize) {
+            List<OrderEsProjection> data = List.of(fullProjection(1L, "张三"), fullProjection(2L, "张三"));
+            return ScrollResult.of(data, "cursor-2");
         }
     }
 }

@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.scenario.domain.person.projection;
 
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.repository.query.IAggregateProjector;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjector;
 import io.pragmatic.ddd.scenario.domain.person.model.Person;
 
 /**

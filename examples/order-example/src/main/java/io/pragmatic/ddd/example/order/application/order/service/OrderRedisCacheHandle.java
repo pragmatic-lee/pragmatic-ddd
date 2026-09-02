@@ -5,8 +5,8 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderRedisCacheHandle;
 import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.springframework.stereotype.Component;
 
 /**

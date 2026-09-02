@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.projection;
 
+import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
+
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
@@ -14,12 +16,12 @@ import co.elastic.clients.elasticsearch.core.search.TotalHits;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
-import io.pragmatic.ddd.repository.query.IProjectionPagedSearcher;
-import io.pragmatic.ddd.repository.query.PageRequest;
-import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ProjectionExceptions;
-import io.pragmatic.ddd.repository.query.ScrollPosition;
-import io.pragmatic.ddd.repository.query.ScrollResult;
+import io.pragmatic.ddd.repository.query.projection.IProjectionPagedSearcher;
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.exception.ProjectionExceptions;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Component;
 

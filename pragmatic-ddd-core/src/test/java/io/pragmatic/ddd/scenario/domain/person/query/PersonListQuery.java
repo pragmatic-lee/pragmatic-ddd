@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.scenario.domain.person.query;
 
-import io.pragmatic.ddd.repository.query.ListQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.ListQueryCriteria;
 
 import java.util.List;
 

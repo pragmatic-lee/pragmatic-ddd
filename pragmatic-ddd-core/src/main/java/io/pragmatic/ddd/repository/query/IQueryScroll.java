@@ -1,5 +1,10 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+
 import java.util.List;
 
 /**

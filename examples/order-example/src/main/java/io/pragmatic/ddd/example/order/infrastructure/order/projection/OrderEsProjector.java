@@ -4,7 +4,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
-import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

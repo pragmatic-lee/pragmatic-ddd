@@ -1,5 +1,8 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+
 /**
  * 按指定条件查询一个投影（精确规约，条件对象字段通常全必填）。
  *

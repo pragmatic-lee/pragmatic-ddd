@@ -13,9 +13,7 @@
 ### 1.2 概念层级与依赖关系
 
 ```text
-repository.query
-  ProjectionSource               源标识（寻址串，如 es:orders / redis:order_kv）
-  AbstractProjectionSource<T,P> 源基类：聚合 T + 全量投影 P，bind 检索器 / 裁剪器，实现 materialize / purge
+repository.query                 查询门面 + 编排（调用方视角）
   IAggregateQuery (组合 6 个 ISP trait)
     ├─ IQueryById     按 ID 查一个
     ├─ IQueryByIds    批量按 ID 查
@@ -24,16 +22,26 @@ repository.query
     ├─ IQueryPage     分页
     └─ IQueryScroll   滚动 / 游标
   IProjectionSourceQuery         指定源 / 回源链视图（由 source(...) / fallbackChain(...) 返回）
-  IAggregateProjection          投影标记接口
-  IAggregateProjector<T,P>      投影器：聚合根 → 全量投影
-    └─ AbstractAggregateProjector 投影器抽象基类（final projectionType）
-  IProjectionByIdSearcher<P>    按主键 / 批量主键检索器
-  IProjectionSearcher<C,P>      按条件检索器：存储 → 索引级全量投影
-  IProjectionPagedSearcher<C,P> 分页 / 滚动检索器
-  IProjectionReducer<S,P>       裁剪器：索引级全量投影 → 业务子投影（Java 内存）
-  ProjectorRegistry             源登记中心（按源登记，支持多源共存）
-  AggregateProjectorSupport     project→materialize / purge 门面（按源取源实例）
-  PageRequest / PageResult / ScrollPosition / ScrollResult   分页滚动值对象
+  AbstractProjectionQuery        三跳查询编排基类（选路 → 检索 → 裁剪）
+  criteria/                      条件族契约（业务建模者实现）
+    QueryCriteria                条件根类型
+    OneQueryCriteria / ListQueryCriteria / PageQueryCriteria   三族分族父类
+  paging/                        分页 / 滚动值对象
+    PageRequest / PageResult / ScrollPosition / ScrollResult
+  projection/                    投影模型 + SPI + 源登记中心（存储集成者实现）
+    ProjectionSource             源标识（寻址串，如 es:orders / redis:order_kv）
+    IAggregateProjection         投影标记接口
+    IAggregateProjector<T,P>     投影器：聚合根 → 全量投影
+      └─ AbstractAggregateProjector 投影器抽象基类（final projectionType）
+    AbstractProjectionSource<T,P> 源基类：bind 检索器 / 裁剪器，实现 materialize / purge
+    IProjectionByIdSearcher<P>   按主键 / 批量主键检索器
+    IProjectionSearcher<C,P>     按条件检索器：存储 → 索引级全量投影
+    IProjectionPagedSearcher<C,P> 分页 / 滚动检索器
+    IProjectionReducer<S,P>      裁剪器：索引级全量投影 → 业务子投影（Java 内存）
+    ProjectorRegistry            源登记中心（按源登记，支持多源共存）
+    AggregateProjectorSupport    project→materialize / purge 门面（按源取源实例）
+  exception/                     读侧投影检索域异常体系
+    ProjectionException (基类) + 各具体异常 + ProjectionExceptions (包装辅助)
 
 repository.reconciliation
   ReconciliationTarget / ReconciliationStatus / Reconciliation  对账标识与判定
@@ -42,15 +50,20 @@ repository.reconciliation
   ReconciliationRegistry / ReconciliationManager / Reconciler   登记 / 入口 / 原语
 ```
 
+> `repository.query` 已按职责与受众拆为 5 处：根包（门面 + 编排）、`criteria`（条件族契约）、`paging`（分页 / 滚动值对象）、`projection`（投影模型 + SPI + 源登记中心）、`exception`（异常体系）。依赖单向向下：`query` → {`criteria`, `paging`, `projection`, `exception`}，`projection` → {`criteria`, `paging`, `exception`}，`criteria` / `paging` / `exception` 为叶子。
+
 | 类型 | 包路径 | 用途 |
 | --- | --- | --- |
-| `ProjectionSource` | `io.pragmatic.ddd.repository.query` | 源标识（寻址串） |
-| `AbstractProjectionSource` | `io.pragmatic.ddd.repository.query` | 源基类：写读一体 |
-| `IAggregateQuery` / 6 个 trait / `IProjectionSourceQuery` | `io.pragmatic.ddd.repository.query` | 聚合级查询契约与源视图 |
-| `IAggregateProjection` | `io.pragmatic.ddd.repository.query` | 投影标记接口 |
-| `IAggregateProjector` / `AbstractAggregateProjector` | `io.pragmatic.ddd.repository.query` | 投影映射 |
-| `IProjectionByIdSearcher` / `IProjectionSearcher` / `IProjectionPagedSearcher` / `IProjectionReducer` | `io.pragmatic.ddd.repository.query` | 检索 / 裁剪构件（挂在源上） |
-| `ProjectorRegistry` / `AggregateProjectorSupport` | `io.pragmatic.ddd.repository.query` | 源登记与物化门面 |
+| `IAggregateQuery` / 6 个 trait / `IProjectionSourceQuery` / `AbstractProjectionQuery` | `io.pragmatic.ddd.repository.query` | 聚合级查询契约、源视图与三跳编排基类 |
+| `QueryCriteria` / `OneQueryCriteria` / `ListQueryCriteria` / `PageQueryCriteria` | `io.pragmatic.ddd.repository.query.criteria` | 条件族契约（三族分族父类） |
+| `PageRequest` / `PageResult` / `ScrollPosition` / `ScrollResult` | `io.pragmatic.ddd.repository.query.paging` | 分页 / 滚动值对象 |
+| `ProjectionSource` | `io.pragmatic.ddd.repository.query.projection` | 源标识（寻址串） |
+| `AbstractProjectionSource` | `io.pragmatic.ddd.repository.query.projection` | 源基类：写读一体 |
+| `IAggregateProjection` | `io.pragmatic.ddd.repository.query.projection` | 投影标记接口 |
+| `IAggregateProjector` / `AbstractAggregateProjector` | `io.pragmatic.ddd.repository.query.projection` | 投影映射 |
+| `IProjectionByIdSearcher` / `IProjectionSearcher` / `IProjectionPagedSearcher` / `IProjectionReducer` | `io.pragmatic.ddd.repository.query.projection` | 检索 / 裁剪构件（挂在源上） |
+| `ProjectorRegistry` / `AggregateProjectorSupport` | `io.pragmatic.ddd.repository.query.projection` | 源登记与物化门面 |
+| `ProjectionException` 体系 / `ProjectionExceptions` | `io.pragmatic.ddd.repository.query.exception` | 读侧投影检索域异常与包装辅助 |
 | `ReconciliationTarget` / `Reconciliation` | `io.pragmatic.ddd.repository.reconciliation` | 对账标识与状态判定 |
 | `IReadModelVersionResolver` / `IReadModelResynchronizer` | `io.pragmatic.ddd.repository.reconciliation` | 版本解析与补救 |
 | `ReconciliationRegistry` / `ReconciliationManager` / `Reconciler` | `io.pragmatic.ddd.repository.reconciliation` | 对账编排 |

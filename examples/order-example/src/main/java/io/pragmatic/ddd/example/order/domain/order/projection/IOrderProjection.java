@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.example.order.domain.order.projection;
 
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 
 /**
  * 订单 ES 读模型视图形态契约，窄化框架通用投影接口为订单领域专属契约。

@@ -12,9 +12,9 @@ import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderOneSe
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderPageSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderEsProjector;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderSummaryReducer;
-import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.elasticsearch.client.ResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

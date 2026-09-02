@@ -2,7 +2,7 @@ package io.pragmatic.ddd.example.order.domain.order.projection.reducer;
 
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
-import io.pragmatic.ddd.repository.query.IProjectionReducer;
+import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
 
 /**
  * 订单概要投影的裁剪契约，窄化框架通用裁剪接口为订单领域专属契约。

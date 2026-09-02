@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.example.order.domain.order.projection;
 
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 
 import java.time.LocalDateTime;
 

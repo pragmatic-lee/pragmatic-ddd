@@ -1,5 +1,11 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.criteria.ListQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+
 import java.util.List;
 
 /**

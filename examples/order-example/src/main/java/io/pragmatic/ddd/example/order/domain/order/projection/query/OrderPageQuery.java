@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.example.order.domain.order.projection.query;
 
-import io.pragmatic.ddd.repository.query.PageQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
 
 import java.util.Optional;
 

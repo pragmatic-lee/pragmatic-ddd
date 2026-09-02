@@ -4,9 +4,9 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.materializer.IOrderReadModelResynchronizer;
 import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
-import io.pragmatic.ddd.repository.query.ProjectorRegistry;
+import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import org.springframework.stereotype.Component;
 

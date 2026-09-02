@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.example.order.domain.order.projection.query;
 
-import io.pragmatic.ddd.repository.query.ListQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.ListQueryCriteria;
 
 /**
  * 订单列表查询（queryList）的条件族。

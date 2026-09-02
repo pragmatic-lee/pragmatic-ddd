@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.projection;
 
+import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
+
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
@@ -7,8 +9,8 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
-import io.pragmatic.ddd.repository.query.IProjectionSearcher;
-import io.pragmatic.ddd.repository.query.ProjectionExceptions;
+import io.pragmatic.ddd.repository.query.projection.IProjectionSearcher;
+import io.pragmatic.ddd.repository.query.exception.ProjectionExceptions;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Component;
 

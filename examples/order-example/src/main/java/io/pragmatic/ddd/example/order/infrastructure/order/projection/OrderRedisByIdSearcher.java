@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
-import io.pragmatic.ddd.repository.query.IProjectionByIdSearcher;
+import io.pragmatic.ddd.repository.query.projection.IProjectionByIdSearcher;
 
 import java.util.List;
 import java.util.Objects;

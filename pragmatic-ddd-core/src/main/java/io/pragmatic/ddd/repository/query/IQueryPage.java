@@ -1,5 +1,10 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+
 /**
  * 分页查询（按需过滤，条件对象字段通常全 Optional）。
  *

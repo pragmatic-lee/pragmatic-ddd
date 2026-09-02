@@ -1,142 +1,135 @@
 package io.pragmatic.ddd.example.order.application.order;
 
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
+
 import io.pragmatic.ddd.application.IQueryApplicationService;
+import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
-import io.pragmatic.ddd.example.order.domain.order.projection.IOrderQuery;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
-import io.pragmatic.ddd.repository.query.PageRequest;
-import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ScrollPosition;
-import io.pragmatic.ddd.repository.query.ScrollResult;
+import io.pragmatic.ddd.repository.query.*;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
- * 订单读服务：CQRS 读侧的应用层门面，按查询方式暴露能力，投影类型由调用方指定。
+ * 订单读侧应用服务。
  *
- * <p>方法按**查询方式**组织，与领域查询契约 {@link IOrderQuery} 一一对应：按主键、批量主键、
- * 单条、列表、分页、滚动。每个方法接收 {@code Class<X> projectionType}，由调用方指定要返回
- * 哪种投影（如详情投影或概要投影）；本服务不做投影类型的选择，也不按视图拆分子方法——
- * 这样新增投影时本服务无需改动。</p>
- *
- * <p>调用方为用户接口层，属同一进程内的直接调用，故传递 {@code Class} 类型令牌是安全的；
- * 跨进程边界（如 Dubbo）不得透传该参数，由用户接口层转换为确定的 DTO 返回类型后再对外暴露。</p>
- *
- * <p>本服务只查询本聚合的读模型，不聚合其他聚合的数据；跨聚合组装由更上层的编排方完成。
- * 入参校验不在此处硬编码——待框架提供统一的入参校验能力后由框架统一承载。</p>
+ * <p>直接复用框架的 {@link AbstractProjectionQuery} 完成「按投影类型定位检索器 / 裁剪器」的纯转发，
+ * 并集中负责多源编排：{@code getById} / {@code getByIds} 以 Redis 为首选源、ES 为回退源，
+ * 未命中 Redis 时由框架 {@code fallbackChain} 自动回退到 ES，不再单独维护领域查询接口与基础设施实现类。</p>
  *
  * @author wizard-lee
  */
 @Service
-public class OrderReadService implements IQueryApplicationService {
+public class OrderReadService
+        extends AbstractProjectionQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery>
+        implements IQueryApplicationService {
 
-    private final IOrderQuery orderQuery;
+    /** Redis 源标识：与 {@link OrderCacheTargets#TARGET_REDIS_ORDERS} 的 storeId 保持一致。 */
+    private static final ProjectionSource REDIS_SOURCE =
+            ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId());
 
-    public OrderReadService(IOrderQuery orderQuery) {
-        this.orderQuery = orderQuery;
+    /** ES 源标识：与 {@link OrderEsTargets#TARGET_ES_ORDERS} 的 storeId 保持一致。 */
+    private static final ProjectionSource ES_SOURCE =
+            ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+
+    public OrderReadService(ProjectorRegistry projectorRegistry) {
+        super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
     }
 
-    /**
-     * 按主键查询单个投影。
-     *
-     * @param orderId 订单号
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 命中的投影；未命中返回 null
-     */
-    public <X extends IOrderProjection> X queryById(Long orderId, Class<X> projectionType) {
-        return orderQuery.queryById(orderId, projectionType);
+    @Override
+    public <X extends IOrderProjection> X queryById(Long id, Class<X> projectionType) {
+        return super.queryById(id, projectionType);
     }
 
-    /**
-     * 按主键查询单个投影，并显式指定取数来源的物理投影类型。
-     *
-     * <p>与 {@link #queryById(Long, Class)} 的区别：后者按目标投影自动反查唯一来源，
-     * 本方法由调用方直接指定来源，用于同一业务子投影可从多个物理副本（如 ES / Redis）取数的场景。</p>
-     *
-     * @param orderId 订单号
-     * @param sourceProjection 取数来源的物理投影类型，如 {@code OrderEsProjection} / {@code OrderCacheProjection}
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 命中的投影；未命中返回 null
-     */
-    public <X extends IOrderProjection> X queryById(
-            Long orderId,
-            Class<?> sourceProjection,
-            Class<X> projectionType) {
-        return orderQuery.queryById(orderId, sourceProjection, projectionType);
+    @Override
+    public <X extends IOrderProjection> List<X> queryByIds(List<Long> ids, Class<X> projectionType) {
+        return super.queryByIds(ids, projectionType);
     }
 
-    /**
-     * 按批量主键查询投影列表。
-     *
-     * @param orderIds 订单号列表
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 命中的投影列表；无结果返回空列表
-     */
-    public <X extends IOrderProjection> List<X> queryByIds(List<Long> orderIds, Class<X> projectionType) {
-        return orderQuery.queryByIds(orderIds, projectionType);
+    @Override
+    public <X extends IOrderProjection> X queryOne(OrderOneQuery criteria, Class<X> projectionType) {
+        return super.queryOne(criteria, projectionType);
     }
 
-    /**
-     * 按条件查询单个投影，匹配多条时取首条。
-     *
-     * @param query 单条查询条件
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 命中的投影；未命中返回 null
-     */
-    public <X extends IOrderProjection> X queryOne(OrderOneQuery query, Class<X> projectionType) {
-        return orderQuery.queryOne(query, projectionType);
+    @Override
+    public <X extends IOrderProjection> List<X> queryList(OrderListQuery criteria, Class<X> projectionType) {
+        return super.queryList(criteria, projectionType);
     }
 
-    /**
-     * 按条件查询投影列表。
-     *
-     * @param query 列表查询条件
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 命中的投影列表；无结果返回空列表
-     */
-    public <X extends IOrderProjection> List<X> queryList(OrderListQuery query, Class<X> projectionType) {
-        return orderQuery.queryList(query, projectionType);
-    }
-
-    /**
-     * 按条件分页查询投影，分页在检索器侧完成。
-     *
-     * @param query 分页查询条件
-     * @param pageRequest 分页请求
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 分页结果，含当页数据与总记录数
-     */
+    @Override
     public <X extends IOrderProjection> PageResult<X> queryPage(
-            OrderPageQuery query,
+            OrderPageQuery criteria,
             PageRequest pageRequest,
             Class<X> projectionType) {
-        return orderQuery.queryPage(query, pageRequest, projectionType);
+        return super.queryPage(criteria, pageRequest, projectionType);
     }
 
-    /**
-     * 按条件滚动查询投影，用于深翻页与全量拉取。
-     *
-     * @param query 滚动查询条件
-     * @param cursor 游标位置，首次查询传 {@link ScrollPosition#initial()}
-     * @param pageSize 每批大小
-     * @param projectionType 目标投影类型
-     * @param <X> 投影子类型
-     * @return 滚动结果；nextCursor 为 null 表示已到末页
-     */
+    @Override
     public <X extends IOrderProjection> ScrollResult<X> queryScroll(
-            OrderPageQuery query,
+            OrderPageQuery criteria,
             ScrollPosition cursor,
             int pageSize,
             Class<X> projectionType) {
-        return orderQuery.queryScroll(query, cursor, pageSize, projectionType);
+        return super.queryScroll(criteria, cursor, pageSize, projectionType);
+    }
+
+    /**
+     * 指定源投影类型与目标投影类型查询单条。
+     *
+     * <p>先用源投影类型反查其所属源，再以该源发起查询并裁剪到目标投影，
+     * 等价于原领域查询契约的 {@code queryById(id, sourceProjection, targetProjection)}。</p>
+     *
+     * @param id             聚合主键
+     * @param sourceProjection 源投影类型（用于反查数据来源，如 {@code OrderEsProjection}）
+     * @param projectionType 目标投影类型（查询返回类型）
+     * @param <X>            目标投影类型
+     * @return 裁剪后的目标投影，未命中返回 {@code null}
+     */
+    public <X extends IOrderProjection> X queryById(
+            Object id,
+            Class<?> sourceProjection,
+            Class<X> projectionType) {
+        return registry().fullProjectionOf(sourceProjection)
+                .map(src -> source(src).queryById((Long) id, projectionType))
+                .orElse(null);
+    }
+
+    /**
+     * 按主键读取订单：Redis 优先，未命中回退 ES。
+     *
+     * <p>编排语义集中在应用层，由框架 {@code fallbackChain} 在 Redis 返回 {@code null} 时自动切换到 ES。</p>
+     *
+     * @param id            订单主键
+     * @param projectionType 目标投影类型
+     * @param <X>           目标投影类型
+     * @return 命中的投影，两源均未命中返回 {@code null}
+     */
+    public <X extends IOrderProjection> X getById(Long id, Class<X> projectionType) {
+        return fallbackChain(List.of(REDIS_SOURCE, ES_SOURCE))
+                .queryById(id, projectionType);
+    }
+
+    /**
+     * 按主键批量读取订单：Redis 优先，未命中回退 ES。
+     *
+     * @param ids           订单主键列表
+     * @param projectionType 目标投影类型
+     * @param <X>           目标投影类型
+     * @return 命中的投影列表（逐条按 Redis→ES 回退）
+     */
+    public <X extends IOrderProjection> List<X> getByIds(List<Long> ids, Class<X> projectionType) {
+        return fallbackChain(List.of(REDIS_SOURCE, ES_SOURCE))
+                .queryByIds(ids, projectionType);
     }
 }

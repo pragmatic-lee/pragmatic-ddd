@@ -8,9 +8,9 @@ import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjecti
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.OrderCacheProjector;
 import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderCacheSummaryReducer;
-import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

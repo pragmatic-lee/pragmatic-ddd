@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+
 /**
  * 按聚合 ID 查询一个投影。
  *

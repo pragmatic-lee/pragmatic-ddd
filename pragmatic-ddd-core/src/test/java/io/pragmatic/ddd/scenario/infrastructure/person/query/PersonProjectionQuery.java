@@ -1,12 +1,12 @@
 package io.pragmatic.ddd.scenario.infrastructure.person.query;
 
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 import io.pragmatic.ddd.repository.query.IProjectionSourceQuery;
-import io.pragmatic.ddd.repository.query.PageRequest;
-import io.pragmatic.ddd.repository.query.PageResult;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
-import io.pragmatic.ddd.repository.query.ScrollPosition;
-import io.pragmatic.ddd.repository.query.ScrollResult;
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
 import io.pragmatic.ddd.scenario.domain.person.projection.IPersonQuery;
 import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
 import io.pragmatic.ddd.scenario.domain.person.query.PersonListQuery;

@@ -1,5 +1,18 @@
 package io.pragmatic.ddd.repository.query;
 
+import io.pragmatic.ddd.repository.query.criteria.ListQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
+import io.pragmatic.ddd.repository.query.exception.ProjectionSearcherNotFoundException;
+import io.pragmatic.ddd.repository.query.paging.PageRequest;
+import io.pragmatic.ddd.repository.query.paging.PageResult;
+import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
+import io.pragmatic.ddd.repository.query.paging.ScrollResult;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
+
 import io.pragmatic.ddd.base.AggregateRoot;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

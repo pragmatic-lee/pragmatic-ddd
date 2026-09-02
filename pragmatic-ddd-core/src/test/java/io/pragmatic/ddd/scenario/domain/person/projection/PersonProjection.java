@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.scenario.domain.person.projection;
 
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 
 /**
  * 人员聚合拓扑级投影（sealed 基类）。

@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.example.order.domain.order.projection.query;
 
-import io.pragmatic.ddd.repository.query.OneQueryCriteria;
+import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
 
 /**
  * 订单单投影查询（queryOne）的条件族。

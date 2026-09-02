@@ -1,10 +1,10 @@
 package io.pragmatic.ddd.scenario.infrastructure.person.materializer;
 
-import io.pragmatic.ddd.repository.query.AbstractAggregateProjector;
-import io.pragmatic.ddd.repository.query.AbstractProjectionSource;
-import io.pragmatic.ddd.repository.query.IAggregateProjection;
-import io.pragmatic.ddd.repository.query.IAggregateProjector;
-import io.pragmatic.ddd.repository.query.ProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
+import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjector;
+import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import io.pragmatic.ddd.scenario.domain.person.model.Person;
 import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
 
