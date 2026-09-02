@@ -98,8 +98,17 @@ repository.reconciliation
 #### 示例代码
 
 ```java
-public interface IOrderQuery extends
-        IAggregateQuery<Long, OrderProjection, OrderQuery, OrderQuery, OrderQuery> {
+// 调用方继承 AbstractProjectionQuery 即组合 6 个查询能力；四个泛型分别为：
+//   ID=Long、投影基类=P（领域投影体系 sealed 接口）、三个条件族（One / List / Page）。
+// 条件族为三族 sealed 接口，具体返回子类型由调用方以 Class<X> 显式选择。
+public class OrderReadService extends AbstractProjectionQuery<
+        Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery> {
+
+    public OrderReadService(ProjectorRegistry projectorRegistry) {
+        super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
+    }
+    // 6 个查询能力由基类提供；按需覆写以补充「指定单源 / 多源回退链」等业务编排
+}
 }
 ```
 
