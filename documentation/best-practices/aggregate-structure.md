@@ -4,14 +4,14 @@
 
 ## 1. 本质与定位
 
-本文档把「新建聚合」的第一步模板化：初始化 `domain/{agg}` / `application/{agg}` / `infrastructure/{agg}`（+ `api` / `controller`）目录骨架。它不是单一能力点的模式，而是**聚合全链路的目录地图**——每个文件夹指向对应的落地模式文档，按目录逐个填充即完成聚合落地。
+本文档把「新建聚合」的第一步模板化：初始化 `domain/{agg}` / `application/{agg}` / `api/{agg}` / `controller/{agg}` 目录骨架，并在基础设施层对应落地 `persistent` / `dependency` / `config` 下的 `{agg}` 目录。它不是单一能力点的模式，而是**聚合全链路的目录地图**——每个文件夹指向对应的落地模式文档，按目录逐个填充即完成聚合落地。
 
 - 适用：在既有模块内新建聚合（如 `order` / `product`），或从零初始化一个模块。
 - 不适用：理解框架整体分包与多模块拆分（见 [推荐项目结构](../getting-started/project-structure.md)）。
 
 ## 2. 目录骨架（核心）
 
-以聚合 `{agg}` 为第一级目录，四层分包：
+以四层分包为骨架；其中领域 / 应用 / UI 层以聚合 `{agg}` 为第一级，基础设施层以类型（`persistent` / `dependency` / `config`）为第一级、聚合为第二级：
 
 ```text
 {module}/
@@ -40,15 +40,14 @@
 │   ├── repository/            #   仓储抽象
 │   ├── projection/            #   投影契约（含 materializer/ 版本 / 补偿专属契约）
 │   └── config/                #   领域配置
-└── infrastructure/{agg}/      # Infrastructure：技术实现，落地领域层契约
-    ├── repository/            #   仓储实现（MyBatis）
-    ├── projection/            #   投影器（含 materializer/ 写读一体源 / 版本 / 对账）
-    ├── dependency/            #   外部依赖实现
-    ├── service/               #   领域服务实现（依赖基础设施类）
+└── infrastructure/            # Infrastructure：技术实现，落地领域层契约（类型优先）
+    ├── persistent/{agg}/      #   持久化：仓储实现 + 投影器（含 materializer/ 写读一体源 / 版本 / 对账）
+    ├── dependency/{agg}/      #   外部依赖实现（ACL 网关）；跨聚合共享的放 dependency/shared/
     └── config/                #   @Configuration 装配（MySQL / ES / MQ / Outbox）
+        └── {agg}/             #   仅绑定聚合的配置进 config/{agg}/，通用配置放 config/ 外层
 ```
 
-> ⚠️ **分包维度**：以聚合 `{agg}` 为第一级目录；不同聚合不共享包或实体，聚合间通信走领域事件。
+> ⚠️ **分包维度**：**领域 / 应用层以聚合 `{agg}` 为第一级**（让单个聚合的契约与编排内聚成块），**基础设施层以类型（`persistent` / `dependency` / `config`）为第一级、聚合为第二级**（便于把通用技术配置与跨聚合共享适配器抽成单一来源，见 [推荐项目结构](../getting-started/project-structure.md) §2.3）。不同聚合不共享包或实体，聚合间通信走领域事件。
 
 ## 3. 按图索骥：目录 → 模式文档
 
@@ -69,9 +68,10 @@
 | `application/{agg}/factory` + `updater` + `resolver` | 聚合装配 / 修改 / 适配 | [领域服务落地模式](./domain-service.md) · [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/service` | 领域服务实现 | [领域服务落地模式](./domain-service.md) |
 | `application/{agg}/subscriber` | 事件订阅登记 | [投影读模型代码落地指南](./projection-design.md) · [RocketMQ 配置设计原则](./rocketmq-config.md) |
-| `infrastructure/{agg}/repository` | 仓储实现 | [仓储设计原则](./repository-design.md) · [MySQL 配置设计原则](./mysql-config.md) |
-| `infrastructure/{agg}/projection` | 投影器 / 物化器 | [投影读模型代码落地指南](./projection-design.md) · [Elasticsearch 配置设计原则](./elasticsearch-config.md) |
-| `infrastructure/{agg}/config` | Bean 装配 | [MySQL](./mysql-config.md) · [Elasticsearch](./elasticsearch-config.md) · [RocketMQ](./rocketmq-config.md) · [Outbox](./outbox-config.md) |
+| `infrastructure/persistent/{agg}/repository` | 仓储实现 | [仓储设计原则](./repository-design.md) · [MySQL 配置设计原则](./mysql-config.md) |
+| `infrastructure/persistent/{agg}/projection` | 投影器 / 物化器 | [投影读模型代码落地指南](./projection-design.md) · [Elasticsearch 配置设计原则](./elasticsearch-config.md) |
+| `infrastructure/config`（通用）+ `config/{agg}/` | Bean 装配 | [MySQL](./mysql-config.md) · [Elasticsearch](./elasticsearch-config.md) · [RocketMQ](./rocketmq-config.md) · [Outbox](./outbox-config.md) |
+| `infrastructure/dependency/{agg}`（+ `shared/`） | 外部依赖实现 | [核心：依赖体系](../core/dependency.md) · [ACL 防腐层](./../getting-started/project-structure.md#32-防腐层acl怎么放) |
 
 ## 4. 四层职责速记
 
@@ -93,7 +93,8 @@
 
 | 反模式 | 问题 | 正确做法 |
 | --- | --- | --- |
-| 目录以技术分层为第一级（如 `repository/`、`controller/`） | 聚合间耦合、跨聚合难以复用 | 以聚合 `{agg}` 为第一级 |
+| 领域/应用层目录以技术分层为第一级（如 `domain/repository/`、`application/service/`） | 单个聚合的契约与编排散落各目录、难整体搬移 | 领域/应用层以聚合 `{agg}` 为第一级 |
+| 基础设施层以聚合 `{agg}` 为第一级并在其下重复通用配置 | 通用数据源/适配器在每个聚合下各放一份、难复用 | 基础设施层类型优先：`persistent` / `dependency` / `config` 为一级、聚合为二级，通用放 `config/`、共享放 `dependency/shared/` |
 | `domain/{agg}` 里出现 Spring / Mapper / MQ 导入 | 破坏领域层零基础设施依赖 | 依赖外部能力用契约 + 依赖声明 |
 | 不同聚合共享包 / 实体 | 聚合边界模糊、事件驱动失效 | 聚合目录独立，通信走领域事件 |
 | `service` 包混放业务逻辑类 | 目录语义失真、难维护 | 契约 / 实现按层分离，业务逻辑内聚聚合根 |

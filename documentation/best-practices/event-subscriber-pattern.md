@@ -62,9 +62,8 @@ application/order/
 └── subscriber/
     └── OrderEventSubscriberRegistry.java       事件类型 → 订阅者绑定
 
-infrastructure/order/
-├── dependency/   SmsDependencyAdapter 等（实现领域 IDependency 端口）
-└── projection/   Projector / Source（读模型型订阅者编排的构件）
+infrastructure/dependency/order/        SmsDependencyAdapter 等（实现领域 IDependency 端口）
+infrastructure/persistent/order/projection/  Projector / Source（读模型型订阅者编排的构件）
 ```
 
 ### 2.2 命名规范

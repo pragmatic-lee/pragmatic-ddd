@@ -1,23 +1,25 @@
 # MySQL 配置设计原则
 
-> 本文档介绍使用 Pragmatic DDD 进行 MySQL 数据访问配置的最佳实践与常见反模式：先明确配置类的定位与职责边界，再说明 SqlSessionFactory 的构建要点与 TypeHandler 体系的装配机制，最后落到事务管理器与配置规范。
+> 本文档介绍使用 Pragmatic DDD 进行 MySQL 数据访问配置的最佳实践与常见反模式：先明确配置类的定位与职责边界（通用 `MySqlConfig` 与各聚合专属 TypeHandler 配置如何分工），再说明 SqlSessionFactory 的构建要点与 TypeHandler 体系的多聚合装配机制，最后落到事务管理器与配置规范。
 
 ## 1. MySQL 配置设计原则
 
-### 1.1 集中式配置类：一个模块一个配置
+### 1.1 通用装配与聚合专属分离
 
-数据访问配置应集中在一个 `@Configuration` 类中（如 `MySqlConfig`），统一提供数据源、会话工厂、会话模板与事务管理器四个核心 Bean。配置不散落在各处，便于审查连接参数、Mapper 加载策略与类型处理器装配。
+数据访问装配分为两层，避免把订单等聚合专属内容写进通用配置：
 
-```java
-@Configuration
-@EnableConfigurationProperties(DataSourceProperties.class)
-@EnableTransactionManagement
-public class MySqlConfig {
-    // DataSource / SqlSessionFactory / SqlSessionTemplate / TransactionManager 四 Bean
-}
+- **通用 `MySqlConfig`**：统一提供数据源、会话工厂、会话模板与事务管理器四个核心 Bean，并**聚合注册**各聚合的复杂类型 TypeHandler。不 import 任何聚合类型，可跨聚合 / 跨模块复用。
+- **聚合专属 `{Agg}MybatisTypeHandlerConfig`**：每个聚合一个，产出该聚合的枚举与值对象 TypeHandler 清单。落在 `infrastructure/config/{agg}/`。
+
+```text
+infrastructure/config/                 # 通用技术配置
+├── MySqlConfig.java                    # DataSource / SqlSessionFactory / SqlSessionTemplate / TransactionManager
+└── {agg}/
+    ├── {Agg}MybatisTypeHandlerConfig.java  # 该聚合专属 TypeHandler 装配
+    └── ...                             # 其它绑定聚合的配置
 ```
 
-**设计含义**：配置类只负责装配基础设施 Bean，不包含任何业务逻辑，也不参与 Mapper 的 Java 接口管理（见 §2.3）。
+**设计含义**：通用配置不感知具体聚合，聚合的类型清单（枚举 / 值对象）只出现在各自专属配置里，新增聚合无需改动通用 `MySqlConfig`。
 
 ### 1.2 外部化配置，不硬编码
 
@@ -46,30 +48,34 @@ public DataSource dataSource(DataSourceProperties properties) {
 
 ## 2. SqlSessionFactory 构建专题
 
-`SqlSessionFactory` 是 MyBatis 的心脏，其构建要点集中在三处：**原生 Configuration 注入 TypeHandler**、**全局开关设置**、**Mapper XML 加载策略**。
+`SqlSessionFactory` 是 MyBatis 的心脏，其构建要点集中在三处：**原生 Configuration 注入各聚合 TypeHandler**、**全局开关设置**、**Mapper XML 加载策略**。
 
-### 2.1 原生 Configuration 对象，注入自定义 TypeHandler
+### 2.1 原生 Configuration 对象，聚合注册各聚合 TypeHandler
 
-不使用 `setConfigLocation` 加载 XML 配置来装配 TypeHandler，而是**创建原生 `Configuration` 对象**，在构建阶段手动注册 TypeHandler，再通过 `setConfiguration` 注入会话工厂。
+不使用 `setConfigLocation` 加载 XML 配置来装配 TypeHandler，而是**创建原生 `Configuration` 对象**，在构建阶段把各聚合专属 `TypeHandlerContext` 逐个 `registerInto`，再通过 `setConfiguration` 注入会话工厂。
 
 ```java
 @Bean
-public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
+public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
+                                           List<TypeHandlerContext> typeHandlerContexts) throws Exception {
     org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
 
-    // 注入自定义 TypeHandler
-    Collection<TypeHandlerRegistration> typeHandlerRegistrations = registerTypeHandlers();
-    typeHandlerRegistrations.forEach(typ -> {
-        Class<?> aClass = typ.javaType();
-        TypeHandler<?> handler = typ.handler();
-        configuration.getTypeHandlerRegistry().register(aClass, (TypeHandler) handler);
-    });
+    // 把各聚合专属的复杂类型 TypeHandler 逐个灌入 Configuration（XML 解析前完成）
+    for (TypeHandlerContext context : typeHandlerContexts) {
+        context.registerInto(configuration);
+    }
 
     // ... 全局开关 ...
     SqlSessionFactoryBean sessionFactory = createSessionFactory(dataSource, configuration);
     return sessionFactory.getObject();
 }
 ```
+
+**为什么入参用 `List<TypeHandlerContext>` 而非单个**：Spring 容器里每个聚合各产出一个 `TypeHandlerContext` Bean（如 `orderTypeHandlerContext`、`shipmentTypeHandlerContext`），入参声明为 `List<T>` 时 Spring 会把这些 `T` 类型 Bean **全部收集成一个 List 注入**。若声明为单个 `TypeHandlerContext` 参数，多聚合时会因无法确定注入哪一个而抛 `NoUniqueBeanDefinitionException`。改用 `List` 后：
+
+- 单聚合：列表只有一个元素，行为不变；
+- 多聚合：自动收集全部并逐个注册，**新增聚合只需新增一个 `TypeHandlerContext` Bean，`MySqlConfig` 零改动**；
+- 零聚合（如只 import `MySqlConfig` 的测试）：注入空列表、for 空转，不报错。
 
 **为什么必须手动注入而非包扫描**：框架的 `UniversalEnumTypeHandler`、`GenericJsonTypeHandler`、`ListTypeHandler` 都是**运行时按类型动态构建**的（泛型类需针对每个值对象 new 出实例，集合处理器需运行期装配查表配置），包扫描只能发现"类存在"，无法为每个具体类型生成对应实例。因此必须在 Configuration 构建阶段手动装配（详见 §3）。
 
@@ -136,7 +142,33 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 
 包扫描无法为这些动态构建的处理器生成对应实例，因此必须由 `TypeHandlerContext` 在 Configuration 构建阶段手动装配。
 
-### 3.2 三通道装配
+### 3.2 每个聚合一个专属 TypeHandlerContext Bean
+
+每个聚合用独立配置类产出自己的 `TypeHandlerContext` Bean，只登记本聚合的枚举与值对象：
+
+```java
+@Configuration
+public class OrderMybatisTypeHandlerConfig {
+
+    @Bean
+    public TypeHandlerContext orderTypeHandlerContext() {
+        EnumValueResolver resolver = new EnumValueResolver();
+        Map<Class<?>, EnumRule> enumRules = Map.of(
+                OrderStatus.class, EnumRule.CODE,
+                PaymentMethod.class, EnumRule.CODE);
+        List<Class<?>> voTypes = List.of(
+                Customer.class, Address.class, Money.class,
+                PaymentInfo.class, LogisticsInfo.class);
+        return new TypeHandlerContext(
+                resolver,
+                new Fastjson2JsonSerializer(resolver, enumRules),
+                JdbcJsonValue.MYSQL,
+                enumRules,
+                voTypes,
+                CollectionElementTypeConfig.empty());
+    }
+}
+```
 
 `TypeHandlerContext` 是一个 record，按固定顺序接收 6 个参数，内部把三类 TypeHandler 并行构建汇入同一注册表：
 
@@ -149,29 +181,7 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 | `voTypes` | 需登记 JSON 通道的 `IValueObject` 类型清单 |
 | `collections` | 集合通道配置 |
 
-```java
-private Collection<TypeHandlerRegistration> registerTypeHandlers() {
-    EnumValueResolver resolver = new EnumValueResolver();
-    Map<Class<?>, EnumRule> enumRules = Map.of(
-            OrderStatus.class, EnumRule.CODE,
-            PaymentMethod.class, EnumRule.CODE
-    );
-    List<Class<?>> voTypes = List.of(
-            Customer.class, Address.class, Money.class,
-            PaymentInfo.class, LogisticsInfo.class
-    );
-    CollectionElementTypeConfig collections = CollectionElementTypeConfig.empty();
-    TypeHandlerContext context = new TypeHandlerContext(
-            resolver,
-            new Fastjson2JsonSerializer(resolver, enumRules),
-            JdbcJsonValue.MYSQL,
-            enumRules,
-            voTypes,
-            collections
-    );
-    return context.registrations();
-}
-```
+> 多个 `TypeHandlerContext` Bean 各自 `new EnumValueResolver`，各自持有独立注册表；`registerInto` 逐个把不同 javaType 灌入同一 MyBatis `Configuration`，互不冲突。**不同聚合的同一枚举若以不同策略注册，以后注册为准（覆盖 put），应避免跨聚合对同一枚举设定不一致策略。**
 
 **三个通道**：
 
@@ -181,11 +191,17 @@ private Collection<TypeHandlerRegistration> registerTypeHandlers() {
 
 > 方言差异：MySQL 用 `JdbcJsonValue.MYSQL`（文本形式）；PostgreSQL 需用 `PgJdbcJsonValue`（`PGobject`，需 `org.postgresql` 运行期依赖）。跨库迁移时注意替换。
 
-### 3.3 单点来源：三类配置必须共用
+### 3.3 聚合注册进 MySqlConfig
+
+通用 `MySqlConfig` 通过 `List<TypeHandlerContext>` 注入全部聚合 TypeHandler 清单，在构建 Configuration 时逐个 `registerInto`（见 §2.1）。新增聚合时，**只新增聚合专属配置类产出一个 `TypeHandlerContext` Bean**，Spring 自动装入 `MySqlConfig` 的 List 参数，通用配置零改动。
+
+> 若某测试 / 场景需单独装配 MySQL 链路，需在 `@Import` 里**同时带上** `MySqlConfig` 与对应聚合的 TypeHandler 配置，否则会话工厂构建时收不到该聚合的 TypeHandler 清单（空列表不会报错，但 Mapper XML 解析期会因缺 handler 抛 `BuilderException`）。
+
+### 3.4 单点来源：三类配置必须共用
 
 枚举策略是**单点来源**：枚举单列通道与 JSON 通道必须共用**同一 `resolver` / `serializer` / `enumRules`**，否则同一枚举在两处解析结果不一致。上例中 `EnumValueResolver` 与 `Fastjson2JsonSerializer` 都持有 `enumRules`，且 resolver 被 serializer 复用，保证一致。
 
-### 3.4 集合 TypeHandler 的列别名避坑
+### 3.5 集合 TypeHandler 的列别名避坑
 
 `ListTypeHandler` 靠结果集 `columnLabel` 还原泛型，**多表同名列不同类型时需用 SQL `AS` 别名隔离**，否则启动期抛 `IllegalStateException`。
 
@@ -212,9 +228,13 @@ public PlatformTransactionManager transactionManager(DataSource dataSource) {
 | --- | --- | --- |
 | 连接参数硬编码在 Java 中 | 密钥泄露、无法按环境切换 | 从 `spring.datasource.*` 外部化配置读取 |
 | 依赖 `DataSourceAutoConfiguration` 隐式装配 | 数据源不可控、与自定义 TypeHandler 冲突 | 显式声明数据源，启动类排除自动配置 |
+| 把聚合专属 TypeHandler 写进通用 `MySqlConfig` | 通用配置 import 聚合类型，跨模块无法复用 | 通用配置只管装配，聚合类型清单放各聚合专属 `TypeHandlerConfig` |
+| `sqlSessionFactory` 用单个 `TypeHandlerContext` 入参 | 多聚合时容器有多个同型 Bean，注入抛 `NoUniqueBeanDefinitionException` | 入参用 `List<TypeHandlerContext>`，逐个 `registerInto` |
 | 用包扫描装配复杂 TypeHandler | 泛型/动态构建的处理器无法被发现 | 用 `TypeHandlerContext.registerInto` 在构建阶段手动注入 |
 | `setConfigLocation` 混用 XML 装配 TypeHandler | 装配分散、难审查 | 原生 Configuration 对象统一注入后 `setConfiguration` |
+| 单独装配测试只 import `MySqlConfig` 漏了聚合 TypeHandler | 空列表不报错，但 Mapper XML 解析期缺 handler 抛 `BuilderException` | `@Import` 同时带上 `MySqlConfig` 与对应聚合 TypeHandler 配置 |
 | 枚举单列与 JSON 通道配置不一致 | 同一枚举两处解析结果不同 | 三者共用同一 resolver / serializer / enumRules |
+| 不同聚合对同一枚举设定不同策略 | 后注册覆盖前者，策略不稳定 | 同枚举跨聚合统一策略，避免重复注册冲突 |
 | 集合 TypeHandler 遇到多表同名列 | 启动期抛 `IllegalStateException` | 用 SQL `AS` 别名隔离列类型 |
 | MySQL 用错 JSON 方言 | 写 JSON 列失败 | MySQL 用 `JdbcJsonValue.MYSQL`，PG 用 `PgJdbcJsonValue` |
 | 开启 `aggressiveLazyLoading=true` | 不必要的级联加载、性能下降 | 按需加载，置为 `false` |

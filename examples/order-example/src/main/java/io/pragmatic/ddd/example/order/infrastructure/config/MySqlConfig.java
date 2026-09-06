@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -100,23 +101,26 @@ public class MySqlConfig {
      * 构建 MyBatis 会话工厂。
      *
      * <p>会话工厂加载 mybatis-config.xml（其中 {@code <mappers>} 统一组织所有 Mapper XML）。
-     * 复杂类型（枚举 / 值对象 JSON / 集合）的 TypeHandler 由各聚合专属配置类产出的
-     * {@link TypeHandlerContext} 在工厂构建阶段经 {@code registerInto} 注入原生 Configuration，
-     * 确保 Mapper XML 解析前完成装配；本类不感知任何具体聚合类型。</p>
+     * 复杂类型（枚举 / 值对象 JSON / 集合）的 TypeHandler 由各聚合专属配置类产出的多个
+     * {@link TypeHandlerContext} 在工厂构建阶段逐个经 {@code registerInto} 注入原生 Configuration，
+     * 确保 Mapper XML 解析前完成装配；本类不感知任何具体聚合类型，新增聚合只需新增一个
+     * {@code TypeHandlerContext} Bean 即可被自动聚合注册。</p>
      *
-     * @param dataSource            数据源
-     * @param typeHandlerContext    复杂类型 TypeHandler 装配上下文（各聚合专属配置提供）
+     * @param dataSource             数据源
+     * @param typeHandlerContexts    复杂类型 TypeHandler 装配上下文集合（每个聚合专属配置各产出一个）
      * @return MyBatis 会话工厂
      * @throws Exception 资源扫描或工厂构建失败时抛出
      */
     @Bean
     public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
-                                               TypeHandlerContext typeHandlerContext) throws Exception {
+                                               List<TypeHandlerContext> typeHandlerContexts) throws Exception {
         // 1. 创建原生的 Configuration 对象
         org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
 
-        // 2. 将聚合专属的复杂类型 TypeHandler 灌入 Configuration（XML 解析前完成）
-        typeHandlerContext.registerInto(configuration);
+        // 2. 将各聚合专属的复杂类型 TypeHandler 灌入 Configuration（XML 解析前完成）
+        for (TypeHandlerContext context : typeHandlerContexts) {
+            context.registerInto(configuration);
+        }
 
         // 3. 全局配置
         configuration.setMapUnderscoreToCamelCase(true); // 开启驼峰命名自动映射

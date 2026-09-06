@@ -21,8 +21,9 @@ import java.util.Map;
 
 /**
  * 订单专属 MyBatis 复杂类型 TypeHandler 装配：产出仅登记订单聚合枚举与值对象的
- * {@link TypeHandlerContext} Bean，由通用 {@code config.MySqlConfig} 在会话工厂构建阶段
- * 统一灌入原生 Configuration。本类不建数据源/会话工厂，也不做连接相关配置。
+ * {@link TypeHandlerContext} Bean，与其它聚合的 TypeHandlerContext 一起由通用
+ * {@code config.MySqlConfig} 在会话工厂构建阶段逐个灌入原生 Configuration（经
+ * {@code List<TypeHandlerContext>} 聚合注入）。本类不建数据源/会话工厂，也不做连接相关配置。
  *
  * @author wizard-lee
  */

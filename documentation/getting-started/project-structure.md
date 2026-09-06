@@ -277,7 +277,7 @@ infrastructure/
 #### 2.3.5 代码示例
 
 ```java
-// infrastructure/order/repository/OrderRepository.java
+// infrastructure/persistent/order/repository/OrderRepository.java
 public class OrderRepository implements IRepository<Long, Order> { ... }
 
 // 事件管理器由框架集成包提供，引入 pragmatic-ddd-rocketmq 并配置 RocketMqEventManager 即可

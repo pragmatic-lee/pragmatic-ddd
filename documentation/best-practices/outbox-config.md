@@ -20,15 +20,17 @@
 
 ## 2. 命名与包结构
 
+Outbox 链路为跨聚合**通用**装配（五个 Bean 均为框架组件、不绑定任何聚合类型），放在类型优先的通用配置层 `infrastructure/config/`；仅各聚合专属配置才进 `config/{agg}/`：
+
 ```text
-infrastructure/<聚合>/config/
+infrastructure/config/             # 通用技术配置（不绑定聚合）
 ├── OutboxConfig.java              ✅ 集中装配五个 Bean
 ├── SpringTransactionOperations.java   ✅ TransactionOperations 的 Spring 实现
 ├── SpringOutboxStatementExecutor.java ✅ IOutboxStatementExecutor 的 Spring 实现
 └── MySqlConfig.java               ✅（或等价）暴露 PlatformTransactionManager / SqlSessionTemplate
 ```
 
-✅ 推荐：`OutboxConfig` 与 `Spring*` 适配类放在同一 `config` 包，贴近基础设施。
+✅ 推荐：`OutboxConfig` 与 `Spring*` 适配类放在同一通用 `config` 包，贴近基础设施、可跨聚合复用。
 ❌ 反模式：把 `outboxStore` / `eagerPublisher` 散落到应用服务或 CommandExecutor 里 new。
 
 ## 3. 落地顺序（五个 Bean 逐个装配）

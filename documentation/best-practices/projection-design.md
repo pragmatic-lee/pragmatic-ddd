@@ -50,20 +50,20 @@ domain/order/projection/                       领域：读模型视图 + 条件
       ├── IOrderReadModelVersionResolver       extends IReadModelVersionResolver<Long>
       └── IOrderReadModelResynchronizer        extends IReadModelResynchronizer<Long>
 
-infrastructure/order/projection/               基础设施：聚合 → 视图 纯映射 + 读侧检索（无查询门面）
+infrastructure/persistent/order/projection/    基础设施：聚合 → 视图 纯映射 + 读侧检索（无查询门面）
   ├── OrderEsProjector                         extends AbstractAggregateProjector<Order, OrderEsProjection>
   ├── OrderByIdSearcher                        implements IProjectionByIdSearcher<OrderEsProjection>
   ├── OrderOneSearcher                         implements IProjectionSearcher<OrderOneQuery, OrderEsProjection>
   ├── OrderListSearcher                        implements IProjectionSearcher<OrderListQuery, OrderEsProjection>
   └── OrderPageSearcher                        implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection>
-infrastructure/order/projection/reducer/       基础设施：索引级全量投影 → 业务子投影（Java 内存）
+infrastructure/persistent/order/projection/reducer/  基础设施：索引级全量投影 → 业务子投影（Java 内存）
   └── OrderSummaryReducer                      implements IOrderSummaryReducer（领域契约）
-infrastructure/order/projection/materializer/  基础设施：写读一体的源（继承框架基类）
+infrastructure/persistent/order/projection/materializer/ 基础设施：写读一体的源（继承框架基类）
   ├── OrderEsSource                           extends AbstractProjectionSource<Order, OrderEsProjection>
   ├── OrderRedisSource                        extends AbstractProjectionSource<Order, OrderCacheProjection>
   ├── OrderEsVersionResolver                   implements IOrderReadModelVersionResolver
   └── OrderEsResynchronizer                    implements IOrderReadModelResynchronizer
-infrastructure/order/config/                   Spring 装配（登记 registry、产出 Bean）
+infrastructure/config/order/                   Spring 装配（登记 registry、产出 Bean）
   └── OrderProjectionConfig
 application/order/                              应用层：读/写应用服务（注入 registry，业务编排门面）
   ├── OrderWriteService                        extends AbstractApplicationService implements ICommandApplicationService（写）
@@ -765,7 +765,7 @@ public interface IOrderSummaryReducer
 索引级全量投影 → 业务子投影，在 Java 内存中完成字段裁剪、层级重排与派生计算：
 
 ```java
-// infrastructure/order/projection/reducer/OrderSummaryReducer.java —— 实现领域契约
+// infrastructure/persistent/order/projection/reducer/OrderSummaryReducer.java —— 实现领域契约
 @Component
 public class OrderSummaryReducer implements IOrderSummaryReducer {
 
