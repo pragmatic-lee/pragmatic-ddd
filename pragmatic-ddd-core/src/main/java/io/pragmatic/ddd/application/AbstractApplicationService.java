@@ -1,6 +1,5 @@
 package io.pragmatic.ddd.application;
 
-import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.event.spi.IEventManager;
@@ -10,7 +9,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * 应用服务便捷基类，提供 ICommandExecutor 与 IUnitOfWork 的快捷访问；
+ * 应用服务基类：继承者必须显式注入命令执行器与工作单元工厂，
+ * 以明确声明自身的一致性语义（如默认 CommandExecutor + UnitOfWork，或 OutboxCommandExecutor + OutboxUnitOfWork）。
  * 不强制继承，也可直接组合使用 ICommandExecutor / IUnitOfWork。
  *
  * @author wizard-lee
@@ -20,16 +20,6 @@ public abstract class AbstractApplicationService {
     protected final IEventManager eventManager;
     protected final ICommandExecutor commandExecutor;
     protected final Supplier<IUnitOfWork> unitOfWorkFactory;
-
-    /**
-     * 便捷构造器：默认命令执行器 + 默认工作单元，二者共用同一事件管理器与事务。
-     *
-     * @param eventManager 事件管理器
-     * @param txOps        事务抽象，用于默认工作单元，保证多聚合同事务
-     */
-    protected AbstractApplicationService(IEventManager eventManager, TransactionOperations txOps) {
-        this(eventManager, new CommandExecutor(eventManager), () -> new UnitOfWork(eventManager, txOps));
-    }
 
     /**
      * 全自定义构造器：注入命令执行器与工作单元工厂。

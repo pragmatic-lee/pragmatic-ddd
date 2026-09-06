@@ -267,6 +267,6 @@ bash setup.sh
 
 ## 7. 下一步
 
-- **跑通后看代码**：从 `Order` 聚合根（`domain/order/model`）→ 应用服务（`application/order/service`）→ 投影链路（`infrastructure/order/projection`）逐层阅读
+- **跑通后看代码**：从 `Order` 聚合根（`domain/order/model`）→ 应用服务（`application/order/service`）→ 投影链路（`infrastructure/persistent/order/projection`）逐层阅读
 - **接入你自己的项目**：复用本仓库的中间件 compose 与 `Dockerfile` / `build.sh` / `setup.sh` 模板（见 [docker 目录结构](#5-docker-目录结构) 与 [4.5 连接配置](#45-连接配置)），业务代码改为引用 `pragmatic-ddd-bom` 依赖
 - **查阅框架文档**：VitePress 文档站（`documentation/`），入口 `documentation/index.md`

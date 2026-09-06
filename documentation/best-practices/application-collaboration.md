@@ -62,17 +62,14 @@ public class OrderWriteService extends AbstractApplicationService
     // ... 其余 Updater
 
     public OrderWriteService(IEventManager eventManager,
-                             IOutboxStore outboxStore,
-                             IEventSerializer eventSerializer,
-                             EagerOutboxPublisher eagerOutboxPublisher,
-                             TransactionOperations txOps,
+                             OutboxCommandExecutor commandExecutor,
+                             Supplier<IUnitOfWork> unitOfWorkFactory,
                              OrderFactory orderFactory,
                              OrderRule orderRule,
                              OrderRepository orderRepository,
                              OrderPayUpdater orderPayUpdater) {
-        // 执行器选择：OutboxCommandExecutor（或默认 CommandExecutor，见 §4.7）
-        super(eventManager,
-                new OutboxCommandExecutor(outboxStore, txOps, eventSerializer, eagerOutboxPublisher));
+        // 执行器与工厂由组合根（OutboxConfig）以成品 Bean 注入，服务内不再手动 new
+        super(eventManager, commandExecutor, unitOfWorkFactory);
         this.orderFactory = orderFactory;
         this.orderRule = orderRule;
         this.orderRepository = orderRepository;
@@ -92,7 +89,8 @@ public class OrderWriteService extends AbstractApplicationService
 
 要点：
 
-- 继承 `AbstractApplicationService`，构造器选择执行器（默认 `CommandExecutor`，需要 Outbox 用 `OutboxCommandExecutor`）。
+- 继承 `AbstractApplicationService`，**必须显式注入命令执行器与工作单元工厂**（不再提供默认构造器）。
+- `OutboxCommandExecutor` 与 `Supplier<IUnitOfWork>`（outbox 工厂）由 `OutboxConfig` 以成品 Bean 提供，执行器与工厂语义须一致。
 - 每个用例一个公开方法：加载 / 创建聚合 → `execute(...)`。
 - `execute` 四参：聚合根、规则容器、仓储、领域逻辑（`Consumer<T>`）。
 
@@ -188,6 +186,8 @@ public class OrderRuleConfig {
 | --- | --- | --- |
 | `CommandExecutor` | 落库后立即发布事件 | 不需要 Outbox 的事务一致性兜底 |
 | `OutboxCommandExecutor` | 聚合写 + outbox 行同事务，异步投递 | 跨模块可靠投递 / 崩溃兜底（见 [Outbox 链路装配](./outbox-config.md)） |
+
+> `AbstractApplicationService` 不再提供默认构造器，执行器与工作单元工厂必须由继承者**显式注入**（通常以组合根 `@Bean` 提供成品），且二者语义须一致：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用。
 
 ### 4.8 读侧 ReadService：不进 `execute()` 模板
 

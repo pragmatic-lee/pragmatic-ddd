@@ -10,7 +10,7 @@ import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjec
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
-import io.pragmatic.ddd.example.order.infrastructure.order.projection.reducer.OrderSummaryReducer;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderSummaryReducer;
 import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
 import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.IProjectionByIdSearcher;

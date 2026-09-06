@@ -133,7 +133,7 @@ DryRunResult result = unitOfWork.tryCommit();   // 零副作用，返回聚合�
 
 ### 2.3 应用服务基类：`AbstractApplicationService`
 
-便捷基类，内聚 `ICommandExecutor` 与 `IUnitOfWork` 工厂，子类以语义方法暴露能力，无需直接持有编排器。
+应用服务基类，内聚 `ICommandExecutor` 与 `IUnitOfWork` 工厂；**继承者必须显式注入命令执行器与工作单元工厂**，以明确声明自身的一致性语义。子类以语义方法暴露能力，无需直接持有编排器。
 
 ```java
 public class OrderApplicationService extends AbstractApplicationService {
@@ -142,10 +142,11 @@ public class OrderApplicationService extends AbstractApplicationService {
     private final OrderRule orderRule;
 
     public OrderApplicationService(IEventManager eventManager,
-                                   TransactionOperations txOps,
+                                   ICommandExecutor commandExecutor,
+                                   Supplier<IUnitOfWork> unitOfWorkFactory,
                                    OrderRepository orderRepository,
                                    OrderRule orderRule) {
-        super(eventManager, txOps);  // 默认 CommandExecutor + 默认 UnitOfWork，共用同一事务
+        super(eventManager, commandExecutor, unitOfWorkFactory);  // 显式声明执行器与工厂语义
         this.orderRepository = orderRepository;
         this.orderRule = orderRule;
     }
@@ -170,16 +171,15 @@ public class OrderApplicationService extends AbstractApplicationService {
 }
 ```
 
-两个受保护构造器：
+唯一受保护构造器（必须显式注入执行器与工厂）：
 
 | 构造器 | 用途 |
 | --- | --- |
-| `AbstractApplicationService(IEventManager, TransactionOperations)` | 默认 `CommandExecutor` + 默认 `UnitOfWork`，共用同一事务 |
 | `AbstractApplicationService(IEventManager, ICommandExecutor, Supplier<IUnitOfWork>)` | 全自定义：注入命令执行器 + `IUnitOfWork` 工厂 |
 
-> 使用自定义带事务的执行器（如 `OutboxCommandExecutor`）时，`unitOfWorkFactory` 应返回语义一致的实现（如 `OutboxUnitOfWork`），避免同一服务内出现两套一致性语义。
+> 执行器与工作单元必须**语义一致**：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用，否则同一服务内出现两套一致性语义。装配通常交由组合根（如 `@Configuration`）以 Bean 提供成品。
 
-> **重要约束**：`AbstractApplicationService` 仅为便捷基类，不强制继承；也可直接组合 `ICommandExecutor` / `IUnitOfWork` 使用。
+> **重要约束**：`AbstractApplicationService` 仅为应用服务基类，不强制继承；也可直接组合 `ICommandExecutor` / `IUnitOfWork` 使用。
 
 ### 2.4 实体工厂、更新器与属性解析器
 
@@ -311,7 +311,7 @@ relay.start();   // 启动周期性轮询（scheduleAtFixedRate）
 | 单聚合根命令 | `CommandExecutor.execute(t, rule, repo, logic)` | 默认先 save 再逐条 publish |
 | 跨聚合根工作单元 | `UnitOfWork.register(...).commit()`（try-with-resources） | 统一校验→落库→发布；`close()` 未提交自动清理 |
 | 试跑 | `tryExecute` / `tryCommit` → `DryRunResult` | 零副作用；试跑实例不可复用；仅规则异常转译 |
-| 应用服务基类 | 继承 `AbstractApplicationService`，`super(eventManager)` | 提供 `execute`/`tryExecute`/`beginUnitOfWork`；非强制 |
+| 应用服务基类 | 继承 `AbstractApplicationService`，显式注入 `ICommandExecutor` + `Supplier<IUnitOfWork>` | 提供 `execute`/`tryExecute`/`beginUnitOfWork`；非强制 |
 | 实体创建/修改 | `EntityFactory.create` / `EntityUpdater.apply` | `apply` 非 `update` |
 | 属性解析 | `EntityPropertyResolvers.of(calc, extractor)` | 一处定义多处复用 |
 | 分层标记 | `ICommandApplicationService` / `IQueryApplicationService` | 配合 `IRepository`/`IAggregateProjection` 读写分离 |

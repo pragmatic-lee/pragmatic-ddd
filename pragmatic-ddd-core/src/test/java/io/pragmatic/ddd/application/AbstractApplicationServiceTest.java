@@ -28,8 +28,9 @@ class AbstractApplicationServiceTest {
     void defaultConstructor_executeUsesDefaultExecutorAndUnitOfWork() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        StubApplicationService service =
-                new StubApplicationService(eventManager, new NoOpTransactionOperations());
+        StubApplicationService service = new StubApplicationService(eventManager,
+                new CommandExecutor(eventManager),
+                () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         service.runExecute(aggregate, new DryRunRule(true, SampleMessages.NAME_ERROR),
@@ -44,8 +45,9 @@ class AbstractApplicationServiceTest {
     void defaultConstructor_tryExecuteReturnsPassedWithNoSideEffect() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        StubApplicationService service =
-                new StubApplicationService(eventManager, new NoOpTransactionOperations());
+        StubApplicationService service = new StubApplicationService(eventManager,
+                new CommandExecutor(eventManager),
+                () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         DryRunResult result = service.runTryExecute(aggregate,

@@ -4,7 +4,7 @@ import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderDataSyncEsProjectionHandle;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
 import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
 import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.springframework.stereotype.Component;

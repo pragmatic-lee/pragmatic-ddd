@@ -41,11 +41,13 @@ com/yourcompany/{module}/
 │   ├── model/ projection/ repository/          # projection/ 内含 materializer/ 子目录（版本 / 补偿契约）
 │   ├── rule/ event/ dependency/ service/
 │   ├── config/ operation/ param/
-└── infrastructure/{agg}/ # Infrastructure
-    ├── repository/ projection/ dependency/ config/  # projection/ 内含 materializer/ 子目录（写读一体源的落地）
+└── infrastructure/                 # Infrastructure（类型优先：persistent / dependency / config）
+    ├── persistent/{agg}/             # 持久化：repository/ + projection/（projection/ 内含 materializer/）
+    ├── dependency/{agg}/             # 防腐网关（外部依赖 ACL 执行模板），跨聚合共享的放 dependency/shared/
+    └── config/                       # 技术配置：通用放外层，绑定聚合的放 config/{agg}/
 ```
 
-> ⚠️ **分包维度**：以聚合 `{agg}` 为第一级目录（如 `order/`、`product/`）。不同聚合之间不共享包或实体；聚合间通信优先使用领域事件。
+> ⚠️ **分包维度**：领域层/应用层以聚合 `{agg}` 为第一级目录（如 `order/`、`product/`），让单个聚合的契约与编排内聚成块；**基础设施层以类型（`persistent`/`dependency`/`config`）为第一级、聚合为第二级**，便于把通用技术配置与跨聚合共享适配器抽成单一来源。基础设施层下的叶子包（`repository/`、`projection/`、`dependency/`、`config/`）仍与领域层同名镜像。不同聚合之间不共享包或实体；聚合间通信优先使用领域事件。
 
 ---
 
@@ -210,18 +212,22 @@ public class OrderReadService implements IQueryApplicationService { ... }
 
 ### 2.3 基础设施层（Infrastructure）
 
-**路径**：`infrastructure/{agg}/`，包名与领域层定义包**同名镜像**（如领域层 `repository/` ↔ 基础设施层 `repository/`、`projection/` ↔ `projection/`，`materializer/` 作为 `projection/` 的子目录在两层一致）。
+**路径**：`infrastructure/{type}/{agg}/`，其中 `{type}` 取 `persistent` / `dependency` / `config` 三者之一，`{agg}` 为聚合名。叶子包与领域层定义包**同名镜像**（如领域层 `repository/` ↔ 基础设施层 `persistent/{agg}/repository/`、`projection/` ↔ `persistent/{agg}/projection/`，`materializer/` 作为 `projection/` 的子目录在两层一致）。
 **依赖说明**：引入 `pragmatic-ddd-mybatis` / `pragmatic-ddd-rocketmq` / `pragmatic-ddd-kafka` 等集成包，实现领域层定义的 SPI 接口。
+
+> **为什么基础设施按"类型 → 聚合"组织**：基础设施多为技术落地的"管道"（数据源、RPC、MQ、事务、TypeHandler），其中大量配置与防腐适配器可被多个聚合**共享**。先按类型聚类、再下挂聚合，便于把通用技术配置（`config/` 外层）与跨聚合共享适配器（`dependency/shared/`）抽离成单一来源，避免每个聚合各放一份；而领域层/应用层以聚合为第一级，是为了让单个聚合的契约与编排内聚成块。
 
 #### 2.3.1 包与契约
 
 | 包 | 对应领域层 | 你实现的契约 | 归属 |
 |----|-----------|--------------|------|
-| `repository/` | `repository/` | `IRepository` | 持久化（主存储） |
-| `projection/` | `projection/` | `{Agg}Projector`、`{Agg}ProjectionQuery`（实现 `I{Agg}ProjectionQuery`） | 持久化（读模型查询 + 投影映射） |
-| `projection/materializer/` | `projection/materializer/` | `{Agg}{Store}Source`（继承 `AbstractProjectionSource`）、`IReadModelResynchronizer` | 持久化（写读一体源 + 异构存储 resync 一并落地） |
-| `dependency/` | （外部依赖统一承载） | `ExternalCall`/`Abstract*Gateway`/`Acl*` 异常 | 外部依赖 ACL 执行模板：封装远程调用（纯技术通道） |
-| `config/` | `config/` | `IConfigurationSource` | 动态配置 |
+| `persistent/{agg}/repository/` | `repository/` | `IRepository` | 持久化（主存储） |
+| `persistent/{agg}/projection/` | `projection/` | `{Agg}Projector`、`{Agg}ProjectionQuery`（实现 `I{Agg}ProjectionQuery`） | 持久化（读模型查询 + 投影映射） |
+| `persistent/{agg}/projection/materializer/` | `projection/materializer/` | `{Agg}{Store}Source`（继承 `AbstractProjectionSource`）、`IReadModelResynchronizer` | 持久化（写读一体源 + 异构存储 resync 一并落地） |
+| `dependency/{agg}/` | （外部依赖统一承载） | `ExternalCall`/`Abstract*Gateway`/`Acl*` 异常 | 外部依赖 ACL 执行模板：封装远程调用（纯技术通道） |
+| `dependency/shared/` | — | — | 跨聚合共享的防腐适配器（可选，避免多聚合各放一份） |
+| `config/` | — | — | 通用技术配置（数据源/Redis/ES/MQ/发号/Outbox/事务抽象），放外层 |
+| `config/{agg}/` | `config/` | `IConfigurationSource`、聚合专属 TypeHandler 注册 | 绑定聚合的配置（如投影装配、订单专属 TypeHandler） |
 
 #### 2.3.2 框架已提供的能力（你无需自己建包）
 
@@ -231,20 +237,31 @@ public class OrderReadService implements IQueryApplicationService { ... }
 #### 2.3.3 包结构示例
 
 ```text
-infrastructure/{agg}/
-├── repository/
-│   ├── OrderRepository.java         # 实现 IOrderRepository（不加 Impl 后缀）
-│   └── OrderMapper.java             # MyBatis Mapper
-├── projection/
-│   ├── OrderProjector.java          # 实现 IAggregateProjector（映射）
-│   ├── OrderProjectionQuery.java    # 实现 IOrderProjectionQuery（原 query/ 迁入）
-│   └── materializer/
-│       ├── OrderEsSource.java       # 继承 AbstractProjectionSource（写读一体源）
-│       └── OrderRedisSource.java    # 继承 AbstractProjectionSource（写读一体源）
-├── dependency/                     # 外部依赖 ACL 执行模板（封装远程调用）
-│   ├── InventoryGateway.java        # 封装远程调用（防腐层，纯技术通道）
-│   └── PaymentGatewayClient.java    # RPC Client
-└── config/NacosConfigurationSource.java
+infrastructure/
+├── persistent/order/                       # 持久化（类型 / 聚合）
+│   ├── repository/
+│   │   ├── OrderRepository.java            # 实现 IOrderRepository（不加 Impl 后缀）
+│   │   └── OrderMapper.java                # MyBatis Mapper
+│   └── projection/
+│       ├── OrderProjector.java             # 实现 IAggregateProjector（映射）
+│       ├── OrderProjectionQuery.java       # 实现 IOrderProjectionQuery（原 query/ 迁入）
+│       └── materializer/
+│           ├── OrderEsSource.java          # 继承 AbstractProjectionSource（写读一体源）
+│           └── OrderRedisSource.java       # 继承 AbstractProjectionSource（写读一体源）
+├── dependency/                             # 防腐层（类型 / 聚合）
+│   ├── order/
+│   │   ├── InventoryGateway.java           # 封装远程调用（纯技术通道）
+│   │   └── PaymentGatewayClient.java       # RPC Client
+│   └── shared/                             # 跨聚合共享的防腐适配器（可选）
+│       └── UserGateway.java
+└── config/                                 # 技术配置（类型优先）
+    ├── MySqlConfig.java                    # 通用：数据源/会话工厂/事务（不依赖任何聚合）
+    ├── ElasticSearchConfig.java
+    ├── RedisConfig.java
+    ├── RocketMQConfig.java
+    └── order/                              # 绑定订单的配置
+        ├── OrderProjectionConfig.java
+        └── OrderMybatisTypeHandlerConfig.java  # 订单专属 TypeHandler 注册
 ```
 
 #### 2.3.4 使用前须知（基础设施层）
@@ -253,7 +270,9 @@ infrastructure/{agg}/
 >
 > ⚠️ **不要建 `event/`、`reconciliation/` 包**：消息发布与对账由框架提供。
 >
-> ⚠️ **不要建 `remote/` 等技术类型包**：远程调用统一归入 `dependency/`（ACL 执行模板）。
+> ⚠️ **不要建 `remote/` 等技术类型包**：远程调用统一归入 `dependency/{agg}/`（ACL 执行模板）；被多聚合复用时放 `dependency/shared/`，不要在每个聚合下各放一份。
+>
+> ⚠️ **配置按"是否绑定聚合"分内外层**：数据源/Redis/ES/MQ/发号/Outbox/事务抽象等**通用技术配置放 `config/` 外层**；仅绑定某聚合的（如投影装配、聚合专属 TypeHandler）才放 `config/{agg}/`。通用配置不要 `import` 任何 `domain.{agg}.*` 类，保持可跨聚合复用。
 
 #### 2.3.5 代码示例
 
@@ -308,7 +327,7 @@ public class OrderController {
 
 ### 3.2 防腐层（ACL）怎么放
 
-外部依赖端口**声明**在领域层 `dependency/`（仅 `@ExternalDependency` 接口）；其 ACL 网关**实现**统一在基础设施层 `infrastructure/{agg}/dependency/`（封装远程调用，纯技术通道）。应用层不单列 `dependency/` 包，直接注入基础设施层 ACL 网关使用，网关之间不相互依赖。
+外部依赖端口**声明**在领域层 `dependency/`（仅 `@ExternalDependency` 接口）；其 ACL 网关**实现**统一在基础设施层 `infrastructure/dependency/{agg}/`（封装远程调用，纯技术通道），被多聚合复用的网关放 `infrastructure/dependency/shared/`。应用层不单列 `dependency/` 包，直接注入基础设施层 ACL 网关使用，网关之间不相互依赖。
 
 ### 3.3 读写分离路径
 
@@ -335,7 +354,7 @@ public class OrderController {
 5. 写操作必经聚合根（框架 `ICommandExecutor` / `IUnitOfWork` 封装）。
 6. 读操作绕过聚合根，经投影从异构存储查询。
 7. 四类原子领域服务实现统一在 `application/{agg}/service/`，每文件一能力。
-8. 外部依赖端口声明在领域层 `dependency/`，ACL 网关实现统一在基础设施层 `dependency/`；应用层不单列 `dependency/` 包。
+8. 外部依赖端口声明在领域层 `dependency/`，ACL 网关实现统一在基础设施层 `infrastructure/dependency/{agg}/`（多聚合复用的放 `infrastructure/dependency/shared/`）；应用层不单列 `dependency/` 包。
 9. `rule/` 只组装规则表，不承载单条校验；`subscriber/` 只登记订阅清单，引用 `service/` 实现，不重复实现。
 10. 聚合间通信优先领域事件，不共享包/实体。
 11. Event Publisher 与对账引擎由框架提供，业务侧不落地 `event/`、`reconciliation/` 包。
@@ -366,7 +385,7 @@ order-service/
 |----|------|----------------------------------------------------------------------|------------|
 | 领域 Domain | `domain/{agg}/` | 业务原子零件 + 契约接口                                              | 建了 `acl/` 包；在领域层写 SQL/RPC/MQ；`dependency/` 写了实现 |
 | 应用 Application | `application/{agg}/` | Input/WriteService/ReadService、四类服务实现、规则组装、事件订阅登记 | `new` 基础设施实现；在 `rule/`、`subscriber/` 重复实现逻辑 |
-| 基础设施 Infrastructure | `infrastructure/{agg}/`（包名同名镜像） | 持久化、查询、ACL 网关、配置源                                       | 实现类加 `Impl`；建 `event/`、`reconciliation/`、`remote/` 包 |
+| 基础设施 Infrastructure | `infrastructure/{type}/{agg}/`（类型优先：persistent/dependency/config；叶子包同名镜像领域层） | 持久化、查询、ACL 网关、配置源                                       | 实现类加 `Impl`；建 `event/`、`reconciliation/`、`remote/` 包；通用配置 `import` 聚合类；共享适配器重复放置 |
 | 用户接口 UI | `api/{agg}/` + `controller/{agg}/` | 协议 Request/Response、双向转换                                      | Controller 直连聚合/仓储；Request 与 Input、Projection 与 Response 混用 |
 
 **新建聚合时你需要落地的清单**

@@ -4,7 +4,6 @@ import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.application.DryRunResult;
 import io.pragmatic.ddd.application.ICommandExecutor;
 import io.pragmatic.ddd.application.IUnitOfWork;
-import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.event.spi.IEventManager;
@@ -15,12 +14,9 @@ import java.util.function.Supplier;
 
 /**
  * AbstractApplicationService 测试专用子类：暴露 protected 便捷方法，便于测试直接调用。
+ * 显式注入命令执行器与工作单元工厂，与基类保持一致。
  */
 public class StubApplicationService extends AbstractApplicationService {
-
-    public StubApplicationService(IEventManager eventManager, TransactionOperations txOps) {
-        super(eventManager, txOps);
-    }
 
     public StubApplicationService(IEventManager eventManager, ICommandExecutor commandExecutor,
                                   Supplier<IUnitOfWork> unitOfWorkFactory) {

@@ -3,13 +3,11 @@ package io.pragmatic.ddd.example.order.application.order;
 import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.application.DryRunResult;
 import io.pragmatic.ddd.application.ICommandApplicationService;
-import io.pragmatic.ddd.application.ICommandExecutor;
+import io.pragmatic.ddd.application.IUnitOfWork;
 import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
 import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
-import io.pragmatic.ddd.application.outbox.OutboxUnitOfWork;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.spi.TransactionOperations;
-import io.pragmatic.ddd.event.spi.IEventSerializer;
+import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.example.order.application.order.factory.OrderFactory;
 import io.pragmatic.ddd.example.order.application.order.input.AddOrderItemInput;
 import io.pragmatic.ddd.example.order.application.order.input.ChangeOrderAddressInput;
@@ -26,13 +24,17 @@ import io.pragmatic.ddd.example.order.application.order.updater.OrderShipUpdater
 import io.pragmatic.ddd.example.order.application.order.updater.OrderUpdateItemUpdater;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRule;
-import io.pragmatic.ddd.example.order.infrastructure.order.repository.OrderRepository;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
 import io.pragmatic.ddd.event.spi.IEventManager;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.function.Supplier;
 
 /**
  * 订单写服务：下单、改址、发货、支付与订单项维护命令的应用服务编排。
  * Input 接入 → 工厂建聚合 / Updater 改聚合 → 规则校验 → 仓储持久化 → 领域事件发布，置于同一事务单元。
+ * 命令执行器与工作单元工厂由 OutboxConfig 以成品 Bean 注入，服务内不再手动装配。
  */
 @Service
 public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
@@ -55,11 +57,16 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
 
     private final OrderRemoveItemUpdater orderRemoveItemUpdater;
 
+    /**
+     * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 OutboxConfig），不再内部 new 组装。
+     *
+     * @param eventManager         事件管理器
+     * @param commandExecutor      outbox 命令执行器成品
+     * @param unitOfWorkFactory    outbox 工作单元工厂成品
+     */
     public OrderWriteService(IEventManager eventManager,
-                             IOutboxStore iOutboxStore,
-                             IEventSerializer eventSerializer,
-                             EagerOutboxPublisher eagerOutboxPublisher,
-                             TransactionOperations txOps,
+                             OutboxCommandExecutor commandExecutor,
+                             Supplier<IUnitOfWork> unitOfWorkFactory,
                              OrderFactory orderFactory,
                              OrderRule orderRule,
                              OrderRepository orderRepository,
@@ -69,9 +76,7 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                              OrderAddItemUpdater orderAddItemUpdater,
                              OrderUpdateItemUpdater orderUpdateItemUpdater,
                              OrderRemoveItemUpdater orderRemoveItemUpdater) {
-        super(eventManager,
-                new OutboxCommandExecutor(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher),
-                () -> new OutboxUnitOfWork(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher));
+        super(eventManager, commandExecutor, unitOfWorkFactory);
         this.orderFactory = orderFactory;
         this.orderRule = orderRule;
         this.orderRepository = orderRepository;
