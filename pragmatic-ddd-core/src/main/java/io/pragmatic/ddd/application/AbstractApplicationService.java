@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.application;
 
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.event.spi.IEventManager;
@@ -20,18 +21,25 @@ public abstract class AbstractApplicationService {
     protected final ICommandExecutor commandExecutor;
     protected final Supplier<IUnitOfWork> unitOfWorkFactory;
 
-    /** 向后兼容构造器：默认 CommandExecutor 与默认 UnitOfWork。 */
-    protected AbstractApplicationService(IEventManager eventManager) {
-        this(eventManager, new CommandExecutor(eventManager), () -> new UnitOfWork(eventManager));
+    /**
+     * 便捷构造器：默认命令执行器 + 默认工作单元，二者共用同一事件管理器与事务。
+     *
+     * @param eventManager 事件管理器
+     * @param txOps        事务抽象，用于默认工作单元，保证多聚合同事务
+     */
+    protected AbstractApplicationService(IEventManager eventManager, TransactionOperations txOps) {
+        this(eventManager, new CommandExecutor(eventManager), () -> new UnitOfWork(eventManager, txOps));
     }
 
-    /** 可选构造器：注入任意 ICommandExecutor 实现。 */
-    protected AbstractApplicationService(IEventManager eventManager,
-                                         ICommandExecutor commandExecutor) {
-        this(eventManager, commandExecutor, () -> new UnitOfWork(eventManager));
-    }
-
-    /** 全可选构造器：注入 ICommandExecutor 与 IUnitOfWork 工厂。 */
+    /**
+     * 全自定义构造器：注入命令执行器与工作单元工厂。
+     * 使用带事务的执行器（如 OutboxCommandExecutor）时，工作单元工厂应返回语义一致的实现
+     * （如 OutboxUnitOfWork），避免同一服务内出现两套一致性语义。
+     *
+     * @param eventManager      事件管理器
+     * @param commandExecutor   命令执行器
+     * @param unitOfWorkFactory 工作单元工厂
+     */
     protected AbstractApplicationService(IEventManager eventManager,
                                          ICommandExecutor commandExecutor,
                                          Supplier<IUnitOfWork> unitOfWorkFactory) {

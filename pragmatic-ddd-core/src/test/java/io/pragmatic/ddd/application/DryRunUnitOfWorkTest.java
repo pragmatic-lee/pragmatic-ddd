@@ -4,6 +4,7 @@ import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.fixture.CountingRepository;
 import io.pragmatic.ddd.application.fixture.DryRunAggregate;
 import io.pragmatic.ddd.application.fixture.DryRunRule;
+import io.pragmatic.ddd.application.fixture.NoOpTransactionOperations;
 import io.pragmatic.ddd.base.fixture.SampleMessages;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class DryRunUnitOfWorkTest {
         DryRunAggregate passedAggregate = new DryRunAggregate(1L);
         DryRunAggregate rejectedAggregate = new DryRunAggregate(2L);
 
-        UnitOfWork unitOfWork = new UnitOfWork(eventManager);
+        UnitOfWork unitOfWork = new UnitOfWork(eventManager, new NoOpTransactionOperations());
         unitOfWork.register(passedAggregate, new DryRunRule(true, SampleMessages.NAME_ERROR),
                 repository, DryRunAggregate::raiseEvent);
         unitOfWork.register(rejectedAggregate, new DryRunRule(false, SampleMessages.AGE_ERROR),
@@ -43,7 +44,7 @@ class DryRunUnitOfWorkTest {
     @Test
     void tryCommit_allEntriesPassed_returnsPassed() {
         CountingRepository repository = new CountingRepository();
-        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager());
+        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager(), new NoOpTransactionOperations());
         unitOfWork.register(new DryRunAggregate(1L), new DryRunRule(true, SampleMessages.NAME_ERROR),
                 repository, DryRunAggregate::raiseEvent);
         unitOfWork.register(new DryRunAggregate(2L), null, repository, DryRunAggregate::raiseEvent);
@@ -57,24 +58,36 @@ class DryRunUnitOfWorkTest {
 
     @Test
     void tryCommit_thenCommit_throwsIllegalState() {
-        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager());
+        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager(), new NoOpTransactionOperations());
         unitOfWork.register(new DryRunAggregate(1L), null, new CountingRepository(),
                 DryRunAggregate::raiseEvent);
         unitOfWork.tryCommit();
 
         assertThatThrownBy(unitOfWork::commit)
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(UnitOfWorkStateException.class)
                 .hasMessageContaining("tryCommit");
     }
 
     @Test
     void tryCommit_twice_throwsIllegalState() {
-        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager());
+        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager(), new NoOpTransactionOperations());
         unitOfWork.register(new DryRunAggregate(1L), null, new CountingRepository(),
                 DryRunAggregate::raiseEvent);
         unitOfWork.tryCommit();
 
         assertThatThrownBy(unitOfWork::tryCommit)
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(UnitOfWorkStateException.class);
+    }
+
+    @Test
+    void commit_thenTryCommit_throwsIllegalState() {
+        UnitOfWork unitOfWork = new UnitOfWork(new CountingEventManager(), new NoOpTransactionOperations());
+        unitOfWork.register(new DryRunAggregate(1L), null, new CountingRepository(),
+                DryRunAggregate::raiseEvent);
+        unitOfWork.commit();
+
+        assertThatThrownBy(unitOfWork::tryCommit)
+                .isInstanceOf(UnitOfWorkStateException.class)
+                .hasMessageContaining("already committed");
     }
 }

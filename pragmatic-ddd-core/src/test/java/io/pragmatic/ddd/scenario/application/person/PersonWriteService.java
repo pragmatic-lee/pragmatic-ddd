@@ -3,7 +3,9 @@ package io.pragmatic.ddd.scenario.application.person;
 import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.application.ICommandApplicationService;
 import io.pragmatic.ddd.application.ICommandExecutor;
+import io.pragmatic.ddd.application.IUnitOfWork;
 import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
+import io.pragmatic.ddd.application.outbox.OutboxUnitOfWork;
 
 import java.util.concurrent.Executors;
 import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
@@ -13,7 +15,7 @@ import io.pragmatic.ddd.application.outbox.fixture.InMemoryOutboxStore;
 import io.pragmatic.ddd.application.outbox.fixture.StubEventSerializer;
 import io.pragmatic.ddd.application.outbox.fixture.SyncTransactionOperations;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.event.local.ThreadPoolEventManager;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
@@ -60,7 +62,7 @@ public class PersonWriteService extends AbstractApplicationService implements IC
                               PersonFactory factory,
                               PersonUpdater updater,
                               PersonEntityRule entityRule) {
-        super(eventManager, buildOutboxExecutor(eventManager));
+        super(eventManager, buildOutboxExecutor(eventManager), () -> buildOutboxUnitOfWork(eventManager));
         this.repository = repository;
         this.factory = factory;
         this.updater = updater;
@@ -76,6 +78,17 @@ public class PersonWriteService extends AbstractApplicationService implements IC
         new OutboxRelay(outboxStore, eventManager, eventSerializer,
                 Executors.newSingleThreadScheduledExecutor(), OutboxRelayConfig.defaultConfig());
         return new OutboxCommandExecutor(
+                outboxStore, transactionOperations, eventSerializer, eagerPublisher);
+    }
+
+    /** 构建与命令执行器语义一致的工作单元：同样走 outbox，避免同一服务内两套一致性语义。 */
+    private static IUnitOfWork buildOutboxUnitOfWork(IEventManager eventManager) {
+        IOutboxStore outboxStore = new InMemoryOutboxStore();
+        TransactionOperations transactionOperations = new SyncTransactionOperations();
+        IEventSerializer eventSerializer = new StubEventSerializer();
+        EagerOutboxPublisher eagerPublisher = new EagerOutboxPublisher(
+                outboxStore, eventManager, Executors.newFixedThreadPool(4));
+        return new OutboxUnitOfWork(
                 outboxStore, transactionOperations, eventSerializer, eagerPublisher);
     }
 

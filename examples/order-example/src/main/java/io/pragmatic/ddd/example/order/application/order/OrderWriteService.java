@@ -6,8 +6,9 @@ import io.pragmatic.ddd.application.ICommandApplicationService;
 import io.pragmatic.ddd.application.ICommandExecutor;
 import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
 import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
+import io.pragmatic.ddd.application.outbox.OutboxUnitOfWork;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.example.order.application.order.factory.OrderFactory;
 import io.pragmatic.ddd.example.order.application.order.input.AddOrderItemInput;
@@ -68,7 +69,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                              OrderAddItemUpdater orderAddItemUpdater,
                              OrderUpdateItemUpdater orderUpdateItemUpdater,
                              OrderRemoveItemUpdater orderRemoveItemUpdater) {
-        super(eventManager, new OutboxCommandExecutor(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher));
+        super(eventManager,
+                new OutboxCommandExecutor(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher),
+                () -> new OutboxUnitOfWork(iOutboxStore, txOps, eventSerializer, eagerOutboxPublisher));
         this.orderFactory = orderFactory;
         this.orderRule = orderRule;
         this.orderRepository = orderRepository;

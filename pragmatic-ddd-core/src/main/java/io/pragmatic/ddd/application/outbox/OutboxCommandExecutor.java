@@ -3,7 +3,7 @@ package io.pragmatic.ddd.application.outbox;
 import io.pragmatic.ddd.application.AbstractCommandExecutor;
 import io.pragmatic.ddd.application.ICommandExecutor;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.spi.IEventSerializer;

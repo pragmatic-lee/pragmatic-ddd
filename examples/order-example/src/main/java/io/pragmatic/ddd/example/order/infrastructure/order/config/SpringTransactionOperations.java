@@ -1,8 +1,8 @@
 package io.pragmatic.ddd.example.order.infrastructure.order.config;
 
-import io.pragmatic.ddd.application.outbox.spi.Propagation;
-import io.pragmatic.ddd.application.outbox.spi.TransactionCallback;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.Propagation;
+import io.pragmatic.ddd.application.spi.TransactionCallback;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;

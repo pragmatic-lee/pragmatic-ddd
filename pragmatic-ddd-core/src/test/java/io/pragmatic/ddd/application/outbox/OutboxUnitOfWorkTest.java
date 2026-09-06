@@ -4,12 +4,13 @@ import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.fixture.CountingRepository;
 import io.pragmatic.ddd.application.fixture.DryRunAggregate;
 import io.pragmatic.ddd.application.fixture.DryRunRule;
+import io.pragmatic.ddd.application.fixture.CountingTransactionOperations;
 import io.pragmatic.ddd.application.outbox.fixture.InMemoryOutboxStore;
 import io.pragmatic.ddd.application.outbox.fixture.StubEventSerializer;
 import io.pragmatic.ddd.application.outbox.fixture.SyncExecutorService;
 import io.pragmatic.ddd.application.outbox.fixture.SyncTransactionOperations;
 import io.pragmatic.ddd.application.outbox.fixture.ThrowingEventManager;
-import io.pragmatic.ddd.base.BrokenRuleException;
+import io.pragmatic.ddd.base.BrokenRuleAggregateException;
 import io.pragmatic.ddd.base.fixture.SampleMessages;
 import org.junit.jupiter.api.Test;
 
@@ -61,11 +62,49 @@ class OutboxUnitOfWorkTest {
         uow.register(new DryRunAggregate(1L), new DryRunRule(false, SampleMessages.NAME_ERROR),
                 repository, DryRunAggregate::raiseEvent);
 
-        assertThatThrownBy(uow::commit).isInstanceOf(BrokenRuleException.class);
+        assertThatThrownBy(uow::commit).isInstanceOf(BrokenRuleAggregateException.class);
 
         assertThat(repository.saveCount()).isZero();
         assertThat(store.storeCount()).isZero();
         assertThat(eventManager.publishedCount()).isZero();
+    }
+
+    @Test
+    void commit_ruleViolated_neverOpensTransaction() {
+        InMemoryOutboxStore store = new InMemoryOutboxStore();
+        CountingEventManager eventManager = new CountingEventManager();
+        EagerOutboxPublisher publisher =
+                new EagerOutboxPublisher(store, eventManager, new SyncExecutorService());
+        CountingTransactionOperations txOps = new CountingTransactionOperations();
+        OutboxUnitOfWork uow = new OutboxUnitOfWork(
+                store, txOps, new StubEventSerializer(), publisher);
+
+        uow.register(new DryRunAggregate(1L), new DryRunRule(false, SampleMessages.NAME_ERROR),
+                new CountingRepository(), DryRunAggregate::raiseEvent);
+
+        assertThatThrownBy(uow::commit).isInstanceOf(BrokenRuleAggregateException.class);
+        // 阶段一在事务外完成：校验不过时事务根本没开启
+        assertThat(txOps.executeCount()).isZero();
+    }
+
+    @Test
+    void commit_multipleEntries_opensSingleTransactionForAllSaves() {
+        InMemoryOutboxStore store = new InMemoryOutboxStore();
+        CountingEventManager eventManager = new CountingEventManager();
+        EagerOutboxPublisher publisher =
+                new EagerOutboxPublisher(store, eventManager, new SyncExecutorService());
+        CountingTransactionOperations txOps = new CountingTransactionOperations();
+        OutboxUnitOfWork uow = new OutboxUnitOfWork(
+                store, txOps, new StubEventSerializer(), publisher);
+        CountingRepository repository = new CountingRepository();
+
+        uow.register(new DryRunAggregate(1L), null, repository, DryRunAggregate::raiseEvent);
+        uow.register(new DryRunAggregate(2L), null, repository, DryRunAggregate::raiseEvent);
+        uow.commit();
+
+        // 全部 save 落在同一个事务内，事务只开启一次
+        assertThat(txOps.executeCount()).isEqualTo(1);
+        assertThat(repository.saveCount()).isEqualTo(2);
     }
 
     @Test

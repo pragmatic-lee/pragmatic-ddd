@@ -2,8 +2,8 @@ package io.pragmatic.ddd.mybatis.outbox;
 
 import io.pragmatic.ddd.application.outbox.OutboxMessage;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.Propagation;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.Propagation;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 
 import java.time.Duration;
 import java.util.List;

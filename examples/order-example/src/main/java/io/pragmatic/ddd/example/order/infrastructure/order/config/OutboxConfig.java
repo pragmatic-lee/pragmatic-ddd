@@ -4,7 +4,7 @@ import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
 import io.pragmatic.ddd.application.outbox.OutboxRelay;
 import io.pragmatic.ddd.application.outbox.OutboxRelayConfig;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;

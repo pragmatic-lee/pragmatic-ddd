@@ -10,6 +10,36 @@
 > 全新一代版本：以 `io.pragmatic.ddd` 命名空间从零构建，视为无历史包袱的全新初始版本。
 > 下述能力均为 2.0.0 首发内容，不承载任何旧版 API 的兼容义务。
 
+### 变更
+
+#### 核心模块 pragmatic-ddd-core
+
+- **工作单元执行模型三阶段化**（`AbstractUnitOfWork` / `UnitOfWork` / `OutboxUnitOfWork`）：
+  领域逻辑与规则校验移至**事务外**（阶段一 `validateAndCollect`），持久化收敛为**独立的数据库事务**（阶段二 `persistAndCollect`），
+  事件发布保持在**事务外**（阶段三 `dispatchEvents`）。规则校验中的外部调用与旧快照查询不再占用数据库连接，
+  检验失败时事务根本不开启（一个库都不碰）。
+- **`persistAndCollect` 钩子语义与签名收紧**（Breaking）：签名由
+  `persistAndCollect(List<UnitOfWorkEntry<?, ?>>, List<IDomainEvent>)` 简化为 `persistAndCollect(List<UnitOfWorkEntry<?, ?>>)`，
+  仅负责持久化与 outbox 配对；不再执行领域逻辑与规则校验，也不再接收/写入事件列表（汇总已归属阶段一、发布归属 `dispatchEvents`）。
+  自定义 `IUnitOfWork` 子类需同步移除 `persistEntry` 内的逻辑与校验步骤及该形参。
+- **校验失败异常类型变更**（Breaking）：工作单元 `commit()` 由抛 `BrokenRuleException`（单条 failFast）
+  改为抛 `BrokenRuleAggregateException`（聚合全部违反），一次返回跨聚合的全部校验错误。
+  捕获 `RuleException` 的既有处理逻辑不受影响。
+- **`committed` 置位时机修正**：由 `commit()` 开头移至阶段三之后，
+  修复阶段一/二失败时 `close()` 不再清理事件、导致事件残留在聚合根被后续误发的问题。
+- **工作单元事务边界上提基类**：`AbstractUnitOfWork` 统一持有 `TransactionOperations` 并在阶段二开启事务；
+  `UnitOfWork` / `OutboxUnitOfWork` 不再各自实现事务，多个聚合（含同一聚合的多次操作）的持久化必然落在
+  **同一个数据库事务**内，任一条目失败整体回滚。修复默认 `UnitOfWork` 无事务导致"数据部分写入 + 事件不发的撕裂态"。
+- **`UnitOfWork` / 子类构造器变更**（Breaking）：`UnitOfWork(IEventManager)` 改为 `UnitOfWork(IEventManager, TransactionOperations)`；
+  `OutboxUnitOfWork` 构造器签名不变（仍含 `TransactionOperations`，语义改为转交基类）；自定义 `AbstractUnitOfWork` 子类必须 `super(txOps)`。
+  事务为必填，无事务场景须显式传入 `NoOpTransactionOperations`（该实现置于 `test`，生产不提供）。
+- **`AbstractApplicationService` 构造器调整**（Breaking）：移除 `(IEventManager)` 单参便捷构造器与 `(IEventManager, ICommandExecutor)` 两参构造器，
+  新增 `(IEventManager, TransactionOperations)` 便捷构造器；全自定义构造器 `(IEventManager, ICommandExecutor, Supplier<IUnitOfWork>)` 保留。
+  消除"使用工作单元即默认有事务"的假事务陷阱。
+- **事务抽象包迁移**（Breaking）：`TransactionOperations` / `TransactionCallback` / `Propagation`
+  由 `io.pragmatic.ddd.application.outbox.spi` 迁至 `io.pragmatic.ddd.application.spi`（通用事务抽象，与 outbox 解耦；
+  顺带解除 `DbSegmentAllocator` / `IdGeneratorConfig` 对 outbox 包的依赖）。旧包类型已删除。
+
 ### 新增
 
 #### 核心模块 pragmatic-ddd-core

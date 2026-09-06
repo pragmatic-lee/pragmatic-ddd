@@ -1,7 +1,7 @@
 package io.pragmatic.ddd.mybatis.id;
 
-import io.pragmatic.ddd.application.outbox.spi.Propagation;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.Propagation;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.base.id.IdSegment;
 import io.pragmatic.ddd.base.id.IIdSegmentAllocator;
 

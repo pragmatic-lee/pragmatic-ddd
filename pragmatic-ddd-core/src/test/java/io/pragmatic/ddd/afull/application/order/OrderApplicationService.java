@@ -10,6 +10,7 @@ import io.pragmatic.ddd.afull.domain.order.service.IOrderIdGenerator;
 import io.pragmatic.ddd.afull.domain.order.service.ICreditLimitRule;
 import io.pragmatic.ddd.afull.domain.order.service.IUserValidityRule;
 import io.pragmatic.ddd.application.AbstractApplicationService;
+import io.pragmatic.ddd.application.fixture.NoOpTransactionOperations;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.afull.domain.order.model.IOrderRepository;
 import io.pragmatic.ddd.afull.domain.order.model.Order;
@@ -39,7 +40,7 @@ public class OrderApplicationService extends AbstractApplicationService {
                                    IEventManager eventManager,
                                    OrderFactory orderFactory,
                                    OrderEntityRule orderEntityRule) {
-        super(eventManager);
+        super(eventManager, new NoOpTransactionOperations());
         this.orderRepository = orderRepository;
         this.orderFactory = orderFactory;
         this.orderEntityRule = orderEntityRule;

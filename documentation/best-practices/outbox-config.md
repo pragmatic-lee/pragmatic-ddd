@@ -10,7 +10,7 @@
 
 | Bean | 类型 | 解决什么 |
 | --- | --- | --- |
-| `TransactionOperations` | `io.pragmatic.ddd.application.outbox.spi.TransactionOperations` | 把"聚合写 + outbox 写"绑到同一 DB 事务 |
+| `TransactionOperations` | `io.pragmatic.ddd.application.spi.TransactionOperations` | 把"聚合写 + outbox 写"绑到同一 DB 事务 |
 | `IEventSerializer` | `io.pragmatic.ddd.event.spi.IEventSerializer` | 事件体序列化 / 反序列化（Relay 反序列化重发需要） |
 | `IOutboxStore` | `io.pragmatic.ddd.application.outbox.spi.IOutboxStore` | outbox 行的落库与认领 |
 | `EagerOutboxPublisher` | `io.pragmatic.ddd.application.outbox.EagerOutboxPublisher` | 事务提交后主动推送（快路径） |

@@ -99,16 +99,16 @@ bash setup.sh
 | 6 | 创建 ES 索引 | `order_index` 已存在则跳过（幂等） |
 | 7 | 构建应用镜像 | `docker build -t order-example:2.0.0` |
 | 8 | 启动应用 | `compose up -d order-example` |
-| 9 | 就绪自检 | `curl :9500/health` 轮询（上限 60s） |
+| 9 | 就绪自检 | `curl :9500/api/health` 轮询（上限 60s） |
 
 ### 3.4 验证全链路
 
 ```bash
 # 1. 健康检查
-curl http://localhost:9500/health
+curl http://localhost:9500/api/health
 
 # 2. 触发下单（内置示例数据，返回订单号）
-curl http://localhost:9500/testOrder
+curl http://localhost:9500/api/testOrder
 # → 1111
 
 # 3. 核对 MySQL（订单 + 发件箱已发送）
@@ -127,7 +127,7 @@ open http://localhost:8080   # RocketMQ Dashboard（按 topic=data_sync_event �
 可选：修改地址触发更新链路（`version` 递增 + ES 同步更新）：
 
 ```bash
-curl "http://localhost:9500/testChangeAddress?orderId=1111"
+curl "http://localhost:9500/api/testChangeAddress?orderId=1111"
 ```
 
 ## 4. 方式二：已有环境接入

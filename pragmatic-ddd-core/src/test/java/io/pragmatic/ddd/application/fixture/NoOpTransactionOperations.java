@@ -1,15 +1,14 @@
-package io.pragmatic.ddd.application.outbox.fixture;
+package io.pragmatic.ddd.application.fixture;
 
 import io.pragmatic.ddd.application.spi.Propagation;
 import io.pragmatic.ddd.application.spi.TransactionCallback;
 import io.pragmatic.ddd.application.spi.TransactionOperations;
 
 /**
- * 同步事务操作测试夹具：不开启真实事务，直接在当前线程执行回调并返回结果。
- *
- * @author wizard-lee
+ * 测试专用无事务实现：不开启真实事务，直接在当前线程执行回调。
+ * 仅用于单测与无持久化事务需求的场景；生产环境务必注入真实事务实现。
  */
-public class SyncTransactionOperations implements TransactionOperations {
+public class NoOpTransactionOperations implements TransactionOperations {
 
     @Override
     public <T> T execute(TransactionCallback<T> callback) {

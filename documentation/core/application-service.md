@@ -90,32 +90,42 @@ if (result.passed()) {
 
 ### 2.2 跨聚合根工作单元：`IUnitOfWork` / `UnitOfWork`
 
-`AbstractUnitOfWork` 固定多聚合根统一提交流程，`UnitOfWork`（默认）通过 `persistAndCollect` 钩子逐条 save 并收集事件、`dispatchEvents` 钩子统一 `publishList`：
+`AbstractUnitOfWork` 固定多聚合根统一提交流程，划分为**三阶段**：领域逻辑与规则校验在**事务外**完成，持久化落在**独立的数据库事务**内，事件发布在**事务提交之后**：
 
 ```text
-1. 逐条执行领域逻辑
-2. 逐条规则校验     未通过则 throwBrokenRuleException（中断提交）
-3. 逐条持久化       repository.save
-4. 收集全部事件     汇总所有聚合根 getDomainEvents
-5. 统一发布         eventManager.publishList(allEvents)
-6. 逐条清空         clearWorkUnitState
+阶段一（事务外）validateAndCollect
+  1. 逐条执行领域逻辑     domainLogic.accept
+  2. 逐条规则校验         未通过则收集明细，全部违反聚合为 BrokenRuleAggregateException 抛出
+  3. 汇总全部事件         collected.addAll(getDomainEvents)
+     —— 任一违反即终止：事务根本不会开启，一个库都不碰 ——
+阶段二（事务内）persistAndCollect
+  4. 逐条持久化           repository.save（纯数据库写，事务由基类统一开启）
+  5. 落 outbox / 清空     OutboxUnitOfWork 整批落 PENDING，随后 clearWorkUnitState
+阶段三（事务外）dispatchEvents
+  6. 统一发布             eventManager.publishList / EagerOutboxPublisher.publishAfterCommit
 ```
 
-与 `CommandExecutor` 的区别：**先全部校验，再统一落库，最后统一发布事件**，适合需要事务一致性的多聚合根操作。
+与 `CommandExecutor` 的区别：**先全部校验，再统一落库，最后统一发布事件**，适合需要事务一致性的多聚合根操作。事务是工作单元的固有语义：`AbstractUnitOfWork` 统一持有事务抽象，阶段二的所有 `save`（含同一聚合的多次操作）必然落在**同一个数据库事务**内，任一条目失败整体回滚。
 
 ```java
-try (IUnitOfWork uow = new UnitOfWork(eventManager)) {
+try (IUnitOfWork uow = new UnitOfWork(eventManager, txOps)) {
     uow.register(order, orderRule, orderRepository, Order::cancel)
        .register(inventory, inventoryRule, inventoryRepository, Inventory::deduct)
-       .commit();   // 统一校验 → 落库 → 发布事件
+       .commit();   // 事务外校验 → 事务内统一落库 → 事务外发布事件
 }
 ```
 
+> ⚠️ **重要约束：校验与持久化分离带来并发窗口。** 阶段一校验通过到阶段二落库之间，聚合可能被其它请求修改。因此**参与工作单元的聚合必须具备乐观锁版本**，`doUpdate` 须校验 `affected rows`，为 0 时抛乐观锁冲突异常使事务回滚。
+
+> ⚠️ **事务是必填项：** `UnitOfWork` 构造器必须显式注入事务抽象 `TransactionOperations`。无事务场景（如单测、纯本地事件）须显式传入 `NoOpTransactionOperations`，不能依赖默认。`OutboxUnitOfWork` 与 `UnitOfWork` 均共享基类同一事务边界。
+
 `UnitOfWork` 实现 `AutoCloseable`：未提交时 `close()` 自动清空各条目事件，防止内存泄漏；`commit()` 与 `tryCommit()` 均幂等保护，重复调用抛 `IllegalStateException`。
+
+阶段一或阶段二失败时（规则违反、落库异常），`committed` 保持 `false`，`close()` 仍会清理暂存事件；仅阶段三发布失败时 `committed` 已为 `true`，不清理，由 `OutboxRelay` 兜底补偿。
 
 #### 试跑 `tryCommit`
 
-`tryCommit` 逐条执行领域逻辑与规则校验，跳过持久化与事件分发；任一条目未通过时收集明细、不中断其余条目；试跑会消费工作单元，之后不可再 `commit`/`tryCommit`。
+`tryCommit` 复用阶段一的领域逻辑与规则校验，跳过持久化与事件分发；任一条目未通过时收集明细、不中断其余条目；试跑会消费工作单元，之后不可再 `commit`/`tryCommit`。
 
 ```java
 DryRunResult result = unitOfWork.tryCommit();   // 零副作用，返回聚合全部条目校验结论
@@ -132,9 +142,10 @@ public class OrderApplicationService extends AbstractApplicationService {
     private final OrderRule orderRule;
 
     public OrderApplicationService(IEventManager eventManager,
+                                   TransactionOperations txOps,
                                    OrderRepository orderRepository,
                                    OrderRule orderRule) {
-        super(eventManager);  // 默认 CommandExecutor + UnitOfWork
+        super(eventManager, txOps);  // 默认 CommandExecutor + 默认 UnitOfWork，共用同一事务
         this.orderRepository = orderRepository;
         this.orderRule = orderRule;
     }
@@ -159,13 +170,14 @@ public class OrderApplicationService extends AbstractApplicationService {
 }
 ```
 
-三个受保护构造器：
+两个受保护构造器：
 
 | 构造器 | 用途 |
 | --- | --- |
-| `AbstractApplicationService(IEventManager)` | 默认 `CommandExecutor` + 默认 `UnitOfWork` |
-| `AbstractApplicationService(IEventManager, ICommandExecutor)` | 注入自定义 `ICommandExecutor` |
-| `AbstractApplicationService(IEventManager, ICommandExecutor, Supplier<IUnitOfWork>)` | 全自定义 + `IUnitOfWork` 工厂 |
+| `AbstractApplicationService(IEventManager, TransactionOperations)` | 默认 `CommandExecutor` + 默认 `UnitOfWork`，共用同一事务 |
+| `AbstractApplicationService(IEventManager, ICommandExecutor, Supplier<IUnitOfWork>)` | 全自定义：注入命令执行器 + `IUnitOfWork` 工厂 |
+
+> 使用自定义带事务的执行器（如 `OutboxCommandExecutor`）时，`unitOfWorkFactory` 应返回语义一致的实现（如 `OutboxUnitOfWork`），避免同一服务内出现两套一致性语义。
 
 > **重要约束**：`AbstractApplicationService` 仅为便捷基类，不强制继承；也可直接组合 `ICommandExecutor` / `IUnitOfWork` 使用。
 

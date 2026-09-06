@@ -4,6 +4,7 @@ import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.fixture.CountingRepository;
 import io.pragmatic.ddd.application.fixture.DryRunAggregate;
 import io.pragmatic.ddd.application.fixture.DryRunRule;
+import io.pragmatic.ddd.application.fixture.NoOpTransactionOperations;
 import io.pragmatic.ddd.application.fixture.StubApplicationService;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IRule;
@@ -18,7 +19,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 覆盖 AbstractApplicationService 的三个构造器与便捷方法 execute / tryExecute / beginUnitOfWork。
+ * 覆盖 AbstractApplicationService 的构造器与便捷方法 execute / tryExecute / beginUnitOfWork。
   * @author wizard-lee
  */
 class AbstractApplicationServiceTest {
@@ -27,7 +28,8 @@ class AbstractApplicationServiceTest {
     void defaultConstructor_executeUsesDefaultExecutorAndUnitOfWork() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        StubApplicationService service = new StubApplicationService(eventManager);
+        StubApplicationService service =
+                new StubApplicationService(eventManager, new NoOpTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         service.runExecute(aggregate, new DryRunRule(true, SampleMessages.NAME_ERROR),
@@ -42,7 +44,8 @@ class AbstractApplicationServiceTest {
     void defaultConstructor_tryExecuteReturnsPassedWithNoSideEffect() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        StubApplicationService service = new StubApplicationService(eventManager);
+        StubApplicationService service =
+                new StubApplicationService(eventManager, new NoOpTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         DryRunResult result = service.runTryExecute(aggregate,
@@ -71,7 +74,8 @@ class AbstractApplicationServiceTest {
             }
         };
 
-        StubApplicationService service = new StubApplicationService(eventManager, injected);
+        StubApplicationService service = new StubApplicationService(
+                eventManager, injected, () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         service.runExecute(aggregate, new DryRunRule(true, SampleMessages.NAME_ERROR),
@@ -86,7 +90,7 @@ class AbstractApplicationServiceTest {
     @Test
     void fullArgsConstructor_beginUnitOfWorkReturnsFactoryProduct() {
         CountingEventManager eventManager = new CountingEventManager();
-        UnitOfWork expected = new UnitOfWork(eventManager);
+        UnitOfWork expected = new UnitOfWork(eventManager, new NoOpTransactionOperations());
         Supplier<IUnitOfWork> factory = () -> expected;
 
         StubApplicationService service = new StubApplicationService(

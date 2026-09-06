@@ -3,7 +3,7 @@ package io.pragmatic.ddd.example.order.infrastructure.order.config;
 import io.pragmatic.ddd.base.id.IdGeneratorDefinition;
 import io.pragmatic.ddd.base.id.IdGeneratorRegistry;
 import io.pragmatic.ddd.base.id.IdType;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.example.order.application.order.service.OrderIdGenerator;
 import io.pragmatic.ddd.mybatis.id.DbSegmentAllocator;
 import io.pragmatic.ddd.mybatis.id.IIdSegmentStatementExecutor;

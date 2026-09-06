@@ -383,7 +383,7 @@ import io.pragmatic.ddd.application.IUnitOfWork;
 import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
 import io.pragmatic.ddd.application.outbox.OutboxUnitOfWork;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 import io.pragmatic.ddd.event.local.ThreadPoolEventManager;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;

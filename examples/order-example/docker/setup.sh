@@ -90,7 +90,7 @@ docker compose up -d order-example
 
 echo "==> [9/9] 等待应用就绪"
 i=0
-until curl -sf http://localhost:9500/health >/dev/null 2>&1; do
+until curl -sf http://localhost:9500/api/health >/dev/null 2>&1; do
   i=$((i + 1))
   if [ "$i" -ge 60 ]; then
     echo "应用启动超时（60s），请查看日志：docker logs my-order-example"
@@ -98,14 +98,14 @@ until curl -sf http://localhost:9500/health >/dev/null 2>&1; do
   fi
   sleep 1
 done
-echo "    应用已就绪（/health = OK）"
+echo "    应用已就绪（/api/health = OK）"
 
 echo ""
 echo "=============================================="
 echo " ✅ order-example 一键初始化完成"
 echo "=============================================="
 echo " 全链路验证："
-echo "   curl http://localhost:9500/testOrder"
+echo "   curl http://localhost:9500/api/testOrder"
 echo " 核对数据："
 echo "   docker exec my-mysql mysql -h127.0.0.1 -uroot -p${MYSQL_PASSWORD} \\"
 echo "     order_example -e \"SELECT COUNT(*) FROM t_order;\""

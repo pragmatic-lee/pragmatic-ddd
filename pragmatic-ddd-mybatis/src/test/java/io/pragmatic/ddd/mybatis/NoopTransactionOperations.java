@@ -1,8 +1,8 @@
 package io.pragmatic.ddd.mybatis;
 
-import io.pragmatic.ddd.application.outbox.spi.Propagation;
-import io.pragmatic.ddd.application.outbox.spi.TransactionCallback;
-import io.pragmatic.ddd.application.outbox.spi.TransactionOperations;
+import io.pragmatic.ddd.application.spi.Propagation;
+import io.pragmatic.ddd.application.spi.TransactionCallback;
+import io.pragmatic.ddd.application.spi.TransactionOperations;
 
 /**
  * 测试用 {@link TransactionOperations}：不开启独立短事务，直接在「当前连接」内执行回调。
