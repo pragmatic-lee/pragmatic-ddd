@@ -58,7 +58,9 @@ public class OrderController {
         this.loginContext = loginContext;
     }
 
-    /** 提交订单。 */
+    /**
+     * 提交订单。
+     */
     @PostMapping
     public Result<SubmitOrderResponseDTO> submitOrder(@RequestBody SubmitOrderRequest request) {
         validateSubmitRequest(request);
@@ -94,7 +96,9 @@ public class OrderController {
                 pageRequest.pageSize()));
     }
 
-    /** 订单详情（读模型 ES 全量投影裁剪）。 */
+    /**
+     * 订单详情（读模型 ES 全量投影裁剪）。
+     */
     @GetMapping("/{orderId}")
     public Result<OrderDetailDTO> orderDetail(@PathVariable Long orderId) {
         OrderEsProjection projection = orderReadService.queryById(orderId, OrderEsProjection.class);
@@ -170,6 +174,7 @@ public class OrderController {
         input.setPaymentSerialNo(request.getPayTransactionNo());
         input.setCurrency("CNY");
         input.setAmount(request.getActualAmount());
+        input.setPayMethod(request.getPayMethod());
         if (request.getPlatformDiscountAmount() != null) {
             input.setPlatformDiscountAmount(request.getPlatformDiscountAmount());
         } else {

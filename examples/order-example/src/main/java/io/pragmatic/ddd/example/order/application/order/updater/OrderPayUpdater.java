@@ -3,6 +3,7 @@ package io.pragmatic.ddd.example.order.application.order.updater;
 import io.pragmatic.ddd.application.EntityUpdater;
 import io.pragmatic.ddd.example.order.application.order.input.PayOrderInput;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.PaymentInfo;
 import org.springframework.stereotype.Component;
@@ -28,7 +29,7 @@ public class OrderPayUpdater implements EntityUpdater<Order, PayOrderInput> {
         PaymentInfo paymentInfo = new PaymentInfo(
                 command.getPaymentSerialNo(),
                 platformDiscount,
-                actualAmount);
+                actualAmount, PaymentMethod.of(command.getPayMethod()));
         aggregateRoot.pay(paymentInfo);
     }
 }

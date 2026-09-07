@@ -33,4 +33,6 @@ public class PayOrderInput {
      * 支付平台优惠金额。
      */
     private BigDecimal platformDiscountAmount;
+
+    private Integer payMethod;
 }

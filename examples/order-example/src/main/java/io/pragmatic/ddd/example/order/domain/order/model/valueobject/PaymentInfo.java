@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.example.order.domain.order.model.valueobject;
 
 import io.pragmatic.ddd.base.ValueObject;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,11 +22,13 @@ public class PaymentInfo extends ValueObject {
     private Money platformDiscount;
 
     private Money actualAmount;
+    private PaymentMethod paymentMethod;
 
-    public PaymentInfo(String paymentSerialNo, Money platformDiscount, Money actualAmount) {
+    public PaymentInfo(String paymentSerialNo, Money platformDiscount, Money actualAmount,PaymentMethod paymentMethod) {
         this.paymentSerialNo = paymentSerialNo;
         this.platformDiscount = platformDiscount;
         this.actualAmount = actualAmount;
+        this.paymentMethod = paymentMethod;
     }
 
     @Override
