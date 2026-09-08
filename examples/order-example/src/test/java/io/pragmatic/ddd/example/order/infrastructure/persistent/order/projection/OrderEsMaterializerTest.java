@@ -25,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,9 +101,9 @@ class OrderEsMaterializerTest {
         projection.setOrderId(TEST_ORDER_ID);
         projection.setStatus(1);
         projection.setStatusName("待支付");
-        projection.setTotalAmount(10000L);
-        projection.setActualAmount(9800L);
-        projection.setPlatformDiscount(200L);
+        projection.setTotalAmount(new BigDecimal("100.00"));
+        projection.setActualAmount(new BigDecimal("98.00"));
+        projection.setPlatformDiscount(new BigDecimal("2.00"));
         projection.setCurrency("CNY");
         projection.setCreatedAt(LocalDateTime.now());
         projection.setUpdatedAt(LocalDateTime.now());
@@ -114,9 +115,9 @@ class OrderEsMaterializerTest {
         projection.setOrderId(TEST_ORDER_ID);
         projection.setStatus(2);
         projection.setStatusName("已发货");
-        projection.setTotalAmount(29900L);
-        projection.setActualAmount(29900L);
-        projection.setPlatformDiscount(0L);
+        projection.setTotalAmount(new BigDecimal("299.00"));
+        projection.setActualAmount(new BigDecimal("299.00"));
+        projection.setPlatformDiscount(new BigDecimal("0.00"));
         projection.setCurrency("CNY");
         projection.setPaymentMethod(1);
         projection.setPaymentMethodName("微信支付");
@@ -152,18 +153,18 @@ class OrderEsMaterializerTest {
         item1.setProductId(2001L);
         item1.setProductName("机械键盘");
         item1.setSpec("青轴");
-        item1.setPrice(19900L);
+        item1.setPrice(new BigDecimal("199.00"));
         item1.setQuantity(1);
-        item1.setSubtotal(19900L);
+        item1.setSubtotal(new BigDecimal("199.00"));
 
         OrderEsProjection.OrderItemProjection item2 = new OrderEsProjection.OrderItemProjection();
         item2.setItemId(2L);
         item2.setProductId(2002L);
         item2.setProductName("鼠标垫");
         item2.setSpec("加厚");
-        item2.setPrice(10000L);
+        item2.setPrice(new BigDecimal("100.00"));
         item2.setQuantity(1);
-        item2.setSubtotal(10000L);
+        item2.setSubtotal(new BigDecimal("100.00"));
 
         projection.setOrderItems(java.util.List.of(item1, item2));
         projection.setItemProductNames(java.util.List.of("机械键盘", "鼠标垫"));
@@ -201,6 +202,23 @@ class OrderEsMaterializerTest {
         assertThat(response.source().getOrderId()).isEqualTo(TEST_ORDER_ID);
         assertThat(response.source().getStatusName()).isEqualTo("待支付");
         assertThat(response.version()).isEqualTo(version);
+    }
+
+    @Test
+    @DisplayName("金额按元写入并回读一致，不做元/分换算")
+    void materializeKeepsAmountInYuan() throws IOException {
+        OrderEsProjection projection = sampleProjection();
+
+        materializer.materialize(projection, nextVersion());
+
+        GetResponse<OrderEsProjection> response =
+                elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
+                        OrderEsProjection.class);
+        OrderEsProjection source = response.source();
+        assertThat(source).isNotNull();
+        assertThat(source.getTotalAmount()).isEqualByComparingTo("100.00");
+        assertThat(source.getActualAmount()).isEqualByComparingTo("98.00");
+        assertThat(source.getPlatformDiscount()).isEqualByComparingTo("2.00");
     }
 
     @Test
@@ -279,7 +297,8 @@ class OrderEsMaterializerTest {
         assertThat(source.getOrderItems()).extracting("productName")
                 .containsExactly("机械键盘", "鼠标垫");
         assertThat(source.getOrderItems()).extracting("subtotal")
-                .containsExactly(19900L, 10000L);
+                .usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+                .containsExactly(new BigDecimal("199.00"), new BigDecimal("100.00"));
 
         assertThat(source.getItemProductNames()).containsExactly("机械键盘", "鼠标垫");
         assertThat(source.getItemProductNamesText()).isEqualTo("机械键盘 鼠标垫");

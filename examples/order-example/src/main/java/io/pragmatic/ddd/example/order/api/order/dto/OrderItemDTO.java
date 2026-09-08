@@ -36,12 +36,12 @@ public class OrderItemDTO {
         return dto;
     }
 
-    /** 由 ES 投影项组装（金额为分，分转元）。 */
+    /** 由 ES 投影项组装（金额为元，与投影一致）。 */
     public static OrderItemDTO from(OrderEsProjection.OrderItemProjection item) {
         OrderItemDTO dto = new OrderItemDTO();
         dto.setProductId(item.getProductId());
         dto.setProductName(item.getProductName());
-        dto.setPrice(OrderSummaryDTO.centsToYuan(item.getPrice()));
+        dto.setPrice(item.getPrice());
         dto.setQuantity(item.getQuantity());
         return dto;
     }

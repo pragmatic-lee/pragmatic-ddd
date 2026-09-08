@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * 订单详情响应（对齐 api-contract.md 4.3 / 4.4），支付后同样返回该结构。
- * 金额单位统一为元；投影金额为分，装配时分转元。
+ * 金额单位统一为元，与投影一致，装配时无需换算。
  *
  * @author wizard-lee
  */
@@ -113,14 +113,14 @@ public class OrderDetailDTO {
             dto.setCustomerId(projection.getCustomer().getCustomerId());
         }
         dto.setStatus(projection.getStatus());
-        dto.setTotalAmount(OrderSummaryDTO.centsToYuan(projection.getTotalAmount()));
-        dto.setActualAmount(OrderSummaryDTO.centsToYuan(projection.getActualAmount()));
+        dto.setTotalAmount(projection.getTotalAmount());
+        dto.setActualAmount(projection.getActualAmount());
         dto.setRemark(projection.getRemark());
         dto.setPayTime(projection.getPaidAt());
         dto.setCancelReason(projection.getCancelReason());
         dto.setPayMethod(projection.getPaymentMethod());
         dto.setPayTransactionNo(projection.getPaymentSerialNo());
-        dto.setPlatformDiscountAmount(OrderSummaryDTO.centsToYuan(projection.getPlatformDiscount()));
+        dto.setPlatformDiscountAmount(projection.getPlatformDiscount());
         if (projection.getLogisticsInfo() != null) {
             dto.setLogisticsCompanyCode(projection.getLogisticsInfo().getCompanyCode());
             dto.setLogisticsCompanyName(projection.getLogisticsInfo().getCompanyName());

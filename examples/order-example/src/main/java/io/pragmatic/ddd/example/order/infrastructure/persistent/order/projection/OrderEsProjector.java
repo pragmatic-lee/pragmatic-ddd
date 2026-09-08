@@ -7,9 +7,9 @@ import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * 订单聚合到 ES 投影的纯映射实现，负责计算派生字段。
@@ -45,9 +45,9 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
         projection.setUpdatedAt(order.getUpdatedAt());
         projection.setPaidAt(order.getPaidAt());
 
-        projection.setTotalAmount(toFen(order.getTotalAmount()));
-        projection.setPlatformDiscount(toFen(order.getPlatformDiscount()));
-        projection.setActualAmount(toFen(order.getActualAmount()));
+        projection.setTotalAmount(amountOf(order.getTotalAmount()));
+        projection.setPlatformDiscount(amountOf(order.getPlatformDiscount()));
+        projection.setActualAmount(amountOf(order.getActualAmount()));
 
         Optional.ofNullable(order.getCustomer())
                 .ifPresent(customer -> {
@@ -81,12 +81,12 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
 
         List<OrderEsProjection.OrderItemProjection> items = order.getOrderItems().getAllItems().stream()
                 .map(this::toItemProjection)
-                .collect(Collectors.toList());
+                .toList();
         projection.setOrderItems(items);
 
         List<String> productNames = items.stream()
                 .map(OrderEsProjection.OrderItemProjection::getProductName)
-                .collect(Collectors.toList());
+                .toList();
         projection.setItemProductNames(productNames);
         projection.setItemProductNamesText(String.join(" ", productNames));
 
@@ -99,16 +99,21 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
         ip.setProductId(item.getProductId());
         ip.setProductName(item.getProductName());
         ip.setSpec(item.getSpec());
-        ip.setPrice(toFen(item.getPrice()));
+        ip.setPrice(amountOf(item.getPrice()));
         ip.setQuantity(item.getQuantity());
-        ip.setSubtotal(toFen(item.getSubtotal()));
+        ip.setSubtotal(amountOf(item.getSubtotal()));
         return ip;
     }
 
-    private long toFen(Money money) {
+    /**
+     * 取金额值（单位：元），金额为空时返回 0。
+     *
+     * @param money 金额值对象，可为 null
+     * @return 金额数值，永不为 null
+     */
+    private BigDecimal amountOf(Money money) {
         return Optional.ofNullable(money)
                 .map(Money::getAmount)
-                .map(value -> value.multiply(java.math.BigDecimal.valueOf(100)).longValue())
-                .orElse(0L);
+                .orElse(BigDecimal.ZERO);
     }
 }

@@ -28,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -130,7 +131,7 @@ class OrderReadServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getOrderId()).isEqualTo(1001L);
         assertThat(result.getStatus()).isEqualTo(2);
-        assertThat(result.getActualAmount()).isEqualTo(8800L);
+        assertThat(result.getActualAmount()).isEqualByComparingTo("88.00");
         assertThat(result.getCustomerName()).isEqualTo("张三");
     }
 
@@ -185,7 +186,7 @@ class OrderReadServiceTest {
         full.setOrderId(id);
         full.setStatus(2);
         full.setStatusName("PAID");
-        full.setActualAmount(8800L);
+        full.setActualAmount(new BigDecimal("88.00"));
         OrderEsProjection.CustomerProjection customer = new OrderEsProjection.CustomerProjection();
         customer.setCustomerId(1001L);
         customer.setCustomerName(customerName);

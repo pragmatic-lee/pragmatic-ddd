@@ -2,6 +2,7 @@ package io.pragmatic.ddd.example.order.domain.order.projection;
 
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import lombok.Data;
@@ -23,7 +24,7 @@ public class OrderSummaryProjection implements IOrderProjection {
 
     private String customerName;
 
-    private long actualAmount;
+    private BigDecimal actualAmount;
 
     private LocalDateTime createdAt;
 }

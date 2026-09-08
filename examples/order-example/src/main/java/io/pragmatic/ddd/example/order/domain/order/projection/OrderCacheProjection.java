@@ -2,6 +2,7 @@ package io.pragmatic.ddd.example.order.domain.order.projection;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -39,11 +40,11 @@ public class OrderCacheProjection implements IOrderProjection {
 
     private LocalDateTime paidAt;
 
-    private long totalAmount;
+    private BigDecimal totalAmount;
 
-    private long platformDiscount;
+    private BigDecimal platformDiscount;
 
-    private long actualAmount;
+    private BigDecimal actualAmount;
 
     private CustomerProjection customer;
 
@@ -89,8 +90,8 @@ public class OrderCacheProjection implements IOrderProjection {
         private Long productId;
         private String productName;
         private String spec;
-        private long price;
+        private BigDecimal price;
         private int quantity;
-        private long subtotal;
+        private BigDecimal subtotal;
     }
 }

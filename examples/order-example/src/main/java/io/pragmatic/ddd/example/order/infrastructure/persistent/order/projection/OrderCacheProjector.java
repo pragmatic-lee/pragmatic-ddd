@@ -7,9 +7,9 @@ import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjecti
 import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * 订单聚合到 Redis 缓存副本投影的纯映射实现，独立映射、不复用 ES 投影逻辑。
@@ -46,9 +46,9 @@ public class OrderCacheProjector extends AbstractAggregateProjector<Order, Order
         projection.setUpdatedAt(order.getUpdatedAt());
         projection.setPaidAt(order.getPaidAt());
 
-        projection.setTotalAmount(toFen(order.getTotalAmount()));
-        projection.setPlatformDiscount(toFen(order.getPlatformDiscount()));
-        projection.setActualAmount(toFen(order.getActualAmount()));
+        projection.setTotalAmount(amountOf(order.getTotalAmount()));
+        projection.setPlatformDiscount(amountOf(order.getPlatformDiscount()));
+        projection.setActualAmount(amountOf(order.getActualAmount()));
 
         projection.setVersion(order.getOldVersion());
 
@@ -84,7 +84,7 @@ public class OrderCacheProjector extends AbstractAggregateProjector<Order, Order
 
         List<OrderCacheProjection.OrderItemProjection> items = order.getOrderItems().getAllItems().stream()
                 .map(this::toItemProjection)
-                .collect(Collectors.toList());
+                .toList();
         projection.setOrderItems(items);
 
         return projection;
@@ -96,16 +96,21 @@ public class OrderCacheProjector extends AbstractAggregateProjector<Order, Order
         ip.setProductId(item.getProductId());
         ip.setProductName(item.getProductName());
         ip.setSpec(item.getSpec());
-        ip.setPrice(toFen(item.getPrice()));
+        ip.setPrice(amountOf(item.getPrice()));
         ip.setQuantity(item.getQuantity());
-        ip.setSubtotal(toFen(item.getSubtotal()));
+        ip.setSubtotal(amountOf(item.getSubtotal()));
         return ip;
     }
 
-    private long toFen(Money money) {
+    /**
+     * 取金额值（单位：元），金额为空时返回 0。
+     *
+     * @param money 金额值对象，可为 null
+     * @return 金额数值，永不为 null
+     */
+    private BigDecimal amountOf(Money money) {
         return Optional.ofNullable(money)
                 .map(Money::getAmount)
-                .map(value -> value.multiply(java.math.BigDecimal.valueOf(100)).longValue())
-                .orElse(0L);
+                .orElse(BigDecimal.ZERO);
     }
 }

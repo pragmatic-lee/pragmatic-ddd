@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * 订单列表行（对齐 api-contract.md 4.2 列表行字段）。
- * 金额单位统一为元；投影内金额为分，装配时分转元。
+ * 金额单位统一为元，与投影一致，装配时无需换算。
  *
  * @author wizard-lee
  */
@@ -53,8 +53,8 @@ public class OrderSummaryDTO {
             dto.setCustomerId(projection.getCustomer().getCustomerId());
         }
         dto.setStatus(projection.getStatus());
-        dto.setTotalAmount(centsToYuan(projection.getTotalAmount()));
-        dto.setActualAmount(centsToYuan(projection.getActualAmount()));
+        dto.setTotalAmount(projection.getTotalAmount());
+        dto.setActualAmount(projection.getActualAmount());
         dto.setRemark(projection.getRemark());
         dto.setPayTime(projection.getPaidAt());
         if (projection.getLogisticsInfo() != null) {
@@ -62,10 +62,5 @@ public class OrderSummaryDTO {
         }
         dto.setCreatedAt(projection.getCreatedAt());
         return dto;
-    }
-
-    /** 分转元：投影金额单位为分，对外统一元。 */
-    static BigDecimal centsToYuan(long cents) {
-        return BigDecimal.valueOf(cents).movePointLeft(2);
     }
 }
