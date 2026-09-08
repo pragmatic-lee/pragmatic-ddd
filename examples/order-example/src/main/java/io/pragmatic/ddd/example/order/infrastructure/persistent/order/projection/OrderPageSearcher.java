@@ -3,12 +3,10 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
@@ -25,7 +23,6 @@ import io.pragmatic.ddd.repository.query.paging.ScrollResult;
 import lombok.SneakyThrows;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,7 +69,7 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
         var response = elasticsearchClient.search(req -> req
                 .index(OrderEsTargets.ORDER_INDEX_NAME)
                 .query(query)
-                .sort(sort -> sort.field(f -> f.field("orderId").order(SortOrder.Desc)))
+                .sort(defaultSort())
                 .from(pageRequest.offset())
                 .size(pageRequest.pageSize())
                 .trackTotalHits(t -> t.enabled(true)), OrderEsProjection.class);
@@ -93,7 +90,7 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
         var response = elasticsearchClient.search(req -> {
             var b = req.index(OrderEsTargets.ORDER_INDEX_NAME)
                     .query(query)
-                    .sort(sort -> sort.field(f -> f.field("orderId").order(SortOrder.Desc)))
+                    .sort(defaultSort())
                     .size(pageSize);
             if (!cursor.isInitial()) {
                 b.searchAfter(cursor.cursor());
@@ -108,33 +105,22 @@ public class OrderPageSearcher implements IProjectionPagedSearcher<OrderPageQuer
         return ScrollResult.of(data, nextCursor);
     }
 
+    /**
+     * 按条件族构建 ES 查询；条件全缺省时等价于 match_all。
+     */
     private Query buildConditionQuery(OrderPageQuery condition) {
-        List<Query> must = new ArrayList<>();
         if (condition instanceof OrderPageQuery.ByConditions c) {
-            c.orderId().ifPresent(v -> must.add(term("orderId", v)));
-            c.payStatus().ifPresent(v -> must.add(term("status", v)));
-            c.totalAmount().ifPresent(v -> must.add(term("totalAmount", v)));
-            c.customerId().ifPresent(v -> must.add(term("customer.customerId", v)));
-            c.productName().ifPresent(v -> must.add(match("itemProductNamesText", v)));
+            return OrderEsConditionFactory.build(c);
         }
-        BoolQuery bool = BoolQuery.of(b -> b.must(must));
-        return Query.of(q -> q.bool(bool));
+        return Query.of(q -> q.bool(BoolQuery.of(b -> b)));
     }
 
-    private Query term(String field, Object value) {
-        if (value instanceof Long l) {
-            return Query.of(q -> q.term(TermQuery.of(t -> t.field(field).value(FieldValue.of(l)))));
-        }
-        if (value instanceof Integer i) {
-            return Query.of(q -> q.term(TermQuery.of(t -> t.field(field).value(FieldValue.of(i.longValue())))));
-        }
-        if (value instanceof String s) {
-            return Query.of(q -> q.term(TermQuery.of(t -> t.field(field).value(FieldValue.of(s)))));
-        }
-        return Query.of(q -> q.term(TermQuery.of(t -> t.field(field).value(FieldValue.of(value.toString())))));
-    }
-
-    private Query match(String field, String value) {
-        return Query.of(q -> q.match(MatchQuery.of(m -> m.field(field).query(value))));
+    /**
+     * 默认排序：创建时间倒序，创建时间相同时用订单号倒序兜底，保证排序键唯一。
+     */
+    private List<SortOptions> defaultSort() {
+        return List.of(
+                SortOptions.of(s -> s.field(f -> f.field("createdAt").order(SortOrder.Desc))),
+                SortOptions.of(s -> s.field(f -> f.field("orderId").order(SortOrder.Desc))));
     }
 }

@@ -31,6 +31,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -69,19 +72,14 @@ public class OrderController {
     }
 
     /**
-     * 订单分页查询。
-     * 当前仅透传底层已支持的 orderId/status/customerId 条件；
-     * trackingNo/remark/金额区间/时间区间等条件待查询能力扩展后接入（见设计文档 4.2）。
+     * 订单分页查询：入参全部条件参与 ES 检索，默认按创建时间倒序。
+     * orderId / customerId / trackingNo / status 精确匹配，remark 模糊匹配。
      */
     @GetMapping
     public Result<PageResultDTO<OrderSummaryDTO>> queryOrders(SearchOrderRequest request) {
+        validateSearchRequest(request);
         PageRequest pageRequest = PageRequest.of(request.getPageNo(), request.getPageSize());
-        OrderPageQuery.ByConditions criteria = new OrderPageQuery.ByConditions(
-                Optional.ofNullable(request.getOrderId()),
-                Optional.ofNullable(request.getStatus()),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.ofNullable(request.getCustomerId()));
+        OrderPageQuery.ByConditions criteria = toPageCriteria(request);
         PageResult<OrderEsProjection> page = orderReadService.queryPage(
                 criteria,
                 pageRequest,
@@ -122,6 +120,66 @@ public class OrderController {
             throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
         }
         return Result.ok(OrderDetailDTO.from(order));
+    }
+
+    /**
+     * 校验订单查询条件的区间合法性；分页参数由框架 PageRequest.of 校验。
+     */
+    private void validateSearchRequest(SearchOrderRequest request) {
+        BigDecimal min = request.getMinAmount();
+        BigDecimal max = request.getMaxAmount();
+        if (min != null && min.signum() < 0) {
+            throw new ApiException(ApiErrorCode.BAD_REQUEST, "金额下限不能为负数");
+        }
+        if (max != null && max.signum() < 0) {
+            throw new ApiException(ApiErrorCode.BAD_REQUEST, "金额上限不能为负数");
+        }
+        if (min != null && max != null && min.compareTo(max) > 0) {
+            throw new ApiException(ApiErrorCode.BAD_REQUEST, "金额下限不能大于上限");
+        }
+        if (request.getPayTimeStart() != null && request.getPayTimeEnd() != null
+                && request.getPayTimeStart().isAfter(request.getPayTimeEnd())) {
+            throw new ApiException(ApiErrorCode.BAD_REQUEST, "支付时间区间不合法");
+        }
+        if (request.getCreateTimeStart() != null && request.getCreateTimeEnd() != null
+                && request.getCreateTimeStart().isAfter(request.getCreateTimeEnd())) {
+            throw new ApiException(ApiErrorCode.BAD_REQUEST, "创建时间区间不合法");
+        }
+    }
+
+    /**
+     * 把查询请求装配为条件族：金额按元原样透传，日期展开为当日闭区间。
+     */
+    private OrderPageQuery.ByConditions toPageCriteria(SearchOrderRequest request) {
+        return new OrderPageQuery.ByConditions(
+                Optional.ofNullable(request.getOrderId()),
+                Optional.ofNullable(request.getStatus()),
+                Optional.ofNullable(request.getCustomerId()),
+                Optional.ofNullable(request.getTrackingNo()),
+                Optional.ofNullable(request.getRemark()),
+                Optional.ofNullable(request.getMinAmount()),
+                Optional.ofNullable(request.getMaxAmount()),
+                startOfDay(request.getPayTimeStart()),
+                endOfDay(request.getPayTimeEnd()),
+                startOfDay(request.getCreateTimeStart()),
+                endOfDay(request.getCreateTimeEnd()),
+                Optional.empty());
+    }
+
+    /**
+     * 取当日起始时刻（00:00:00）。
+     */
+    private Optional<LocalDateTime> startOfDay(LocalDate date) {
+        return Optional.ofNullable(date)
+                .map(LocalDate::atStartOfDay);
+    }
+
+    /**
+     * 取当日结束时刻（23:59:59.999），毫秒精度避免纳秒被 date 字段拒绝。
+     */
+    private Optional<LocalDateTime> endOfDay(LocalDate date) {
+        return Optional.ofNullable(date)
+                .map(d -> d.atTime(LocalTime.of(23, 59, 59, 999_000_000)));
     }
 
     private void validateSubmitRequest(SubmitOrderRequest request) {
