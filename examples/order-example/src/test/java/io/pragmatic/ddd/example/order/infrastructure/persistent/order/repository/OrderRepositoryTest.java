@@ -80,7 +80,7 @@ class OrderRepositoryTest {
 
         Order loaded = repo.findById(id);
         assertThat(loaded).isNotNull();
-        assertThat(loaded.getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(loaded.getStatus()).isEqualTo(OrderStatus.IN_PROGRESS);
         assertThat(loaded.getCustomer().getCustomerName()).isEqualTo("张三");
         assertThat(loaded.getTotalAmount().getAmount()).isEqualByComparingTo("9787");
         assertThat(loaded.getOrderItems().getAllItems()).hasSize(2);

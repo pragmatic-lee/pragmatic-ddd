@@ -2,6 +2,8 @@ package io.pragmatic.ddd.example.order.infrastructure.config.order;
 
 import io.pragmatic.ddd.example.order.domain.order.model.enums.OrderStatus;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentStatus;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.ShipmentStatus;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Address;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Customer;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsInfo;
@@ -35,6 +37,8 @@ public class OrderMybatisTypeHandlerConfig {
         EnumValueResolver resolver = new EnumValueResolver();
         Map<Class<?>, EnumRule> enumRules = Map.of(
                 OrderStatus.class, EnumRule.CODE,
+                PaymentStatus.class, EnumRule.CODE,
+                ShipmentStatus.class, EnumRule.CODE,
                 PaymentMethod.class, EnumRule.CODE);
         List<Class<?>> voTypes = List.of(
                 Customer.class, Address.class, Money.class,

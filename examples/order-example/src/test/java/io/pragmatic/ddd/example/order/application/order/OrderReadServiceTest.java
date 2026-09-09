@@ -170,11 +170,11 @@ class OrderReadServiceTest {
     void queryPage_forwardsToSearcher() {
         PageResult<OrderSummaryProjection> result = readService.queryPage(
                 new OrderPageQuery.ByConditions(
-                        Optional.of(1001L), Optional.empty(), Optional.of(2001L),
+                        Optional.of(1001L), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.of(2001L), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty(),
-                        Optional.empty(), Optional.empty(),
-                        Optional.of("机械键盘")),
+                        Optional.empty(), Optional.of("机械键盘")),
                 PageRequest.of(1, 10),
                 OrderSummaryProjection.class);
 

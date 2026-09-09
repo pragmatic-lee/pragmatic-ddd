@@ -154,6 +154,8 @@ public class OrderController {
         return new OrderPageQuery.ByConditions(
                 Optional.ofNullable(request.getOrderId()),
                 Optional.ofNullable(request.getStatus()),
+                Optional.ofNullable(request.getPaymentStatus()),
+                Optional.ofNullable(request.getShipmentStatus()),
                 Optional.ofNullable(request.getCustomerId()),
                 Optional.ofNullable(request.getTrackingNo()),
                 Optional.ofNullable(request.getRemark()),

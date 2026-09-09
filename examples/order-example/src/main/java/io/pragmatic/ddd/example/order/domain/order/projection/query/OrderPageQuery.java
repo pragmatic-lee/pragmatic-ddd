@@ -20,9 +20,11 @@ public sealed interface OrderPageQuery extends PageQueryCriteria
      * 订单列表综合检索条件，各字段均 Optional（不传则不参与筛选）。
      * 金额单位统一为「元」（与 Money.amount、投影、ES 存储一致），时间统一为 LocalDateTime。
      *
-     * @param orderId      订单号（精确匹配）
-     * @param status       订单状态（精确匹配，基础类型 Integer）
-     * @param customerId   客户 ID（精确匹配）
+     * @param orderId        订单号（精确匹配）
+     * @param status         订单生命周期状态（精确匹配，基础类型 Integer）
+     * @param paymentStatus  支付状态（精确匹配，基础类型 Integer）
+     * @param shipmentStatus 物流状态（精确匹配，基础类型 Integer）
+     * @param customerId     客户 ID（精确匹配）
      * @param trackingNo   物流单号（精确匹配）
      * @param remark       订单备注（分词匹配）
      * @param minAmount    总金额下限（元，含）
@@ -36,6 +38,8 @@ public sealed interface OrderPageQuery extends PageQueryCriteria
     record ByConditions(
             Optional<Long> orderId,
             Optional<Integer> status,
+            Optional<Integer> paymentStatus,
+            Optional<Integer> shipmentStatus,
             Optional<Long> customerId,
             Optional<String> trackingNo,
             Optional<String> remark,

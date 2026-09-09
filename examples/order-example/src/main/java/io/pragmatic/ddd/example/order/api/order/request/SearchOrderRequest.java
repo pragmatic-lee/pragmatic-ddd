@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 /**
  * 订单分页查询条件（对齐 api-contract.md 4.2）。
- * 全部条件均参与过滤；orderId / customerId / trackingNo / status 精确匹配，remark 模糊匹配。
+ * 全部条件均参与过滤；orderId / customerId / trackingNo / status / paymentStatus / shipmentStatus 精确匹配，remark 模糊匹配。
  *
  * @author wizard-lee
  */
@@ -18,8 +18,14 @@ public class SearchOrderRequest {
     /** 订单号（后端 Long 主键，按设计文档 3.5 统一）。 */
     private Long orderId;
 
-    /** 订单状态：1待支付 2已支付 3已发货 4已完成 5已取消；枚举字典统一前 1~3 生效。 */
+    /** 订单生命周期状态：1进行中 2已完成 3已取消 4已关闭（见 OrderStatus）。 */
     private Integer status;
+
+    /** 支付状态：1待支付 2已支付（见 PaymentStatus）。 */
+    private Integer paymentStatus;
+
+    /** 物流状态：1待发货 2已发货 3运输中 4已签收 5已拒收 6已退货（见 ShipmentStatus）。 */
+    private Integer shipmentStatus;
 
     /** 客户 ID（精确）。 */
     private Long customerId;

@@ -18,6 +18,8 @@
         order_id,
         customer,
         status,
+        payment_status,
+        shipment_status,
         shipping_address,
         currency,
         total_amount,
@@ -72,6 +74,8 @@
         <id property="entityId" column="order_id"/>
         <result property="customer" column="customer"/>
         <result property="status" column="status"/>
+        <result property="paymentStatus" column="payment_status"/>
+        <result property="shipmentStatus" column="shipment_status"/>
         <result property="shippingAddress" column="shipping_address"/>
         <result property="currency" column="currency"/>
         <result property="totalAmount" column="total_amount"/>
@@ -117,6 +121,8 @@
             order_id,
             customer,
             status,
+            payment_status,
+            shipment_status,
             shipping_address,
             currency,
             total_amount,
@@ -137,6 +143,8 @@
             #{entityId},
             #{customer},
             #{status},
+            #{paymentStatus},
+            #{shipmentStatus},
             #{shippingAddress},
             #{currency},
             #{totalAmount},
@@ -161,6 +169,8 @@
         SET
             customer = #{customer},
             status = #{status},
+            payment_status = #{paymentStatus},
+            shipment_status = #{shipmentStatus},
             shipping_address = #{shippingAddress},
             currency = #{currency},
             total_amount = #{totalAmount},

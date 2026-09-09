@@ -39,6 +39,8 @@ final class OrderEsConditionFactory {
         List<Query> filter = Stream.of(
                         termLong("orderId", condition.orderId()),
                         termInt("status", condition.status()),
+                        termInt("paymentStatus", condition.paymentStatus()),
+                        termInt("shipmentStatus", condition.shipmentStatus()),
                         termLong("customer.customerId", condition.customerId()),
                         termKeyword("logisticsInfo.trackingNo", condition.trackingNo()),
                         decimalRange("totalAmount", condition.minAmount(), condition.maxAmount()),

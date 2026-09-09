@@ -24,10 +24,10 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
             MessageCode.of("ORDER_ITEM_PRICE_POSITIVE", "订单项单价必须为正数");
 
     public static final MessageCode ORDER_CANCEL_STATUS_INVALID =
-            MessageCode.of("ORDER_CANCEL_STATUS_INVALID", "仅待支付或已支付状态的订单可取消");
+            MessageCode.of("ORDER_CANCEL_STATUS_INVALID", "仅进行中且未签收的订单可取消");
 
     public static final MessageCode ORDER_ADDRESS_CHANGE_STATUS_INVALID =
-            MessageCode.of("ORDER_ADDRESS_CHANGE_STATUS_INVALID", "仅待支付状态的订单可修改收货地址");
+            MessageCode.of("ORDER_ADDRESS_CHANGE_STATUS_INVALID", "仅未发货的订单可修改收货地址");
 
     public static final MessageCode ORDER_CUSTOMER_REQUIRED =
             MessageCode.of("ORDER_CUSTOMER_REQUIRED", "订单客户信息不能为空");
@@ -36,10 +36,10 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
             MessageCode.of("ORDER_ADDRESS_REQUIRED", "收货地址不能为空");
 
     public static final MessageCode ORDER_SHIP_STATUS_INVALID =
-            MessageCode.of("ORDER_SHIP_STATUS_INVALID", "仅已支付状态的订单可发货");
+            MessageCode.of("ORDER_SHIP_STATUS_INVALID", "仅进行中的订单可发货");
 
     public static final MessageCode ORDER_PAY_STATUS_INVALID =
-            MessageCode.of("ORDER_PAY_STATUS_INVALID", "仅已创建状态的订单可支付");
+            MessageCode.of("ORDER_PAY_STATUS_INVALID", "仅待支付且进行中的订单可支付");
 
     public static final MessageCode ORDER_CUSTOMER_QUALIFIED =
             MessageCode.of("ORDER_CUSTOMER_QUALIFIED", "下单用户未生效或不具备下单资格");

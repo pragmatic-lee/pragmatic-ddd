@@ -18,9 +18,20 @@ public class OrderCacheProjection implements IOrderProjection {
 
     private Long orderId;
 
+    /** 订单生命周期状态（基础类型 int，不使用枚举）。 */
     private int status;
 
     private String statusName;
+
+    /** 支付状态（基础类型 int，不使用枚举）。 */
+    private int paymentStatus;
+
+    private String paymentStatusName;
+
+    /** 物流状态（基础类型 int，不使用枚举）。 */
+    private int shipmentStatus;
+
+    private String shipmentStatusName;
 
     private int paymentMethod;
 

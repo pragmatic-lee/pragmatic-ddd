@@ -4,6 +4,8 @@ import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.example.order.domain.order.event.*;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.OrderStatus;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentStatus;
+import io.pragmatic.ddd.example.order.domain.order.model.enums.ShipmentStatus;
 import io.pragmatic.ddd.example.order.domain.order.param.OrderInitData;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Address;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Customer;
@@ -41,9 +43,19 @@ public class Order extends AggregateRoot<Long> {
     private Customer customer;
 
     /**
-     * 订单状态。
+     * 订单生命周期状态：仅在创建 / 取消 / 关闭 / 完成等生命周期动作中显式赋值。
      */
     private OrderStatus status;
+
+    /**
+     * 支付状态。
+     */
+    private PaymentStatus paymentStatus;
+
+    /**
+     * 物流状态。
+     */
+    private ShipmentStatus shipmentStatus;
 
     /**
      * 订单项集合，支持变更追踪。
@@ -117,7 +129,9 @@ public class Order extends AggregateRoot<Long> {
         this.shippingAddress = data.getShippingAddress();
         this.remark = data.getRemark();
         this.paymentMethod = data.getPaymentMethod();
-        this.status = OrderStatus.CREATED;
+        this.status = OrderStatus.IN_PROGRESS;
+        this.paymentStatus = PaymentStatus.PENDING;
+        this.shipmentStatus = ShipmentStatus.PENDING;
         this.currency = "CNY";
         this.totalAmount = data.getTotalAmount();
         this.orderItems = new TrackedList<>(data.getOrderItems() == null ? List.of() : data.getOrderItems());
@@ -194,11 +208,12 @@ public class Order extends AggregateRoot<Long> {
 
     /**
      * 标记订单已发货并记录物流信息，并发布订单发货事件。
+     * 只推进物流状态，不改动支付状态与订单生命周期状态。
      *
      * @param logisticsInfo 物流信息
      */
     public void ship(LogisticsInfo logisticsInfo) {
-        this.status = OrderStatus.SHIPPED;
+        this.shipmentStatus = ShipmentStatus.SHIPPED;
         this.logisticsInfo = logisticsInfo;
         this.markModified();
         this.recordOperation(OrderOperationRegistry.SHIP);
@@ -207,11 +222,12 @@ public class Order extends AggregateRoot<Long> {
 
     /**
      * 标记订单已支付并记录支付信息，并发布订单支付事件。
+     * 只推进支付状态，不改动物流状态与订单生命周期状态。
      *
      * @param paymentInfo 支付信息
      */
     public void pay(PaymentInfo paymentInfo) {
-        this.status = OrderStatus.PAID;
+        this.paymentStatus = PaymentStatus.PAID;
         this.paidAt = LocalDateTime.now();
         this.paymentSerialNo = paymentInfo.getPaymentSerialNo();
         this.platformDiscount = paymentInfo.getPlatformDiscount();
@@ -232,6 +248,17 @@ public class Order extends AggregateRoot<Long> {
         this.markModified();
         this.recordOperation(OrderOperationRegistry.CANCEL);
         this.collectEvent(OrderCancelledEvent.buildEvent(this));
+    }
+
+    /**
+     * 标记订单已签收，物流置为已签收，同时将订单生命周期推进到已完成，并发布订单签收事件。
+     */
+    public void sign() {
+        this.shipmentStatus = ShipmentStatus.SIGNED;
+        this.status = OrderStatus.COMPLETED;
+        this.markModified();
+        this.recordOperation(OrderOperationRegistry.SIGN);
+        this.collectEvent(OrderSignedEvent.buildEvent(this));
     }
 
     private Optional<OrderItem> findItem(Long itemId) {

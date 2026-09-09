@@ -10,7 +10,9 @@ USE order_example;
 CREATE TABLE IF NOT EXISTS t_order (
     id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '聚合根标识',
     customer          JSON         NULL COMMENT 'Customer 值对象',
-    status            INT          NOT NULL COMMENT '订单状态 CODE（OrderStatus.value）',
+    status            INT          NOT NULL COMMENT '订单生命周期状态 CODE（OrderStatus.value）',
+    payment_status    INT          NOT NULL DEFAULT 1 COMMENT '支付状态 CODE（PaymentStatus.value：1待支付 2已支付）',
+    shipment_status   INT          NOT NULL DEFAULT 1 COMMENT '物流状态 CODE（ShipmentStatus.value：1待发货 2已发货 3运输中 4已签收 5已拒收 6已退货）',
     shipping_address  JSON         NULL COMMENT 'Address 值对象',
     currency          VARCHAR(8)   NULL COMMENT '币种（冗余，便于查询）',
     total_amount      JSON         NULL COMMENT 'Money 值对象',
@@ -29,6 +31,8 @@ CREATE TABLE IF NOT EXISTS t_order (
     version           BIGINT       NOT NULL DEFAULT 0 COMMENT '乐观锁',
     PRIMARY KEY (id),
     KEY idx_status (status),
+    KEY idx_payment_status (payment_status),
+    KEY idx_shipment_status (shipment_status),
     KEY idx_paid_at (paid_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单聚合根';
 

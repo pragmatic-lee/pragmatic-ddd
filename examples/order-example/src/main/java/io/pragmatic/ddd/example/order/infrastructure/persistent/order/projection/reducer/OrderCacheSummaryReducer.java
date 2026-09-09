@@ -36,6 +36,10 @@ public class OrderCacheSummaryReducer implements IOrderCacheSummaryReducer {
         summary.setOrderId(source.getOrderId());
         summary.setStatus(source.getStatus());
         summary.setStatusName(source.getStatusName());
+        summary.setPaymentStatus(source.getPaymentStatus());
+        summary.setPaymentStatusName(source.getPaymentStatusName());
+        summary.setShipmentStatus(source.getShipmentStatus());
+        summary.setShipmentStatusName(source.getShipmentStatusName());
         summary.setActualAmount(source.getActualAmount());
         summary.setCreatedAt(source.getCreatedAt());
         Optional.ofNullable(source.getCustomer())

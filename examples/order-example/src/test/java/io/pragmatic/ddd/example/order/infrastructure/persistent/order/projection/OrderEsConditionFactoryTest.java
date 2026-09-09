@@ -33,7 +33,8 @@ class OrderEsConditionFactoryTest {
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty());
     }
 
     private static String json(Query query) {
@@ -74,7 +75,8 @@ class OrderEsConditionFactoryTest {
                     Optional.of(1001L), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             List<Query> filter = query.bool().filter();
             assertThat(filter).hasSize(1);
@@ -85,10 +87,11 @@ class OrderEsConditionFactoryTest {
         @DisplayName("客户 ID 精确匹配嵌套字段")
         void build_customerId_termNestedField() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
-                    Optional.empty(), Optional.empty(), Optional.of(2001L),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.of(2001L), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty()));
 
             List<Query> filter = query.bool().filter();
             assertThat(filter).hasSize(1);
@@ -96,17 +99,48 @@ class OrderEsConditionFactoryTest {
         }
 
         @Test
-        @DisplayName("状态按 long 值精确匹配")
+        @DisplayName("订单生命周期状态按 long 值精确匹配")
         void build_status_termAsLong() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
-                    Optional.empty(), Optional.of(2), Optional.empty(),
+                    Optional.empty(), Optional.of(1), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             List<Query> filter = query.bool().filter();
             assertThat(filter).hasSize(1);
-            assertThat(json(filter.get(0))).contains("\"status\"").contains("2");
+            assertThat(json(filter.get(0))).contains("\"status\"").contains("1");
+        }
+
+        @Test
+        @DisplayName("支付状态精确匹配 paymentStatus 字段")
+        void build_paymentStatus_term() {
+            Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
+                    Optional.empty(), Optional.empty(), Optional.of(2),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
+
+            List<Query> filter = query.bool().filter();
+            assertThat(filter).hasSize(1);
+            assertThat(json(filter.get(0))).contains("paymentStatus").contains("2");
+        }
+
+        @Test
+        @DisplayName("物流状态精确匹配 shipmentStatus 字段")
+        void build_shipmentStatus_term() {
+            Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.of(4), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
+
+            List<Query> filter = query.bool().filter();
+            assertThat(filter).hasSize(1);
+            assertThat(json(filter.get(0))).contains("shipmentStatus").contains("4");
         }
 
         @Test
@@ -114,9 +148,10 @@ class OrderEsConditionFactoryTest {
         void build_trackingNo_termTrimmed() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.of("  SF001  "), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.of("  SF001  "),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             List<Query> filter = query.bool().filter();
             assertThat(filter).hasSize(1);
@@ -128,9 +163,10 @@ class OrderEsConditionFactoryTest {
         void build_blankTrackingNo_ignored() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.of("   "), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.of("   "),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             assertThat(query.bool().filter()).isEmpty();
         }
@@ -145,9 +181,10 @@ class OrderEsConditionFactoryTest {
         void build_remark_matchInMust() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.of("尽快发货"), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.of("尽快发货"), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             assertThat(query.bool().filter()).isEmpty();
             List<Query> must = query.bool().must();
@@ -160,9 +197,10 @@ class OrderEsConditionFactoryTest {
         void build_blankRemark_ignored() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.of("  "), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.of("  "), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             assertThat(query.bool().must()).isEmpty();
         }
@@ -177,9 +215,10 @@ class OrderEsConditionFactoryTest {
         void build_minAmountOnly_onlyGte() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.of(new BigDecimal("100.00")),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.of(new BigDecimal("100.00")), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             List<Query> filter = query.bool().filter();
             assertThat(filter).hasSize(1);
@@ -193,7 +232,8 @@ class OrderEsConditionFactoryTest {
         void build_amountRange_closedRange() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.of(new BigDecimal("100.00")),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.of(new BigDecimal("100.00")),
                     Optional.of(new BigDecimal("500.00")), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty()));
 
@@ -209,8 +249,9 @@ class OrderEsConditionFactoryTest {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.of(from), Optional.empty(),
-                    Optional.empty(), Optional.empty(), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.of(from), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
 
             String json = json(query.bool().filter().get(0));
             assertThat(json).contains("paidAt").contains("2026-08-01T00:00");
@@ -226,7 +267,8 @@ class OrderEsConditionFactoryTest {
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty(), Optional.of(to), Optional.empty()));
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.of(to), Optional.empty()));
 
             String json = json(query.bool().filter().get(0));
             assertThat(json).contains("createdAt").contains("2026-08-01T23:59:59.999");
@@ -239,15 +281,16 @@ class OrderEsConditionFactoryTest {
     class CombinedConditions {
 
         @Test
-        @DisplayName("四个精确条件 + 一个金额区间进 filter，备注与商品名进 must")
+        @DisplayName("六个精确条件 + 金额区间进 filter，备注与商品名进 must")
         void build_mixedConditions_splitFilterAndMust() {
             Query query = OrderEsConditionFactory.build(new OrderPageQuery.ByConditions(
-                    Optional.of(1001L), Optional.of(2), Optional.of(2001L),
-                    Optional.of("SF001"), Optional.of("尽快"), Optional.of(new BigDecimal("100.00")),
+                    Optional.of(1001L), Optional.of(1), Optional.of(2),
+                    Optional.of(4), Optional.of(2001L), Optional.of("SF001"),
+                    Optional.of("尽快"), Optional.of(new BigDecimal("100.00")),
                     Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.of("键盘")));
 
-            assertThat(query.bool().filter()).hasSize(5);
+            assertThat(query.bool().filter()).hasSize(7);
             assertThat(query.bool().must()).hasSize(2);
         }
     }

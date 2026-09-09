@@ -22,8 +22,14 @@ public class OrderSummaryDTO {
     /** 客户 ID。 */
     private Long customerId;
 
-    /** 订单状态（1..5 字典，见设计文档 3.4.1）。 */
+    /** 订单生命周期状态：1进行中 2已完成 3已取消 4已关闭（见 OrderStatus）。 */
     private Integer status;
+
+    /** 支付状态名称（待支付 / 已支付）。 */
+    private String paymentStatusName;
+
+    /** 物流状态名称（待发货 / 已发货 / 运输中 / 已签收 / 已拒收 / 已退货）。 */
+    private String shipmentStatusName;
 
     /** 订单总金额（元）。 */
     private BigDecimal totalAmount;
@@ -53,6 +59,8 @@ public class OrderSummaryDTO {
             dto.setCustomerId(projection.getCustomer().getCustomerId());
         }
         dto.setStatus(projection.getStatus());
+        dto.setPaymentStatusName(projection.getPaymentStatusName());
+        dto.setShipmentStatusName(projection.getShipmentStatusName());
         dto.setTotalAmount(projection.getTotalAmount());
         dto.setActualAmount(projection.getActualAmount());
         dto.setRemark(projection.getRemark());

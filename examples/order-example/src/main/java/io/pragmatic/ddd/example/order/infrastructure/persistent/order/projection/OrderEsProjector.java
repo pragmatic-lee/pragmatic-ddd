@@ -34,7 +34,11 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
         OrderEsProjection projection = new OrderEsProjection();
         projection.setOrderId(order.getEntityId());
         projection.setStatus(order.getStatus().getValue());
-        projection.setStatusName(order.getStatus().name());
+        projection.setStatusName(order.getStatus().getName());
+        projection.setPaymentStatus(order.getPaymentStatus().getValue());
+        projection.setPaymentStatusName(order.getPaymentStatus().getName());
+        projection.setShipmentStatus(order.getShipmentStatus().getValue());
+        projection.setShipmentStatusName(order.getShipmentStatus().getName());
         projection.setPaymentMethod(order.getPaymentMethod().getValue());
         projection.setPaymentMethodName(order.getPaymentMethod().name());
         projection.setCurrency(order.getCurrency());
