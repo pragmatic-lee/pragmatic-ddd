@@ -78,9 +78,14 @@ public class OrderRule extends EntityRule<Order> {
                         this.allItemPricePositive(order.getOrderItems().getAllItems()))),
                 OrderRuleRegistry.ORDER_ITEM_PRICE_POSITIVE);
         // 仅允许取消进行中的订单，且已签收订单不可取消：已取消 / 已关闭 / 已完成 / 已签收的订单不可发起取消。
+        // 激活条件叠加「本次工作单元触发了 CANCEL 操作」，保证该规则只在真正执行取消时才校验，
+        // 避免订单经支付 / 发货 / 签收推进到其它生命周期状态时被该取消前置条件误拦截。
         this.addRule(
                 EntityRule.of(order -> RuleCheckResult.of(this.cancelStatusValid(order))),
-                OrderRuleRegistry.ORDER_CANCEL_STATUS_INVALID);
+                OrderRuleRegistry.ORDER_CANCEL_STATUS_INVALID,
+                IActiveRuleCondition.of(order -> order.hasOperation(OrderOperationRegistry.CANCEL)
+                        ? ActiveStatus.ACTIVE
+                        : ActiveStatus.INACTIVE));
         // 仅允许未发货的订单修改收货地址：订单一旦发货，收货地址不可变更。
         // 激活条件叠加「本次工作单元触发了 CHANGE_ADDRESS 操作」，
         // 保证该规则只在真正执行改址时才校验，避免支付/发货等其它修改命令误激活。
@@ -113,6 +118,14 @@ public class OrderRule extends EntityRule<Order> {
                 IActiveRuleCondition.of(order -> order.hasOperation(OrderOperationRegistry.SHIP)
                         ? ActiveStatus.ACTIVE
                         : ActiveStatus.INACTIVE));
+        // 仅允许已发货且进行中的订单签收：已签收 / 已取消 / 未发货的订单不可发起签收。
+        // 与支付守卫同理，sign() 先执行、已把物流与生命周期状态推进为 SIGNED / COMPLETED，
+        // 故基于修改前的旧快照判定发货状态，避免当前状态无法反推发货前状态。
+        // 激活条件叠加「本次工作单元触发了 SIGN 操作」，保证该规则只在真正执行签收时才校验。
+        this.addRule(
+                (order, old) -> RuleCheckResult.of(this.signStatusValid(old)),
+                OrderRuleRegistry.ORDER_SIGN_STATUS_INVALID,
+                IActiveRuleCondition.of(this::signRuleActiveStatus));
         // 仅允许待支付且进行中的订单支付：激活条件叠加「本次工作单元触发了 PAY 操作」，
         // 校验体基于支付前旧快照判定（execute 先执行领域逻辑后校验，当前支付状态已是 PAID），
         // 覆盖「重复支付拦截」与「已取消 / 已关闭订单不可支付」。
@@ -189,8 +202,26 @@ public class OrderRule extends EntityRule<Order> {
                 && oldOrder.getStatus() == OrderStatus.IN_PROGRESS;
     }
 
+    /**
+     * 签收前置校验：基于签收前的旧快照判定，仅已发货且进行中的订单可签收。
+     */
+    private boolean signStatusValid(Order oldOrder) {
+        if (oldOrder == null) {
+            return false;
+        }
+        return oldOrder.getStatus() == OrderStatus.IN_PROGRESS
+                && oldOrder.getShipmentStatus() == ShipmentStatus.SHIPPED;
+    }
+
     private ActiveStatus addressChangeRuleActiveStatus(Order order) {
         if (order.hasOperation(OrderOperationRegistry.CHANGE_ADDRESS)) {
+            return ActiveStatus.ACTIVE;
+        }
+        return ActiveStatus.INACTIVE;
+    }
+
+    private ActiveStatus signRuleActiveStatus(Order order) {
+        if (order.hasOperation(OrderOperationRegistry.SIGN)) {
             return ActiveStatus.ACTIVE;
         }
         return ActiveStatus.INACTIVE;

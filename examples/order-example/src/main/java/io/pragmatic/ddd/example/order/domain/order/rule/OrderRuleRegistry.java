@@ -41,6 +41,9 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
     public static final MessageCode ORDER_PAY_STATUS_INVALID =
             MessageCode.of("ORDER_PAY_STATUS_INVALID", "仅待支付且进行中的订单可支付");
 
+    public static final MessageCode ORDER_SIGN_STATUS_INVALID =
+            MessageCode.of("ORDER_SIGN_STATUS_INVALID", "仅已发货状态的订单可签收");
+
     public static final MessageCode ORDER_CUSTOMER_QUALIFIED =
             MessageCode.of("ORDER_CUSTOMER_QUALIFIED", "下单用户未生效或不具备下单资格");
 

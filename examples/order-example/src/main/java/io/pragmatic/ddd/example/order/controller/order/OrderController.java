@@ -123,6 +123,18 @@ public class OrderController {
     }
 
     /**
+     * 订单签收：无请求体，将已发货订单推进为已完成。
+     */
+    @PostMapping("/{orderId}/sign")
+    public Result<OrderDetailDTO> signOrder(@PathVariable Long orderId) {
+        Order order = orderWriteService.signOrder(orderId);
+        if (order == null) {
+            throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
+        }
+        return Result.ok(OrderDetailDTO.from(order));
+    }
+
+    /**
      * 校验订单查询条件的区间合法性；分页参数由框架 PageRequest.of 校验。
      */
     private void validateSearchRequest(SearchOrderRequest request) {

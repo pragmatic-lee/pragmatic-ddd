@@ -131,6 +131,24 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
     }
 
+    /** 签收：加载聚合后直接以 Order::sign 完成赋值与收尾（无入参，无需 Updater），再统一校验与持久化。 */
+    public Order signOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.execute(order, orderRule, orderRepository, Order::sign);
+    }
+
+    /** 预校验签收：不落库、不发布，仅返回结构化校验结果。 */
+    public DryRunResult trySignOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.tryExecute(order, orderRule, orderRepository, Order::sign);
+    }
+
     /** 支付：加载聚合后经 Updater 完成 Input→PaymentInfo 转换与充血方法调用，再统一校验与持久化。 */
     public Order payOrder(Long orderId, PayOrderInput input) {
         Order order = orderRepository.findById(orderId);
