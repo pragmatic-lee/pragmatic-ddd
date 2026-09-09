@@ -129,6 +129,8 @@ public class OrderDetailDTO {
         dto.setStatus(projection.getStatus());
         dto.setPaymentStatusName(projection.getPaymentStatusName());
         dto.setShipmentStatusName(projection.getShipmentStatusName());
+        dto.setPaymentStatus(projection.getPaymentStatus());
+        dto.setShipmentStatus(projection.getShipmentStatus());
         dto.setTotalAmount(projection.getTotalAmount());
         dto.setActualAmount(projection.getActualAmount());
         dto.setRemark(projection.getRemark());
