@@ -100,7 +100,7 @@ public class OrderRule extends EntityRule<Order> {
         // 激活条件由「状态 == 已创建」改为「本次工作单元触发了 PLACE 操作」：
         // 生命周期状态在支付 / 发货后仍为 IN_PROGRESS，已无法据此判断是否为下单一刻。
         this.addRule(
-                EntityRule.of(order -> this.verifyCustomer(order.getCustomer())),
+                EntityRule.of(order -> this.customerPermissionService.check(order.getCustomer())),
                 OrderRuleRegistry.ORDER_CUSTOMER_QUALIFIED,
                 IActiveRuleCondition.of(order -> order.hasOperation(OrderOperationRegistry.PLACE)
                         ? ActiveStatus.ACTIVE
@@ -201,9 +201,5 @@ public class OrderRule extends EntityRule<Order> {
             return ActiveStatus.ACTIVE;
         }
         return ActiveStatus.INACTIVE;
-    }
-
-    private RuleCheckResult verifyCustomer(Customer customer) {
-        return this.customerPermissionService.verifyOrderCreatePermission(customer);
     }
 }
