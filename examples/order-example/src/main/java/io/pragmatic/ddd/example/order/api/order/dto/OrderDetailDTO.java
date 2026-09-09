@@ -27,9 +27,12 @@ public class OrderDetailDTO {
     /** 订单生命周期状态：1进行中 2已完成 3已取消 4已关闭（见 OrderStatus）。 */
     private Integer status;
 
+    /** 支付状态：1待支付 2已支付（见 PaymentStatus）。 */
+    private Integer paymentStatus;
     /** 支付状态名称（待支付 / 已支付）。 */
     private String paymentStatusName;
-
+    /** 物流状态：1待发货 2已发货 3运输中 4已签收 5已拒收 6已退货（见 ShipmentStatus）。 */
+    private Integer shipmentStatus;
     /** 物流状态名称（待发货 / 已发货 / 运输中 / 已签收 / 已拒收 / 已退货）。 */
     private String shipmentStatusName;
 
@@ -85,8 +88,11 @@ public class OrderDetailDTO {
         dto.setCustomerId(order.getCustomer().getCustomerId());
         dto.setStatus(order.getStatus().getValue());
         dto.setPaymentStatusName(order.getPaymentStatus().getName());
+        dto.setPaymentStatus(order.getPaymentStatus().getValue());
         dto.setShipmentStatusName(order.getShipmentStatus().getName());
+        dto.setShipmentStatus(order.getShipmentStatus().getValue());
         dto.setTotalAmount(order.getTotalAmount().getAmount());
+
         if (order.getActualAmount() != null) {
             dto.setActualAmount(order.getActualAmount().getAmount());
         }
