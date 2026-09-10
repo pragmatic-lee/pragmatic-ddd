@@ -8,6 +8,7 @@ import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjecti
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector.OrderCacheProjector;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderCacheSummaryReducer;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderRedisByIdSearcher;
 import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
@@ -15,9 +16,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 订单 Redis 投影源：以「源」为中心聚合写（project → 缓存）与读（概要裁剪器）。
- * 仅持有概要裁剪器，按 id 直取由 {@code materialize} 写入的缓存键承载。
- * 寻址串 redis:orders 由源标识承载，写读共享同一份缓存地址。
+ * 订单 Redis 投影源：以「源」为中心聚合写（project → 缓存）与读（按主键检索器 + 概要裁剪器）。
+ * 写读一体——{@code materialize} 写缓存键、按主键检索器读同一批键，二者共享同一份缓存地址。
+ * 寻址串 redis:orders 由源标识承载。
  *
  * @author wizard-lee
  */
@@ -29,11 +30,12 @@ public class OrderRedisSource extends AbstractProjectionSource<Order, OrderCache
 
     public OrderRedisSource(
             OrderCacheProjector projector,
+            OrderRedisByIdSearcher byIdSearcher,
             OrderCacheSummaryReducer summaryReducer,
             RedisCommands<String, String> redis,
             @Value("${order.cache.redis.ttl:0}") long ttlSeconds) {
         super(ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId()),
-                Order.class, OrderCacheProjection.class, projector, null);
+                Order.class, OrderCacheProjection.class, projector, byIdSearcher);
         bind(summaryReducer);
         this.redis = redis;
         this.ttlSeconds = ttlSeconds;

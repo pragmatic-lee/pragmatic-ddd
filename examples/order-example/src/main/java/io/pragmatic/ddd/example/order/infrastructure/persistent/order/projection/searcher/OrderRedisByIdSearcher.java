@@ -5,6 +5,7 @@ import io.lettuce.core.api.sync.RedisCommands;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.repository.query.projection.IProjectionByIdSearcher;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
  *
  * @author wizard-lee
  */
+@Component
 public class OrderRedisByIdSearcher implements IProjectionByIdSearcher<OrderCacheProjection> {
 
     private final RedisCommands<String, String> redis;
