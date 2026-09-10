@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica;
 
 import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.SetArgs;
@@ -6,7 +6,7 @@ import com.alibaba.fastjson2.JSON;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderCacheProjector;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector.OrderCacheProjector;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderCacheSummaryReducer;
 import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;

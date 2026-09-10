@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher;
 
 import com.alibaba.fastjson2.JSON;
 import io.lettuce.core.api.sync.RedisCommands;

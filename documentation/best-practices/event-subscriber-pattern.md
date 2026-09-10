@@ -325,7 +325,7 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 
 编写规则：
 
-- **一个副本一个订阅者**：ES 与 Redis 是两个平级订阅者，各自驱动自己的 `Source`（写读一体，落在 `projection/materializer/` 包），互不引用、互不感知。
+- **一个副本一个订阅者**：ES 与 Redis 是两个平级订阅者，各自驱动自己的 `Source`（写读一体，落在 `projection/replica/` 包），互不引用、互不感知。
 - **物化版本取 `event.getVersion()`**（`collectEvent` 回填的 `getNewVersion()`），不取 `order.getOldVersion()`——后者是对账补偿路径的口径。
 - **编排收敛到 `AggregateProjectorSupport.sync(aggregate, source)`**：订阅者只做 `findById` + `sync` 两件事，project→materialize 的内部四步由门面与源完成；投影映射与存储读写留在基础设施层，订阅者只做装配编排。
 - 投影 / 源 / 检索 / 裁剪 / 对账的完整落地见 [投影读模型代码落地指南](./projection-design.md)。

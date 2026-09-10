@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher;
 
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.json.jackson.JacksonJsonpGenerator;

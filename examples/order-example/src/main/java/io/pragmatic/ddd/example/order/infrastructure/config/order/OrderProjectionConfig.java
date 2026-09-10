@@ -1,8 +1,8 @@
 package io.pragmatic.ddd.example.order.infrastructure.config.order;
 
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer.OrderEsSource;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer.OrderRedisSource;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderEsSource;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderRedisSource;
 import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
 import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 import org.springframework.context.annotation.Bean;

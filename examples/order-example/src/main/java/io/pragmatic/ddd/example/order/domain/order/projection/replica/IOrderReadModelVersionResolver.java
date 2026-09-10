@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.domain.order.projection.materializer;
+package io.pragmatic.ddd.example.order.domain.order.projection.replica;
 
 import io.pragmatic.ddd.repository.reconciliation.IReadModelVersionResolver;
 

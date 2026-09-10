@@ -1,9 +1,9 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector;
 
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.repository.query.projection.AbstractAggregateProjector;
 import org.springframework.stereotype.Component;
 
@@ -12,26 +12,27 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 订单聚合到 ES 投影的纯映射实现，负责计算派生字段。
+ * 订单聚合到 Redis 缓存副本投影的纯映射实现，独立映射、不复用 ES 投影逻辑。
+ * 与 {@link OrderEsProjector} 平级，仅取聚合原生字段，不派生 ES 检索专用字段。
  *
  * @author wizard-lee
  */
 @Component
-public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> {
+public class OrderCacheProjector extends AbstractAggregateProjector<Order, OrderCacheProjection> {
 
-    public OrderEsProjector() {
-        super(OrderEsProjection.class);
+    public OrderCacheProjector() {
+        super(OrderCacheProjection.class);
     }
 
     /**
-     * 将订单聚合映射为 ES 中立投影，并派生商品名称列表等查询辅助字段。
+     * 将订单聚合映射为 Redis 缓存副本投影（剔除 ES 检索派生字段）。
      *
      * @param order 待投影的订单聚合
-     * @return 订单在 ES 中的投影视图
+     * @return 订单在 Redis 中的缓存副本投影
      */
     @Override
-    public OrderEsProjection project(Order order) {
-        OrderEsProjection projection = new OrderEsProjection();
+    public OrderCacheProjection project(Order order) {
+        OrderCacheProjection projection = new OrderCacheProjection();
         projection.setOrderId(order.getEntityId());
         projection.setStatus(order.getStatus().getValue());
         projection.setStatusName(order.getStatus().getName());
@@ -53,9 +54,11 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
         projection.setPlatformDiscount(amountOf(order.getPlatformDiscount()));
         projection.setActualAmount(amountOf(order.getActualAmount()));
 
+        projection.setVersion(order.getOldVersion());
+
         Optional.ofNullable(order.getCustomer())
                 .ifPresent(customer -> {
-                    OrderEsProjection.CustomerProjection cp = new OrderEsProjection.CustomerProjection();
+                    OrderCacheProjection.CustomerProjection cp = new OrderCacheProjection.CustomerProjection();
                     cp.setCustomerId(customer.getCustomerId());
                     cp.setCustomerName(customer.getCustomerName());
                     projection.setCustomer(cp);
@@ -63,7 +66,7 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
 
         Optional.ofNullable(order.getShippingAddress())
                 .ifPresent(address -> {
-                    OrderEsProjection.AddressProjection ap = new OrderEsProjection.AddressProjection();
+                    OrderCacheProjection.AddressProjection ap = new OrderCacheProjection.AddressProjection();
                     ap.setProvince(address.getProvince());
                     ap.setCity(address.getCity());
                     ap.setDistrict(address.getDistrict());
@@ -75,7 +78,7 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
 
         Optional.ofNullable(order.getLogisticsInfo())
                 .ifPresent(logistics -> {
-                    OrderEsProjection.LogisticsProjection lp = new OrderEsProjection.LogisticsProjection();
+                    OrderCacheProjection.LogisticsProjection lp = new OrderCacheProjection.LogisticsProjection();
                     lp.setTrackingNo(logistics.getTrackingNo());
                     lp.setCompanyCode(logistics.getCompanyCode());
                     lp.setCompanyName(logistics.getCompanyName());
@@ -83,22 +86,16 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
                     projection.setLogisticsInfo(lp);
                 });
 
-        List<OrderEsProjection.OrderItemProjection> items = order.getOrderItems().getAllItems().stream()
+        List<OrderCacheProjection.OrderItemProjection> items = order.getOrderItems().getAllItems().stream()
                 .map(this::toItemProjection)
                 .toList();
         projection.setOrderItems(items);
 
-        List<String> productNames = items.stream()
-                .map(OrderEsProjection.OrderItemProjection::getProductName)
-                .toList();
-        projection.setItemProductNames(productNames);
-        projection.setItemProductNamesText(String.join(" ", productNames));
-
         return projection;
     }
 
-    private OrderEsProjection.OrderItemProjection toItemProjection(OrderItem item) {
-        OrderEsProjection.OrderItemProjection ip = new OrderEsProjection.OrderItemProjection();
+    private OrderCacheProjection.OrderItemProjection toItemProjection(OrderItem item) {
+        OrderCacheProjection.OrderItemProjection ip = new OrderCacheProjection.OrderItemProjection();
         ip.setItemId(item.getEntityId());
         ip.setProductId(item.getProductId());
         ip.setProductName(item.getProductName());

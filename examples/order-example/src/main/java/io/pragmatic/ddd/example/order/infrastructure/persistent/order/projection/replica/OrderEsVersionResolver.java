@@ -1,8 +1,8 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.domain.order.projection.materializer.IOrderReadModelVersionResolver;
+import io.pragmatic.ddd.example.order.domain.order.projection.replica.IOrderReadModelVersionResolver;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import lombok.SneakyThrows;
 import org.slf4j.Logger;

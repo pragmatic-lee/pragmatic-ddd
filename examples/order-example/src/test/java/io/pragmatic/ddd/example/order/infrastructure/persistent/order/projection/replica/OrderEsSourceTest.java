@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.GetResponse;
@@ -10,13 +10,13 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderByIdSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderEsProjector;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderListSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderOneSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderPageSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderByIdSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector.OrderEsProjector;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderListSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderOneSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderPageSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderSummaryReducer;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer.OrderEsSource;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderEsSource;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.AfterEach;
@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * 订单 ES 物化器集成测试，针对本地已就绪的 Elasticsearch（索引 order_index）验证物化与清理行为。
+ * 订单 ES 源集成测试，针对本地已就绪的 Elasticsearch（索引 order_index）验证物化与清理行为。
  * 不 Mock 客户端，直接连接 http://localhost:9200，确保与真实 ES 写入、乐观并发、删除语义一致。
  *
  * <p>说明：物化写入采用 ES external 版本（单调递增），故测试版本号取时间种子而非固定小写，
@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * @author wizard-lee
  */
 @DisplayName("OrderEsSource 集成测试")
-class OrderEsMaterializerTest {
+class OrderEsSourceTest {
 
     private static final String INDEX_NAME = "order_index";
 
@@ -51,7 +51,7 @@ class OrderEsMaterializerTest {
 
     private RestClient restClient;
 
-    private OrderEsSource materializer;
+    private OrderEsSource orderEsSource;
 
     private long versionSeed = System.currentTimeMillis();
 
@@ -62,7 +62,7 @@ class OrderEsMaterializerTest {
         objectMapper.registerModule(new JavaTimeModule());
         ElasticsearchTransport transport = new RestClientTransport(restClient, new JacksonJsonpMapper(objectMapper));
         elasticsearchClient = new ElasticsearchClient(transport);
-        materializer = new OrderEsSource(
+        orderEsSource = new OrderEsSource(
                 new OrderEsProjector(),
                 new OrderByIdSearcher(elasticsearchClient),
                 new OrderOneSearcher(elasticsearchClient),
@@ -176,14 +176,14 @@ class OrderEsMaterializerTest {
     @Test
     @DisplayName("projectionType 返回订单 ES 投影类型")
     void projectionTypeReturnsOrderEsProjection() {
-        assertThat(materializer.projectionType()).isEqualTo(OrderEsProjection.class);
+        assertThat(orderEsSource.projectionType()).isEqualTo(OrderEsProjection.class);
     }
 
     @Test
     @DisplayName("source 返回订单 ES 源标识 es:orders")
     void sourceReturnsOrderEsIdentifier() {
-        assertThat(materializer.source().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
-        assertThat(materializer.projectionType()).isEqualTo(OrderEsProjection.class);
+        assertThat(orderEsSource.source().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        assertThat(orderEsSource.projectionType()).isEqualTo(OrderEsProjection.class);
     }
 
     @Test
@@ -192,7 +192,7 @@ class OrderEsMaterializerTest {
         OrderEsProjection projection = sampleProjection();
         long version = nextVersion();
 
-        materializer.materialize(projection, version);
+        orderEsSource.materialize(projection, version);
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -209,7 +209,7 @@ class OrderEsMaterializerTest {
     void materializeKeepsAmountInYuan() throws IOException {
         OrderEsProjection projection = sampleProjection();
 
-        materializer.materialize(projection, nextVersion());
+        orderEsSource.materialize(projection, nextVersion());
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -226,12 +226,12 @@ class OrderEsMaterializerTest {
     void materializeHigherVersionOverwrites() throws IOException {
         OrderEsProjection first = sampleProjection();
         long lower = nextVersion();
-        materializer.materialize(first, lower);
+        orderEsSource.materialize(first, lower);
 
         OrderEsProjection second = sampleProjection();
         second.setStatusName("已支付");
         long higher = nextVersion();
-        materializer.materialize(second, higher);
+        orderEsSource.materialize(second, higher);
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -246,11 +246,11 @@ class OrderEsMaterializerTest {
     void materializeLowerOrEqualVersionIsRejectedSilently() throws IOException {
         OrderEsProjection base = sampleProjection();
         long version = nextVersion();
-        materializer.materialize(base, version);
+        orderEsSource.materialize(base, version);
 
         OrderEsProjection stale = sampleProjection();
         stale.setStatusName("待支付");
-        materializer.materialize(stale, version);
+        orderEsSource.materialize(stale, version);
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -266,7 +266,7 @@ class OrderEsMaterializerTest {
         OrderEsProjection projection = sampleFullProjection();
         long version = nextVersion();
 
-        materializer.materialize(projection, version);
+        orderEsSource.materialize(projection, version);
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -307,9 +307,9 @@ class OrderEsMaterializerTest {
     @Test
     @DisplayName("purge 删除已存在的投影文档")
     void purgeRemovesExistingDocument() throws IOException {
-        materializer.materialize(sampleProjection(), nextVersion());
+        orderEsSource.materialize(sampleProjection(), nextVersion());
 
-        materializer.purge(TEST_ORDER_ID);
+        orderEsSource.purge(TEST_ORDER_ID);
 
         GetResponse<OrderEsProjection> response =
                 elasticsearchClient.get(req -> req.index(INDEX_NAME).id(TEST_ORDER_ID.toString()),
@@ -320,6 +320,6 @@ class OrderEsMaterializerTest {
     @Test
     @DisplayName("purge 删除不存在的文档静默忽略，不抛异常")
     void purgeNonExistingDocumentSilentlyIgnored() {
-        assertThatCode(() -> materializer.purge(TEST_ORDER_ID)).doesNotThrowAnyException();
+        assertThatCode(() -> orderEsSource.purge(TEST_ORDER_ID)).doesNotThrowAnyException();
     }
 }

@@ -1,10 +1,10 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica;
 
 import com.alibaba.fastjson2.JSON;
 import io.lettuce.core.api.sync.RedisCommands;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
-import io.pragmatic.ddd.example.order.domain.order.projection.materializer.IOrderReadModelVersionResolver;
+import io.pragmatic.ddd.example.order.domain.order.projection.replica.IOrderReadModelVersionResolver;
 import org.springframework.stereotype.Component;
 
 /**

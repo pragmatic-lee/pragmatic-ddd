@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.materializer;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.VersionType;
@@ -6,11 +6,11 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import java.io.IOException;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderByIdSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderListSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderOneSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderPageSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.OrderEsProjector;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderByIdSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderListSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderOneSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderPageSearcher;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector.OrderEsProjector;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderSummaryReducer;
 import io.pragmatic.ddd.repository.query.projection.AbstractProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;

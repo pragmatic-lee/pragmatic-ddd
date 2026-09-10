@@ -38,10 +38,10 @@
 │   ├── calculator/            #   属性计算契约
 │   ├── dependency/            #   外部依赖声明
 │   ├── repository/            #   仓储抽象
-│   ├── projection/            #   投影契约（含 materializer/ 版本 / 补偿专属契约）
+│   ├── projection/            #   投影契约（含 replica/ 副本版本 / 补偿专属契约）
 │   └── config/                #   领域配置
 └── infrastructure/            # Infrastructure：技术实现，落地领域层契约（类型优先）
-    ├── persistent/{agg}/      #   持久化：仓储实现 + 投影器（含 materializer/ 写读一体源 / 版本 / 对账）
+    ├── persistent/{agg}/      #   持久化：仓储实现 + 投影（projector/ searcher/ reducer/ + replica/ 写读一体源 / 版本 / 对账）
     ├── dependency/{agg}/      #   外部依赖实现（ACL 网关）；跨聚合共享的放 dependency/shared/
     └── config/                #   @Configuration 装配（MySQL / ES / MQ / Outbox）
         └── {agg}/             #   仅绑定聚合的配置进 config/{agg}/，通用配置放 config/ 外层

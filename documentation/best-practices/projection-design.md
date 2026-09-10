@@ -46,23 +46,30 @@ domain/order/projection/                       领域：读模型视图 + 条件
   │   └── OrderPageQuery                       extends PageQueryCriteria
   ├── reducer/                                 领域：裁剪专属契约（窄化框架接口）
   │   └── IOrderSummaryReducer                 extends IProjectionReducer<OrderEsProjection, OrderSummaryProjection>
-  └── materializer/                            领域：版本/补偿 专属契约（窄化框架接口）
+  └── replica/                                 领域：副本（版本/补偿）专属契约（窄化框架接口）
       ├── IOrderReadModelVersionResolver       extends IReadModelVersionResolver<Long>
       └── IOrderReadModelResynchronizer        extends IReadModelResynchronizer<Long>
 
-infrastructure/persistent/order/projection/    基础设施：聚合 → 视图 纯映射 + 读侧检索（无查询门面）
+infrastructure/persistent/order/projection/projector/  基础设施：聚合 → 视图 纯映射
   ├── OrderEsProjector                         extends AbstractAggregateProjector<Order, OrderEsProjection>
+  └── OrderCacheProjector                      extends AbstractAggregateProjector<Order, OrderCacheProjection>
+infrastructure/persistent/order/projection/searcher/   基础设施：存储 → 索引级全量投影（条件翻译 + 检索）
   ├── OrderByIdSearcher                        implements IProjectionByIdSearcher<OrderEsProjection>
   ├── OrderOneSearcher                         implements IProjectionSearcher<OrderOneQuery, OrderEsProjection>
   ├── OrderListSearcher                        implements IProjectionSearcher<OrderListQuery, OrderEsProjection>
-  └── OrderPageSearcher                        implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection>
+  ├── OrderPageSearcher                        implements IProjectionPagedSearcher<OrderPageQuery, OrderEsProjection>
+  ├── OrderRedisByIdSearcher                   implements IProjectionByIdSearcher<OrderCacheProjection>
+  └── OrderEsConditionFactory                  包级私有：条件族 → ES Query 的纯函数构建器
 infrastructure/persistent/order/projection/reducer/  基础设施：索引级全量投影 → 业务子投影（Java 内存）
-  └── OrderSummaryReducer                      implements IOrderSummaryReducer（领域契约）
-infrastructure/persistent/order/projection/materializer/ 基础设施：写读一体的源（继承框架基类）
+  ├── OrderSummaryReducer                      implements IOrderSummaryReducer（领域契约）
+  └── OrderCacheSummaryReducer                 implements IOrderCacheSummaryReducer（领域契约）
+infrastructure/persistent/order/projection/replica/  基础设施：写读一体的源 + 副本补偿（继承框架基类）
   ├── OrderEsSource                           extends AbstractProjectionSource<Order, OrderEsProjection>
   ├── OrderRedisSource                        extends AbstractProjectionSource<Order, OrderCacheProjection>
   ├── OrderEsVersionResolver                   implements IOrderReadModelVersionResolver
-  └── OrderEsResynchronizer                    implements IOrderReadModelResynchronizer
+  ├── OrderRedisVersionResolver                implements IOrderReadModelVersionResolver
+  ├── OrderEsResynchronizer                    implements IOrderReadModelResynchronizer
+  └── OrderRedisResynchronizer                 implements IOrderReadModelResynchronizer
 infrastructure/config/order/                   Spring 装配（登记 registry、产出 Bean）
   └── OrderProjectionConfig
 application/order/                              应用层：读/写应用服务（注入 registry，业务编排门面）
@@ -90,12 +97,12 @@ public class OrderReadService
         implements IQueryApplicationService {
 }
 
-// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（继承框架基类，不再定义领域专属 materializer 接口）
+// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（继承框架基类，不再定义领域专属物化器接口）
 public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> { }
 public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjection> { }
 
 // ❌ 反模式：基础设施直接实现框架通用接口，领域层无专属契约、替换存储需改基础设施与框架的直接契约
-// （旧版曾定义 IOrderProjectionMaterializer extends IProjectionMaterializer<...>，现源已直接继承框架基类，无需领域层 materializer 接口）
+// （旧版曾定义 IOrderProjectionMaterializer extends IProjectionMaterializer<...>，现源已直接继承框架基类，无需领域层物化器接口）
 ```
 
 > **命名约定**：领域契约接口一律 `I` 开头，以聚合前缀区分框架通用接口（`IOrderProjection` / `IOrderSummaryReducer` 等，不含存储标记）；**应用服务不用 `I` 前缀**，读/写服务用 `OrderReadService` / `OrderWriteService`（`XxxQuery` / `XxxQueryService` 这类旧命名不再使用，见 §4.8）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；对账目标常量集中在 `OrderEsTargets` / `OrderCacheTargets`。
@@ -198,14 +205,14 @@ public void handleEvent(OrderDataSyncEvent event) {
 // domain/order/projection/IOrderProjection.java
 public interface IOrderProjection extends IAggregateProjection { }
 
-// domain/order/projection/materializer/IOrderReadModelVersionResolver.java
+// domain/order/projection/replica/IOrderReadModelVersionResolver.java
 public interface IOrderReadModelVersionResolver extends IReadModelVersionResolver<Long> { }
 
-// domain/order/projection/materializer/IOrderReadModelResynchronizer.java
+// domain/order/projection/replica/IOrderReadModelResynchronizer.java
 public interface IOrderReadModelResynchronizer extends IReadModelResynchronizer<Long> { }
 ```
 
-> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不再定义领域专属 materializer 接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面收敛到基础设施层。
+> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不再定义领域专属物化器接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面收敛到基础设施层。
 
 ### 4.2 投影 DTO：`OrderEsProjection`
 

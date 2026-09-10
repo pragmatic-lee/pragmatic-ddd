@@ -1,4 +1,4 @@
-package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection;
+package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher;
 
 import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
 
