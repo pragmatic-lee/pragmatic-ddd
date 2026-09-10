@@ -261,4 +261,13 @@
         WHERE order_id = #{id}
     </delete>
 
+    <!-- 对账候选 ID：返回最近 changed-window 内 updated_at 发生过变更的订单 ID，供 ReconciliationScanner 对账 -->
+    <select id="selectReconcileCandidateIds" resultType="java.lang.Long">
+        SELECT order_id
+        FROM t_order
+        WHERE updated_at > #{since}
+        ORDER BY updated_at ASC, order_id ASC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

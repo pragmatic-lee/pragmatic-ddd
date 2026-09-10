@@ -8,6 +8,7 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -68,6 +69,19 @@ public class OrderRepository extends AbstractOrderRepository {
     @Override
     public long currentVersion(Long aLong) {
         return super.currentVersion(aLong);
+    }
+
+    /**
+     * 对账候选 ID：返回最近 changedWindow 内 updated_at 发生过变更的订单 ID，供 ReconciliationScanner 对账。
+     *
+     * @param since    变更窗口起点（updated_at 大于该时间视为近期变更）
+     * @param limit    单批大小
+     * @return 候选订单 ID 列表
+     */
+    public List<Long> findReconcileCandidateIds(LocalDateTime since, int limit) {
+        return sqlSessionTemplate.selectList(
+                "OrderMapper.selectReconcileCandidateIds",
+                Map.of("since", since, "limit", limit));
     }
 
     /** 差量同步订单项：删除 removed 桶，插入 appended 桶。 */
