@@ -25,6 +25,11 @@ public final class ReconciliationManager {
         this.dedup = dedup;
     }
 
+    /** 使用默认无去重策略构造。 */
+    public ReconciliationManager(ReconciliationRegistry registry) {
+        this(registry, NoOpReconcileDedup.INSTANCE);
+    }
+
     /** 对单个聚合的全部已注册异构目标对账（含补救），返回每目标的结果。 */
     @SuppressWarnings("unchecked")
     public <ID> Map<ReconciliationTarget, Reconciliation> reconcile(Class<? extends AggregateRoot<ID>> type, ID id) {

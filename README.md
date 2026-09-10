@@ -69,7 +69,7 @@
 |------|------|
 | 写模型仓储 | `IRepository<ID, T>` + `AbstractRepository` 聚合级持久化契约，含落库前数据同步钩子 |
 | 读模型投影 | `IAggregateProjection` / `IAggregateProjector` + `ProjectorRegistry` 寻址，把聚合映射为异构存储视图 |
-| 查询端口族 | `IQueryById` / `IQueryByIds` / `IQueryOne` / `IQueryList` / `IQueryPage` / `IQueryScroll`，含分页与游标滚动值对象 |
+| 查询端口族 | `IAggregateQuery` / `AbstractProjectionQuery` 提供 `queryById` / `queryByIds` / `queryOne` / `queryList` / `queryPage` / `queryScroll`，含分页与游标滚动值对象；读服务覆写 `fallbackChain()` 内置回源顺序，链上源按能力自动跳过 |
 | 物化与对账 | `IProjectionMaterializer` 写入异构存储；`Reconciler` / `ReconciliationManager` 提供补偿、去重与版本对账 |
 | 变更追踪 | `TrackedList` / `TrackedMap` 把一对多集合拆为「新增 / 修改 / 删除」三桶，持久化只做增量而非全删全插 |
 | 号段 ID | `base.id` 号段 ID 生成器体系（`IIdGenerator` / `IIdSegmentAllocator`），支持 Long 与 String 两种类型 |
@@ -498,9 +498,9 @@ eventManager.shutdown();
 |------|-------------|
 | 领域建模 | `Order` 聚合根 + `OrderItem` 实体 + 值对象 + `IEnumValue` 枚举 |
 | 业务规则 | `OrderRule` 规则容器 + `OrderRuleRegistry` 消息码 + 外部依赖校验注入 |
-| 应用编排 | `OrderWriteService` / `OrderReadService` + Factory / Updater / Resolver |
+| 应用编排 | `OrderWriteService` / `OrderReadService` + Factory / Updater / Resolver；读服务内 `fallbackChain()` 内置选源 |
 | 持久化 | MyBatis 仓储 + 手写 `SqlSessionFactory` 与 TypeHandler 三通道装配 |
-| 读模型 | ES 投影：Projector + Materializer + Query 门面 + 四个 Searcher + 读模型对账 |
+| 读模型 | 双副本投影（ES + Redis）：Projector + Source + 四个 Searcher + Reducer + 读模型对账 |
 | 事件与一致性 | RocketMQ 事件管理器 + Outbox 事务性发件箱完整装配 |
 | 基础设施 | MySQL / Redis / Elasticsearch / RocketMQ 配置类 |
 

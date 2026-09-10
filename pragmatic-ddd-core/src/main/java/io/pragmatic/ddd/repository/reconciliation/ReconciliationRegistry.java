@@ -27,6 +27,18 @@ public final class ReconciliationRegistry {
         resyncers.put(t, r);
     }
 
+    /** 登记版本解析器，目标取自 resolver.supportedTarget()（避免重复传递目标）。 */
+    public ReconciliationRegistry registerResolver(IReadModelVersionResolver<?> resolver) {
+        resolvers.put(resolver.supportedTarget(), resolver);
+        return this;
+    }
+
+    /** 登记补同步器，目标取自 resyncer.supportedTarget()。 */
+    public ReconciliationRegistry registerResynchronizer(IReadModelResynchronizer<?> resyncer) {
+        resyncers.put(resyncer.supportedTarget(), resyncer);
+        return this;
+    }
+
     /** 登记聚合类型对应的仓储。 */
     public <ID, A extends AggregateRoot<ID>> void registerRepository(Class<A> type, IRepository<ID, A> repo) {
         repositories.put(type, repo);

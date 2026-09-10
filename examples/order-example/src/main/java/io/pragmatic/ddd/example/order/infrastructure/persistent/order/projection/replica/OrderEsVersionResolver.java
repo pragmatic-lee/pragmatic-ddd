@@ -2,7 +2,7 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.domain.order.projection.replica.IOrderReadModelVersionResolver;
+import io.pragmatic.ddd.repository.reconciliation.IReadModelVersionResolver;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import lombok.SneakyThrows;
 import org.slf4j.Logger;
@@ -18,7 +18,7 @@ import java.util.Optional;
  * @author wizard-lee
  */
 @Component
-public class OrderEsVersionResolver implements IOrderReadModelVersionResolver {
+public class OrderEsVersionResolver implements IReadModelVersionResolver<Long> {
     private final ElasticsearchClient elasticsearchClient;
     public OrderEsVersionResolver(ElasticsearchClient elasticsearchClient) {
         this.elasticsearchClient = elasticsearchClient;
@@ -36,10 +36,12 @@ public class OrderEsVersionResolver implements IOrderReadModelVersionResolver {
 
     /**
      * 读取订单在 ES 中的文档 _version 作为读模型副本版本 V'。
-     * 文档不存在或发生异常时返回 -1，表示副本缺失或不可达。
+     * 文档不存在（副本缺失但 ES 可达）时返回 0，使对账判为 STALE 并由 resync 自动回填；
+     * 文档真实存在时返回其 _version。ES 不可达时由底层 IOException 经 @SneakyThrows 抛出，
+     * 交由对账调用方按条目捕获处理。
      *
      * @param aggregateId 订单聚合标识
-     * @return ES 文档版本；缺失或异常时返回 -1
+     * @return ES 文档版本；副本缺失时返回 0
      */
     @Override
     @SneakyThrows
@@ -49,9 +51,9 @@ public class OrderEsVersionResolver implements IOrderReadModelVersionResolver {
                 elasticsearchClient.get(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME).id(aggregateId.toString()),
                         java.util.Map.class);
         if (!response.found()) {
-            return -1L;
+            return 0L;
         }
-        return Optional.ofNullable(response.version()).orElse(-1L);
+        return Optional.ofNullable(response.version()).orElse(0L);
 
     }
 }

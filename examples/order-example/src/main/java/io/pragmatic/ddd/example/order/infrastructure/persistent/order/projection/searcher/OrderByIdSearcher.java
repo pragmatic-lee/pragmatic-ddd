@@ -16,8 +16,9 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 订单按主键 / 批量主键直取投影的 ES 检索器，覆盖 OrderReadService 的 queryById / queryByIds。
- * 对应框架 {@link IProjectionByIdSearcher}，注册键仅 (projectionType) 一维。
+ * 订单按主键 / 批量主键直取投影的 ES 检索器，作为 {@code es:orders} 源的按主键检索器，
+ * 服务 OrderReadService 的 queryById / queryByIds。
+ * 对应框架 {@link IProjectionByIdSearcher}，由源在构造期绑定，注册键为「源」一维。
  *
  * <p>本检索器绑定索引 {@code order_index} 的索引级全量投影 {@link OrderEsProjection}，
  * 只负责取回该全量形状；业务子投影由 {@link IProjectionReducer} 在内存裁剪。</p>

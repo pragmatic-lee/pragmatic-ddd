@@ -157,6 +157,41 @@ public class ProjectorRegistry {
         return (IProjectionReducer<SRC, SUB>) reducer;
     }
 
+    /**
+     * 源是否承载该全量投影，或登记了该子投影的裁剪器；源未登记返回 false。
+     * 供查询链路过滤回源候选，不抛异常，区别于 {@link #getSource(ProjectionSource)}。
+     *
+     * @param source 源标识
+     * @param projectionType 全量投影或子投影类型
+     * @return 该源能否提供该投影
+     */
+    public boolean supportsProjection(ProjectionSource source, Class<?> projectionType) {
+        return findSource(source)
+                .map(src -> src.projectionType().equals(projectionType) || src.reducers().containsKey(projectionType))
+                .orElse(false);
+    }
+
+    /** 源是否绑定按主键检索器；源未登记或未绑定返回 false。 */
+    public boolean hasByIdSearcher(ProjectionSource source) {
+        return findSource(source)
+                .map(src -> src.idSearcher().isPresent())
+                .orElse(false);
+    }
+
+    /** 源是否登记该条件族的检索器；源未登记或未登记返回 false。 */
+    public boolean hasSearcher(ProjectionSource source, Class<? extends QueryCriteria> criteriaType) {
+        return findSource(source)
+                .map(src -> src.searchers().containsKey(criteriaType))
+                .orElse(false);
+    }
+
+    /** 源是否登记该条件族的分页 / 滚动检索器；源未登记或未登记返回 false。 */
+    public boolean hasPagedSearcher(ProjectionSource source, Class<? extends PageQueryCriteria> criteriaType) {
+        return findSource(source)
+                .map(src -> src.pagedSearchers().containsKey(criteriaType))
+                .orElse(false);
+    }
+
     /** 由全量投影类取其一承载源（多源时优先取已登记的首个）；无源返回空。 */
     public Optional<ProjectionSource> fullProjectionOf(Class<?> projectionType) {
         Set<ProjectionSource> sources = sourcesByProjection.get(projectionType);

@@ -2,8 +2,8 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
-import io.pragmatic.ddd.example.order.domain.order.projection.replica.IOrderReadModelResynchronizer;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
+import io.pragmatic.ddd.repository.reconciliation.IReadModelResynchronizer;
 import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
 import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * @author wizard-lee
  */
 @Component
-public class OrderRedisResynchronizer implements IOrderReadModelResynchronizer {
+public class OrderRedisResynchronizer implements IReadModelResynchronizer<Long> {
 
     private final OrderRepository orderRepository;
 

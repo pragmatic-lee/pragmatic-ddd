@@ -2,7 +2,7 @@
 
 > 本文档说明投影读模型代码**按本次落地的方式怎么写**，是可复用的通用指导原则：从包结构与命名，到每个组件的手写规则，再到事件物化、对账补偿与读侧检索的衔接。下文以订单投影（`Order`）为示例贯穿全文；其他模块做类似的投影设计时，套用本文档的结构与规则，把 `Order` 换成目标聚合、`Es` 换成目标存储即可。
 >
-> ⚠️ **读侧门面已收敛到应用层读服务（`OrderReadService`）**：读侧入口不再单设「领域查询接口 `IOrderQuery` + 基础设施门面 `OrderQuery`」。读服务在**应用层**继承 `AbstractProjectionQuery`（三跳取数编排由框架基类承载）并 `implements IQueryApplicationService`，同时集中负责**多源编排**（如 `getById` 以 Redis 为首选源、ES 为回退源）。领域层只定义投影 / 条件族契约，不定义查询门面。
+> ⚠️ **读侧入口是应用层读服务（`OrderReadService`），选源内置在读服务内部**：读服务在**应用层**继承 `AbstractProjectionQuery`（三跳取数编排由框架基类承载）并 `implements IQueryApplicationService`，多源编排通过覆写 `fallbackChain()` 声明回源顺序（如 Redis 为首选源、ES 为回退源），**调用方只传目标投影类型、不感知源**。领域层只定义投影 / 条件族契约，查询门面由应用层读服务承载。
 
 ## 1. 投影读模型的本质
 
@@ -28,7 +28,7 @@
 | 源 `Source` | 投影 → 存储（写）、存储 → 投影（读） | 写读一体：materialize / purge、绑定检索器与裁剪器、external 版本控制 | 字段派生（由投影器负责）、条件翻译（由检索器负责） |
 | 检索器 `Searcher` | 存储 → 索引级全量投影 | 条件翻译、查询、分页 / 滚动、游标 | 字段裁剪、层级重排、派生 |
 | 裁剪器 `Reducer` | 索引级全量投影 → 业务子投影 | 字段裁剪 / 层级重排 / 派生（Java 内存） | 存储访问、条件翻译、分页 |
-| 读服务 `OrderReadService` | 读侧入口（应用层） | 继承 `AbstractProjectionQuery` 承载选路 + 查全量 + 裁剪三跳，并编排多源回退 | 直接持有存储客户端 |
+| 读服务 `OrderReadService` | 读侧入口（应用层） | 继承 `AbstractProjectionQuery` 承载选路 + 查全量 + 裁剪三跳，并覆写 `fallbackChain()` 声明回源顺序 | 直接持有存储客户端、把源暴露给调用方 |
 
 ## 2. 包结构与命名规范
 
@@ -44,8 +44,6 @@ domain/order/projection/                       领域：读模型视图 + 条件
   │   ├── OrderOneQuery                        extends OneQueryCriteria
   │   ├── OrderListQuery                       extends ListQueryCriteria
   │   └── OrderPageQuery                       extends PageQueryCriteria
-  ├── reducer/                                 领域：裁剪专属契约（窄化框架接口）
-  │   └── IOrderSummaryReducer                 extends IProjectionReducer<OrderEsProjection, OrderSummaryProjection>
   └── replica/                                 领域：副本（版本/补偿）专属契约（窄化框架接口）
       ├── IOrderReadModelVersionResolver       extends IReadModelVersionResolver<Long>
       └── IOrderReadModelResynchronizer        extends IReadModelResynchronizer<Long>
@@ -61,8 +59,8 @@ infrastructure/persistent/order/projection/searcher/   基础设施：存储 →
   ├── OrderRedisByIdSearcher                   implements IProjectionByIdSearcher<OrderCacheProjection>
   └── OrderEsConditionFactory                  包级私有：条件族 → ES Query 的纯函数构建器
 infrastructure/persistent/order/projection/reducer/  基础设施：索引级全量投影 → 业务子投影（Java 内存）
-  ├── OrderSummaryReducer                      implements IOrderSummaryReducer（领域契约）
-  └── OrderCacheSummaryReducer                 implements IOrderCacheSummaryReducer（领域契约）
+  ├── OrderSummaryReducer                      implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection>
+  └── OrderCacheSummaryReducer                 implements IProjectionReducer<OrderCacheProjection, OrderSummaryProjection>
 infrastructure/persistent/order/projection/replica/  基础设施：写读一体的源 + 副本补偿（继承框架基类）
   ├── OrderEsSource                           extends AbstractProjectionSource<Order, OrderEsProjection>
   ├── OrderRedisSource                        extends AbstractProjectionSource<Order, OrderCacheProjection>
@@ -89,23 +87,34 @@ application/order/subscriber/                  事件订阅绑定
 // ✅ 推荐：领域契约 I 开头，以聚合前缀窄化框架通用接口（不含查询门面）
 public interface IOrderProjection extends IAggregateProjection { }
 
-// ✅ 推荐：读侧入口是「应用层读服务」而非领域接口——继承 AbstractProjectionQuery 获得三跳能力，
-//    implements IQueryApplicationService 标记读侧应用服务；领域层不再定义 IOrderQuery 查询接口
+// ✅ 推荐：读侧入口是「应用层读服务」——继承 AbstractProjectionQuery 获得三跳能力，
+//    implements IQueryApplicationService 标记读侧应用服务；查询门面由应用层承载，
+//    领域层只定义投影 / 条件族契约
 @Service
 public class OrderReadService
         extends AbstractProjectionQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery>
         implements IQueryApplicationService {
+
+    public OrderReadService(ProjectorRegistry projectorRegistry) {
+        super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
+    }
+
+    // ✅ 选源内置：读服务自己声明回源顺序，调用方只传目标投影类型（见 §4.8）
+    @Override
+    protected List<ProjectionSource> fallbackChain() {
+        return List.of(REDIS_SOURCE, ES_SOURCE);
+        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
+    }
 }
 
-// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（继承框架基类，不再定义领域专属物化器接口）
+// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（直接继承框架基类）
 public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> { }
 public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjection> { }
 
 // ❌ 反模式：基础设施直接实现框架通用接口，领域层无专属契约、替换存储需改基础设施与框架的直接契约
-// （旧版曾定义 IOrderProjectionMaterializer extends IProjectionMaterializer<...>，现源已直接继承框架基类，无需领域层物化器接口）
 ```
 
-> **命名约定**：领域契约接口一律 `I` 开头，以聚合前缀区分框架通用接口（`IOrderProjection` / `IOrderSummaryReducer` 等，不含存储标记）；**应用服务不用 `I` 前缀**，读/写服务用 `OrderReadService` / `OrderWriteService`（`XxxQuery` / `XxxQueryService` 这类旧命名不再使用，见 §4.8）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；对账目标常量集中在 `OrderEsTargets` / `OrderCacheTargets`。
+> **命名约定**：领域契约接口一律 `I` 开头，以聚合前缀区分框架通用接口（`IOrderProjection` / `IOrderRepository` 等，不含存储标记）；**应用服务不用 `I` 前缀**，读/写服务用 `OrderReadService` / `OrderWriteService`（见 §4.8）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；对账目标常量集中在 `OrderEsTargets` / `OrderCacheTargets`。
 >
 > ⚠️ **索引级全量投影的命名要体现「存储文档形状」而非「业务用途」**：它对齐的是物理索引 Mapping，本质上是存储契约在 Java 侧的镜像。`OrderEsProjection`（索引 `order_index` 的全量文档）是好名字；`OrderProjection` 这类不带存储标记的名字会与业务投影混淆，无法区分「哪个是索引级、哪个是裁剪产物」。
 
@@ -212,7 +221,7 @@ public interface IOrderReadModelVersionResolver extends IReadModelVersionResolve
 public interface IOrderReadModelResynchronizer extends IReadModelResynchronizer<Long> { }
 ```
 
-> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不再定义领域专属物化器接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面收敛到基础设施层。
+> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不另设领域专属物化器接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面限定在基础设施层。
 
 ### 4.2 投影 DTO：`OrderEsProjection`
 
@@ -320,7 +329,7 @@ public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsP
 
 ### 4.4 源：`OrderEsSource`
 
-写读一体收敛到**源**（`AbstractProjectionSource` 子类），注入投影器、检索器、裁剪器与存储客户端（ES 场景为 `ElasticsearchClient`）。`super` 第 5 参注入了 byId 检索器，其余检索器与裁剪器以 `bind` 挂载：
+写读一体落在**源**（`AbstractProjectionSource` 子类），注入投影器、检索器、裁剪器与存储客户端（ES 场景为 `ElasticsearchClient`）。`super` 第 5 参注入了 byId 检索器，其余检索器与裁剪器以 `bind` 挂载：
 
 ```java
 @Component
@@ -450,7 +459,7 @@ public sealed interface OrderPageQuery extends PageQueryCriteria
 
 ### 4.7 读侧入口：应用层 `OrderReadService`
 
-读侧入口收敛到**应用层读服务**，不再单设「领域查询接口 `IOrderQuery` + 基础设施门面 `OrderQuery`」两层。读服务直接继承 `AbstractProjectionQuery`，**三跳取数（选源 → 查全量 → 裁剪）由基类统一承载**，业务侧只需声明聚合类型、投影顶层接口与三个条件族类型，不持有存储客户端、不写分流样板：
+读侧入口是**应用层读服务**。读服务继承 `AbstractProjectionQuery`，**三跳取数（选源 → 查全量 → 裁剪）由基类统一承载**，业务侧只需声明聚合类型、投影顶层接口与三个条件族类型，并在 `fallbackChain()` 中声明回源顺序，不持有存储客户端、不写分流样板：
 
 ```java
 // application/order/OrderReadService.java —— 应用层读服务（构造注入 ProjectorRegistry）
@@ -462,8 +471,15 @@ public class OrderReadService
     public OrderReadService(ProjectorRegistry projectorRegistry) {
         super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
     }
+
+    // 选源内置：Redis 缓存副本优先，未命中回退 ES 索引（见 §4.8）
+    @Override
+    protected List<ProjectionSource> fallbackChain() {
+        return List.of(REDIS_SOURCE, ES_SOURCE);
+        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
+    }
     // 6 个查询能力（queryById/queryByIds/queryOne/queryList/queryPage/queryScroll）
-    // 由基类提供并组合了 IAggregateQuery 的 6 个 trait，无需在领域层再定义 IOrderQuery
+    // 全部由基类提供，读服务不覆写查询方法
 }
 ```
 
@@ -492,34 +508,51 @@ public class OrderReadService
 不需要全量组合，可以只 `extends` 需要的 trait（如只保留 `IQueryById` + `IQueryPage`），避免实现层被迫写空方法。
 :::
 
-### 4.8 多源编排与对外取数
+### 4.8 选源内置与回源链
 
-读服务通过基类提供的源视图指定数据源，并可在应用层编排「优先源 + 回退源」。基类从 registry 取全量投影、按源定位检索器与裁剪器自动完成三跳，调用方无需接触检索器 / 裁剪器：
+**选源是读服务的内部决策，不是调用方的入参**。读服务只在类内覆写一次 `fallbackChain()` 声明回源顺序，6 个查询方法原样继承基类，调用方只传条件与目标投影类型：
 
 ```java
-// 1) 默认源（由 registerDefaultSource 决定）按主键取一个概要投影
-OrderSummaryProjection summary = orderReadService.queryById(orderId, OrderSummaryProjection.class);
-
-// 2) 应用层多源编排：把 Redis 设为首选源、ES 为回退源，封装成业务方法暴露给上层
-public <X extends IOrderProjection> X getById(Long id, Class<X> projectionType) {
-    return fallbackChain(List.of(REDIS_SOURCE, ES_SOURCE)).queryById(id, projectionType);
+// application/order/OrderReadService.java —— 选源内置：Redis 缓存副本优先，未命中回退 ES 索引
+@Override
+protected List<ProjectionSource> fallbackChain() {
+    return List.of(
+            ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId()),
+            ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId()));
 }
-// REDIS_SOURCE = ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId())
-// ES_SOURCE     = ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId())
 ```
 
-读写两侧引用同一源常量：`OrderReadService` 的 `fallbackChain(List.of(redis, es))` 与写侧 `AggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `storeId()`，保证「写入哪个副本、从哪个副本读回」key 一致。
+```java
+// 调用方：只说「要什么形状」，不关心从哪取
+OrderSummaryProjection summary = orderReadService.queryById(orderId, OrderSummaryProjection.class);
+PageResult<OrderEsProjection> page = orderReadService.queryPage(criteria, pageRequest, OrderEsProjection.class);
+```
+
+**链上源按能力自动跳过**，无需调用方绕开：框架先按「源是否承载该投影类型」过滤，再按「源是否具备本次查询所需检索器」过滤（对应 registry 的 `supportsProjection` / `hasByIdSearcher` / `hasSearcher` / `hasPagedSearcher`）。以订单的两份异构副本为例：
+
+| 查询 | Redis 副本（`OrderCacheProjection`，仅 byId 检索器） | 实际去向 |
+| --- | --- | --- |
+| `queryById(id, OrderSummaryProjection.class)` | 承载该子投影的裁剪器 + byId 检索器 | **Redis 优先**，未命中回退 ES |
+| `queryById(id, OrderEsProjection.class)` | 不承载该全量投影 | 跳过，只查 ES |
+| `queryOne` / `queryList`（条件族） | 未 bind 条件族检索器 | 跳过，只查 ES |
+| `queryPage` / `queryScroll`（分页族） | 未 bind 分页检索器 | 跳过，只查 ES |
+
+因此一条 `[redis, es]` 链即可覆盖全部查询形态：**按主键查询自动享受缓存加速，条件与分页查询自动落到 ES**，读服务里不需要为「哪个方法该查哪个源」写任何分支。
+
+读写两侧引用同一源常量：`OrderReadService` 的 `fallbackChain()` 与写侧 `AggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `storeId()`，保证「写入哪个副本、从哪个副本读回」key 一致。
 
 编写规则：
 
+- **选源内置在 `fallbackChain()`，不外泄给调用方**：读服务对外不暴露 `ProjectionSource` 入参，也不提供「传源投影类反查来源」的重载——调用方不该知道有几份副本。
 - **读服务不含任何存储逻辑**：不注入 `ElasticsearchClient`，不拼查询 DSL，不手写 `reduceOne` / `resolveSourceType`。
 - **构造器 `super(registry, oneType, listType, pageType)`**：三个条件族类型对应 `IQueryOne` / `IQueryList` / `IQueryPage`；`queryById` / `queryByIds` 复用源的 byId searcher，`queryScroll` 复用 page 族检索器。
 - **条件族类型用族父类传入**：`OrderListQuery.class` 传的是**族 sealed 接口**，检索器按族登记、族内自行分发。
-- **源标识用 `storeId()` 派生，不手拼字符串**：在 `OrderReadService` 顶部定义 `REDIS_SOURCE` / `ES_SOURCE` 常量，避免 key 不一致导致寻址失败。
-- **`source(X)` 指定单源**：若该源不挂对应条件族检索器，抛 `ProjectionSearcherNotFoundException`（信息含该源支持的条件族）。
-- **`fallbackChain(List)` 回源链**：前源未命中（byId 返回 null / list 返回空）推进下一源；分页 / 滚动不回源，取链上第一个支持该条件族的源。
+- **源标识用 `storeId()` 派生，不手拼字符串**：在 `fallbackChain()` 内引用 `OrderCacheTargets` / `OrderEsTargets` 的 `storeId()`，避免 key 不一致导致寻址失败。
+- **`fallbackChain()` 返回空列表 = 不启用回源**：退回「按投影类型 + `registerDefaultSource` 默认源」选路，多源又无默认源时抛 `ProjectionSourceAmbiguousException`。
+- **回源粒度随方法而定**：`queryById` / `queryOne` 逐源推进（前源未命中才查下一源）；`queryByIds` / `queryList` **整批**回源（前源返回空才查下一源，不做逐条补缺）；`queryPage` / `queryScroll` **不回源**，取链上第一个支持该条件族的源。
+- **链上无源可用时抛 `ProjectionSourceNotFoundException`**：异常信息含目标投影与全部候选源 id，便于定位是「漏 register」还是「漏 bind 检索器」。
 - **短路路径由基类处理**：目标即索引级全量投影时不重建 `PageResult` / `ScrollResult`、不重新拷贝列表，既省开销也保持对象同一性。
-- **指定源投影 + 目标投影的三参取数**：`queryById(id, sourceProjection, targetProjection)` 用 `registry().fullProjectionOf(sourceProjection)` 反查来源、再以该源查询并裁剪，仅当读侧确有该特殊取数诉求时才需要。
+- **确需临时指定单源时用 `source(X)`**：返回一次性查询视图，方法形状与默认视图一致；该源不挂对应检索器时抛 `ProjectionSearcherNotFoundException`（信息含该源支持的条件族）。仅供运维 / 排障等非常规场景，常规取数不要用它。
 
 > ⚠️ **重要约束：`totalCount` 与 `nextCursor` 必须取自裁剪前的全量结果**。分页 / 滚动在检索器侧完成，裁剪只做逐条 `.map`、不改变集合规模。若误在裁剪后重新计算总数或游标，会得到错误的页边界与游标。
 
@@ -758,23 +791,24 @@ ProjectionExceptions.translate(() -> buildConditionQuery(condition), "buildCondi
 
 > ⚠️ **重要约束：不要把 `ProjectionSearcherNotFoundException` / `ProjectionReducerNotFoundException` 当「业务上查不到」处理**。它们表示装配缺失，属于接线 bug，应当在启动自检中暴露，而不是被降级成空列表。`retrieve` 对已抛出的 `ProjectionException` 原样传递、不二次包装，因此调用方能准确区分「存储不可达」与「条件不支持」。
 
-### 4.10.1 裁剪器契约与实现：`IOrderSummaryReducer` / `OrderSummaryReducer`
+### 4.10.1 裁剪器实现：`OrderSummaryReducer` / `OrderCacheSummaryReducer`
 
-与物化器、版本解析器同构——**领域层定义专属契约，基础设施层实现领域契约**，不直接实现框架接口：
+裁剪器**直接实现框架接口 `IProjectionReducer<源投影类型, 子投影类型>`，领域层不定义裁剪器契约**：
 
-```java
-// domain/order/projection/reducer/IOrderSummaryReducer.java —— 领域层专属契约
-public interface IOrderSummaryReducer
-        extends IProjectionReducer<OrderEsProjection, OrderSummaryProjection> {
-}
-```
+> ⚠️ **为什么裁剪器契约不下沉领域层**：`IProjectionReducer` 的源类型参数是**存储形状在 Java 侧的镜像**
+> （`OrderEsProjection` 字段与 ES `order_index` Mapping 一一对应）。若在领域层声明
+> `IOrderSummaryReducer extends IProjectionReducer<OrderEsProjection, ...>`，等于让领域层知道
+> 「存在一份 ES 副本、其字段结构如何」，且**每新增一份副本领域层就要多一个接口**。
+> 副本是技术决策，领域层不应随之膨胀。判据很直接：**该接口是否有跨层消费者？**
+> 裁剪器接口无任何领域 / 应用 / 接口层引用，只有基础设施实现类引用它，属实现细节而非契约。
 
 索引级全量投影 → 业务子投影，在 Java 内存中完成字段裁剪、层级重排与派生计算：
 
 ```java
-// infrastructure/persistent/order/projection/reducer/OrderSummaryReducer.java —— 实现领域契约
+// infrastructure/persistent/order/projection/reducer/OrderSummaryReducer.java
 @Component
-public class OrderSummaryReducer implements IOrderSummaryReducer {
+public class OrderSummaryReducer
+        implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection> {
 
     @Override
     public Class<OrderEsProjection> sourceType() {
@@ -808,7 +842,8 @@ public class OrderSummaryReducer implements IOrderSummaryReducer {
 
 编写规则：
 
-- **领域层定义专属契约，基础设施层实现它**：`IOrderSummaryReducer extends IProjectionReducer<...>`，`OrderSummaryReducer implements IOrderSummaryReducer`。与 `IOrderReadModelVersionResolver` / `IOrderReadModelResynchronizer` 保持同构（领域层定契约、基础设施层实现），装配参数也声明为领域接口类型。
+- **直接实现框架接口，领域层不设契约**：`OrderSummaryReducer implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection>`，泛型参数即「源形状 → 业务形状」。新增副本只需新增裁剪器实现类，领域层零改动。
+- **源的类型参数是存储形状镜像**：这正是裁剪器留在基础设施层、不上升到领域层的根本原因。领域层只持有业务消费形状（如 `OrderSummaryProjection`）。
 - **`reduce` 是纯函数**：无状态、无存储访问、无远程调用，可独立单测。
 - **源为 `null` 返回 `null`**：由门面过滤，不在裁剪器内抛异常。
 - **不改变集合规模**：一次只转换一条；分页 / 滚动在检索器侧完成。
@@ -899,7 +934,7 @@ public class OrderProjectionConfig {
 | `register(源实例)` | 登记索引级全量投影源（写读一体，替代旧 `markSourceProjection`） | 门面无法选源，直查全量投影时抛 `ProjectionSourceNotFoundException` |
 | `registerDefaultSource(子投影类, 源)` | 建立子投影 → 默认源的绑定 | 查该子投影未指定源且无歧义判断时无法选默认源 |
 
-装配方法的裁剪器参数声明为**领域契约** `IOrderSummaryReducer`（而非实现类 `OrderSummaryReducer`），使配置层依赖领域层而非基础设施实现——替换实现时无需改动装配代码。
+装配方法的裁剪器参数声明为**具体实现类**（如 `OrderSummaryReducer`），与源同处基础设施层——裁剪器不上升到领域层，替换实现只影响该源的装配。
 
 > ⚠️ **重要约束：`ProjectorRegistry` 是读写两侧的唯一同册**。同一个 `ProjectorRegistry` Bean 同时登记源（写读一体）与裁剪器（读侧），不要拆成多个 registry——「写入哪个索引」与「从哪个索引读回」必须同源于 `OrderEsTargets` / `OrderCacheTargets`。
 
@@ -987,9 +1022,10 @@ public ProjectorRegistry orderProjectorRegistry(OrderEsSource esSource, OrderRed
 ```
 
 ```java
-// application/order/OrderReadService.java —— 读侧把新副本挂进回退链
-public <X extends IOrderProjection> X getById(Long id, Class<X> projectionType) {
-    return fallbackChain(List.of(REDIS_SOURCE, ES_SOURCE)).queryById(id, projectionType);
+// application/order/OrderReadService.java —— 读侧把新副本挂进内置回源链（越靠前优先级越高）
+@Override
+protected List<ProjectionSource> fallbackChain() {
+    return List.of(REDIS_SOURCE, ES_SOURCE);
     // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
 }
 ```
@@ -1011,7 +1047,7 @@ public <X extends IOrderProjection> X getById(Long id, Class<X> projectionType) 
 | --- | --- | --- |
 | 往既有 `OrderEsSource` 里加 Redis 分支 | 一个源类耦合两种存储，替换 / 新增都牵一发动全身 | 每种副本一个 `AbstractProjectionSource` 子类 |
 | 新增缓存副本却硬造全量检索器 | 为不支撑的条件族补无意义实现，违背"能力按需 bind" | 只 bind 该副本真实要支撑的检索器与裁剪器 |
-| 读侧把回退链写死只在代码里改，不上 `register` | 源未登记，`fallbackChain` 命中即抛 `ProjectionSourceNotFoundException` | 新增源先 `register`，再接回退链 |
+| 读侧把回退链写死只在代码里改，不上 `register` | 源未登记，`fallbackChain()` 命中即抛 `ProjectionSourceNotFoundException` | 新增源先 `register`，再挂进读服务 `fallbackChain()` |
 | 多个副本共用一个对账 target / resolver | 对账目标与副本非一一对应，resync 串写、版本互相干扰 | 每副本独立 `storeId()` / `VersionResolver` / `Resynchronizer` |
 
 > **举一反三**：这套"加副本 = 加源"的模式对任何模块通用——`{Agg}EsSource` 之外再加 `{Agg}RedisSource`（缓存）或 `{Agg}XxxIndexSource`（第二个索引），都走「领域层加投影 DTO + 常量 → 基础设施写源 → 装配 register + 读回退链」三步；ES 与 Redis 只是两种已落地的存储实例，不是扩展的天花板。
@@ -1083,7 +1119,8 @@ Order 业务方法 → markModified() / markCreated()
 ```text
 调用方 → orderReadService.queryPage(OrderPageQuery.ByConditions, PageRequest.of(1, 20), OrderSummaryProjection.class)
   └─ AbstractProjectionQuery（三跳编排，第一维为源）
-       ├─ 第 0 跳 选源：默认源（registerDefaultSource 决定）= OrderEsSource；或显式 source(X) / fallbackChain
+       ├─ 第 0 跳 选源：读服务内置回源链（fallbackChain() = [redis:orders, es:orders]）按能力过滤后取源
+       │    └─ Redis 源未 bind 分页检索器 → 自动跳过，落到 OrderEsSource
        ├─ 第 1 跳 查全量：源上 getPagedSearcher(OrderPageQuery.class, OrderEsProjection.class)
        │    └─ OrderPageSearcher.searchPage(...)
        │         ├─ buildConditionQuery(condition)   // Optional 字段 → bool.must
@@ -1191,7 +1228,9 @@ Optional.ofNullable(first.nextCursor())
 | 无理由地把金额统一转成「分」 | 单位换算成了默认约定，投影与聚合单位不一致、排查困难 | 默认原样承载；仅当存储 Mapping 明确要求时才换算并注明 |
 | 投影器与裁剪器各换算一次金额 | 重复进位，金额翻倍 | 换算只发生在聚合 → 全量投影这一次，裁剪器同单位直取 |
 | 单位换算散落在字段赋值语句中 | 换算规则无法统一审计、改 Mapping 时易漏改 | 集中在具名方法内（如 `toFen`），并注明换算原因 |
-| 领域定义 `IOrderQuery` + 基础设施实现 `OrderQuery` 作为读侧门面 | 读服务与投影基础设施解耦成两层、多一层无实现空接口；编排逻辑无处安放 | 读侧入口收敛到应用层 `OrderReadService`（继承 `AbstractProjectionQuery` 实现三跳、`implements IQueryApplicationService`），多源编排放读服务 |
+| 领域层定义 `IOrderQuery` + 基础设施实现 `OrderQuery` 作为读侧门面 | 读服务与投影基础设施解耦成两层、多一层无实现空接口；编排逻辑无处安放 | 读侧入口即应用层 `OrderReadService`（继承 `AbstractProjectionQuery` 承载三跳、`implements IQueryApplicationService`），选源内置于 `fallbackChain()` |
+| 读服务把 `ProjectionSource` 作为方法入参，或提供「传源投影类反查来源」的重载 | 调用方必须懂源与副本才知道调哪个方法；同名方法语义分裂（有的查 ES、有的回源） | 选源内置于 `fallbackChain()`，对外只暴露 6 个两参查询方法，调用方只传目标投影类型 |
+| 为每个「查哪个源」的诉求新增业务方法（如 `getById` 与 `queryById` 并存） | 方法数量膨胀，语义重叠，调用方从签名看不出差别 | 一条内置回源链 + 能力过滤覆盖全部诉求；差异交给框架按能力判定 |
 | 读服务 `OrderReadService` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改读服务 | 读服务继承 `AbstractProjectionQuery`，不注入客户端，DSL 翻译下沉到 Searcher |
 | 事件携带业务快照 | 延迟处理用旧数据覆盖新副本 | 事件只带聚合标识，处理时重新 load 聚合 |
 | 真正的写失败（连接 / 映射错误）`catch` 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给 `resync` 补偿 |
@@ -1213,6 +1252,8 @@ Optional.ofNullable(first.nextCursor())
 | 裁剪器内查库 / 调远程 | 破坏纯函数性，造成 N+1 | `reduce` 只做内存转换，所需数据由检索器一次取全 |
 | 一个裁剪器内按目标类型 `instanceof` 分支 | 与「一个实例服务一个 (源, 子)」契约相悖、无法按型寻址 | 一个子投影一个裁剪器 |
 | 为同一子投影登记多个来源裁剪器 | 门面无法确定该查哪个索引 | 合并为单一来源；登记期即抛 `ProjectionReducerConflictException` |
+| 在领域层声明裁剪器契约（如 `IOrderSummaryReducer extends IProjectionReducer<OrderEsProjection, ...>`） | 源类型参数是存储形状镜像，让领域层知道副本存在及其字段结构；**领域层随副本数量线性膨胀**；且该类接口无任何跨层消费者 | 裁剪器直接 `implements IProjectionReducer<源投影, 子投影>` 落在基础设施层；领域层只持有业务消费形状 |
+| 为「无跨层消费者」的接口上升到领域层 | 只是给基础设施实现类加命名前缀，属依赖穿透而非依赖倒置 | 判据：该接口是否有领域 / 应用 / 接口层引用；无则留在基础设施层 |
 
 ---
 

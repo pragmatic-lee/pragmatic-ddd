@@ -2,13 +2,13 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
-import io.pragmatic.ddd.example.order.domain.order.projection.reducer.IOrderSummaryReducer;
+import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 /**
- * 订单索引级全量投影到概要投影的裁剪器实现，对应领域契约 {@link IOrderSummaryReducer}。
+ * 订单索引级全量投影到概要投影的裁剪器实现。
  * 裁掉明细项与物流等非列表字段，并把 ES 文档中的嵌套字段
  * {@code customer.customerName} 提升为概要投影的顶层字段。
  *
@@ -20,7 +20,8 @@ import java.util.Optional;
  * @author wizard-lee
  */
 @Component
-public class OrderSummaryReducer implements IOrderSummaryReducer {
+public class OrderSummaryReducer
+        implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection> {
 
     /**
      * 返回本裁剪器的源投影类型，即索引 order_index 的索引级全量投影。

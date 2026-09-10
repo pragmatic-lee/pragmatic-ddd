@@ -201,7 +201,7 @@ public class OrderRuleConfig {
 | 是否产生领域事件 / 写库 | 是（同步落库 + 事件发布） | **否**：读不产生业务事件、不持有写仓储 |
 | 依赖 | Factory / Updater / Rule / Repository / EventManager | `ProjectorRegistry`（读模型寻址） |
 
-**读服务为什么继承 `AbstractProjectionQuery` 而非 `AbstractApplicationService`**：读侧没有"改聚合 → 校验 → 落库 → 发事件"这一套写语义，不需要 `execute()` 模板。读侧要做的是「选源 → 查全量 → 裁剪」的三跳取数与可选的多源回退编排，这部分能力由 `AbstractProjectionQuery` 基类提供，读服务只需在应用层暴露给 Controller / 其它应用服务：
+**读服务为什么继承 `AbstractProjectionQuery` 而非 `AbstractApplicationService`**：读侧没有"改聚合 → 校验 → 落库 → 发事件"这一套写语义，不需要 `execute()` 模板。读侧要做的是「选源 → 查全量 → 裁剪」的三跳取数与多源回源编排，这部分能力由 `AbstractProjectionQuery` 基类提供，读服务只需在应用层暴露给 Controller / 其它应用服务：
 
 ```java
 @Service
@@ -212,11 +212,18 @@ public class OrderReadService
     public OrderReadService(ProjectorRegistry projectorRegistry) {
         super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
     }
-    // 6 个查询能力由基类提供；多源编排（如 Redis→ES 回退）可在此封装成业务方法
+
+    // 选源内置：6 个查询能力全部由基类提供，本类只声明回源顺序（Redis 优先，未命中回退 ES）
+    @Override
+    protected List<ProjectionSource> fallbackChain() {
+        return List.of(REDIS_SOURCE, ES_SOURCE);
+    }
 }
 ```
 
-> 读服务的**角色定位**（为什么门面放应用层、多源编排放这里）与**三跳 / 回退链的完整落地**见 [投影读模型代码落地指南](./projection-design.md#47-读侧入口应用层-orderreadservice)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
+> **读服务自身不写查询方法**：查询能力继承基类，读服务只覆写 `fallbackChain()` 声明回源顺序，调用方只传条件与目标投影类型；**不要把 `ProjectionSource` 作为方法入参、也不要为「查哪个源」新增业务方法**，否则同名方法语义分裂、调用方从签名看不出差别。
+
+> 读服务的**角色定位**（为什么门面放应用层、选源内置在这里）与**三跳 / 回退链的完整落地**见 [投影读模型代码落地指南](./projection-design.md#_4-8-选源内置与回源链)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
 
 > ⚠️ **读侧不发布领域事件、不持有写仓储**：读模型由写侧事件物化而来（见 [投影设计](./projection-design.md)），`ReadService` 只消费读模型副本，不反向触发业务事件，避免读路径污染写一致性。
 

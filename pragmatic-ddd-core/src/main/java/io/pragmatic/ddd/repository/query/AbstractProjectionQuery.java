@@ -3,7 +3,7 @@ package io.pragmatic.ddd.repository.query;
 import io.pragmatic.ddd.repository.query.criteria.ListQueryCriteria;
 import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
 import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
-import io.pragmatic.ddd.repository.query.exception.ProjectionSearcherNotFoundException;
+import io.pragmatic.ddd.repository.query.exception.ProjectionSourceNotFoundException;
 import io.pragmatic.ddd.repository.query.paging.PageRequest;
 import io.pragmatic.ddd.repository.query.paging.PageResult;
 import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
@@ -13,13 +13,10 @@ import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
 import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 
-import io.pragmatic.ddd.base.AggregateRoot;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * 聚合查询抽象基类：把「按投影类型选路 / 检索 / 裁剪 / 缺省短路」的通用流程上收，
@@ -27,13 +24,16 @@ import java.util.Optional;
  *
  * <p>查询链路统一为三跳：
  * <ol>
- *     <li>{@code resolveSource} 解析使用的源（指定源直接校验；未指定源按投影类型定位，多源取默认源）；</li>
+ *     <li>{@code candidates} 解析候选源（未指定源按投影类型 + 默认源定位；指定源 / 回源链按能力过滤）；</li>
  *     <li>目标为全量投影时短路直返（分页 / 滚动复用结果页实例）；</li>
  *     <li>否则按 (源, 子投影) 取裁剪器逐条 {@code reduce}。</li>
  * </ol>
  *
  * <p>支持两种视图：默认视图（隐式选路）与 {@link #source(ProjectionSource)} 指定源视图，
  * 以及 {@link #fallbackChain(List)} 多源回源视图。三者方法调用形状一致。</p>
+ *
+ * <p>选源可内置：子类覆写 {@link #fallbackChain()} 声明读侧默认回源链后，
+ * 6 个查询方法按该链顺序寻址，调用方无需感知源；链上源不支持本次查询时自动跳过。</p>
  *
  * @param <ID> 聚合 ID 类型
  * @param <P> 投影体系基类型
@@ -87,99 +87,200 @@ public abstract class AbstractProjectionQuery<ID, P extends IAggregateProjection
         return new FallbackChainQuery(sources);
     }
 
-    /** 按主键查询：默认源。 */
+    /**
+     * 读侧默认回源链：子类覆写即把选源内置到读服务，调用方只传目标投影类型。
+     *
+     * <p>返回非空列表时，本类 6 个查询方法按该链顺序寻址，链上源不支持本次查询时自动跳过；
+     * 返回空列表（默认）表示不启用，沿用「按投影类型 + 默认源」选路。</p>
+     *
+     * @return 回源顺序，越靠前优先级越高；空列表表示未启用
+     */
+    protected List<ProjectionSource> fallbackChain() {
+        return List.of();
+    }
+
+    /** 取内置回源链；未启用返回 null（表示未指定源）。 */
+    private List<ProjectionSource> defaultChain() {
+        List<ProjectionSource> chain = fallbackChain();
+        return chain == null || chain.isEmpty() ? null : List.copyOf(chain);
+    }
+
+    /** 按主键查询：默认视图。 */
     @Override
     public <X extends P> X queryById(ID id, Class<X> projectionType) {
-        return queryById(id, null, projectionType);
+        return queryById(id, defaultChain(), projectionType);
     }
 
-    /** 按批量主键查询：默认源。 */
+    /** 按批量主键查询：默认视图。 */
     @Override
     public <X extends P> List<X> queryByIds(List<ID> ids, Class<X> projectionType) {
-        return queryByIds(ids, null, projectionType);
+        return queryByIds(ids, defaultChain(), projectionType);
     }
 
-    /** 按单条件查询：默认源。 */
+    /** 按单条件查询：默认视图。 */
     @Override
     public <X extends P> X queryOne(ONE query, Class<X> projectionType) {
-        return queryOne(query, null, projectionType);
+        return queryOne(query, defaultChain(), projectionType);
     }
 
-    /** 按列表条件查询：默认源。 */
+    /** 按列表条件查询：默认视图。 */
     @Override
     public <X extends P> List<X> queryList(LIST query, Class<X> projectionType) {
-        return queryList(query, null, projectionType);
+        return queryList(query, defaultChain(), projectionType);
     }
 
-    /** 分页查询：默认源。 */
+    /** 分页查询：默认视图。 */
     @Override
     public <X extends P> PageResult<X> queryPage(PAGE query, PageRequest pageRequest, Class<X> projectionType) {
-        return queryPage(query, pageRequest, null, projectionType);
+        return queryPage(query, pageRequest, defaultChain(), projectionType);
     }
 
-    /** 滚动查询：默认源。 */
+    /** 滚动查询：默认视图。 */
     @Override
-    public <X extends P> ScrollResult<X> queryScroll(PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
-        return queryScroll(query, cursor, pageSize, null, projectionType);
+    public <X extends P> ScrollResult<X> queryScroll(
+            PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
+        return queryScroll(query, cursor, pageSize, defaultChain(), projectionType);
     }
 
-    // ===================== 指定源 / 默认源 实现 =====================
+    // ===================== 候选源解析 =====================
 
-    @SuppressWarnings("unchecked")
-    private <X extends P> X queryById(ID id, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
-        onSourceResolved(resolved, projectionType);
-        if (isFullProjection(resolved, projectionType)) {
-            return cast(registry.getByIdSearcher(resolved).getById(id));
+    /**
+     * 解析本次查询的候选源：未指定源时按投影类型 + 默认源定位单源；
+     * 指定源或回源链时按「源支持该投影类型」+「源具备本次查询所需检索器」过滤，
+     * 过滤后为空抛 {@link ProjectionSourceNotFoundException}。
+     *
+     * @param sources 指定源 / 回源链，null 表示未指定源
+     * @param projectionType 目标投影类型
+     * @param capability 本次查询所需的检索器能力
+     * @param <X> 目标投影类型
+     * @return 候选源列表，按链序排列，非空
+     */
+    private <X extends IAggregateProjection> List<ProjectionSource> candidates(
+            List<ProjectionSource> sources,
+            Class<X> projectionType,
+            Predicate<ProjectionSource> capability) {
+        if (sources == null) {
+            return List.of(registry.resolveSource(projectionType, null));
         }
-        IProjectionReducer<?, X> reducer = registry.getReducer(resolved, projectionType);
-        IAggregateProjection full = registry.getByIdSearcher(resolved).getById(id);
-        return full == null ? null : reduceWith(reducer, full);
+        List<ProjectionSource> hit = sources.stream()
+                .filter(src -> registry.supportsProjection(src, projectionType))
+                .filter(capability)
+                .toList();
+        if (hit.isEmpty()) {
+            throw new ProjectionSourceNotFoundException(
+                    "无可用源提供投影 " + projectionType.getSimpleName() + "；候选源：" + ids(sources));
+        }
+        return hit;
+    }
+
+    /** 取首个候选源：分页 / 滚动不回源，只取链上首个支持者。 */
+    private <X extends IAggregateProjection> ProjectionSource firstCandidate(
+            List<ProjectionSource> sources,
+            Class<X> projectionType,
+            Predicate<ProjectionSource> capability) {
+        return candidates(sources, projectionType, capability).get(0);
+    }
+
+    private static String ids(List<ProjectionSource> sources) {
+        return sources.stream()
+                .map(ProjectionSource::id)
+                .collect(Collectors.joining(", "));
+    }
+
+    // ===================== 查询实现（候选源 + 回源） =====================
+
+    @SuppressWarnings("unchecked")
+    private <X extends P> X queryById(ID id, List<ProjectionSource> sources, Class<X> projectionType) {
+        for (ProjectionSource src : candidates(sources, projectionType, registry::hasByIdSearcher)) {
+            onSourceResolved(src, projectionType);
+            if (isFullProjection(src, projectionType)) {
+                X hit = cast(registry.getByIdSearcher(src).getById(id));
+                if (hit != null) {
+                    return hit;
+                }
+                continue;
+            }
+            IProjectionReducer<?, X> reducer = registry.getReducer(src, projectionType);
+            IAggregateProjection full = registry.getByIdSearcher(src).getById(id);
+            if (full != null) {
+                return reduceWith(reducer, full);
+            }
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")
-    private <X extends P> List<X> queryByIds(List<ID> ids, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
-        onSourceResolved(resolved, projectionType);
+    private <X extends P> List<X> queryByIds(List<ID> ids, List<ProjectionSource> sources, Class<X> projectionType) {
         List<Object> objectIds = (List<Object>) ids;
-        if (isFullProjection(resolved, projectionType)) {
-            return castList(registry.getByIdSearcher(resolved).getByIds(objectIds));
+        for (ProjectionSource src : candidates(sources, projectionType, registry::hasByIdSearcher)) {
+            onSourceResolved(src, projectionType);
+            if (isFullProjection(src, projectionType)) {
+                List<X> hit = castList(registry.getByIdSearcher(src).getByIds(objectIds));
+                if (hit != null && !hit.isEmpty()) {
+                    return hit;
+                }
+                continue;
+            }
+            IProjectionReducer<?, X> reducer = registry.getReducer(src, projectionType);
+            List<X> reduced = reduceAll(reducer, registry.getByIdSearcher(src).getByIds(objectIds));
+            if (!reduced.isEmpty()) {
+                return reduced;
+            }
         }
-        IProjectionReducer<?, X> reducer = registry.getReducer(resolved, projectionType);
-        List<? extends IAggregateProjection> fulls = registry.getByIdSearcher(resolved).getByIds(objectIds);
-        return reduceAll(reducer, fulls);
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")
-    private <X extends P> X queryOne(ONE query, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
-        onSourceResolved(resolved, projectionType);
-        if (isFullProjection(resolved, projectionType)) {
-            return cast(registry.getSearcher(resolved, oneType).search(query).stream().findFirst().orElse(null));
+    private <X extends P> X queryOne(ONE query, List<ProjectionSource> sources, Class<X> projectionType) {
+        for (ProjectionSource src : candidates(sources, projectionType, s -> registry.hasSearcher(s, oneType))) {
+            onSourceResolved(src, projectionType);
+            if (isFullProjection(src, projectionType)) {
+                X hit = cast(registry.getSearcher(src, oneType).search(query).stream().findFirst().orElse(null));
+                if (hit != null) {
+                    return hit;
+                }
+                continue;
+            }
+            IProjectionReducer<?, X> reducer = registry.getReducer(src, projectionType);
+            X reduced = registry.getSearcher(src, oneType).search(query).stream()
+                    .findFirst()
+                    .map(full -> reduceWith(reducer, full))
+                    .orElse(null);
+            if (reduced != null) {
+                return reduced;
+            }
         }
-        IProjectionReducer<?, X> reducer = registry.getReducer(resolved, projectionType);
-        return registry.getSearcher(resolved, oneType).search(query).stream()
-                .findFirst()
-                .map(full -> reduceWith(reducer, full))
-                .orElse(null);
+        return null;
     }
 
     @SuppressWarnings("unchecked")
-    private <X extends P> List<X> queryList(LIST query, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
-        onSourceResolved(resolved, projectionType);
-        if (isFullProjection(resolved, projectionType)) {
-            return castList(registry.getSearcher(resolved, listType).search(query));
+    private <X extends P> List<X> queryList(LIST query, List<ProjectionSource> sources, Class<X> projectionType) {
+        for (ProjectionSource src : candidates(sources, projectionType, s -> registry.hasSearcher(s, listType))) {
+            onSourceResolved(src, projectionType);
+            if (isFullProjection(src, projectionType)) {
+                List<X> hit = castList(registry.getSearcher(src, listType).search(query));
+                if (hit != null && !hit.isEmpty()) {
+                    return hit;
+                }
+                continue;
+            }
+            IProjectionReducer<?, X> reducer = registry.getReducer(src, projectionType);
+            List<X> reduced = reduceAll(reducer, registry.getSearcher(src, listType).search(query));
+            if (!reduced.isEmpty()) {
+                return reduced;
+            }
         }
-        IProjectionReducer<?, X> reducer = registry.getReducer(resolved, projectionType);
-        return reduceAll(reducer, registry.getSearcher(resolved, listType).search(query));
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")
-    private <X extends P> PageResult<X> queryPage(PAGE query, PageRequest pageRequest, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
+    private <X extends P> PageResult<X> queryPage(
+            PAGE query, PageRequest pageRequest, List<ProjectionSource> sources, Class<X> projectionType) {
+        ProjectionSource resolved = firstCandidate(
+                sources, projectionType, src -> registry.hasPagedSearcher(src, pageType));
         onSourceResolved(resolved, projectionType);
-        PageResult<? extends IAggregateProjection> page = registry.getPagedSearcher(resolved, pageType).searchPage(query, pageRequest);
+        PageResult<? extends IAggregateProjection> page =
+                registry.getPagedSearcher(resolved, pageType).searchPage(query, pageRequest);
         if (isFullProjection(resolved, projectionType)) {
             return PageResult.of(castList(page.data()), page.totalCount(), page.request());
         }
@@ -188,10 +289,17 @@ public abstract class AbstractProjectionQuery<ID, P extends IAggregateProjection
     }
 
     @SuppressWarnings("unchecked")
-    private <X extends P> ScrollResult<X> queryScroll(PAGE query, ScrollPosition cursor, int pageSize, ProjectionSource source, Class<X> projectionType) {
-        ProjectionSource resolved = registry.resolveSource(projectionType, source);
+    private <X extends P> ScrollResult<X> queryScroll(
+            PAGE query,
+            ScrollPosition cursor,
+            int pageSize,
+            List<ProjectionSource> sources,
+            Class<X> projectionType) {
+        ProjectionSource resolved = firstCandidate(
+                sources, projectionType, src -> registry.hasPagedSearcher(src, pageType));
         onSourceResolved(resolved, projectionType);
-        ScrollResult<? extends IAggregateProjection> scroll = registry.getPagedSearcher(resolved, pageType).searchScroll(query, cursor, pageSize);
+        ScrollResult<? extends IAggregateProjection> scroll =
+                registry.getPagedSearcher(resolved, pageType).searchScroll(query, cursor, pageSize);
         if (isFullProjection(resolved, projectionType)) {
             return ScrollResult.of(castList(scroll.data()), scroll.nextCursor());
         }
@@ -218,9 +326,9 @@ public abstract class AbstractProjectionQuery<ID, P extends IAggregateProjection
         return result;
     }
 
-    // ===================== 回源链 =====================
+    // ===================== 视图：回源链 / 指定源 =====================
 
-    /** 按回源顺序查询：前源未取到结果时自动推进下一源。 */
+    /** 按回源顺序查询：前源未取到结果时自动推进下一源；分页 / 滚动取链上首个支持者。 */
     private final class FallbackChainQuery implements IProjectionSourceQuery<ID, P, ONE, LIST, PAGE> {
 
         private final List<ProjectionSource> sources;
@@ -236,122 +344,79 @@ public abstract class AbstractProjectionQuery<ID, P extends IAggregateProjection
 
         @Override
         public <X extends P> X queryById(ID id, Class<X> projectionType) {
-            for (ProjectionSource src : sources) {
-                X result = AbstractProjectionQuery.this.queryById(id, src, projectionType);
-                if (result != null) {
-                    return result;
-                }
-            }
-            return null;
+            return AbstractProjectionQuery.this.queryById(id, sources, projectionType);
         }
 
         @Override
         public <X extends P> List<X> queryByIds(List<ID> ids, Class<X> projectionType) {
-            for (ProjectionSource src : sources) {
-                List<X> hit = AbstractProjectionQuery.this.queryByIds(ids, src, projectionType);
-                if (hit != null && !hit.isEmpty()) {
-                    return hit;
-                }
-            }
-            return List.of();
+            return AbstractProjectionQuery.this.queryByIds(ids, sources, projectionType);
         }
 
         @Override
         public <X extends P> X queryOne(ONE query, Class<X> projectionType) {
-            for (ProjectionSource src : sources) {
-                X result = AbstractProjectionQuery.this.queryOne(query, src, projectionType);
-                if (result != null) {
-                    return result;
-                }
-            }
-            return null;
+            return AbstractProjectionQuery.this.queryOne(query, sources, projectionType);
         }
 
         @Override
         public <X extends P> List<X> queryList(LIST query, Class<X> projectionType) {
-            for (ProjectionSource src : sources) {
-                List<X> result = AbstractProjectionQuery.this.queryList(query, src, projectionType);
-                if (result != null && !result.isEmpty()) {
-                    return result;
-                }
-            }
-            return List.of();
+            return AbstractProjectionQuery.this.queryList(query, sources, projectionType);
         }
 
         @Override
         public <X extends P> PageResult<X> queryPage(PAGE query, PageRequest pageRequest, Class<X> projectionType) {
-            ProjectionSource resolved = firstSupporting(this::pageSourceSupported, projectionType);
-            return AbstractProjectionQuery.this.queryPage(query, pageRequest, resolved, projectionType);
+            return AbstractProjectionQuery.this.queryPage(query, pageRequest, sources, projectionType);
         }
 
         @Override
-        public <X extends P> ScrollResult<X> queryScroll(PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
-            ProjectionSource resolved = firstSupporting(this::pageSourceSupported, projectionType);
-            return AbstractProjectionQuery.this.queryScroll(query, cursor, pageSize, resolved, projectionType);
-        }
-
-        private boolean pageSourceSupported(ProjectionSource src) {
-            try {
-                registry.getPagedSearcher(src, pageType);
-                return true;
-            } catch (ProjectionSearcherNotFoundException e) {
-                return false;
-            }
-        }
-
-        /** 取链上第一个支持该条件族的源；均不支持抛 {@link ProjectionSearcherNotFoundException}。 */
-        private ProjectionSource firstSupporting(java.util.function.Predicate<ProjectionSource> support, Class<?> projectionType) {
-            return sources.stream()
-                    .filter(support)
-                    .findFirst()
-                    .orElseThrow(() -> new ProjectionSearcherNotFoundException(
-                            "回源链上无任何源支持条件族 " + pageType.getSimpleName()
-                                    + "；可用源：[" + sources.stream().map(ProjectionSource::id).collect(java.util.stream.Collectors.joining(", ")) + "]"));
+        public <X extends P> ScrollResult<X> queryScroll(
+                PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
+            return AbstractProjectionQuery.this.queryScroll(query, cursor, pageSize, sources, projectionType);
         }
     }
 
-    /** 绑定指定源的查询视图：把源透传给私有查询方法。 */
+    /** 绑定指定源的查询视图：等价于长度为一的回源链。 */
     private final class SourceScopedQuery implements IProjectionSourceQuery<ID, P, ONE, LIST, PAGE> {
 
-        private final ProjectionSource source;
+        private final List<ProjectionSource> sources;
 
         private SourceScopedQuery(ProjectionSource source) {
-            this.source = source;
+            this.sources = List.of(source);
         }
 
         @Override
         public ProjectionSource source() {
-            return source;
+            return sources.get(0);
         }
 
         @Override
         public <X extends P> X queryById(ID id, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryById(id, source, projectionType);
+            return AbstractProjectionQuery.this.queryById(id, sources, projectionType);
         }
 
         @Override
         public <X extends P> List<X> queryByIds(List<ID> ids, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryByIds(ids, source, projectionType);
+            return AbstractProjectionQuery.this.queryByIds(ids, sources, projectionType);
         }
 
         @Override
         public <X extends P> X queryOne(ONE query, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryOne(query, source, projectionType);
+            return AbstractProjectionQuery.this.queryOne(query, sources, projectionType);
         }
 
         @Override
         public <X extends P> List<X> queryList(LIST query, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryList(query, source, projectionType);
+            return AbstractProjectionQuery.this.queryList(query, sources, projectionType);
         }
 
         @Override
         public <X extends P> PageResult<X> queryPage(PAGE query, PageRequest pageRequest, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryPage(query, pageRequest, source, projectionType);
+            return AbstractProjectionQuery.this.queryPage(query, pageRequest, sources, projectionType);
         }
 
         @Override
-        public <X extends P> ScrollResult<X> queryScroll(PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
-            return AbstractProjectionQuery.this.queryScroll(query, cursor, pageSize, source, projectionType);
+        public <X extends P> ScrollResult<X> queryScroll(
+                PAGE query, ScrollPosition cursor, int pageSize, Class<X> projectionType) {
+            return AbstractProjectionQuery.this.queryScroll(query, cursor, pageSize, sources, projectionType);
         }
     }
 
