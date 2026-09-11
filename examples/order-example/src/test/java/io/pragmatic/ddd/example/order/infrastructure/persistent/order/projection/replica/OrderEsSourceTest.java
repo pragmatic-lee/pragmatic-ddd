@@ -176,14 +176,14 @@ class OrderEsSourceTest {
     @Test
     @DisplayName("projectionType 返回订单 ES 投影类型")
     void projectionTypeReturnsOrderEsProjection() {
-        assertThat(orderEsSource.projectionType()).isEqualTo(OrderEsProjection.class);
+        assertThat(orderEsSource.getProjectionType()).isEqualTo(OrderEsProjection.class);
     }
 
     @Test
     @DisplayName("source 返回订单 ES 源标识 es:orders")
     void sourceReturnsOrderEsIdentifier() {
-        assertThat(orderEsSource.source().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
-        assertThat(orderEsSource.projectionType()).isEqualTo(OrderEsProjection.class);
+        assertThat(orderEsSource.getSource().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        assertThat(orderEsSource.getProjectionType()).isEqualTo(OrderEsProjection.class);
     }
 
     @Test

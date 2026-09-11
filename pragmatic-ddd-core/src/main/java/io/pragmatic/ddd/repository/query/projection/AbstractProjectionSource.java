@@ -6,6 +6,8 @@ import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictExcep
 
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
+import lombok.Getter;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param <P> 全量投影类型（本源唯一承载的投影）
  * @author wizard-lee
  */
+@Getter
 public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P extends IAggregateProjection> {
 
     private final ProjectionSource source;
@@ -71,6 +74,19 @@ public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P ext
     public abstract void purge(Object aggregateId);
 
     /**
+     * 将聚合物化到本源：project → materialize。
+     * 聚合由调用方 load 后传入；投影为 null 时静默跳过 materialize。
+     *
+     * @param aggregate 待同步的聚合根
+     */
+    public void sync(T aggregate) {
+        P projection = projector.project(aggregate);
+        if (projection != null) {
+            materialize(projection, aggregate.getOldVersion());
+        }
+    }
+
+    /**
      * 绑定按条件检索器。同一条件族重复绑定不同实现视为冲突。
      *
      * @param searcher 检索器
@@ -108,42 +124,5 @@ public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P ext
             throw new ProjectionSourceConflictException(
                     "源 " + source.id() + " 上键 " + key + " 已绑定不同实现：" + previous + " 与 " + value);
         }
-    }
-
-    public final ProjectionSource source() {
-        return source;
-    }
-
-    public final ReconciliationTarget target() {
-        return target;
-    }
-
-    public final Class<? extends AggregateRoot<?>> aggregateType() {
-        return aggregateType;
-    }
-
-    public final Class<P> projectionType() {
-        return projectionType;
-    }
-
-    public final IAggregateProjector<T, P> projector() {
-        return projector;
-    }
-
-    final Optional<IProjectionByIdSearcher<P>> idSearcher() {
-        return Optional.ofNullable(idSearcher);
-    }
-
-    final Map<Class<?>, IProjectionSearcher<?, P>> searchers() {
-        return searchers;
-    }
-
-    final Map<Class<?>, IProjectionPagedSearcher<?, P>> pagedSearchers() {
-        return pagedSearchers;
-    }
-
-    @SuppressWarnings("unchecked")
-    final Map<Class<?>, IProjectionReducer<?, ?>> reducers() {
-        return reducers;
     }
 }

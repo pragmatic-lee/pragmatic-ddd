@@ -14,6 +14,8 @@
 
 #### 核心模块 pragmatic-ddd-core
 
+- **删除投影同步门面 `AggregateProjectorSupport`**（Breaking）：`project → materialize` 与 `purge` 编排下沉到 `AbstractProjectionSource`（新增 `sync(aggregate)` / 复用 `purge(id)`）；`ProjectorRegistry` 同步删除仅被门面使用的 `sourceById(String)` 与 `getSource(String id)` 两个按 storeId 反查方法。调用方（事件处理器、`IReadModelResynchronizer`）改为直接持有并注入目标源实例（如 `OrderEsSource` / `OrderRedisSource`）后调用 `source.sync(order)` / `source.purge(id)`，消除调用方本就持有目标源时「按 target 反查源」的绕行冗余与 `Source ⇄ Registry` 双向依赖风险。
+
 - **工作单元执行模型三阶段化**（`AbstractUnitOfWork` / `UnitOfWork` / `OutboxUnitOfWork`）：
   领域逻辑与规则校验移至**事务外**（阶段一 `validateAndCollect`），持久化收敛为**独立的数据库事务**（阶段二 `persistAndCollect`），
   事件发布保持在**事务外**（阶段三 `dispatchEvents`）。规则校验中的外部调用与旧快照查询不再占用数据库连接，

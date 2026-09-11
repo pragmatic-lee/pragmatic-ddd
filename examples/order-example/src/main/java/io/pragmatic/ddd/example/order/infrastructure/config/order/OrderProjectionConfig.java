@@ -3,7 +3,6 @@ package io.pragmatic.ddd.example.order.infrastructure.config.order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderEsSource;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderRedisSource;
-import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
 import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,12 +20,7 @@ public class OrderProjectionConfig {
         ProjectorRegistry registry = new ProjectorRegistry();
         registry.register(orderEsSource);
         registry.register(orderRedisSource);
-        registry.registerDefaultSource(OrderSummaryProjection.class, orderEsSource.source());
+        registry.registerDefaultSource(OrderSummaryProjection.class, orderEsSource.getSource());
         return registry;
-    }
-
-    @Bean
-    public AggregateProjectorSupport orderProjectorSupport(ProjectorRegistry registry) {
-        return new AggregateProjectorSupport(registry);
     }
 }

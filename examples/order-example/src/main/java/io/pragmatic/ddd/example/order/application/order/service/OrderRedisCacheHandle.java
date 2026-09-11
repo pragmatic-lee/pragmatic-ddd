@@ -2,11 +2,9 @@ package io.pragmatic.ddd.example.order.application.order.service;
 
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderRedisCacheHandle;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderRedisSource;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,20 +18,17 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 
     private final OrderRepository orderRepository;
 
-    private final AggregateProjectorSupport projectorSupport;
-
-    private final ProjectionSource source;
+    private final OrderRedisSource redisSource;
 
     public OrderRedisCacheHandle(
             OrderRepository orderRepository,
-            AggregateProjectorSupport projectorSupport) {
+            OrderRedisSource redisSource) {
         this.orderRepository = orderRepository;
-        this.projectorSupport = projectorSupport;
-        this.source = ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId());
+        this.redisSource = redisSource;
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 Redis，版本取自事件携带的副本版本。
+     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 Redis，版本取自聚合的 oldVersion。
      *
      * @param event 订单数据同步事件
      */
@@ -44,6 +39,6 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
         if (order == null) {
             return;
         }
-        projectorSupport.sync(order, source);
+        redisSource.sync(order);
     }
 }

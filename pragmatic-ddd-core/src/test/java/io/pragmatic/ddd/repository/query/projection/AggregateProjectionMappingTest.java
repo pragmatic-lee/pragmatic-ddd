@@ -1,21 +1,20 @@
 package io.pragmatic.ddd.repository.query.projection;
 
-import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictException;
-
-import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.fixture.SampleAggregate;
+import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictException;
 import io.pragmatic.ddd.repository.query.projection.fixture.StubProjector;
-import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * 聚合投影映射落地测试：覆盖 ProjectorRegistry 以「源」为中心的登记/解析与
- * AggregateProjectorSupport 门面编排（sync / purge）。
+ * 聚合投影映射落地测试：覆盖 ProjectorRegistry 以「源」为中心的登记/解析，
+ * 以及 AbstractProjectionSource 以「源」为中心的同步（sync）/清除（purge）编排。
  * @author wizard-lee
  */
 class AggregateProjectionMappingTest {
@@ -26,7 +25,6 @@ class AggregateProjectionMappingTest {
 
     /** 内存 projector：记录被调用与产出。 */
     static class SampleProjector extends AbstractAggregateProjector<SampleAggregate, SampleProjection> {
-        final AtomicReference<SampleAggregate> lastInput = new AtomicReference<>();
         final boolean returnNull;
 
         SampleProjector(boolean returnNull) {
@@ -36,7 +34,6 @@ class AggregateProjectionMappingTest {
 
         @Override
         public SampleProjection project(SampleAggregate aggregateRoot) {
-            lastInput.set(aggregateRoot);
             return returnNull ? null : new SampleProjection();
         }
     }
@@ -47,7 +44,6 @@ class AggregateProjectionMappingTest {
      */
     static class SampleSource extends AbstractProjectionSource<SampleAggregate, SampleProjection> {
         static final ProjectionSource ES_SOURCE = ProjectionSource.of("es:orders");
-        static final ProjectionSource REDIS_SOURCE = ProjectionSource.of("redis:orders");
 
         final AtomicReference<Long> materializedVersion = new AtomicReference<>();
         final AtomicReference<Object> purgedId = new AtomicReference<>();
@@ -86,73 +82,36 @@ class AggregateProjectionMappingTest {
         ProjectorRegistry registry = new ProjectorRegistry();
         registry.register(new SampleSource(SampleSource.ES_SOURCE));
 
-        try {
-            registry.register(new SampleSource(SampleSource.ES_SOURCE));
-            org.junit.jupiter.api.Assertions.fail("应抛 ProjectionSourceConflictException");
-        } catch (ProjectionSourceConflictException e) {
-            assertThat(e.getMessage()).contains("es:orders");
-        }
+        assertThrows(ProjectionSourceConflictException.class,
+                () -> registry.register(new SampleSource(SampleSource.ES_SOURCE)));
     }
 
     @Test
-    void support_sync_projectsAndMaterializes_withVersion() {
-        ProjectorRegistry registry = new ProjectorRegistry();
+    void source_sync_projectsAndMaterializes_withVersion() {
         SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
-        registry.register(es);
-
         SampleAggregate aggregate = new SampleAggregate();
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
 
-        support.sync(aggregate, SampleSource.ES_SOURCE);
+        es.sync(aggregate);
 
         assertThat(es.materializeCount.get()).isEqualTo(1);
         assertThat(es.materializedVersion.get()).isEqualTo(aggregate.getOldVersion());
     }
 
     @Test
-    void support_sync_missingSource_skipsSilently() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-
-        // 未登记任何源：sync 静默跳过，不抛异常
-        support.sync(new SampleAggregate(), SampleSource.ES_SOURCE);
-
-        // 通过 target 桥接：storeId 无对应源同样跳过
-        support.sync(new SampleAggregate(),
-                new ReconciliationTarget(SampleAggregate.class, "es:orders"));
-    }
-
-    @Test
-    void support_sync_nullProjection_skipsMaterialize() {
-        ProjectorRegistry registry = new ProjectorRegistry();
+    void source_sync_nullProjection_skipsMaterialize() {
         NullProjectorSource source = new NullProjectorSource(SampleSource.ES_SOURCE);
-        registry.register(source);
-
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.sync(new SampleAggregate(), SampleSource.ES_SOURCE);
+        source.sync(new SampleAggregate());
 
         assertThat(source.materializeCount.get()).isZero();
     }
 
     @Test
-    void support_purge_invokesSource() {
-        ProjectorRegistry registry = new ProjectorRegistry();
+    void source_purge_invokesSource() {
         SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
-        registry.register(es);
-
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.purge(SampleSource.ES_SOURCE, 42L);
+        es.purge(42L);
 
         assertThat(es.purgeCount.get()).isEqualTo(1);
         assertThat(es.purgedId.get()).isEqualTo(42L);
-    }
-
-    @Test
-    void support_purge_missingSource_skipsSilently() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        AggregateProjectorSupport support = new AggregateProjectorSupport(registry);
-        support.purge(SampleSource.ES_SOURCE, 42L);
-        // 无源：应静默跳过（不抛异常）
     }
 
     /** 返回 null 投影的源，专门覆盖 null 投影分支。 */

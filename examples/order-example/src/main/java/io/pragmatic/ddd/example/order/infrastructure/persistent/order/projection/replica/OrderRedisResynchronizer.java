@@ -4,9 +4,6 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheTargets;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
 import io.pragmatic.ddd.repository.reconciliation.IReadModelResynchronizer;
-import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
-import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import org.springframework.stereotype.Component;
 
@@ -21,14 +18,11 @@ public class OrderRedisResynchronizer implements IReadModelResynchronizer<Long> 
 
     private final OrderRepository orderRepository;
 
-    private final AggregateProjectorSupport projectorSupport;
+    private final OrderRedisSource redisSource;
 
-    private final ProjectionSource source;
-
-    public OrderRedisResynchronizer(OrderRepository orderRepository, ProjectorRegistry projectorRegistry) {
+    public OrderRedisResynchronizer(OrderRepository orderRepository, OrderRedisSource redisSource) {
         this.orderRepository = orderRepository;
-        this.projectorSupport = new AggregateProjectorSupport(projectorRegistry);
-        this.source = ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId());
+        this.redisSource = redisSource;
     }
 
     @Override
@@ -42,11 +36,11 @@ public class OrderRedisResynchronizer implements IReadModelResynchronizer<Long> 
         if (order == null) {
             return;
         }
-        projectorSupport.sync(order, source);
+        redisSource.sync(order);
     }
 
     @Override
     public void purge(Long aggregateId) {
-        projectorSupport.purge(source, aggregateId);
+        redisSource.purge(aggregateId);
     }
 }

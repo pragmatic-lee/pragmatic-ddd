@@ -4,15 +4,12 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
 import io.pragmatic.ddd.repository.reconciliation.IReadModelResynchronizer;
-import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
-import io.pragmatic.ddd.repository.query.projection.ProjectorRegistry;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import org.springframework.stereotype.Component;
 
 /**
  * 订单 ES 副本重同步器：从写模型当前快照重建 ES 副本（resync）或清理残留文档（purge），
- * 投影与物化由「源」统一承载。
+ * 投影与物化由「源」统一承载。与 Redis 副本平级、互不引用，各自驱动自己的副本重建。
  *
  * @author wizard-lee
  */
@@ -21,14 +18,11 @@ public class OrderEsResynchronizer implements IReadModelResynchronizer<Long> {
 
     private final OrderRepository orderRepository;
 
-    private final AggregateProjectorSupport projectorSupport;
+    private final OrderEsSource esSource;
 
-    private final ProjectionSource source;
-
-    public OrderEsResynchronizer(OrderRepository orderRepository, ProjectorRegistry projectorRegistry) {
+    public OrderEsResynchronizer(OrderRepository orderRepository, OrderEsSource esSource) {
         this.orderRepository = orderRepository;
-        this.projectorSupport = new AggregateProjectorSupport(projectorRegistry);
-        this.source = ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        this.esSource = esSource;
     }
 
     @Override
@@ -42,11 +36,11 @@ public class OrderEsResynchronizer implements IReadModelResynchronizer<Long> {
         if (order == null) {
             return;
         }
-        projectorSupport.sync(order, source);
+        esSource.sync(order);
     }
 
     @Override
     public void purge(Long aggregateId) {
-        projectorSupport.purge(source, aggregateId);
+        esSource.purge(aggregateId);
     }
 }

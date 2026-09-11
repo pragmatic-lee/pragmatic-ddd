@@ -127,8 +127,7 @@
 | 接口 | `IAggregateProjector<T, P>` | 聚合投影器契约 |
 | 抽象类 | `AbstractAggregateProjector<T, P>` | 投影器基类 |
 | 类 | `ProjectorRegistry` | 源与投影器注册表 |
-| 抽象类 | `AbstractProjectionSource<T, P>` | 写读一体源基类（materialize + 检索器 + 裁剪器） |
-| 类 | `AggregateProjectorSupport` | 投影器 / 源辅助工具（按源 sync / purge） |
+| 抽象类 | `AbstractProjectionSource<T, P>` | 写读一体源基类（materialize + 检索器 + 裁剪器 + sync / purge 编排） |
 | 接口 | `IQueryById<ID, PROJECTION>` | 按主键查 |
 | 接口 | `IQueryByIds<ID, PROJECTION>` | 批量按主键查 |
 | 接口 | `IQueryOne<PROJECTION, QUERY_CRITERIA>` | 按条件查单条 |

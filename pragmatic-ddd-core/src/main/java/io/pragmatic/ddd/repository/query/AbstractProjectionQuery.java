@@ -308,7 +308,7 @@ public abstract class AbstractProjectionQuery<ID, P extends IAggregateProjection
     }
 
     private boolean isFullProjection(ProjectionSource resolved, Class<?> projectionType) {
-        return registry.getSource(resolved).projectionType().equals(projectionType);
+        return registry.getSource(resolved).getProjectionType().equals(projectionType);
     }
 
     @SuppressWarnings("unchecked")

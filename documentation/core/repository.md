@@ -21,7 +21,6 @@ io.pragmatic.ddd.repository
 │     ├─ IAggregateProjector / AbstractAggregateProjector  (聚合 → 投影)
 │     ├─ ProjectionSource / AbstractProjectionSource  (源标识 / 写读一体源：materialize + 检索器 + 裁剪器)
 │     ├─ IProjectionSearcher / IProjectionByIdSearcher / IProjectionPagedSearcher / IProjectionReducer  (检索 / 裁剪构件，挂在源上)
-│     ├─ AggregateProjectorSupport  project→materialize 门面（按源）
 │     ├─ ProjectorRegistry          源登记中心
 │     └─ PageRequest / PageResult / ScrollPosition / ScrollResult  (分页/滚动值对象)
 └── reconciliation                读模型对账子包
@@ -194,13 +193,13 @@ public class OrderQueryService implements
 | `resolveSource(source, projectionType)` | （源标识, 投影类型） | 找不到返回 `null` |
 | `registerDefaultSource(projectionType, source)` | 子投影类 → 默认源 | 查该子投影未指定源时取默认源 |
 
-`AggregateProjectorSupport` 是聚合投影门面，按源封装 `project → materialize` 并暴露 `purge`：
+`AbstractProjectionSource` 在源自身承载 `project → materialize` 并暴露 `purge`：
 
-- 不持有 repository 与源；聚合由调用方 `load` 后传入 `sync`，源由 registry 按 source 标识取出。
-- `sync(aggregate, source)`：projector / 源缺失或投影为 `null` 时**静默跳过**。
-- `purge(source, aggregateId)`：ORPHAN 时清理残留条目。
+- 源自身持有 projector；聚合由调用方 `load` 后传入 `sync(aggregate)`，project 后 `materialize`。
+- `sync(aggregate)`：投影为 `null` 时**静默跳过**；源由调用方直接持有 / 注入，不存在「源缺失」分支。
+- `purge(aggregateId)`：ORPHAN 时清理本源物理存储中的残留条目。
 - `versionOf(aggregate)` 复用 `AggregateRoot.getOldVersion()` 作为物化版本。
-- 事件物化路径与对账 resync 路径共用本门面，保证转换逻辑唯一。
+- 事件物化路径与对账 resync 路径共用源 `sync`，保证转换逻辑唯一。
 
 ### 2.5 分页与滚动值对象
 
@@ -277,7 +276,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 
 > **重要约束**：延迟复核不在 core 内实现。`reconcileAndResync` 是同步原语，检测到不一致立即补救。若需规避"事件刚发布、副本尚未同步完"的竞态，延迟复核由调用方异步编排（调度器或将延迟消息发到 Kafka/RocketMQ 重试）。
 
-> **重要约束**：源 `source()` 标识即 `ReconciliationTarget.storeId()` 的同一身份，是存储目标的唯一权威来源；`AggregateProjectorSupport.sync(aggregate, source)` 依此定位源，调用方只引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），不要 `new ProjectionSource("es:orders")`。
+> **重要约束**：源 `source()` 标识即 `ReconciliationTarget.storeId()` 的同一身份，是存储目标的唯一权威来源；`AbstractProjectionSource.sync(aggregate)` 由源自身承载 project→materialize 编排，调用方只引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），不要 `new ProjectionSource("es:orders")`。
 
 > **重要约束**：`ReconciliationTarget` 用 `record` 提供基于值的 `equals/hashCode`，可作 Map key；其构造器仅做非空校验，不校验聚合类型与 storeId 是否真实存在，错误登记将在 `targetsOf` / `resolverFor` 阶段表现为找不到组件。
 
@@ -327,7 +326,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 | `IAggregateQuery` | 继承组合 6 类查询，返回投影 | 投影非聚合根；未命中返回 `null` 或空列表 |
 | `AbstractAggregateProjector` | 继承、实现 `project` | 框架无默认映射逻辑，字段取值手写 |
 | `ProjectorRegistry` | 显式登记 projector / 源 | 源的 `source()` 标识即定位权威来源；同一投影类可多源共存 |
-| `AggregateProjectorSupport` | 调用 `sync(aggregate, source)` / `purge(source, id)` | projector / 源缺失或投影为 `null` 时静默跳过 |
+| `AbstractProjectionSource` | 调用 `sync(aggregate)` / `purge(id)` | 投影为 `null` 时静默跳过（源由调用方注入） |
 | `Reconciliation` | `Reconciliation.of(V', V)` | 先 UNTRACKED，再 ORPHAN（存在性），后 CONSISTENT/STALE |
 | `IReadModelResynchronizer` | 实现 `resync` / `purge` | `resync` 从写模型重建，不重放事件 |
 | `Reconciler` / `ReconciliationManager` | `reconcile(type, id)` 一行对账 | 同步原语，延迟复核由调用方异步编排 |

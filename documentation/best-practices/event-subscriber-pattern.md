@@ -310,7 +310,7 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
         if (order == null) {
             return;
         }
-        aggregateProjectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS);
+        orderEsSource.sync(order);
     }
 }
 ```
@@ -319,7 +319,7 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 // application/order/service/OrderRedisCacheHandle.java —— 同一事件的另一个平级订阅者
 @Component
 public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
-    // 结构同 OrderDataSyncEsProjectionHandle：findById → aggregateProjectorSupport.sync(order, TARGET_REDIS_ORDERS)
+    // 结构同 OrderDataSyncEsProjectionHandle：findById → orderRedisSource.sync(order)
 }
 ```
 
@@ -327,7 +327,7 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 
 - **一个副本一个订阅者**：ES 与 Redis 是两个平级订阅者，各自驱动自己的 `Source`（写读一体，落在 `projection/replica/` 包），互不引用、互不感知。
 - **物化版本取 `event.getVersion()`**（`collectEvent` 回填的 `getNewVersion()`），不取 `order.getOldVersion()`——后者是对账补偿路径的口径。
-- **编排收敛到 `AggregateProjectorSupport.sync(aggregate, source)`**：订阅者只做 `findById` + `sync` 两件事，project→materialize 的内部四步由门面与源完成；投影映射与存储读写留在基础设施层，订阅者只做装配编排。
+- **编排收敛到 `源.sync(aggregate)`**：订阅者只做 `findById` + `sync` 两件事，project→materialize 的内部四步由源完成；投影映射与存储读写留在基础设施层，订阅者只做装配编排。
 - 投影 / 源 / 检索 / 裁剪 / 对账的完整落地见 [投影读模型代码落地指南](./projection-design.md)。
 
 ### 4.4 装配绑定：`{聚合}EventSubscriberRegistry`
@@ -419,7 +419,7 @@ public final class EventSubscriberAliases {
 | `projectorRegistry.resolveSource(source)` | 返回 `null` | 源可选，缺登记则本次不物化 |
 | `projectorRegistry.getSearcher(...)` / `getByIdSearcher(...)` | **抛异常** | 检索器缺失属接线 bug |
 
-因此读模型型订阅者经 `AggregateProjectorSupport.sync` 桥接即可，`sync` 内部对缺失投影器 / 源做 `null` 短路，但**不要**把它当正常情况静默——副本会持续落后，应配合启动自检暴露。
+因此读模型型订阅者直接持有目标源并调用 `源.sync(aggregate)` 即可；`sync` 内部对投影为 `null` 做短路跳过，但**不要**把它当正常情况静默——副本会持续落后，应配合启动自检暴露。
 
 ### 5.8 幂等与版本
 

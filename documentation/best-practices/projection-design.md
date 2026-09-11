@@ -192,7 +192,7 @@ public void handleEvent(OrderDataSyncEvent event) {
     if (order == null) {
         return;
     }
-    // aggregateProjectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS)  // 内部 resolveProjector → project → 源.materialize(projection, event.getVersion())
+    // orderEsSource.sync(order)  // 内部 project → 源.materialize(projection, event.getVersion())
 }
 
 // ❌ 反模式：事件携带整份业务快照，延迟处理后会用旧数据覆盖新副本
@@ -391,7 +391,7 @@ public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjec
 - **区分失败**：409 版本冲突（迟到/重复事件）静默丢弃，仅 `log.debug`；真正的写失败（连接/映射错误）以 `IOException` 上抛，交给事件重试 / 对账 resync 兜底。
 - `purge` 删除文档，文档不存在时静默忽略（清理幂等）。
 
-> ⚠️ **源标识 `source()` 即 `ReconciliationTarget.storeId()` 的同一身份**：写侧 `AggregateProjectorSupport.sync(aggregate, source)` 与对账 resync 共享同源标识；业务方应引用 `OrderEsTargets.TARGET_ES_ORDERS`，不要自行 `new ProjectionSource("es:orders")`，否则 key 不一致导致寻址失败。
+> ⚠️ **源标识 `source()` 即 `ReconciliationTarget.storeId()` 的同一身份**：写侧 `源.sync(aggregate)` 与对账 resync 共享同源标识；业务方应引用 `OrderEsTargets.TARGET_ES_ORDERS`，不要自行 `new ProjectionSource("es:orders")`，否则 key 不一致导致寻址失败。
 
 ### 4.5 目标常量：`OrderEsTargets`
 
@@ -539,7 +539,7 @@ PageResult<OrderEsProjection> page = orderReadService.queryPage(criteria, pageRe
 
 因此一条 `[redis, es]` 链即可覆盖全部查询形态：**按主键查询自动享受缓存加速，条件与分页查询自动落到 ES**，读服务里不需要为「哪个方法该查哪个源」写任何分支。
 
-读写两侧引用同一源常量：`OrderReadService` 的 `fallbackChain()` 与写侧 `AggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `storeId()`，保证「写入哪个副本、从哪个副本读回」key 一致。
+读写两侧引用同一源常量：`OrderReadService` 的 `fallbackChain()` 与写侧 `orderEsSource.sync(order)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `storeId()`，保证「写入哪个副本、从哪个副本读回」key 一致。
 
 编写规则：
 
@@ -909,10 +909,6 @@ public class OrderProjectionConfig {
         return registry;
     }
 
-    @Bean
-    public AggregateProjectorSupport aggregateProjectorSupport(ProjectorRegistry projectorRegistry) {
-        return new AggregateProjectorSupport(projectorRegistry);
-    }
 }
 ```
 
@@ -952,7 +948,7 @@ public class OrderProjectionConfig {
 
 - **一个 `源`（`AbstractProjectionSource` 子类）= 一份物理副本**。源在结构上绑定三件事：`(源标识, 聚合类型, 全量投影类型)` + 写读一体（`materialize` / `purge`）+ 一组「按需 bind」的检索器与裁剪器。
 - **注册中心以 `源标识` / `(条件类型, 索引级投影类型)` 为键**，多源共存是天然形态，`register(source)` 只累加、不覆盖。加新副本 = 新增一个源对象并 `register`，**不动**已存在的源、检索器、裁剪器。
-- **读写两侧解耦**：写路径按 `storeId()` 选定要同步的副本（`AggregateProjectorSupport.sync(order, TARGET_X)`），读路径按源/回退链选定要读的副本（见 §4.8）。新增副本时，**写侧要把它加进同步清单，读侧把它加进回退链**——两处各自独立接线。
+- **读写两侧解耦**：写路径按 `storeId()` 选定要同步的副本（注入该副本对应的 `源` 并调用 `源.sync(order)`），读路径按源/回退链选定要读的副本（见 §4.8）。新增副本时，**写侧要把它加进同步清单（注入对应源），读侧把它加进回退链**——两处各自独立接线。
 
 所以"加一个存储副本"在架构上就是**加一个新的 `源`**，本质上是为「同一份聚合读模型」增加一条**独立、可独立检索、可独立对账**的物化副本。
 
@@ -1054,20 +1050,20 @@ protected List<ProjectionSource> fallbackChain() {
 
 ### 4.13 事件订阅：应用层编排 + 绑定
 
-事件路径经 `AggregateProjectorSupport.sync(aggregate, source)` 桥接——门面内部 project 后调源 `materialize`，以传入的 `event.getVersion()`（= `getNewVersion()`）作为 external 版本写入：
+事件路径由 `源.sync(aggregate)` 完成——源内部 project 后调自身 `materialize`，以传入的 `event.getVersion()`（= `getNewVersion()`）作为 external 版本写入：
 
 ```java
 @Component
 public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjectionHandle {
 
     private final OrderRepository orderRepository;
-    private final AggregateProjectorSupport projectorSupport;
+    private final OrderEsSource esSource;
 
     public OrderDataSyncEsProjectionHandle(
             OrderRepository orderRepository,
-            AggregateProjectorSupport projectorSupport) {
+            OrderEsSource esSource) {
         this.orderRepository = orderRepository;
-        this.projectorSupport = projectorSupport;
+        this.esSource = esSource;
     }
 
     @Override
@@ -1076,12 +1072,12 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
         if (order == null) {
             return;
         }
-        projectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS);
+        esSource.sync(order);
     }
 }
 ```
 
-领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与 `AggregateProjectorSupport` 门面**组装编排**。`sync` 内部按源标识取 `AbstractProjectionSource` 实例，缺失或投影为 `null` 时静默跳过。
+领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与目标 `源`（`OrderEsSource`）**组装编排**。`sync` 由源自身完成 project→materialize，投影为 `null` 时静默跳过。
 
 订阅绑定在 `OrderEventSubscriberRegistry`（非 Spring 事件总线环境必须显式注册）：
 
@@ -1107,12 +1103,12 @@ Order 业务方法 → markModified() / markCreated()
        └─ IEventRegistry 订阅("es", OrderDataSyncEvent.class, OrderDataSyncEsProjectionHandle)
             └─ handleEvent(event)
                  ├─ orderRepository.findById(id)
-                 └─ aggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)
-                      ├─ registry.resolveProjector(Order.class, OrderEsProjection.class) → project
+                 └─ orderEsSource.sync(order)
+                      ├─ 源持有的 projector project(order) → 全量投影
                       └─ 源 OrderEsSource.materialize(projection, event.getVersion())   // version = getNewVersion()
 ```
 
-> `sync` 内部按 `TARGET_ES_ORDERS` 定位 `OrderEsSource` 实例，project 后调其 `materialize`；缺失或投影为 `null` 静默跳过。避免事件处理器内手写 project→materialize 双份逻辑。
+> `源.sync(order)` 由 `OrderEsSource` 自身完成 project 后调其 `materialize`；投影为 `null` 静默跳过。避免事件处理器内手写 project→materialize 双份逻辑。
 
 ### 5.2 读侧检索（读路径）
 
@@ -1145,8 +1141,8 @@ ReconciliationManager.reconcile(Order.class, id)
   ├─ IRepository.currentVersion(id)         → V
   ├─ Reconciliation.of(V', V)               判定 CONSISTENT / STALE / ORPHAN / UNTRACKED
   └─ OrderEsResynchronizer（implements IOrderReadModelResynchronizer）
-       ├─ resync(id)（STALE）：findById → aggregateProjectorSupport.sync(order, TARGET_ES_ORDERS)
-       └─ purge(id)（ORPHAN）：aggregateProjectorSupport.purge(TARGET_ES_ORDERS, id)
+       ├─ resync(id)（STALE）：findById → orderEsSource.sync(order)
+       └─ purge(id)（ORPHAN）：orderEsSource.purge(id)
 ```
 
 ### 5.4 对比
@@ -1242,7 +1238,7 @@ Optional.ofNullable(first.nextCursor())
 | 条件中使用枚举类型 | 跨进程传输与枚举演进互相牵制 | 条件与投影中枚举一律降级为 `Integer` / `int` + 文案 `String` |
 | `getSearcher` 未登记当空结果处理 | 接线 bug 被掩盖成「查不到」 | 启动时自检登记完整性；异常上抛不降级 |
 | 读路径为拿最新数据回源聚合根 | 同步阻塞、绕过副本、副本落后无法暴露 | 读路径只读副本，落后由对账修复 |
-| 绕过 Registry 手写投影更新 | 事件路径与 resync 逻辑不一致 | 共用 `ProjectorRegistry` / `AggregateProjectorSupport` |
+| 绕过源手写投影更新 | 事件路径与 resync 逻辑不一致 | 共用 `AbstractProjectionSource.sync` |
 | resync 重放单条事件 | 丢失的事件无法补齐副本 | 从写模型当前快照重建（findById → project → materialize） |
 | 投影用聚合根的 Lombok 约定 | 数据容器被 @Builder 等污染 | 投影 DTO 用 `@Data`；聚合根禁用 `@Data` |
 | 检索器 `projectionType()` 返回投影体系接口（如 `IOrderProjection.class`） | 与门面按索引级投影查询的键不一致，**运行期必然**抛 `ProjectionSearcherNotFoundException`，且编译期看不出来 | 检索器返回索引级全量投影具体类（如 `OrderEsProjection.class`） |

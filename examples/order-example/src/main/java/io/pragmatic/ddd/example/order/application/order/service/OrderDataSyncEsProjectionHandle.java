@@ -3,10 +3,8 @@ package io.pragmatic.ddd.example.order.application.order.service;
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderDataSyncEsProjectionHandle;
-import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderEsSource;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
-import io.pragmatic.ddd.repository.query.projection.AggregateProjectorSupport;
-import io.pragmatic.ddd.repository.query.projection.ProjectionSource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,20 +19,17 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 
     private final OrderRepository orderRepository;
 
-    private final AggregateProjectorSupport projectorSupport;
-
-    private final ProjectionSource source;
+    private final OrderEsSource esSource;
 
     public OrderDataSyncEsProjectionHandle(
             OrderRepository orderRepository,
-            AggregateProjectorSupport projectorSupport) {
+            OrderEsSource esSource) {
         this.orderRepository = orderRepository;
-        this.projectorSupport = projectorSupport;
-        this.source = ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        this.esSource = esSource;
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 ES，版本取自事件携带的副本版本。
+     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 ES，版本取自聚合的 oldVersion。
      *
      * @param event 订单数据同步事件
      */
@@ -45,6 +40,6 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
         if (order == null) {
             return;
         }
-        projectorSupport.sync(order, source);
+        esSource.sync(order);
     }
 }

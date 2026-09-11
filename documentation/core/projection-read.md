@@ -39,7 +39,6 @@ repository.query                 查询门面 + 编排（调用方视角）
     IProjectionPagedSearcher<C,P> 分页 / 滚动检索器
     IProjectionReducer<S,P>      裁剪器：索引级全量投影 → 业务子投影（Java 内存）
     ProjectorRegistry            源登记中心（按源登记，支持多源共存）
-    AggregateProjectorSupport    project→materialize / purge 门面（按源取源实例）
   exception/                     读侧投影检索域异常体系
     ProjectionException (基类) + 各具体异常 + ProjectionExceptions (包装辅助)
 
@@ -62,7 +61,7 @@ repository.reconciliation
 | `IAggregateProjection` | `io.pragmatic.ddd.repository.query.projection` | 投影标记接口 |
 | `IAggregateProjector` / `AbstractAggregateProjector` | `io.pragmatic.ddd.repository.query.projection` | 投影映射 |
 | `IProjectionByIdSearcher` / `IProjectionSearcher` / `IProjectionPagedSearcher` / `IProjectionReducer` | `io.pragmatic.ddd.repository.query.projection` | 检索 / 裁剪构件（挂在源上） |
-| `ProjectorRegistry` / `AggregateProjectorSupport` | `io.pragmatic.ddd.repository.query.projection` | 源登记与物化门面 |
+| `ProjectorRegistry` | `io.pragmatic.ddd.repository.query.projection` | 源登记中心 |
 | `ProjectionException` 体系 / `ProjectionExceptions` | `io.pragmatic.ddd.repository.query.exception` | 读侧投影检索域异常与包装辅助 |
 | `ReconciliationTarget` / `Reconciliation` | `io.pragmatic.ddd.repository.reconciliation` | 对账标识与状态判定 |
 | `IReadModelVersionResolver` / `IReadModelResynchronizer` | `io.pragmatic.ddd.repository.reconciliation` | 版本解析与补救 |
@@ -163,7 +162,7 @@ public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P ext
 
 > **重要约束**：投影与聚合根不可混用。`IAggregateProjection` 与 `AggregateRoot` 是两套体系。投影是读视图、可裁剪字段；聚合根是写模型、含不变量。不要「把聚合根直接当投影返回」——这会泄露写模型内部结构并破坏读写边界。
 
-> **重要约束**：`project` 返回 `null` 表示聚合不满足该投影条件。`AggregateProjectorSupport.sync` 会静默跳过；若调用方直接调用 projector 需自行判空，否则 `materialize(null, ...)` 会 NPE。
+> **重要约束**：`project` 返回 `null` 表示聚合不满足该投影条件。`AbstractProjectionSource.sync` 会静默跳过；若调用方直接调用 projector 需自行判空，否则 `materialize(null, ...)` 会 NPE。
 
 > **重要约束**：`project` 为纯映射、不含存储细节，可独立单测；持久化细节只在 `AbstractProjectionSource` 实现内。`AbstractAggregateProjector` 不提供反射式默认映射，字段映射必须手写。
 
@@ -211,20 +210,20 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 
 > **重要约束**：`resolveProjector` / `resolveSource` 未登记返回 `null`（或空），而四个 `get*Searcher` / `getReducer` 未登记**抛异常**。前者是「可选构件缺失、静默跳过」，后者是「接线 / 配置缺失、必须暴露」，二者行为刻意不同。
 
-`AggregateProjectorSupport` 是 project→materialize / purge 门面，按**源**桥接：
+`AbstractProjectionSource` 在源自身承载 project→materialize / purge 编排（不再需要独立门面）：
 
 | 方法 | 说明 |
 | --- | --- |
-| `sync(aggregate, source)` | 从 registry 取源实例（按 `source` 标识），project 后 `materialize`；缺失或投影为 `null` 静默跳过 |
-| `purge(source, aggregateId)` | 按源标识清理残留条目 |
+| `sync(aggregate)` | 由源自身持有的 projector `project` 后 `materialize`；投影为 `null` 时静默跳过 |
+| `purge(aggregateId)` | 按聚合主键清理本源物理存储中的残留副本 |
 
 #### 关键约束
 
-> **重要约束**：源 `source()` 标识即 `ReconciliationTarget` 的 `storeId()`，写侧 `sync` 与对账 `resync` 共享同源标识，registry 不单独登记 target。业务方应引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），避免 key 不一致导致寻址失败。
+> **重要约束**：源 `source()` 标识即 `ReconciliationTarget` 的 `storeId()`，写侧源 `sync` 与对账 `resync` 共享同源标识，registry 不单独登记 target。业务方应引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），避免 key 不一致导致寻址失败。
 
-> **重要约束**：事件物化路径与对账 resync 路径共用 `AggregateProjectorSupport` 门面，保证转换逻辑唯一。`sync` 不持有 repository 与源；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。
+> **重要约束**：事件物化路径与对账 resync 路径共用 `AbstractProjectionSource.sync`，保证转换逻辑唯一。源自身 `sync` 不持有 repository；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。
 
-> **重要约束**：`sync` 在源缺失或投影为 `null` 时**静默跳过**，不抛异常。需要强制物化的场景，调用方应先 `resolveSource` 判空。
+> **重要约束**：`AbstractProjectionSource.sync` 在投影为 `null` 时**静默跳过**，不抛异常；源本身由调用方持有 / 注入，不存在「源缺失」分支。
 
 #### 示例代码
 
@@ -294,7 +293,7 @@ if (status == ReconciliationStatus.STALE) {
 
 ### 3.1 project→materialize 门面唯一性
 
-事件物化路径（领域事件触发）与对账 resync 路径（版本不一致触发）都经 `AggregateProjectorSupport` 完成 project→materialize，转换逻辑在 projector / 源内只实现一次。若绕过门面直接在事件处理器里手写投影更新，会出现与 resync 不一致的双份逻辑。
+事件物化路径（领域事件触发）与对账 resync 路径（版本不一致触发）都经 `AbstractProjectionSource.sync` 完成 project→materialize，转换逻辑在 projector / 源内只实现一次。若绕过源直接在事件处理器里手写投影更新，会出现与 resync 不一致的双份逻辑。
 
 ### 3.2 版本号语义（V 与 V'）
 
@@ -304,7 +303,7 @@ if (status == ReconciliationStatus.STALE) {
 
 ### 3.3 缺失组件的静默跳过
 
-`sync` 在 projector / 源缺失或投影为 `null` 时静默跳过。批量事件处理中，单条聚合的配置缺失不会中断整批，但会导致该聚合副本不被更新；排查副本陈旧时优先确认 registry 是否已登记对应 projector / 源 / target。
+`AbstractProjectionSource.sync` 在投影为 `null` 时静默跳过；源由调用方注入、projector 由源持有，均不存在「缺失」分支。批量事件处理中，投影为 `null` 的单条聚合不会被物化；排查副本陈旧时优先确认 registry 是否已登记对应 projector / 源。
 
 注意：读侧的 `get*Searcher` / `getReducer` 与此相反，未登记即抛异常——读侧构件缺失属于接线错误，不应静默降级为空结果。
 
@@ -360,7 +359,7 @@ RuntimeException
 | 场景 | 行为 | 位置 |
 | --- | --- | --- |
 | `PageRequest` 越界 | 抛 `IllegalArgumentException` | `PageRequest.of` |
-| projector / 源缺失 | `sync` 静默跳过 | `AggregateProjectorSupport` |
+| 投影为 `null` | `sync` 静默跳过 | `AbstractProjectionSource` |
 | 检索执行失败（通信 / 反序列化） | 抛 `ProjectionRetrieveException` | `ProjectionExceptions.retrieve` |
 | 条件无法翻译 | 抛 `ProjectionConditionException` | `ProjectionExceptions.translate` |
 | searcher 未登记 | 抛 `ProjectionSearcherNotFoundException` | `ProjectorRegistry.get*Searcher` |
@@ -385,7 +384,7 @@ RuntimeException
 | 投影 | 实现 `IAggregateProjection`，用 sealed interface 封闭 | 投影与聚合根是两套体系，不可混用 |
 | 投影器 | 继承 `AbstractAggregateProjector` | `project` 纯映射不含存储；返回 `null` 表示不满足 |
 | 源 | 继承 `AbstractProjectionSource` | 写读一体；`source()` 标识即对账 target；external 版本冲突静默丢弃 |
-| 登记 / 门面 | `ProjectorRegistry` + `AggregateProjectorSupport.sync` | 事件与 resync 共用门面；缺失静默跳过 |
+| 登记 / 源 | `ProjectorRegistry`（源登记）+ `AbstractProjectionSource.sync` | 事件与 resync 共用源；投影为 null 静默跳过 |
 | 检索器 | 实现三类 `IProjection*Searcher` | `projectionType()` 用索引级全量投影具体类；未登记抛异常 |
 | 裁剪器 | 实现 `IProjectionReducer` | `reduce` 纯函数；分页留在检索器侧 |
 | 读侧取数 | 选路 → 查全量 → 内存裁剪 | 键精确匹配、不做类型向上查找；子投影单一来源 |
@@ -396,5 +395,5 @@ RuntimeException
 **下一步阅读**
 
 - [仓储写模型](./repository-write.md)：聚合持久化、`currentVersion` 权威版本 V
-- [领域事件](./domain-events.md)：投影物化通常由领域事件触发，经 `AggregateProjectorSupport.sync` 落异构存储
+- [领域事件](./domain-events.md)：投影物化通常由领域事件触发，经 `AbstractProjectionSource.sync` 落异构存储
 - [领域建模](./domain-modeling.md)：`AggregateRoot` 与 `triggerDataSyncHook` 钩子

@@ -14,7 +14,6 @@
  *   <li>源适配器 —— {@link AbstractProjectionSource}：一份副本的写（materialize / purge）
  *       与读（bind 检索器 / 裁剪器）收敛于同一处</li>
  *   <li>登记中心 —— {@link ProjectorRegistry}：源 / 构件注册与定位、源解析（默认源 / 歧义检测）</li>
- *   <li>写侧同步门面 —— {@link AggregateProjectorSupport}：sync / purge，桥接对账目标</li>
  * </ul>
  *
  * @author wizard-lee

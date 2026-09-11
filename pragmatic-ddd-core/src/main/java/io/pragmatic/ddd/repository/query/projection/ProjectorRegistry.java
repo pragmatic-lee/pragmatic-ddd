@@ -11,7 +11,6 @@ import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,17 +64,17 @@ public class ProjectorRegistry {
      * @param <P> 全量投影类型
      */
     public <T extends AggregateRoot<?>, P extends IAggregateProjection> void register(AbstractProjectionSource<T, P> source) {
-        AbstractProjectionSource<?, ?> previous = sources.putIfAbsent(source.source(), source);
+        AbstractProjectionSource<?, ?> previous = sources.putIfAbsent(source.getSource(), source);
         if (previous != null && previous != source) {
             throw new ProjectionSourceConflictException(
-                    "源 id 重复：" + source.source().id() + " 已登记于 " + previous.getClass().getSimpleName());
+                    "源 id 重复：" + source.getSource().id() + " 已登记于 " + previous.getClass().getSimpleName());
         }
         sourcesByProjection
-                .computeIfAbsent(source.projectionType(), k -> new HashSet<>())
-                .add(source.source());
-        source.reducers().keySet().forEach(sub -> sourcesBySubProjection
+                .computeIfAbsent(source.getProjectionType(), k -> new HashSet<>())
+                .add(source.getSource());
+        source.getReducers().keySet().forEach(sub -> sourcesBySubProjection
                 .computeIfAbsent(sub, k -> new HashSet<>())
-                .add(source.source()));
+                .add(source.getSource()));
     }
 
     /**
@@ -102,14 +101,14 @@ public class ProjectorRegistry {
     /** 取源投影器；未登记抛 {@link ProjectionSourceNotFoundException}。 */
     @SuppressWarnings("unchecked")
     public <T extends AggregateRoot<?>, P extends IAggregateProjection> IAggregateProjector<T, P> getProjector(ProjectionSource source) {
-        return (IAggregateProjector<T, P>) getSource(source).projector();
+        return (IAggregateProjector<T, P>) getSource(source).getProjector();
     }
 
     /** 取按 id 检索器；未登记或源无该检索器抛 {@link ProjectionSourceNotFoundException}。 */
     @SuppressWarnings("unchecked")
     public <P extends IAggregateProjection> IProjectionByIdSearcher<P> getByIdSearcher(ProjectionSource source) {
         AbstractProjectionSource<?, ?> src = getSource(source);
-        return (IProjectionByIdSearcher<P>) src.idSearcher()
+        return (IProjectionByIdSearcher<P>) Optional.ofNullable(src.getIdSearcher())
                 .orElseThrow(() -> new ProjectionSourceNotFoundException(
                         "源 " + source.id() + " 未绑定按主键检索器"));
     }
@@ -119,11 +118,11 @@ public class ProjectorRegistry {
     public <C extends QueryCriteria, P extends IAggregateProjection> IProjectionSearcher<C, P> getSearcher(
             ProjectionSource source, Class<C> criteriaType) {
         AbstractProjectionSource<?, ?> src = getSource(source);
-        IProjectionSearcher<?, ?> searcher = src.searchers().get(criteriaType);
+        IProjectionSearcher<?, ?> searcher = src.getSearchers().get(criteriaType);
         if (searcher == null) {
             throw new ProjectionSearcherNotFoundException(
                     "源 " + source.id() + " 未登记条件族 " + criteriaType.getSimpleName()
-                            + " 的检索器；已支持：" + supportedCriteria(src.searchers().keySet()));
+                            + " 的检索器；已支持：" + supportedCriteria(src.getSearchers().keySet()));
         }
         return (IProjectionSearcher<C, P>) searcher;
     }
@@ -133,11 +132,11 @@ public class ProjectorRegistry {
     public <C extends PageQueryCriteria, P extends IAggregateProjection> IProjectionPagedSearcher<C, P> getPagedSearcher(
             ProjectionSource source, Class<C> criteriaType) {
         AbstractProjectionSource<?, ?> src = getSource(source);
-        IProjectionPagedSearcher<?, ?> searcher = src.pagedSearchers().get(criteriaType);
+        IProjectionPagedSearcher<?, ?> searcher = src.getPagedSearchers().get(criteriaType);
         if (searcher == null) {
             throw new ProjectionSearcherNotFoundException(
                     "源 " + source.id() + " 未登记分页条件族 " + criteriaType.getSimpleName()
-                            + " 的检索器；已支持：" + supportedCriteria(src.pagedSearchers().keySet()));
+                            + " 的检索器；已支持：" + supportedCriteria(src.getPagedSearchers() .keySet()));
         }
         return (IProjectionPagedSearcher<C, P>) searcher;
     }
@@ -149,7 +148,7 @@ public class ProjectorRegistry {
     public <SRC extends IAggregateProjection, SUB extends IAggregateProjection> IProjectionReducer<SRC, SUB> getReducer(
             ProjectionSource source, Class<SUB> subProjection) {
         AbstractProjectionSource<?, ?> src = getSource(source);
-        IProjectionReducer<?, ?> reducer = src.reducers().get(subProjection);
+        IProjectionReducer<?, ?> reducer = src.getReducers().get(subProjection);
         if (reducer == null) {
             throw new ProjectionSourceNotFoundException(
                     "源 " + source.id() + " 未登记子投影 " + subProjection.getSimpleName() + " 的裁剪器");
@@ -167,28 +166,28 @@ public class ProjectorRegistry {
      */
     public boolean supportsProjection(ProjectionSource source, Class<?> projectionType) {
         return findSource(source)
-                .map(src -> src.projectionType().equals(projectionType) || src.reducers().containsKey(projectionType))
+                .map(src -> src.getProjectionType().equals(projectionType) || src.getReducers().containsKey(projectionType))
                 .orElse(false);
     }
 
     /** 源是否绑定按主键检索器；源未登记或未绑定返回 false。 */
     public boolean hasByIdSearcher(ProjectionSource source) {
         return findSource(source)
-                .map(src -> src.idSearcher().isPresent())
+                .map(src -> Optional.ofNullable(src.getIdSearcher()).isPresent())
                 .orElse(false);
     }
 
     /** 源是否登记该条件族的检索器；源未登记或未登记返回 false。 */
     public boolean hasSearcher(ProjectionSource source, Class<? extends QueryCriteria> criteriaType) {
         return findSource(source)
-                .map(src -> src.searchers().containsKey(criteriaType))
+                .map(src -> src.getSearchers().containsKey(criteriaType))
                 .orElse(false);
     }
 
     /** 源是否登记该条件族的分页 / 滚动检索器；源未登记或未登记返回 false。 */
     public boolean hasPagedSearcher(ProjectionSource source, Class<? extends PageQueryCriteria> criteriaType) {
         return findSource(source)
-                .map(src -> src.pagedSearchers().containsKey(criteriaType))
+                .map(src -> src.getPagedSearchers().containsKey(criteriaType))
                 .orElse(false);
     }
 
@@ -241,8 +240,8 @@ public class ProjectorRegistry {
     private <P extends IAggregateProjection> ProjectionSource resolveSpecifiedSource(Class<P> projectionType, ProjectionSource source) {
         AbstractProjectionSource<?, ?> src = Optional.ofNullable(sources.get(source))
                 .orElseThrow(() -> new ProjectionSourceNotFoundException("源未登记：" + source.id()));
-        boolean isFull = src.projectionType().equals(projectionType);
-        boolean isSub = src.reducers().containsKey(projectionType);
+        boolean isFull = src.getProjectionType().equals(projectionType);
+        boolean isSub = src.getReducers().containsKey(projectionType);
         if (!isFull && !isSub) {
             throw new ProjectionSourceNotFoundException(
                     "源 " + source.id() + " 既不承载全量投影 " + projectionType.getSimpleName()
@@ -262,24 +261,8 @@ public class ProjectorRegistry {
         return sources;
     }
 
-    /** 给定 storeId 解析源标识。供 {@link AggregateProjectorSupport} 由对账目标桥接（sync 路径）。 */
-    public Optional<ProjectionSource> sourceById(String id) {
-        Objects.requireNonNull(id, "id");
-        return sources.keySet().stream()
-                .filter(s -> s.id().equals(id))
-                .findFirst();
-    }
-
-    /** 给定 storeId 取源实例（源 id 与写侧 ReconciliationTarget.storeId 同名）。供 purge 路径。 */
-    public Optional<AbstractProjectionSource<?, ?>> getSource(String id) {
-        Objects.requireNonNull(id, "id");
-        return sources.values().stream()
-                .filter(s -> s.source().id().equals(id))
-                .findFirst();
-    }
-
     /** 取源对应的对账目标（id 同名，由源派生）。 */
     public Optional<ReconciliationTarget> targetOf(ProjectionSource source) {
-        return Optional.ofNullable(sources.get(source)).map(AbstractProjectionSource::target);
+        return Optional.ofNullable(sources.get(source)).map(AbstractProjectionSource::getTarget);
     }
 }
