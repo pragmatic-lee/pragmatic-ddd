@@ -2,7 +2,7 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
-import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
+import io.pragmatic.ddd.repository.query.projection.IReducer;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -21,17 +21,7 @@ import java.util.Optional;
  */
 @Component
 public class OrderSummaryReducer
-        implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection> {
-
-    /**
-     * 返回本裁剪器的源投影类型，即索引 order_index 的索引级全量投影。
-     *
-     * @return 订单 ES 全量投影类型
-     */
-    @Override
-    public Class<OrderEsProjection> sourceType() {
-        return OrderEsProjection.class;
-    }
+        implements IReducer<OrderEsProjection, OrderSummaryProjection> {
 
     /**
      * 返回本裁剪器产出的子投影类型。

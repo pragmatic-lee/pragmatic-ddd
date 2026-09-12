@@ -1,70 +1,52 @@
 package io.pragmatic.ddd.repository.query.projection;
 
-import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
-import io.pragmatic.ddd.repository.query.criteria.QueryCriteria;
-import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictException;
-
 import io.pragmatic.ddd.base.AggregateRoot;
-import io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget;
+import io.pragmatic.ddd.repository.IReadModelReplica;
 import lombok.Getter;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 投影源适配器基类：把一份物理副本（ES 一个索引 / Redis 一个键空间）的「写」与「读」收敛到同一处。
+ * 投影源适配器基类：把一份物理副本（ES 一个索引 / Redis 一个键空间）的「写」「读」与「对账」收敛到同一处。
  *
  * <p>职责：
  * <ul>
  *     <li>写：{@code materialize} / {@code purge}，由子类实现，操作本源的物理存储。</li>
- *     <li>读：构造期通过 {@code bind(...)} 挂接检索器（按 id / 单 / 列表 / 分页 / 滚动）与裁剪器（子投影）。</li>
- *     <li>定位：{@code source} / {@code target} / {@code projectionType} 由本类以 final 字段持有，供注册表与查询链路取用。</li>
+ *     <li>读：由子类按需 implements「领域层源接口」（其 extends 查询族接口），基类不声明任何读方法。</li>
+ *     <li>对账：实现 {@link IReadModelReplica}，副本身份（聚合类型 + 副本标识）、版本读取与自我重建由本类与子类承载。</li>
+ *     <li>裁剪：构造时注入本源支持的 {@link IReducer} 列表，供 {@link #getReducer(Class)} 按子投影类型取用。</li>
  * </ul>
  *
- * <p>寻址细节（索引名 / 键前缀）只在源类内出现一次，检索器与物化器共享，写读错位在结构上不可能。
- * 源 {@code id} 与写侧 {@link ReconciliationTarget#storeId()} 同名，由构造器派生 {@code target}，二者不可能不同名。
+ * <p>reducer 与源强相关：{@code reducers} 的泛型 {@code IReducer<P, ?>} 把源投影类型锁死为本源全量投影 {@code P}，
+ * 故只有产出 {@code P} 的 reducer 才能注入本源，源 / 子投影映射错配在构造期即暴露。
  *
- * @param <T> 聚合根类型（写模型）
- * @param <P> 全量投影类型（本源唯一承载的投影）
+ * @param <T>  聚合根类型（写模型）
+ * @param <ID> 聚合标识类型
+ * @param <P>  全量投影类型（本源唯一承载的投影）
  * @author wizard-lee
  */
 @Getter
-public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P extends IAggregateProjection> {
+public abstract class AbstractProjectionSource<T extends AggregateRoot<ID>, ID, P extends IAggregateProjection>
+        implements IReadModelReplica<ID> {
 
     private final ProjectionSource source;
     private final Class<? extends AggregateRoot<?>> aggregateType;
     private final Class<P> projectionType;
     private final IAggregateProjector<T, P> projector;
-    private final ReconciliationTarget target;
-
-    private final IProjectionByIdSearcher<P> idSearcher;
-    private final Map<Class<?>, IProjectionSearcher<?, P>> searchers;
-    private final Map<Class<?>, IProjectionPagedSearcher<?, P>> pagedSearchers;
-    private final Map<Class<?>, IProjectionReducer<?, ?>> reducers;
-
-    @SuppressWarnings("unchecked")
-    private static <T> T castUnchecked(Object value) {
-        return (T) value;
-    }
+    private final List<IReducer<P, ?>> reducers;
 
     protected AbstractProjectionSource(
             ProjectionSource source,
             Class<T> aggregateType,
             Class<P> projectionType,
             IAggregateProjector<T, P> projector,
-            IProjectionByIdSearcher<P> idSearcher
+            List<IReducer<P, ?>> reducers
     ) {
         this.source = source;
         this.aggregateType = aggregateType;
         this.projectionType = projectionType;
         this.projector = projector;
-        this.target = new ReconciliationTarget(aggregateType, source.id());
-        this.idSearcher = idSearcher;
-        this.searchers = new ConcurrentHashMap<>();
-        this.pagedSearchers = new ConcurrentHashMap<>();
-        this.reducers = new ConcurrentHashMap<>();
+        this.reducers = List.copyOf(reducers);
     }
 
     /** 物化：将全量投影写入本源的物理存储。子类以具体投影类型覆写（桥方法自动生成）。 */
@@ -72,6 +54,33 @@ public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P ext
 
     /** 清除：按聚合主键删除本源物理存储中的副本。 */
     public abstract void purge(Object aggregateId);
+
+    /** 读取副本版本 V'：由子类按本副本物理存储实现（如 ES _version、Redis 内嵌 version）。 */
+    @Override
+    public abstract long readVersion(ID aggregateId);
+
+    /** 重建本副本：由子类从写模型当前快照重建（通常 load 聚合后调用 {@link #sync}）。 */
+    @Override
+    public abstract void rebuild(ID aggregateId);
+
+    /** 清理残留：默认委托 {@link #purge(Object)}；子类语义不同时可覆写。 */
+    @Override
+    public void purgeOrphan(ID aggregateId) {
+        purge(aggregateId);
+    }
+
+    /** 本副本所属的聚合类型。 */
+    @Override
+    @SuppressWarnings("unchecked")
+    public Class<? extends AggregateRoot<ID>> aggregateType() {
+        return (Class<? extends AggregateRoot<ID>>) aggregateType;
+    }
+
+    /** 副本标识，即读侧源标识。 */
+    @Override
+    public String replicaId() {
+        return source.id();
+    }
 
     /**
      * 将聚合物化到本源：project → materialize。
@@ -87,42 +96,18 @@ public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P ext
     }
 
     /**
-     * 绑定按条件检索器。同一条件族重复绑定不同实现视为冲突。
+     * 从本源注册的裁剪器中按目标子投影类型取 reducer。
      *
-     * @param searcher 检索器
-     * @param <C> 查询条件类型
+     * @param target 目标子投影类型
+     * @param <X> 目标子投影类型
+     * @return 匹配的裁剪器；未注册返回 null
      */
-    protected final <C extends QueryCriteria> void bind(IProjectionSearcher<C, P> searcher) {
-        putIfAbsentOrThrow(searchers, searcher.criteriaType(), searcher);
-    }
-
-    /**
-     * 绑定分页检索器。同一条件族重复绑定不同实现视为冲突。
-     *
-     * @param searcher 分页检索器
-     * @param <C> 查询条件类型
-     */
-    protected final <C extends PageQueryCriteria> void bind(IProjectionPagedSearcher<C, P> searcher) {
-        putIfAbsentOrThrow(pagedSearchers, searcher.criteriaType(), searcher);
-    }
-
-    /**
-     * 绑定裁剪器。同一子投影重复绑定不同实现视为冲突。
-     * 泛型 {@code <S>} 为本源的索引级全量投影类型，{@code <X>} 为裁出的业务子投影类型。
-     *
-     * @param reducer 裁剪器
-     * @param <S> 本源全量投影类型
-     * @param <X> 业务子投影类型
-     */
-    protected final <S extends IAggregateProjection, X extends IAggregateProjection> void bind(IProjectionReducer<S, X> reducer) {
-        putIfAbsentOrThrow(reducers, reducer.projectionType(), reducer);
-    }
-
-    private <K, V> void putIfAbsentOrThrow(Map<K, V> map, K key, V value) {
-        V previous = map.putIfAbsent(key, value);
-        if (previous != null && previous != value) {
-            throw new ProjectionSourceConflictException(
-                    "源 " + source.id() + " 上键 " + key + " 已绑定不同实现：" + previous + " 与 " + value);
-        }
+    @SuppressWarnings("unchecked")
+    public <X extends IAggregateProjection> IReducer<P, X> getReducer(Class<X> target) {
+        return reducers.stream()
+                .filter(reducer -> target.isAssignableFrom(reducer.projectionType()))
+                .map(reducer -> (IReducer<P, X>) reducer)
+                .findFirst()
+                .orElse(null);
     }
 }

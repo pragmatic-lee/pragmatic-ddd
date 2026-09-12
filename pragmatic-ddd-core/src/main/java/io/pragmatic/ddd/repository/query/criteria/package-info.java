@@ -10,8 +10,8 @@
  * </ul>
  *
  * <p>业务侧以 sealed interface 继承分族父类落地具体条件，跨族传参在编译期报错。
- * 检索器 SPI（{@code IProjectionSearcher} 等）以 {@code C extends QueryCriteria}
- * 统一表达任意族的检索条件。</p>
+ * 查询族 SPI（{@code IOneQuerySearcher} / {@code IListQuerySearcher} / {@code IPagedQuerySearcher}）
+ * 以对应分族父类作为条件泛型上界。</p>
  *
  * @author wizard-lee
  */

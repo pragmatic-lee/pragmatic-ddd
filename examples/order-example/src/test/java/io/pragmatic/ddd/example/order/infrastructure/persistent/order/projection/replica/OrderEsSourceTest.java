@@ -10,11 +10,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsTargets;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderByIdSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.projector.OrderEsProjector;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderListSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderOneSearcher;
-import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.searcher.OrderPageSearcher;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderSummaryReducer;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.replica.OrderEsSource;
 import org.apache.http.HttpHost;
@@ -64,12 +60,9 @@ class OrderEsSourceTest {
         elasticsearchClient = new ElasticsearchClient(transport);
         orderEsSource = new OrderEsSource(
                 new OrderEsProjector(),
-                new OrderByIdSearcher(elasticsearchClient),
-                new OrderOneSearcher(elasticsearchClient),
-                new OrderListSearcher(elasticsearchClient),
-                new OrderPageSearcher(elasticsearchClient),
                 new OrderSummaryReducer(),
-                elasticsearchClient);
+                elasticsearchClient,
+                null);
         deleteTestDocumentSilently();
     }
 
@@ -182,7 +175,8 @@ class OrderEsSourceTest {
     @Test
     @DisplayName("source 返回订单 ES 源标识 es:orders")
     void sourceReturnsOrderEsIdentifier() {
-        assertThat(orderEsSource.getSource().id()).isEqualTo(OrderEsTargets.TARGET_ES_ORDERS.storeId());
+        assertThat(orderEsSource.getSource().id()).isEqualTo(OrderEsTargets.REPLICA_ID);
+        assertThat(orderEsSource.replicaId()).isEqualTo(OrderEsTargets.REPLICA_ID);
         assertThat(orderEsSource.getProjectionType()).isEqualTo(OrderEsProjection.class);
     }
 

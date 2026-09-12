@@ -5,8 +5,8 @@ import java.util.Objects;
 /**
  * 投影源（读侧副本）的稳定标识，是读侧寻址的第一维度。
  * 一个源对应一份物理副本：ES 一个索引 = 一个源，Redis 一个键空间 = 一个源。
- * 源的 {@code id} 约定与写侧 {@link io.pragmatic.ddd.repository.reconciliation.ReconciliationTarget#storeId()} 同名，
- * 读写两侧指向同一份副本时使用同一个字符串。
+ * 源的 {@code id} 即副本标识（{@link io.pragmatic.ddd.repository.IReadModelReplica#replicaId()}），
+ * 源自身即副本，读写与对账共用同一身份。
  *
  * @param id 源标识，全局唯一，非空
  * @author wizard-lee

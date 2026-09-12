@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.repository.reconciliation;
 
+import io.pragmatic.ddd.repository.ReplicaKey;
+
 /**
  * 不去重的默认实现（每次都应处理），供 ReconciliationManager 默认装配。
  *
@@ -10,6 +12,6 @@ public final class NoOpReconcileDedup implements IReconcileDedup {
 
     private NoOpReconcileDedup() {}
 
-    @Override public boolean shouldSkip(ReconciliationTarget target, Object aggregateId) { return false; }
-    @Override public void mark(ReconciliationTarget target, Object aggregateId) { /* no-op */ }
+    @Override public boolean shouldSkip(ReplicaKey key, Object aggregateId) { return false; }
+    @Override public void mark(ReplicaKey key, Object aggregateId) { /* no-op */ }
 }

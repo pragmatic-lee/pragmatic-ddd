@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.example.order.api.order.dto;
 
 import io.pragmatic.ddd.example.order.domain.order.model.OrderItem;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import lombok.Data;
 
@@ -38,6 +39,16 @@ public class OrderItemDTO {
 
     /** 由 ES 投影项组装（金额为元，与投影一致）。 */
     public static OrderItemDTO from(OrderEsProjection.OrderItemProjection item) {
+        OrderItemDTO dto = new OrderItemDTO();
+        dto.setProductId(item.getProductId());
+        dto.setProductName(item.getProductName());
+        dto.setPrice(item.getPrice());
+        dto.setQuantity(item.getQuantity());
+        return dto;
+    }
+
+    /** 由 Redis 缓存副本投影项组装（金额为元，与投影一致）。 */
+    public static OrderItemDTO from(OrderCacheProjection.OrderItemProjection item) {
         OrderItemDTO dto = new OrderItemDTO();
         dto.setProductId(item.getProductId());
         dto.setProductName(item.getProductName());

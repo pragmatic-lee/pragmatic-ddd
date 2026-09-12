@@ -1,15 +1,7 @@
 package io.pragmatic.ddd.repository.query.projection;
 
-import io.pragmatic.ddd.repository.query.criteria.OneQueryCriteria;
-import io.pragmatic.ddd.repository.query.criteria.PageQueryCriteria;
 import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictException;
 import io.pragmatic.ddd.repository.query.exception.ProjectionSourceNotFoundException;
-import io.pragmatic.ddd.repository.query.paging.PageRequest;
-import io.pragmatic.ddd.repository.query.paging.PageResult;
-import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
-import io.pragmatic.ddd.repository.query.paging.ScrollResult;
-
-import io.pragmatic.ddd.repository.query.projection.fixture.StubAggregate;
 import io.pragmatic.ddd.repository.query.projection.fixture.StubProjection;
 import io.pragmatic.ddd.repository.query.projection.fixture.StubProjector;
 import io.pragmatic.ddd.repository.query.projection.fixture.StubSource;
@@ -21,138 +13,78 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 验证 ProjectorRegistry 以「源」为中心的登记与解析。
+ * 验证极薄化后的源登记中心：登记、按 id 取源、重复冲突与投影器取用。
  *
  * @author wizard-lee
  */
 class ProjectorRegistryTest {
 
-    @Test
-    void registerAndResolve_sourceById() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        ProjectionSource source = ProjectionSource.of("es:stub");
-        StubSource stub = new StubSource(source);
-        registry.register(stub);
+    private static final ProjectionSource ES = ProjectionSource.of("es:stub");
 
-        assertThat(registry.getSource(source)).isSameAs(stub);
-        assertThat(registry.getProjector(source)).isNotNull();
+    private static StubSource source(ProjectionSource source) {
+        return new StubSource(source, new StubProjector<>(StubProjection.class), List.of());
     }
 
     @Test
-    void resolveProjector_unregisteredSource_throws() {
+    void registerAndGetSource_byId() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        assertThatThrownBy(() -> registry.getProjector(ProjectionSource.of("missing")))
-                .isInstanceOf(ProjectionSourceNotFoundException.class);
+        StubSource src = source(ES);
+        registry.register(src);
+
+        assertThat(registry.getSource(ES)).isSameAs(src);
+        assertThat(registry.findSource(ES)).contains(src);
     }
 
     @Test
-    void register_duplicateSourceId_conflicts() {
+    void getSource_unregistered_throwsNotFound() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        ProjectionSource source = ProjectionSource.of("es:stub");
-        registry.register(new StubSource(source));
 
-        assertThatThrownBy(() -> registry.register(new StubSource(source)))
+        assertThatThrownBy(() -> registry.getSource(ES))
+                .isInstanceOf(ProjectionSourceNotFoundException.class)
+                .hasMessageContaining(ES.id());
+    }
+
+    @Test
+    void findSource_unregistered_returnsEmpty() {
+        ProjectorRegistry registry = new ProjectorRegistry();
+
+        assertThat(registry.findSource(ES)).isEmpty();
+    }
+
+    @Test
+    void register_sameIdDifferentInstance_throwsConflict() {
+        ProjectorRegistry registry = new ProjectorRegistry();
+        registry.register(source(ES));
+
+        assertThatThrownBy(() -> registry.register(source(ES)))
                 .isInstanceOf(ProjectionSourceConflictException.class);
     }
 
     @Test
-    void register_projectionBelongsToSingleSource() {
+    void register_sameInstanceTwice_isIdempotent() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        registry.register(new StubSource(ProjectionSource.of("es:stub")));
-        registry.register(new StubSource(ProjectionSource.of("redis:stub")));
+        StubSource src = source(ES);
+        registry.register(src);
+        registry.register(src);
 
-        // 两个不同源 id 各用同一投影类，不应冲突（源 id 唯一即可）
-        assertThat(registry.sourcesOf(StubProjection.class)).isEmpty();
-        assertThat(registry.fullProjectionOf(StubProjection.class)).isPresent();
+        assertThat(registry.getSource(ES)).isSameAs(src);
     }
 
     @Test
-    void supportsProjection_fullProjectionAndUnrelated() {
+    void getProjector_bySource() {
         ProjectorRegistry registry = new ProjectorRegistry();
-        ProjectionSource source = ProjectionSource.of("es:stub");
-        registry.register(new StubSource(source));
+        registry.register(source(ES));
 
-        assertThat(registry.supportsProjection(source, StubProjection.class)).isTrue();
-        assertThat(registry.supportsProjection(source, StubAggregate.class)).isFalse();
-        assertThat(registry.supportsProjection(ProjectionSource.of("missing"), StubProjection.class)).isFalse();
+        assertThat(registry.getProjector(ES)).isNotNull();
     }
 
     @Test
-    void hasSearcher_capabilitiesFollowBindings() {
+    void replicaIdentity_bridgesToSource() {
+        StubSource src = source(ES);
         ProjectorRegistry registry = new ProjectorRegistry();
-        ProjectionSource source = ProjectionSource.of("es:stub");
-        StubSource stub = new StubSource(source, new StubProjector<>(StubProjection.class), new ByIdSearcher())
-                .with(new Searcher())
-                .with(new PagedSearcher());
-        registry.register(stub);
+        registry.register(src);
 
-        assertThat(registry.hasByIdSearcher(source)).isTrue();
-        assertThat(registry.hasSearcher(source, Criteria.class)).isTrue();
-        assertThat(registry.hasPagedSearcher(source, PageCriteria.class)).isTrue();
-        assertThat(registry.hasSearcher(source, PageCriteria.class)).isFalse();
-    }
-
-    @Test
-    void hasSearcher_unboundOrUnregistered_returnsFalse() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        ProjectionSource source = ProjectionSource.of("es:stub");
-        registry.register(new StubSource(source));
-
-        assertThat(registry.hasByIdSearcher(source)).isFalse();
-        assertThat(registry.hasSearcher(source, Criteria.class)).isFalse();
-        assertThat(registry.hasPagedSearcher(source, PageCriteria.class)).isFalse();
-        assertThat(registry.hasByIdSearcher(ProjectionSource.of("missing"))).isFalse();
-    }
-
-    private record Criteria(String key) implements OneQueryCriteria {}
-
-    private record PageCriteria(String key) implements PageQueryCriteria {}
-
-    /** 按主键检索器桩：仅用于满足能力探测。 */
-    private static final class ByIdSearcher implements IProjectionByIdSearcher<StubProjection> {
-
-        @Override
-        public StubProjection getById(Object id) {
-            return null;
-        }
-
-        @Override
-        public List<StubProjection> getByIds(List<Object> ids) {
-            return List.of();
-        }
-    }
-
-    /** 按条件检索器桩：仅用于满足能力探测。 */
-    private static final class Searcher implements IProjectionSearcher<Criteria, StubProjection> {
-
-        @Override
-        public Class<Criteria> criteriaType() {
-            return Criteria.class;
-        }
-
-        @Override
-        public List<StubProjection> search(Criteria condition) {
-            return List.of();
-        }
-    }
-
-    /** 分页检索器桩：仅用于满足能力探测。 */
-    private static final class PagedSearcher implements IProjectionPagedSearcher<PageCriteria, StubProjection> {
-
-        @Override
-        public Class<PageCriteria> criteriaType() {
-            return PageCriteria.class;
-        }
-
-        @Override
-        public PageResult<StubProjection> searchPage(PageCriteria condition, PageRequest pageRequest) {
-            return PageResult.of(List.of(), 0L, pageRequest);
-        }
-
-        @Override
-        public ScrollResult<StubProjection> searchScroll(
-                PageCriteria condition, ScrollPosition cursor, int pageSize) {
-            return ScrollResult.of(List.of(), "next");
-        }
+        assertThat(src.replicaId()).isEqualTo(ES.id());
+        assertThat(src.key().replicaId()).isEqualTo(ES.id());
     }
 }

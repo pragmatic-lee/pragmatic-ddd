@@ -42,8 +42,8 @@ public class ReconciliationScanner {
         this.manager = manager;
         this.providers = providers;
         this.config = config;
-        int concurrency = config.concurrency() > 0
-                ? config.concurrency()
+        int concurrency = config.getConcurrency() > 0
+                ? config.getConcurrency()
                 : Math.max(Runtime.getRuntime().availableProcessors(), 8);
         this.workers = Executors.newFixedThreadPool(concurrency);
     }
@@ -52,8 +52,8 @@ public class ReconciliationScanner {
     public void start() {
         scheduler.scheduleWithFixedDelay(
                 this::scanOnce,
-                config.initialDelaySeconds(),
-                config.intervalSeconds(),
+                config.getInitialDelaySeconds(),
+                config.getInitialDelaySeconds(),
                 TimeUnit.SECONDS);
     }
 
@@ -64,7 +64,7 @@ public class ReconciliationScanner {
             Class<? extends AggregateRoot<Object>> type =
                     (Class<? extends AggregateRoot<Object>>) provider.aggregateType();
             List<?> batch;
-            while (!(batch = provider.nextBatch(config.batchSize())).isEmpty()) {
+            while (!(batch = provider.nextBatch(config.getBatchSize())).isEmpty()) {
                 List<Callable<Void>> tasks = new ArrayList<>(batch.size());
                 for (Object id : batch) {
                     tasks.add(() -> reconcileOne(type, id));

@@ -196,8 +196,8 @@ elasticsearchClient.index(req -> req.index(OrderEsTargets.ORDER_INDEX_NAME)
 **配套约定**：
 
 - 索引名等寻址常量集中定义（`OrderEsTargets.ORDER_INDEX_NAME`），写入与读取必须命中同一物理索引。
-- 版本解析器（`IReadModelVersionResolver`）读取 `_version` 作为 V'，文档缺失或异常时返回 `-1` 表示副本缺失或不可达。
-- 补偿器（`IReadModelResynchronizer`）从写模型重建副本：以聚合旧版本重新物化，覆盖落后或冲突的文档。
+- 版本读取由源自身承载（`IReadModelReplica.readVersion`）：读 `_version` 作为 V'。**缺省值按存储语义选择**——文档缺失返回 `0`（判 STALE，触发 `rebuild` 自动回填）、`-1` 表示未追踪（判 UNTRACKED，不重建）；误用 `-1` 会使副本永久落后。
+- 重建同样由源承载（`IReadModelReplica.rebuild`）：`findById` 取写模型当前快照后重新物化，覆盖落后或冲突的文档。
 
 ### 3.5 区分「版本冲突」与「写失败」
 

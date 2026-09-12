@@ -15,7 +15,7 @@ import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
  *
  * @author wizard-lee
  */
-public final class PersonRedisMaterializer extends AbstractProjectionSource<Person, PersonProjection> {
+public final class PersonRedisMaterializer extends AbstractProjectionSource<Person, Long, PersonProjection> {
 
     public PersonRedisMaterializer() {
         super(ProjectionSource.of("redis:person"), Person.class, PersonProjection.class, new ShellProjector(), null);
@@ -29,6 +29,17 @@ public final class PersonRedisMaterializer extends AbstractProjectionSource<Pers
     @Override
     public void purge(Object aggregateId) {
         // 壳子：真实项目在此清理 Redis 残留条目
+    }
+
+    @Override
+    public long readVersion(Long aggregateId) {
+        // 壳子：真实项目在此读取副本内嵌版本
+        return 0L;
+    }
+
+    @Override
+    public void rebuild(Long aggregateId) {
+        // 壳子：真实项目在此从写模型重建 Redis 副本
     }
 
     /** 壳子投影器：不真正投影，仅满足源构造约束。 */

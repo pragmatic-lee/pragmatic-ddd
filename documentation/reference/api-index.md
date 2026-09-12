@@ -144,15 +144,16 @@
 | 类型 | 名称 | 说明 |
 | --- | --- | --- |
 | record | `Reconciliation` | 对账任务描述 |
-| record | `ReconciliationTarget` | 对账目标 |
+| record | `ReplicaKey` | 副本寻址键（聚合类型 + 副本标识），位于 `repository` 父包 |
+| 接口 | `IReadModelReplica<ID>` | 副本自我维护契约（身份 / 版本读取 / 自我重建 / 残留清理），位于 `repository` 父包 |
 | 枚举 | `ReconciliationStatus` | 对账状态 |
 | 类 | `Reconciler` | 对账执行器 |
 | 类 | `ReconciliationManager` | 对账管理器 |
 | 类 | `ReconciliationRegistry` | 对账注册表 |
-| 接口 | `IReadModelResynchronizer<ID>` | 读模型重同步 SPI |
-| 接口 | `IReadModelVersionResolver<ID>` | 读模型版本解析 SPI |
 | 接口 | `IReconcileDedup` | 对账去重 SPI |
 | 类 | `NoOpReconcileDedup` | 空去重默认实现 |
+| 异常 | `ReconcileDuplicateReplicaException` | 副本重复登记冲突 |
+| 异常 | `ReplicaNotFoundException` | 副本未登记 |
 
 ## 9. 操作追踪（operation）
 

@@ -39,14 +39,12 @@ domain/order/projection/                       领域：读模型视图 + 条件
   ├── IOrderProjection                         extends IAggregateProjection（投影 sealed 体系基类）
   ├── OrderEsProjection                        @Data 数据容器，implements IOrderProjection
   ├── OrderSummaryProjection                   @Data 数据容器，implements IOrderProjection
-  ├── OrderEsTargets                           ORDER_INDEX_NAME / TARGET_ES_ORDERS 常量
+  ├── OrderEsTargets                           ORDER_INDEX_NAME / REPLICA_ID 常量
   ├── query/                                   领域：三族查询条件（sealed interface + record）
   │   ├── OrderOneQuery                        extends OneQueryCriteria
   │   ├── OrderListQuery                       extends ListQueryCriteria
   │   └── OrderPageQuery                       extends PageQueryCriteria
-  └── replica/                                 领域：副本（版本/补偿）专属契约（窄化框架接口）
-      ├── IOrderReadModelVersionResolver       extends IReadModelVersionResolver<Long>
-      └── IOrderReadModelResynchronizer        extends IReadModelResynchronizer<Long>
+  └── replica/                                 领域：副本专属窄化契约（如 IOrderESSource）
 
 infrastructure/persistent/order/projection/projector/  基础设施：聚合 → 视图 纯映射
   ├── OrderEsProjector                         extends AbstractAggregateProjector<Order, OrderEsProjection>
@@ -61,13 +59,9 @@ infrastructure/persistent/order/projection/searcher/   基础设施：存储 →
 infrastructure/persistent/order/projection/reducer/  基础设施：索引级全量投影 → 业务子投影（Java 内存）
   ├── OrderSummaryReducer                      implements IProjectionReducer<OrderEsProjection, OrderSummaryProjection>
   └── OrderCacheSummaryReducer                 implements IProjectionReducer<OrderCacheProjection, OrderSummaryProjection>
-infrastructure/persistent/order/projection/replica/  基础设施：写读一体的源 + 副本补偿（继承框架基类）
-  ├── OrderEsSource                           extends AbstractProjectionSource<Order, OrderEsProjection>
-  ├── OrderRedisSource                        extends AbstractProjectionSource<Order, OrderCacheProjection>
-  ├── OrderEsVersionResolver                   implements IOrderReadModelVersionResolver
-  ├── OrderRedisVersionResolver                implements IOrderReadModelVersionResolver
-  ├── OrderEsResynchronizer                    implements IOrderReadModelResynchronizer
-  └── OrderRedisResynchronizer                 implements IOrderReadModelResynchronizer
+infrastructure/persistent/order/projection/replica/  基础设施：写读对账一体的源（继承框架基类，源自身即副本）
+  ├── OrderEsSource                           extends AbstractProjectionSource<Order, Long, OrderEsProjection>
+  └── OrderRedisSource                        extends AbstractProjectionSource<Order, Long, OrderCacheProjection>
 infrastructure/config/order/                   Spring 装配（登记 registry、产出 Bean）
   └── OrderProjectionConfig
 application/order/                              应用层：读/写应用服务（注入 registry，业务编排门面）
@@ -103,18 +97,18 @@ public class OrderReadService
     @Override
     protected List<ProjectionSource> fallbackChain() {
         return List.of(REDIS_SOURCE, ES_SOURCE);
-        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
+        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 REPLICA_ID 派生
     }
 }
 
-// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读一体落在源（直接继承框架基类）
+// ✅ 推荐：视图载体与实现以 OrderEs* 标明聚合与存储；写读对账一体落在源（直接继承框架基类）
 public class OrderEsProjector extends AbstractAggregateProjector<Order, OrderEsProjection> { }
-public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjection> { }
+public class OrderEsSource extends AbstractProjectionSource<Order, Long, OrderEsProjection> { }
 
 // ❌ 反模式：基础设施直接实现框架通用接口，领域层无专属契约、替换存储需改基础设施与框架的直接契约
 ```
 
-> **命名约定**：领域契约接口一律 `I` 开头，以聚合前缀区分框架通用接口（`IOrderProjection` / `IOrderRepository` 等，不含存储标记）；**应用服务不用 `I` 前缀**，读/写服务用 `OrderReadService` / `OrderWriteService`（见 §4.8）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource` / `OrderEsVersionResolver` / `OrderEsResynchronizer`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；对账目标常量集中在 `OrderEsTargets` / `OrderCacheTargets`。
+> **命名约定**：领域契约接口一律 `I` 开头，以聚合前缀区分框架通用接口（`IOrderProjection` / `IOrderRepository` 等，不含存储标记）；**应用服务不用 `I` 前缀**，读/写服务用 `OrderReadService` / `OrderWriteService`（见 §4.8）；实现类不用 `Impl` 后缀，用 `OrderEs*`（`OrderEsProjector` / `OrderEsSource`）与 `OrderRedis*`（`OrderRedisSource`）标明聚合与存储；条件族以 `Order{One|List|Page}Query` 命名、族内场景为 `record`；检索器以 `Order{ById|One|List|Page}Searcher` 命名；裁剪器以 `Order{Target}Reducer` 命名（如 `OrderSummaryReducer`）；源以 `Order{Store}Source` 命名；**源自身即副本**，不另设版本解析器 / 补同步器实现类；副本标识常量集中在 `OrderEsTargets` / `OrderCacheTargets`（`REPLICA_ID` / `REPLICA_KEY`）。
 >
 > ⚠️ **索引级全量投影的命名要体现「存储文档形状」而非「业务用途」**：它对齐的是物理索引 Mapping，本质上是存储契约在 Java 侧的镜像。`OrderEsProjection`（索引 `order_index` 的全量文档）是好名字；`OrderProjection` 这类不带存储标记的名字会与业务投影混淆，无法区分「哪个是索引级、哪个是裁剪产物」。
 
@@ -214,14 +208,11 @@ public void handleEvent(OrderDataSyncEvent event) {
 // domain/order/projection/IOrderProjection.java
 public interface IOrderProjection extends IAggregateProjection { }
 
-// domain/order/projection/replica/IOrderReadModelVersionResolver.java
-public interface IOrderReadModelVersionResolver extends IReadModelVersionResolver<Long> { }
-
-// domain/order/projection/replica/IOrderReadModelResynchronizer.java
-public interface IOrderReadModelResynchronizer extends IReadModelResynchronizer<Long> { }
+// domain/order/projection/replica/IOrderESSource.java
+public interface IOrderESSource extends IByIdQuery<Long, IOrderProjection> { }
 ```
 
-> **为什么**：领域层清晰声明聚合读模型的版本 / 补偿契约边界；写读一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不另设领域专属物化器接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面限定在基础设施层。
+> **为什么**：领域层清晰声明聚合读模型契约边界；写读对账一体的「源」（`AbstractProjectionSource` 子类）落在基础设施层，直接继承框架基类、不另设领域专属物化器接口。**对账能力无需领域接口**——源实现框架的 `IReadModelReplica` 即可自动成为可对账副本，无需为版本解析 / 补偿各定义一层领域接口。基础设施只依赖领域专属接口与框架基类，存储替换时影响面限定在基础设施层。
 
 ### 4.2 投影 DTO：`OrderEsProjection`
 
@@ -345,11 +336,8 @@ public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjec
             OrderPageSearcher pageSearcher,
             OrderSummaryReducer summaryReducer,
             ElasticsearchClient elasticsearchClient) {
-        super(OrderEsTargets.TARGET_ES_ORDERS, Order.class, OrderEsProjection.class, projector, byIdSearcher);
-        bind(oneSearcher);
-        bind(listSearcher);
-        bind(pageSearcher);
-        bind(summaryReducer);
+        super(ProjectionSource.of(OrderEsTargets.REPLICA_ID),
+                Order.class, OrderEsProjection.class, projector, List.of(summaryReducer));
         this.elasticsearchClient = elasticsearchClient;
     }
 
@@ -385,23 +373,24 @@ public class OrderEsSource extends AbstractProjectionSource<Order, OrderEsProjec
 
 编写规则：
 
-- `super(OrderEsTargets.TARGET_ES_ORDERS, Order.class, OrderEsProjection.class, projector, byIdSearcher)`：源标识即 `ProjectionSource` 串（同时也是读寻址与对账 target 的同名身份）；byId 检索器经构造器第 5 参注入（查询门面 `queryById` 需按源取 byId searcher）。
-- 其他检索器与裁剪器以 `bind(...)` 挂载，源持有它们的引用。
+- `super(ProjectionSource.of(OrderEsTargets.REPLICA_ID), Order.class, OrderEsProjection.class, projector, reducers)`：源标识即副本标识（同时也是读寻址与对账寻址的同一身份）；泛型形参 `<Order, Long, OrderEsProjection>` 中的 `Long` 为聚合标识类型，使 `readVersion` / `rebuild` 直接接收 `Long` 而无需手工转换。
+- 检索器与裁剪器随源自身承载（源按需 implements 领域查询族接口、持有 reducer 列表）。
 - **版本控制用 External 版本**：写模型版本 V 落到副本版本元数据（ES 为 `_version`），副本落后时存储拒绝写入并抛 409 版本冲突。
-- **区分失败**：409 版本冲突（迟到/重复事件）静默丢弃，仅 `log.debug`；真正的写失败（连接/映射错误）以 `IOException` 上抛，交给事件重试 / 对账 resync 兜底。
+- **区分失败**：409 版本冲突（迟到/重复事件）静默丢弃，仅 `log.debug`；真正的写失败（连接/映射错误）以 `IOException` 上抛，交给事件重试 / 对账 `rebuild` 兜底。
 - `purge` 删除文档，文档不存在时静默忽略（清理幂等）。
+- **对账能力收敛于源**：覆写 `readVersion`（读 `_version`，缺省返回 0）与 `rebuild`（`findById` 后 `sync`）；无需另建版本解析器 / 补同步器类。
 
-> ⚠️ **源标识 `source()` 即 `ReconciliationTarget.storeId()` 的同一身份**：写侧 `源.sync(aggregate)` 与对账 resync 共享同源标识；业务方应引用 `OrderEsTargets.TARGET_ES_ORDERS`，不要自行 `new ProjectionSource("es:orders")`，否则 key 不一致导致寻址失败。
+> ⚠️ **源自身即副本**：`replicaId()` 即源 `id`，写侧 `源.sync(aggregate)` 与对账 `rebuild` 共享同一身份，由类型而非字符串约定保证；业务方应引用 `OrderEsTargets.REPLICA_ID`，不要自行 `new ProjectionSource("es:orders")`，否则 key 不一致导致寻址失败。
 
-### 4.5 目标常量：`OrderEsTargets`
+### 4.5 副本常量：`OrderEsTargets`
 
-索引名与对账目标收口到一处，写入 / 读取 / 对账全部引用同一常量：
+索引名与副本标识收口到一处，写入 / 读取 / 对账全部引用同一常量：
 
 ```java
 public final class OrderEsTargets {
     public static final String ORDER_INDEX_NAME = "order_index";
-    public static final ReconciliationTarget TARGET_ES_ORDERS =
-            new ReconciliationTarget(Order.class, "es:orders");
+    public static final String REPLICA_ID = "es:orders";
+    public static final ReplicaKey REPLICA_KEY = new ReplicaKey(Order.class, REPLICA_ID);
     private OrderEsTargets() { }
 }
 ```
@@ -476,7 +465,7 @@ public class OrderReadService
     @Override
     protected List<ProjectionSource> fallbackChain() {
         return List.of(REDIS_SOURCE, ES_SOURCE);
-        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
+        // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 REPLICA_ID 派生
     }
     // 6 个查询能力（queryById/queryByIds/queryOne/queryList/queryPage/queryScroll）
     // 全部由基类提供，读服务不覆写查询方法
@@ -517,8 +506,8 @@ public class OrderReadService
 @Override
 protected List<ProjectionSource> fallbackChain() {
     return List.of(
-            ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId()),
-            ProjectionSource.of(OrderEsTargets.TARGET_ES_ORDERS.storeId()));
+            ProjectionSource.of(OrderCacheTargets.REPLICA_ID),
+            ProjectionSource.of(OrderEsTargets.REPLICA_ID));
 }
 ```
 
@@ -539,7 +528,7 @@ PageResult<OrderEsProjection> page = orderReadService.queryPage(criteria, pageRe
 
 因此一条 `[redis, es]` 链即可覆盖全部查询形态：**按主键查询自动享受缓存加速，条件与分页查询自动落到 ES**，读服务里不需要为「哪个方法该查哪个源」写任何分支。
 
-读写两侧引用同一源常量：`OrderReadService` 的 `fallbackChain()` 与写侧 `orderEsSource.sync(order)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `storeId()`，保证「写入哪个副本、从哪个副本读回」key 一致。
+读写两侧引用同一常量：`OrderReadService` 的 `fallbackChain()` 与写侧 `orderEsSource.sync(order)` 共享 `OrderEsTargets` / `OrderCacheTargets` 的 `REPLICA_ID`，保证「写入哪个副本、从哪个副本读回」key 一致。
 
 编写规则：
 
@@ -547,7 +536,7 @@ PageResult<OrderEsProjection> page = orderReadService.queryPage(criteria, pageRe
 - **读服务不含任何存储逻辑**：不注入 `ElasticsearchClient`，不拼查询 DSL，不手写 `reduceOne` / `resolveSourceType`。
 - **构造器 `super(registry, oneType, listType, pageType)`**：三个条件族类型对应 `IQueryOne` / `IQueryList` / `IQueryPage`；`queryById` / `queryByIds` 复用源的 byId searcher，`queryScroll` 复用 page 族检索器。
 - **条件族类型用族父类传入**：`OrderListQuery.class` 传的是**族 sealed 接口**，检索器按族登记、族内自行分发。
-- **源标识用 `storeId()` 派生，不手拼字符串**：在 `fallbackChain()` 内引用 `OrderCacheTargets` / `OrderEsTargets` 的 `storeId()`，避免 key 不一致导致寻址失败。
+- **源标识用 `REPLICA_ID` 派生，不手拼字符串**：在 `fallbackChain()` 内引用 `OrderCacheTargets` / `OrderEsTargets` 的 `REPLICA_ID`，避免 key 不一致导致寻址失败。
 - **`fallbackChain()` 返回空列表 = 不启用回源**：退回「按投影类型 + `registerDefaultSource` 默认源」选路，多源又无默认源时抛 `ProjectionSourceAmbiguousException`。
 - **回源粒度随方法而定**：`queryById` / `queryOne` 逐源推进（前源未命中才查下一源）；`queryByIds` / `queryList` **整批**回源（前源返回空才查下一源，不做逐条补缺）；`queryPage` / `queryScroll` **不回源**，取链上第一个支持该条件族的源。
 - **链上无源可用时抛 `ProjectionSourceNotFoundException`**：异常信息含目标投影与全部候选源 id，便于定位是「漏 register」还是「漏 bind 检索器」。
@@ -899,13 +888,12 @@ public class OrderProjectionConfig {
 
     @Bean
     public ReconciliationRegistry reconciliationRegistry(
-            OrderRepository orderRepository,
-            OrderEsVersionResolver orderEsVersionResolver,
-            OrderEsResynchronizer orderEsResynchronizer) {
+            List<IReadModelReplica<?>> replicas,
+            OrderRepository orderRepository) {
         ReconciliationRegistry registry = new ReconciliationRegistry();
+        // 副本（即源）由集合注入自动登记；新增副本无需改此处
+        registry.registerReplicas(replicas);
         registry.registerRepository(Order.class, orderRepository);
-        registry.registerResolver(OrderEsTargets.TARGET_ES_ORDERS, orderEsVersionResolver);
-        registry.registerResynchronizer(OrderEsTargets.TARGET_ES_ORDERS, orderEsResynchronizer);
         return registry;
     }
 
@@ -946,9 +934,9 @@ public class OrderProjectionConfig {
 
 先看为什么能扩展、且新增副本不改动既有代码：
 
-- **一个 `源`（`AbstractProjectionSource` 子类）= 一份物理副本**。源在结构上绑定三件事：`(源标识, 聚合类型, 全量投影类型)` + 写读一体（`materialize` / `purge`）+ 一组「按需 bind」的检索器与裁剪器。
-- **注册中心以 `源标识` / `(条件类型, 索引级投影类型)` 为键**，多源共存是天然形态，`register(source)` 只累加、不覆盖。加新副本 = 新增一个源对象并 `register`，**不动**已存在的源、检索器、裁剪器。
-- **读写两侧解耦**：写路径按 `storeId()` 选定要同步的副本（注入该副本对应的 `源` 并调用 `源.sync(order)`），读路径按源/回退链选定要读的副本（见 §4.8）。新增副本时，**写侧要把它加进同步清单（注入对应源），读侧把它加进回退链**——两处各自独立接线。
+- **一个 `源`（`AbstractProjectionSource` 子类）= 一份物理副本**。源在结构上绑定四件事：`(副本标识, 聚合类型, 全量投影类型)` + 写读对账一体（`materialize` / `purge` / `readVersion` / `rebuild`）+ 一组「按需 bind」的检索器与裁剪器。**源自身即副本**（实现 `IReadModelReplica`），无需另建版本解析器 / 补同步器。
+- **注册中心以 `源标识` / `(条件类型, 索引级投影类型)` 为键**，多源共存是天然形态，`register(source)` 只累加、不覆盖。加新副本 = 新增一个源对象并 `register`，**不动**已存在的源、检索器、裁剪器；对账侧由 `List<IReadModelReplica<?>>` 集合注入自动登记，**装配代码也无需改动**。
+- **读写两侧解耦**：写路径按 `REPLICA_ID` 选定要同步的副本（注入该副本对应的 `源` 并调用 `源.sync(order)`），读路径按源/回退链选定要读的副本（见 §4.8）。新增副本时，**写侧要把它加进同步清单（注入对应源），读侧把它加进回退链**——两处各自独立接线，对账侧自动生效。
 
 所以"加一个存储副本"在架构上就是**加一个新的 `源`**，本质上是为「同一份聚合读模型」增加一条**独立、可独立检索、可独立对账**的物化副本。
 
@@ -974,8 +962,8 @@ public class OrderProjectionConfig {
 // domain/order/projection/OrderCacheProjection.java —— Redis 键存储的文档形状
 // domain/order/projection/OrderCacheTargets.java
 public class OrderCacheTargets {
-    public static final ReconciliationTarget TARGET_REDIS_ORDERS =
-            ReconciliationTarget.of(Order.class, "redis:orders");   // storeId 即源标识
+    public static final String REPLICA_ID = "redis:orders";          // 即源标识与副本标识
+    public static final ReplicaKey REPLICA_KEY = new ReplicaKey(Order.class, REPLICA_ID);
     public static final String ORDER_CACHE_KEY_PREFIX = "order:";
 }
 ```
@@ -990,19 +978,19 @@ public class OrderRedisSource extends AbstractProjectionSource<Order, OrderCache
 
     public OrderRedisSource(
             OrderCacheProjector projector,
-            OrderRedisByIdSearcher byIdSearcher,
             OrderCacheSummaryReducer summaryReducer,
-            RedisCommands<String, String> redis) {
-        super(ProjectionSource.of(OrderCacheTargets.TARGET_REDIS_ORDERS.storeId()),
-                Order.class, OrderCacheProjection.class, projector, byIdSearcher);
-        bind(summaryReducer);            // 只 bind 需要的裁剪器；无需 one/list/page 检索器
+            RedisCommands<String, String> redis,
+            OrderRepository orderRepository) {
+        super(ProjectionSource.of(OrderCacheTargets.REPLICA_ID),
+                Order.class, OrderCacheProjection.class, projector, List.of(summaryReducer));
         this.redis = redis;
+        this.orderRepository = orderRepository;
     }
-    // materialize / purge 用 RedisCommands 读写键，见 §4.4 的 ES 对照
+    // materialize / purge / readVersion / rebuild 用 RedisCommands 读写键，见 §4.4 的 ES 对照
 }
 ```
 
-> ⚠️ **若新副本是「同存储、第二个索引」**（如 ES 详情索引 + 概要索引），它和 Redis 源的区别仅在：仍用 `ElasticsearchClient`、full 投影是新的 `OrderXxxProjection`、且 **bind 它要支撑的那一族检索器**（详情源 bind `OrderOne/List/Page` 各族；概要源可能只 bind 概要子投影裁剪器）。写路径 / 版本 / 对账（`VersionResolver` / `Resynchronizer`）各自独立——这要求**每个源都有自己的一份版本解析与补偿**，不要多个源共用一套对账目标。
+> ⚠️ **若新副本是「同存储、第二个索引」**（如 ES 详情索引 + 概要索引），它和 Redis 源的区别仅在：仍用 `ElasticsearchClient`、full 投影是新的 `OrderXxxProjection`。写路径 / 版本 / 对账各自独立——**每个源都有自己的一份 `readVersion` 与 `rebuild`**，因为源自身即副本，副本标识由 `REPLICA_ID` 保证唯一，天然不会多个源共用一套对账目标。
 
 **③ 装配——register + 读回退链挂上**
 
@@ -1022,7 +1010,7 @@ public ProjectorRegistry orderProjectorRegistry(OrderEsSource esSource, OrderRed
 @Override
 protected List<ProjectionSource> fallbackChain() {
     return List.of(REDIS_SOURCE, ES_SOURCE);
-    // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 storeId() 派生
+    // REDIS_SOURCE / ES_SOURCE 由 OrderCacheTargets / OrderEsTargets 的 REPLICA_ID 派生
 }
 ```
 
@@ -1032,9 +1020,9 @@ protected List<ProjectionSource> fallbackChain() {
 | --- | --- | --- |
 | **新副本 = 新源，不改既有源** | 复用已有的 ES 源类去"兼写 Redis"会把两种存储方言耦合进一个类 | 替换存储要改源，失去可扩展性 |
 | **索引级投影 DTO 各自独立** | 每个源的 full 投影对齐各自物理存储文档形状；不共享"通用投影" | 源与存储 Mapping 错位，检索结果失真 |
-| **源标识唯一，不手拼** | 每个源 `storeId()` 全局唯一；读写两侧都引用 `XxxTargets` 常量 | 重复源标识抛 `ProjectionSourceConflictException`；key 不一致导致寻址失败 |
-| **能力按需 bind，不强求全集** | 缓存副本只 bind 它支撑的检索；byId searcher 可 `null`（源内无按 id 直取时） | 强行给只读缓存补全检索器，制造无意义实现 |
-| **每副本独立版本解析 / 补偿** | 新增副本要配自己的 `VersionResolver` / `Resynchronizer`（同一聚合可多副本分别对账） | 多个副本共用一个 target，对账/重放互相覆盖 |
+| **副本标识唯一，不手拼** | 每个源 `REPLICA_ID` 全局唯一；读写两侧都引用 `XxxTargets` 常量 | 重复副本标识抛 `ReconcileDuplicateReplicaException`；key 不一致导致寻址失败 |
+| **能力按需 bind，不强求全集** | 缓存副本只支撑它实现的查询族（源按需 implements 领域接口） | 强行给只读缓存补全检索器，制造无意义实现 |
+| **每副本自带对账能力** | 源自身即副本，`readVersion` / `rebuild` 由各源独立实现（同一聚合可多副本分别对账） | 多个副本共用一个 `REPLICA_ID`，对账互相覆盖 |
 | **分页 / 滚动不回源** | 回退链只在 byId / list 级前源未命中时推进；新增缓存副本只适合 as 主键直取，别期待缓存源支撑分页 | 命中缓存却拿不到分页结果，行为与直觉相悖 |
 
 #### 反模式
@@ -1044,7 +1032,7 @@ protected List<ProjectionSource> fallbackChain() {
 | 往既有 `OrderEsSource` 里加 Redis 分支 | 一个源类耦合两种存储，替换 / 新增都牵一发动全身 | 每种副本一个 `AbstractProjectionSource` 子类 |
 | 新增缓存副本却硬造全量检索器 | 为不支撑的条件族补无意义实现，违背"能力按需 bind" | 只 bind 该副本真实要支撑的检索器与裁剪器 |
 | 读侧把回退链写死只在代码里改，不上 `register` | 源未登记，`fallbackChain()` 命中即抛 `ProjectionSourceNotFoundException` | 新增源先 `register`，再挂进读服务 `fallbackChain()` |
-| 多个副本共用一个对账 target / resolver | 对账目标与副本非一一对应，resync 串写、版本互相干扰 | 每副本独立 `storeId()` / `VersionResolver` / `Resynchronizer` |
+| 多个副本共用一个 `REPLICA_ID` | 副本标识与副本非一一对应，`rebuild` 串写、版本互相干扰 | 每副本独立 `REPLICA_ID`，源自身即副本 |
 
 > **举一反三**：这套"加副本 = 加源"的模式对任何模块通用——`{Agg}EsSource` 之外再加 `{Agg}RedisSource`（缓存）或 `{Agg}XxxIndexSource`（第二个索引），都走「领域层加投影 DTO + 常量 → 基础设施写源 → 装配 register + 读回退链」三步；ES 与 Redis 只是两种已落地的存储实例，不是扩展的天花板。
 
@@ -1137,12 +1125,12 @@ Order 业务方法 → markModified() / markCreated()
 
 ```text
 ReconciliationManager.reconcile(Order.class, id)
-  ├─ OrderEsVersionResolver.resolve(id)     读副本版本 → V'（不存在/未追踪返回 -1）
+  ├─ orderEsSource.readVersion(id)          读副本版本 → V'（副本缺失返回 0）
   ├─ IRepository.currentVersion(id)         → V
   ├─ Reconciliation.of(V', V)               判定 CONSISTENT / STALE / ORPHAN / UNTRACKED
-  └─ OrderEsResynchronizer（implements IOrderReadModelResynchronizer）
-       ├─ resync(id)（STALE）：findById → orderEsSource.sync(order)
-       └─ purge(id)（ORPHAN）：orderEsSource.purge(id)
+  └─ 源自身即副本（OrderEsSource implements IReadModelReplica）
+       ├─ rebuild(id)（STALE）：findById → orderEsSource.sync(order)
+       └─ purgeOrphan(id)（ORPHAN）：orderEsSource.purge(id)
 ```
 
 ### 5.4 对比
@@ -1152,10 +1140,10 @@ ReconciliationManager.reconcile(Order.class, id)
 | 触发 | 领域事件（正常更新） | 调用方主动查询 | 调度 / 延迟消息 / 手动 |
 | 方向 | 聚合 → 投影 → 存储 | 存储 → 投影 | 聚合 → 投影 → 存储 / 删除 |
 | 版本来源 | `event.getVersion()`（= `getNewVersion()`） | 不参与版本 | `order.getOldVersion()`（与 `currentVersion` 一致） |
-| 关键构件 | Projector + Source（materialize） | Searcher + Reducer（挂源上） | VersionResolver + Resynchronizer（桥接 sync/purge） |
+| 关键构件 | Projector + Source（materialize） | Searcher + Reducer（挂源上） | 源自身（`readVersion` / `rebuild`） |
 | 目的 | 更新副本 | 取回副本 | 副本落后 / 残留时重建或清理 |
 
-> ⚠️ **`resync` 必须从写模型当前快照重建**（`findById` → `sync`），而非重放那条被漏消费的事件——丢失的事件已不在事件流里，重放单条事件无法补齐副本。
+> ⚠️ **`rebuild` 必须从写模型当前快照重建**（`findById` → `sync`），而非重放那条被漏消费的事件——丢失的事件已不在事件流里，重放单条事件无法补齐副本。
 
 ## 6. 分页与滚动值对象
 
@@ -1229,9 +1217,9 @@ Optional.ofNullable(first.nextCursor())
 | 为每个「查哪个源」的诉求新增业务方法（如 `getById` 与 `queryById` 并存） | 方法数量膨胀，语义重叠，调用方从签名看不出差别 | 一条内置回源链 + 能力过滤覆盖全部诉求；差异交给框架按能力判定 |
 | 读服务 `OrderReadService` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改读服务 | 读服务继承 `AbstractProjectionQuery`，不注入客户端，DSL 翻译下沉到 Searcher |
 | 事件携带业务快照 | 延迟处理用旧数据覆盖新副本 | 事件只带聚合标识，处理时重新 load 聚合 |
-| 真正的写失败（连接 / 映射错误）`catch` 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给 `resync` 补偿 |
-| External 版本冲突（409）上抛而非静默丢弃 | 旧事件迟到触发无谓 `resync`、反复重建已最新副本 | 捕获 `ResponseException` 仅 `log.debug` 静默丢弃 |
-| 业务方自行 `new ReconciliationTarget` / `new ProjectionSource("es:orders")` | Registry 中 key 不一致、寻址失败 | 引用 `OrderEsTargets` / `OrderCacheTargets` 已定义的源常量 |
+| 真正的写失败（连接 / 映射错误）`catch` 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给 `rebuild` 补偿 |
+| External 版本冲突（409）上抛而非静默丢弃 | 旧事件迟到触发无谓 `rebuild`、反复重建已最新副本 | 捕获 `ResponseException` 仅 `log.debug` 静默丢弃 |
+| 业务方手拼 `new ProjectionSource("es:orders")` | Registry 中 key 不一致、寻址失败 | 引用 `OrderEsTargets` / `OrderCacheTargets` 已定义的 `REPLICA_ID` 常量 |
 | 为每个查询场景建一个条件类 / 一个检索器 | 类爆炸、条件失去穷举约束 | 按族建 `sealed interface`，族内场景为 `record`，检索器按族登记 |
 | 跨族复用条件（`ListQuery` 传给 `queryPage`） | 编译期报错，语义混用 | 分页场景建 `PageQueryCriteria` 子族，字段全 `Optional` |
 | 分页参数塞进条件 `record` | 条件与分页语义耦合、无法复用条件做滚动 | 分页由 `PageRequest` / `ScrollPosition` 单独传入 |

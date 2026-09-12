@@ -24,8 +24,7 @@ io.pragmatic.ddd.repository
 │     ├─ ProjectorRegistry          源登记中心
 │     └─ PageRequest / PageResult / ScrollPosition / ScrollResult  (分页/滚动值对象)
 └── reconciliation                读模型对账子包
-      ├─ ReconciliationTarget / Reconciliation / ReconciliationStatus  (对账标识与结果)
-      ├─ IReadModelVersionResolver / IReadModelResynchronizer          (SPI)
+      ├─ Reconciliation / ReconciliationStatus                        (对账结果与状态)
       ├─ IReconcileDedup / NoOpReconcileDedup                          (去重 SPI)
       └─ Reconciler / ReconciliationManager / ReconciliationRegistry   (对账引擎与登记中心)
 ```
@@ -34,10 +33,12 @@ io.pragmatic.ddd.repository
 | --- | --- | --- |
 | `IRepository<ID, T>` | `io.pragmatic.ddd.repository` | 写模型聚合持久化契约 |
 | `AbstractRepository<ID, T>` | `io.pragmatic.ddd.repository` | 写模型抽象基类，统一触发数据同步钩子 |
+| `IReadModelReplica<ID>` | `io.pragmatic.ddd.repository` | 读模型副本自我维护契约（身份 / 版本读取 / 自我重建 / 残留清理） |
+| `ReplicaKey` | `io.pragmatic.ddd.repository` | 副本寻址键（聚合类型 + 副本标识） |
 | `query` 子包类型 | `io.pragmatic.ddd.repository.query` | 读模型查询端口与投影 |
 | `reconciliation` 子包类型 | `io.pragmatic.ddd.repository.reconciliation` | 读模型版本对账 |
 
-依赖边界：写侧 `IRepository` 只依赖 `io.pragmatic.ddd.base.AggregateRoot`；读侧源 `AbstractProjectionSource` 的 `source()` 标识与对账子包共享 `ReconciliationTarget.storeId()` 作为存储目标标识（同源同名）；`reconciliation` 反向依赖 `IRepository` 取 `currentVersion` 作为对账权威版本源。
+依赖边界：写侧 `IRepository` 只依赖 `io.pragmatic.ddd.base.AggregateRoot`；读侧源 `AbstractProjectionSource` 实现 `IReadModelReplica`（源自身即副本），副本标识（`replicaId`）即源 `id`——读写与对账共用同一身份，由类型而非字符串约定保证；`reconciliation` 反向依赖 `IRepository` 取 `currentVersion` 作为对账权威版本源。`IReadModelReplica` / `ReplicaKey` 置于 `repository` 父包，使 `query.projection` 与 `reconciliation` 两个子包互不依赖、共同依赖该契约。
 
 ### 1.3 读写分离
 
@@ -218,16 +219,17 @@ public class OrderQueryService implements
 
 | 类型 | 角色 | 关键方法 / 字段 |
 |------|------|-----------------|
-| `ReconciliationTarget` | 对账目标稳定标识（`record`）：聚合类型 + 存储 ID，如 `("Order", "es:orders")`；作为 Registry 的 map key | `aggregateType()`、`storeId()`；构造时 `nonNull` 校验 |
+| `ReplicaKey` | 副本寻址键（`record`，`repository` 父包）：聚合类型 + 副本标识，如 `("Order", "es:orders")`；作为 Registry 的 map key | `aggregateType()`、`replicaId()`；构造时 `nonNull` 校验 |
+| `IReadModelReplica<ID>` | 副本自我维护契约（`repository` 父包）：身份 / 版本读取 / 自我重建 / 残留清理 | `aggregateType()`、`replicaId()`、`key()`、`readVersion(id)`、`rebuild(id)`、`purgeOrphan(id)` |
 | `ReconciliationStatus` | 一致性状态枚举 | `CONSISTENT` / `STALE` / `ORPHAN` / `UNTRACKED` |
 | `Reconciliation` | 对账结果（`record`，不可变）：`status`、`readVersion(V')`、`writeVersion(V)` | `of(V', V)` 纯函数判定；`isStale/isConsistent/isOrphan/isUntracked` |
-| `IReadModelVersionResolver<ID>` | 取异构存储已物化版本 V'（各连接器实现） | `resolve(id)`：不存在/未追踪返回 `-1`；`supportedTarget()` |
-| `IReadModelResynchronizer<ID>` | 不一致时从写模型重建或清理副本 | `resync(id)`（STALE）、`purge(id)`（ORPHAN）、`supportedTarget()` |
-| `IReconcileDedup` | 去重：避免同一 (target, id) 在窗口内重复补救 | `shouldSkip(target, id)`、`mark(target, id)` |
+| `IReconcileDedup` | 去重：避免同一 (key, id) 在窗口内重复补救 | `shouldSkip(key, id)`、`mark(key, id)` |
 | `NoOpReconcileDedup` | 默认不去重实现（`INSTANCE` 单例） | `shouldSkip` 恒 `false`；`mark` 空操作 |
-| `ReconciliationRegistry` | 汇聚 resolver / resyncer / repository 的登记中心 | `registerResolver` / `registerResynchronizer` / `registerRepository`；`targetsOf` / `resolverFor` / `resyncerFor` / `repositoryFor` |
-| `Reconciler` | 统一对账入口（目标无关静态原语） | 见 §3.4 |
+| `ReconciliationRegistry` | 汇聚副本与 repository 的登记中心（副本登记即对账登记） | `registerReplica` / `registerReplicas` / `registerRepository`；`replicaKeysOf`（O(1) 前缀索引）/ `replicaFor` / `repositoryFor` |
+| `Reconciler` | 统一对账入口（副本无关静态原语） | 见 §3.4 |
 | `ReconciliationManager` | 框架提供的统一管理入口，屏蔽取样板 | 见 §3.4 |
+
+> **设计要点**：`IReadModelReplica` / `ReplicaKey` 位于 `repository` 父包而非 `reconciliation` 子包，使 `query.projection` 与 `reconciliation` 两个子包互不依赖、共同依赖该契约。源 `AbstractProjectionSource` 实现 `IReadModelReplica`，其 `replicaId()` 即源 `id`——**源自身即副本**，一个副本只需一个类。
 
 ## 3. 关键机制与避坑指南
 
@@ -266,19 +268,22 @@ V' <  V           → STALE       （副本落后，需补同步）
 
 | 方法 | 说明 |
 |------|------|
-| `reconcile(Class, id)` | 对该聚合全部已注册异构目标对账（含补救），返回每目标 `Reconciliation`；不一致时 `log.warning`；命中 `dedup.shouldSkip` 跳过 |
-| `reconcile(ReconciliationTarget, id)` | 单个指定目标对账 |
+| `reconcile(Class, id)` | 对该聚合全部已注册副本对账（含补救），返回每副本 `Reconciliation`；不一致时 `log.warning`；命中 `dedup.shouldSkip` 跳过 |
+| `reconcile(ReplicaKey, id)` | 单个指定副本对账 |
+| `reconcileReplica(IReadModelReplica, Class, id)` | 按副本直取对账：调用方已持有副本实例时使用，避免按聚合类型全量遍历 |
 | `reconcileBatch(Class, Collection<ID>)` | 批量对账（定时 / 扫描器） |
 
 ### 3.5 关键约束汇总
 
-> **重要约束**：`IReadModelResynchronizer.resync` 必须**从写模型当前快照重建**（通过 `IRepository.findById`），而**不是**重放被漏消费的那条事件——丢失的事件已不在事件流里，重放无法恢复。
+> **重要约束**：副本的 `rebuild` 必须**从写模型当前快照重建**（通过 `IRepository.findById`），而**不是**重放被漏消费的那条事件——丢失的事件已不在事件流里，重放无法恢复。
 
 > **重要约束**：延迟复核不在 core 内实现。`reconcileAndResync` 是同步原语，检测到不一致立即补救。若需规避"事件刚发布、副本尚未同步完"的竞态，延迟复核由调用方异步编排（调度器或将延迟消息发到 Kafka/RocketMQ 重试）。
 
-> **重要约束**：源 `source()` 标识即 `ReconciliationTarget.storeId()` 的同一身份，是存储目标的唯一权威来源；`AbstractProjectionSource.sync(aggregate)` 由源自身承载 project→materialize 编排，调用方只引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），不要 `new ProjectionSource("es:orders")`。
+> **重要约束**：源自身即副本，`replicaId()` 即源 `id`，是副本目标的唯一权威来源；`AbstractProjectionSource.sync(aggregate)` 由源自身承载 project→materialize 编排，调用方只引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.REPLICA_ID`），不要 `new ProjectionSource("es:orders")`。
 
-> **重要约束**：`ReconciliationTarget` 用 `record` 提供基于值的 `equals/hashCode`，可作 Map key；其构造器仅做非空校验，不校验聚合类型与 storeId 是否真实存在，错误登记将在 `targetsOf` / `resolverFor` 阶段表现为找不到组件。
+> **重要约束**：`readVersion` 的缺省值语义由实现自定：`0` 表示副本缺失、需重建（判 STALE），`-1` 表示副本未追踪（判 UNTRACKED，**不触发重建**）。实现须按本副本物理存储语义选择，误用 `-1` 会导致副本永久落后而静默无告警。
+
+> **重要约束**：`ReplicaKey` 用 `record` 提供基于值的 `equals/hashCode`，可作 Map key；其构造器仅做非空校验，不校验聚合类型与副本标识是否真实存在——未登记的副本在 `replicaFor` 阶段抛 `ReplicaNotFoundException`。同一 `ReplicaKey` 重复登记不同实例抛 `ReconcileDuplicateReplicaException`。
 
 ## 4. 异常与错误处理体系
 
@@ -288,12 +293,12 @@ V' <  V           → STALE       （副本落后，需补同步）
 
 ### 4.2 读模型对账异常
 
-`Reconciler` / `ReconciliationManager` 不直接抛异常。检测到不一致通过 `java.util.logging.Logger.warning` 告警（含 target / status / readV / writeV），补救失败由 resync/purge 的实现层抛出并向上传播。
+`Reconciler` / `ReconciliationManager` 不直接抛异常。检测到不一致通过 `java.util.logging.Logger.warning` 告警（含 replica / status / readV / writeV），补救失败由 `rebuild` / `purgeOrphan` 的实现层抛出并向上传播。
 
 ### 4.3 捕获与映射规范
 
-- `ReconciliationManager.reconcile` 返回 `Map<ReconciliationTarget, Reconciliation>`，调用方应遍历结果对 `STALE` / `ORPHAN` 做监控埋点。
-- `resync` 失败建议配合延迟重试而非同步阻塞（见 §3.5）。
+- `ReconciliationManager.reconcile` 返回 `Map<ReplicaKey, Reconciliation>`，调用方应遍历结果对 `STALE` / `ORPHAN` 做监控埋点。
+- `rebuild` 失败建议配合延迟重试而非同步阻塞（见 §3.5）。
 
 ## 6. 命名规范速查
 
@@ -311,11 +316,10 @@ V' <  V           → STALE       （副本落后，需补同步）
 | 写读一体源 | `{聚合}{存储}Source`（继承 `AbstractProjectionSource`） | `OrderEsSource` |
 | 查询条件对象 | `{聚合}{查询形态}Query`，sealed interface | `OrderPageQuery` |
 | 分页请求 / 结果 | `PageRequest` / `PageResult`（不可变值对象） | `PageResult<OrderSummary>` |
-| 对账目标常量 | `{聚合}_{存储}_TARGET`（`ReconciliationTarget` record） | `ORDER_ES_TARGET` |
-| 版本解析 SPI | `I{存储}ReadModelVersionResolver`（实现 `IReadModelVersionResolver`） | `IElasticsearchReadModelVersionResolver` |
-| 重同步 SPI | `I{存储}Resynchronizer`（实现 `IReadModelResynchronizer`） | `IElasticsearchResynchronizer` |
+| 副本标识常量 | `{聚合}{存储}Targets.REPLICA_ID` / `REPLICA_KEY` | `OrderEsTargets.REPLICA_ID` |
+| 可对账副本 | `{聚合}{存储}Source`（源自身即副本，实现 `IReadModelReplica`） | `OrderEsSource` |
 
-> ⚠️ **重要约束**：接口名一律以 `I` 开头，实现类镜像去 `I`；投影类型 `P` 建议用 `sealed interface` 继承 `IAggregateProjection` 形成封闭体系；`ReconciliationTarget` 的 `storeId` 与 `aggregateType` 应集中定义为常量，调用方只引用常量而非 `new` 一个目标。
+> ⚠️ **重要约束**：接口名一律以 `I` 开头，实现类镜像去 `I`；投影类型 `P` 建议用 `sealed interface` 继承 `IAggregateProjection` 形成封闭体系；副本标识与聚合类型应集中定义为常量（`REPLICA_ID` / `REPLICA_KEY`），调用方只引用常量而非手拼字符串。副本无需独立的版本解析器 / 补同步器实现类——源自身即副本。
 
 ## 7. 总结速查
 
@@ -328,7 +332,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 | `ProjectorRegistry` | 显式登记 projector / 源 | 源的 `source()` 标识即定位权威来源；同一投影类可多源共存 |
 | `AbstractProjectionSource` | 调用 `sync(aggregate)` / `purge(id)` | 投影为 `null` 时静默跳过（源由调用方注入） |
 | `Reconciliation` | `Reconciliation.of(V', V)` | 先 UNTRACKED，再 ORPHAN（存在性），后 CONSISTENT/STALE |
-| `IReadModelResynchronizer` | 实现 `resync` / `purge` | `resync` 从写模型重建，不重放事件 |
+| `IReadModelReplica` | 源实现 `readVersion` / `rebuild` / `purgeOrphan` | `rebuild` 从写模型重建，不重放事件；`readVersion` 缺省值按存储语义选 0 或 -1 |
 | `Reconciler` / `ReconciliationManager` | `reconcile(type, id)` 一行对账 | 同步原语，延迟复核由调用方异步编排 |
 
 **下一步阅读**

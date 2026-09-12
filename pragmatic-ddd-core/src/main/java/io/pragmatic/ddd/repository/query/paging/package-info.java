@@ -6,8 +6,7 @@
  *   <li>滚动 —— {@link ScrollPosition}（游标）与 {@link ScrollResult}（数据 + 下一游标）</li>
  * </ul>
  *
- * <p>由查询门面（{@code IQueryPage} / {@code IQueryScroll}）与分页检索器 SPI
- * （{@code IProjectionPagedSearcher}）共同消费。</p>
+ * <p>由分页查询族 SPI（{@code IPagedQuerySearcher}）及其实现消费。</p>
  *
  * @author wizard-lee
  */

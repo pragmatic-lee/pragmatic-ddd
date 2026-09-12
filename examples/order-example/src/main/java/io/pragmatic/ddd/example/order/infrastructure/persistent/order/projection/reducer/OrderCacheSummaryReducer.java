@@ -2,7 +2,7 @@ package io.pragmatic.ddd.example.order.infrastructure.persistent.order.projectio
 
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
-import io.pragmatic.ddd.repository.query.projection.IProjectionReducer;
+import io.pragmatic.ddd.repository.query.projection.IReducer;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -15,12 +15,7 @@ import java.util.Optional;
  */
 @Component
 public class OrderCacheSummaryReducer
-        implements IProjectionReducer<OrderCacheProjection, OrderSummaryProjection> {
-
-    @Override
-    public Class<OrderCacheProjection> sourceType() {
-        return OrderCacheProjection.class;
-    }
+        implements IReducer<OrderCacheProjection, OrderSummaryProjection> {
 
     @Override
     public Class<OrderSummaryProjection> projectionType() {

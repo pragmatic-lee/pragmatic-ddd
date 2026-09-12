@@ -6,6 +6,7 @@ import io.pragmatic.ddd.repository.query.projection.fixture.StubProjector;
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -40,9 +41,9 @@ class AggregateProjectionMappingTest {
 
     /**
      * 内存源适配器：模拟一份物理副本（如 ES 一个索引），记录 materialize / purge 调用与入参。
-     * 源 id 与写侧 ReconciliationTarget.storeId 同名，由基类构造器派生 target。
+     * 源自身即副本，副本标识即源 id。
      */
-    static class SampleSource extends AbstractProjectionSource<SampleAggregate, SampleProjection> {
+    static class SampleSource extends AbstractProjectionSource<SampleAggregate, Long, SampleProjection> {
         static final ProjectionSource ES_SOURCE = ProjectionSource.of("es:orders");
 
         final AtomicReference<Long> materializedVersion = new AtomicReference<>();
@@ -52,7 +53,7 @@ class AggregateProjectionMappingTest {
 
         SampleSource(ProjectionSource source) {
             super(source, SampleAggregate.class, SampleProjection.class,
-                    new SampleProjector(false), null);
+                    new SampleProjector(false), List.of());
         }
 
         @Override
@@ -65,6 +66,15 @@ class AggregateProjectionMappingTest {
         public void purge(Object aggregateId) {
             purgedId.set(aggregateId);
             purgeCount.incrementAndGet();
+        }
+
+        @Override
+        public long readVersion(Long aggregateId) {
+            return 0L;
+        }
+
+        @Override
+        public void rebuild(Long aggregateId) {
         }
     }
 
@@ -115,12 +125,12 @@ class AggregateProjectionMappingTest {
     }
 
     /** 返回 null 投影的源，专门覆盖 null 投影分支。 */
-    static class NullProjectorSource extends AbstractProjectionSource<SampleAggregate, SampleProjection> {
+    static class NullProjectorSource extends AbstractProjectionSource<SampleAggregate, Long, SampleProjection> {
         final AtomicInteger materializeCount = new AtomicInteger();
 
         NullProjectorSource(ProjectionSource source) {
             super(source, SampleAggregate.class, SampleProjection.class,
-                    new StubProjector<>(SampleProjection.class), null);
+                    new StubProjector<>(SampleProjection.class), List.of());
         }
 
         @Override
@@ -130,6 +140,15 @@ class AggregateProjectionMappingTest {
 
         @Override
         public void purge(Object aggregateId) {
+        }
+
+        @Override
+        public long readVersion(Long aggregateId) {
+            return 0L;
+        }
+
+        @Override
+        public void rebuild(Long aggregateId) {
         }
     }
 }

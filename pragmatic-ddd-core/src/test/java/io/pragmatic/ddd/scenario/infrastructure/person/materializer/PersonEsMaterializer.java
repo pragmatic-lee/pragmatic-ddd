@@ -16,7 +16,7 @@ import io.pragmatic.ddd.scenario.domain.person.projection.PersonProjection;
  *
  * @author wizard-lee
  */
-public final class PersonEsMaterializer extends AbstractProjectionSource<Person, PersonProjection> {
+public final class PersonEsMaterializer extends AbstractProjectionSource<Person, Long, PersonProjection> {
 
     public PersonEsMaterializer() {
         super(ProjectionSource.of("es:person"), Person.class, PersonProjection.class, new ShellProjector(), null);
@@ -30,6 +30,17 @@ public final class PersonEsMaterializer extends AbstractProjectionSource<Person,
     @Override
     public void purge(Object aggregateId) {
         // 壳子：真实项目在此清理 ES 残留条目
+    }
+
+    @Override
+    public long readVersion(Long aggregateId) {
+        // 壳子：真实项目在此读取 ES 文档 _version
+        return 0L;
+    }
+
+    @Override
+    public void rebuild(Long aggregateId) {
+        // 壳子：真实项目在此从写模型重建 ES 副本
     }
 
     /** 壳子投影器：不真正投影，仅满足源构造约束。 */

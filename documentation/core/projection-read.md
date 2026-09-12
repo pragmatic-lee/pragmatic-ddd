@@ -43,10 +43,12 @@ repository.query                 查询门面 + 编排（调用方视角）
     ProjectionException (基类) + 各具体异常 + ProjectionExceptions (包装辅助)
 
 repository.reconciliation
-  ReconciliationTarget / ReconciliationStatus / Reconciliation  对账标识与判定
-  IReadModelVersionResolver / IReadModelResynchronizer          版本解析 / 补救
+  ReconciliationStatus / Reconciliation                        对账判定与结果
   IReconcileDedup / NoOpReconcileDedup                          去重
   ReconciliationRegistry / ReconciliationManager / Reconciler   登记 / 入口 / 原语
+
+repository（父包，两个子包共同依赖）
+  IReadModelReplica / ReplicaKey                                副本自我维护契约与寻址键
 ```
 
 > `repository.query` 已按职责与受众拆为 5 处：根包（门面 + 编排）、`criteria`（条件族契约）、`paging`（分页 / 滚动值对象）、`projection`（投影模型 + SPI + 源登记中心）、`exception`（异常体系）。依赖单向向下：`query` → {`criteria`, `paging`, `projection`, `exception`}，`projection` → {`criteria`, `paging`, `exception`}，`criteria` / `paging` / `exception` 为叶子。
@@ -63,11 +65,11 @@ repository.reconciliation
 | `IProjectionByIdSearcher` / `IProjectionSearcher` / `IProjectionPagedSearcher` / `IProjectionReducer` | `io.pragmatic.ddd.repository.query.projection` | 检索 / 裁剪构件（挂在源上） |
 | `ProjectorRegistry` | `io.pragmatic.ddd.repository.query.projection` | 源登记中心 |
 | `ProjectionException` 体系 / `ProjectionExceptions` | `io.pragmatic.ddd.repository.query.exception` | 读侧投影检索域异常与包装辅助 |
-| `ReconciliationTarget` / `Reconciliation` | `io.pragmatic.ddd.repository.reconciliation` | 对账标识与状态判定 |
-| `IReadModelVersionResolver` / `IReadModelResynchronizer` | `io.pragmatic.ddd.repository.reconciliation` | 版本解析与补救 |
+| `IReadModelReplica` / `ReplicaKey` | `io.pragmatic.ddd.repository` | 副本自我维护契约与寻址键（对账与投影两个子包共同依赖的上层抽象） |
+| `Reconciliation` / `ReconciliationStatus` | `io.pragmatic.ddd.repository.reconciliation` | 对账状态判定 |
 | `ReconciliationRegistry` / `ReconciliationManager` / `Reconciler` | `io.pragmatic.ddd.repository.reconciliation` | 对账编排 |
 
-读模型不持有仓储实例；`reconciliation` 子包反向依赖 `IRepository`，按聚合类型经 `ReconciliationRegistry` 取 `currentVersion` 权威版本 V。源 `id` 与对账 `ReconciliationTarget.storeId()` 同名，写侧 resync 路径可直接按 target 桥接源。
+读模型不持有仓储实例；`reconciliation` 子包反向依赖 `IRepository`，按聚合类型经 `ReconciliationRegistry` 取 `currentVersion` 权威版本 V。**源自身即副本**：`AbstractProjectionSource` 实现 `IReadModelReplica`，其 `replicaId()` 即源 `id`，读写与对账共用同一身份，不再需要独立的目标标识与补同步适配器。
 
 ## 2. 核心概念详解
 
@@ -134,7 +136,8 @@ public interface IAggregateProjector<T extends AggregateRoot<?>, P extends IAggr
 }
 
 // 源：写读一体，替代原 IProjectionMaterializer
-public abstract class AbstractProjectionSource<T extends AggregateRoot<?>, P extends IAggregateProjection> {
+public abstract class AbstractProjectionSource<T extends AggregateRoot<ID>, ID, P extends IAggregateProjection>
+        implements IReadModelReplica<ID> {
     // super(source, aggregateType, fullProjectionType, projector, byIdSearcher)
     protected AbstractProjectionSource(ProjectionSource source,
             Class<T> aggregateType, Class<P> projectionType,
@@ -200,7 +203,7 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 | `register(IProjectionPagedSearcher)` | 按 `(条件类型, 索引级投影类型)` 登记分页 / 滚动检索器（源内 `bind`） |
 | `register(IProjectionByIdSearcher)` | 按 `索引级投影类型` 登记按主键检索器（源构造器第 5 参注入） |
 | `register(IProjectionReducer)` | 按 `(源投影类型, 子投影类型)` 登记裁剪器（源内 `bind`）；同一子投影多来源抛 `ProjectionReducerConflictException` |
-| `register(AbstractProjectionSource<T,P>)` | 登记索引级全量投影源（写读一体，替代旧 `markSourceProjection`） |
+| `register(AbstractProjectionSource<T,ID,P>)` | 登记索引级全量投影源（写读一体，源自身即副本） |
 | `getSearcher(Class<C>, Class<P>)` | 定位按条件检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
 | `getPagedSearcher(Class<C>, Class<P>)` | 定位分页 / 滚动检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
 | `getByIdSearcher(Class<P>)` | 定位按主键检索器；未登记**抛** `ProjectionSearcherNotFoundException` |
@@ -216,20 +219,23 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 | --- | --- |
 | `sync(aggregate)` | 由源自身持有的 projector `project` 后 `materialize`；投影为 `null` 时静默跳过 |
 | `purge(aggregateId)` | 按聚合主键清理本源物理存储中的残留副本 |
+| `readVersion(aggregateId)` | 读取副本已物化版本 V'（如 ES `_version`、Redis 内嵌 version）；缺省值按存储语义选 0 / -1 |
+| `rebuild(aggregateId)` | 从写模型当前快照重建本副本（`findById` 后调用 `sync`） |
+| `purgeOrphan(aggregateId)` | 对账判定 ORPHAN 后清理残留条目；默认委托 `purge` |
 
 #### 关键约束
 
-> **重要约束**：源 `source()` 标识即 `ReconciliationTarget` 的 `storeId()`，写侧源 `sync` 与对账 `resync` 共享同源标识，registry 不单独登记 target。业务方应引用已定义的 `ProjectionSource` 常量（如 `OrderEsTargets.TARGET_ES_ORDERS`），避免 key 不一致导致寻址失败。
+> **重要约束**：源自身即副本（`AbstractProjectionSource implements IReadModelReplica`），`replicaId()` 即源 `id`，写侧 `sync` 与对账 `rebuild` 共享同一身份，registry 不单独登记副本标识对象。业务方应引用已定义的常量（如 `OrderEsTargets.REPLICA_ID`），避免 key 不一致导致寻址失败。
 
-> **重要约束**：事件物化路径与对账 resync 路径共用 `AbstractProjectionSource.sync`，保证转换逻辑唯一。源自身 `sync` 不持有 repository；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。
+> **重要约束**：事件物化路径与对账 `rebuild` 路径共用 `AbstractProjectionSource.sync`，保证转换逻辑唯一。源自身 `sync` 不持有 repository；aggregate 由调用方 `load` 后传入，`version` 复用 `aggregate.getOldVersion()`。`rebuild` 则由源持有 repository 自行 `findById` 后调用同一 `sync`。
 
 > **重要约束**：`AbstractProjectionSource.sync` 在投影为 `null` 时**静默跳过**，不抛异常；源本身由调用方持有 / 注入，不存在「源缺失」分支。
 
 #### 示例代码
 
 ```java
-projectorSupport.sync(order, OrderEsTargets.TARGET_ES_ORDERS);
-projectorSupport.purge(OrderCacheTargets.TARGET_REDIS_ORDERS, orderId);
+orderEsSource.sync(order);
+orderRedisSource.purge(orderId);
 ```
 
 ### 2.4 分页与滚动值对象
@@ -255,37 +261,38 @@ projectorSupport.purge(OrderCacheTargets.TARGET_REDIS_ORDERS, orderId);
 
 | 类型 | 角色 |
 | --- | --- |
-| `ReconciliationTarget` | 稳定标识：来源聚合类型 + 存储 ID（record，自动提供值语义 equals/hashCode）；如 `("Order", "es:orders")` |
+| `ReplicaKey` | 副本寻址键（record，`repository` 父包，自动提供值语义 equals/hashCode）：聚合类型 + 副本标识；如 `("Order", "es:orders")` |
+| `IReadModelReplica<ID>` | 副本自我维护契约（`repository` 父包）：`aggregateType` / `replicaId` / `key` / `readVersion` / `rebuild` / `purgeOrphan`；**源自身即副本** |
 | `ReconciliationStatus` | 一致性状态：`CONSISTENT`(V'≥V) / `STALE`(V'<V) / `ORPHAN`(V<0 但 V'≥0) / `UNTRACKED`(V'<0) |
 | `Reconciliation` | 对账结果 record：`of(readVersion, writeVersion)` 纯函数判定状态 |
-| `IReadModelVersionResolver<ID>` | 取异构存储副本版本 V'；`supportedTarget()` 供登记 |
-| `IReadModelResynchronizer<ID>` | 补救：`resync`（STALE 从写模型重建）/ `purge`（ORPHAN 清理）；`supportedTarget()` 供登记 |
 | `IReconcileDedup` | 去重：`shouldSkip` / `mark`，避免窗口内重复补救 |
 | `NoOpReconcileDedup` | 不去重默认实现（`INSTANCE`），每次都处理 |
-| `ReconciliationRegistry` | 登记中心：汇聚各 target 的 resolver / resyncer 与各聚合的 repository |
-| `ReconciliationManager` | 统一入口：`reconcile(type, id)` 循环该聚合全部已注册 target，调用 `Reconciler` 并告警 |
+| `ReconciliationRegistry` | 登记中心：汇聚各副本（`registerReplica`）与各聚合的 repository；`replicaKeysOf` 前缀索引 O(1) |
+| `ReconciliationManager` | 统一入口：`reconcile(type, id)` 循环该聚合全部已注册副本，调用 `Reconciler` 并告警 |
 | `Reconciler` | 纯函数原语：`reconcile`(仅检测) / `reconcileAndResync`(检测+立即补救) |
 
 #### 关键约束
 
 > **重要约束**：状态判定为纯函数（见 `Reconciliation.of`）：`readVersion < 0` → `UNTRACKED`；`writeVersion < 0` → `ORPHAN`；（否则）`readVersion ≥ writeVersion` → `CONSISTENT`，否则 `STALE`。`UNTRACKED` 表示副本未追踪版本、无法对账，不应被误判为一致。
 
-> **重要约束**：补救必须「从写模型重建」而非「重放事件」。`IReadModelResynchronizer.resync` 的语义是以 `aggregateId` 为粒度从写模型当前快照重建副本；丢失的事件已不在事件流里，重放单条事件无法补齐。实现 `resync` 应走 `IRepository.findById` 取最新聚合再 project→materialize。
+> **重要约束**：`readVersion` 缺省值语义由实现自定：`0` 表示副本缺失、需重建（判 STALE），`-1` 表示副本未追踪（判 UNTRACKED，**不触发重建**）。实现须按本副本物理存储语义选择，误用 `-1` 会导致副本永久落后而静默无告警。
+
+> **重要约束**：补救必须「从写模型重建」而非「重放事件」。`IReadModelReplica.rebuild` 的语义是以 `aggregateId` 为粒度从写模型当前快照重建副本；丢失的事件已不在事件流里，重放单条事件无法补齐。实现应走 `IRepository.findById` 取最新聚合再 `sync`。
 
 > **重要约束**：竞态与延迟复核由调用方编排。`Reconciler.reconcileAndResync` 是纯同步原语，检测到不一致立即补救、不阻塞线程（不放 `Thread.sleep`）。若需规避「事件刚发布、副本尚未同步完」的竞态，延迟复核由调用方异步编排（调度器或发延迟消息到 Kafka/RocketMQ 重试），不在 core 内实现。
 
-> **重要约束**：`ReconciliationManager` 默认装配 `NoOpReconcileDedup`（每次都处理）。高频重试场景应提供 `IReconcileDedup` 实现（如基于时间窗口的本地/分布式去重），避免同一 `(target, id)` 在窗口内被重复补救。
+> **重要约束**：`ReconciliationManager` 默认装配 `NoOpReconcileDedup`（每次都处理）。高频重试场景应提供 `IReconcileDedup` 实现（如基于时间窗口的本地/分布式去重），避免同一 `(key, id)` 在窗口内被重复补救。
 
-> **重要约束**：`ReconciliationManager.reconcile` 对单 target 重载依赖 `registry.resolverFor` 返回的 resolver；若该 target 未登记 resolver / resyncer / repository，`registry.*For` 返回 `null` 导致 `Reconciler` 空指针。调用方须确保目标已登记三类组件后再对账。
+> **重要约束**：`ReconciliationManager.reconcile` 单副本重载依赖 `registry.replicaFor(key)`；副本未登记抛 `ReplicaNotFoundException`（不再返回 `null`）。同一 `ReplicaKey` 重复登记不同实例抛 `ReconcileDuplicateReplicaException`。调用方须确保副本已登记后再对账。
 
 #### 示例代码
 
 ```java
-ReconciliationStatus status = Reconciler.reconcile(readVersion, writeVersion);
+ReconciliationStatus status = Reconciler.reconcile(replica, orderRepository, aggregateId).status();
 if (status == ReconciliationStatus.STALE) {
-    resynchronizer.resync(aggregateId);
+    replica.rebuild(aggregateId);
 } else if (status == ReconciliationStatus.ORPHAN) {
-    resynchronizer.purge(aggregateId);
+    replica.purgeOrphan(aggregateId);
 }
 ```
 
@@ -293,12 +300,12 @@ if (status == ReconciliationStatus.STALE) {
 
 ### 3.1 project→materialize 门面唯一性
 
-事件物化路径（领域事件触发）与对账 resync 路径（版本不一致触发）都经 `AbstractProjectionSource.sync` 完成 project→materialize，转换逻辑在 projector / 源内只实现一次。若绕过源直接在事件处理器里手写投影更新，会出现与 resync 不一致的双份逻辑。
+事件物化路径（领域事件触发）与对账 `rebuild` 路径（版本不一致触发）都经 `AbstractProjectionSource.sync` 完成 project→materialize，转换逻辑在 projector / 源内只实现一次。若绕过源直接在事件处理器里手写投影更新，会出现与 `rebuild` 不一致的双份逻辑。
 
 ### 3.2 版本号语义（V 与 V'）
 
 - V（写模型权威版本）来自 `IRepository.currentVersion`，无版本返回 `-1`（写模型无此聚合）。
-- V'（副本版本）来自 `IReadModelVersionResolver`，由源在 `materialize` 时持久化。
+- V'（副本版本）来自 `IReadModelReplica.readVersion`，由源在 `materialize` 时持久化。
 - 判定 `STALE` / `ORPHAN` 完全依赖 V 与 V' 的纯函数比较，见 §2.5。
 
 ### 3.3 缺失组件的静默跳过
@@ -365,15 +372,16 @@ RuntimeException
 | searcher 未登记 | 抛 `ProjectionSearcherNotFoundException` | `ProjectorRegistry.get*Searcher` |
 | reducer 未登记 / 子投影无来源 | 抛 `ProjectionReducerNotFoundException` | `ProjectorRegistry.getReducer` / 门面选路 |
 | 同一子投影多来源 | 抛 `ProjectionReducerConflictException` | `ProjectorRegistry.register(reducer)` |
-| `STALE` / `ORPHAN` | `log.warning` 不一致目标并执行补救 | `ReconciliationManager` |
-| resolver / resyncer / repository 未登记 | `registry.*For` 返回 `null`，`Reconciler` 空指针 | `ReconciliationRegistry` |
+| `STALE` / `ORPHAN` | `log.warning` 不一致副本并执行补救 | `ReconciliationManager` |
+| 副本未登记 | 抛 `ReplicaNotFoundException` | `ReconciliationRegistry.replicaFor` |
+| 同一副本键重复登记 | 抛 `ReconcileDuplicateReplicaException` | `ReconciliationRegistry.registerReplica` |
 
 `ProjectionExceptions` 的两个包装方法对已抛出的 `ProjectionException` 原样传递、不二次包装，因此调用方能准确区分「存储不可达」与「条件不支持」。
 
 ### 4.3 捕获与处理规范
 
 - 查询侧异常：`catch (IllegalArgumentException e)` 处理分页参数违例；持久化层异常按各集成模块（MyBatis / ES / Redis）约定处理。
-- 对账侧异常：`ReconciliationManager` 对单 target 重载在未登记组件时会因 `registry.resolverFor` 返回 `null` 触发 `NullPointerException`，调用方须确保目标已登记 resolver / resyncer / repository 后再对账。
+- 对账侧异常：副本未登记抛 `ReplicaNotFoundException`、同键重复登记抛 `ReconcileDuplicateReplicaException`（不再静默返回 `null`）；调用方须确保副本已登记后再对账。
 - `sync` 缺失组件为静默跳过，不应依赖异常发现配置缺失；上线前应校验 registry 登记完整性。
 
 ## 5. 总结速查
@@ -383,14 +391,14 @@ RuntimeException
 | 查询契约 | 按需组合 6 个 trait 或继承 `IAggregateQuery` | 精确规约条件字段全必填；按需过滤全 `Optional` |
 | 投影 | 实现 `IAggregateProjection`，用 sealed interface 封闭 | 投影与聚合根是两套体系，不可混用 |
 | 投影器 | 继承 `AbstractAggregateProjector` | `project` 纯映射不含存储；返回 `null` 表示不满足 |
-| 源 | 继承 `AbstractProjectionSource` | 写读一体；`source()` 标识即对账 target；external 版本冲突静默丢弃 |
-| 登记 / 源 | `ProjectorRegistry`（源登记）+ `AbstractProjectionSource.sync` | 事件与 resync 共用源；投影为 null 静默跳过 |
+| 源 | 继承 `AbstractProjectionSource` | 写读对账一体，源自身即副本；external 版本冲突静默丢弃 |
+| 登记 / 源 | `ProjectorRegistry`（源登记）+ `AbstractProjectionSource.sync` | 事件与 rebuild 共用源；投影为 null 静默跳过 |
 | 检索器 | 实现三类 `IProjection*Searcher` | `projectionType()` 用索引级全量投影具体类；未登记抛异常 |
 | 裁剪器 | 实现 `IProjectionReducer` | `reduce` 纯函数；分页留在检索器侧 |
 | 读侧取数 | 选路 → 查全量 → 内存裁剪 | 键精确匹配、不做类型向上查找；子投影单一来源 |
 | 分页 / 滚动 | `PageRequest` / `ScrollPosition` | `pageSize ∈ [1,200]`；游标不透明 |
 | 对账 | `Reconciliation.of` 判定 + `Reconciler` 补救 | 补救从写模型重建而非重放事件；延迟复核由调用方编排 |
-| 异常 | `IllegalArgumentException` + 日志告警 | `sync` 静默跳过；未登记组件 resync 空指针 |
+| 异常 | `IllegalArgumentException` + 日志告警 | `sync` 静默跳过；副本未登记抛 `ReplicaNotFoundException` |
 
 **下一步阅读**
 

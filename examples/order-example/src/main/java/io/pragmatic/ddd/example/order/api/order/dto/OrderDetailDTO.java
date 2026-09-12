@@ -2,6 +2,7 @@ package io.pragmatic.ddd.example.order.api.order.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import lombok.Data;
 
@@ -116,6 +117,41 @@ public class OrderDetailDTO {
         dto.setItems(order.getOrderItems().getAllItems().stream()
                 .map(OrderItemDTO::from)
                 .toList());
+        return dto;
+    }
+
+    /** 由 Redis 缓存副本投影组装（详情查询）。 */
+    public static OrderDetailDTO from(OrderCacheProjection projection) {
+        OrderDetailDTO dto = new OrderDetailDTO();
+        dto.setOrderId(projection.getOrderId());
+        if (projection.getCustomer() != null) {
+            dto.setCustomerId(projection.getCustomer().getCustomerId());
+        }
+        dto.setStatus(projection.getStatus());
+        dto.setPaymentStatusName(projection.getPaymentStatusName());
+        dto.setShipmentStatusName(projection.getShipmentStatusName());
+        dto.setPaymentStatus(projection.getPaymentStatus());
+        dto.setShipmentStatus(projection.getShipmentStatus());
+        dto.setTotalAmount(projection.getTotalAmount());
+        dto.setActualAmount(projection.getActualAmount());
+        dto.setRemark(projection.getRemark());
+        dto.setPayTime(projection.getPaidAt());
+        dto.setCancelReason(projection.getCancelReason());
+        dto.setPayMethod(projection.getPaymentMethod());
+        dto.setPayTransactionNo(projection.getPaymentSerialNo());
+        dto.setPlatformDiscountAmount(projection.getPlatformDiscount());
+        if (projection.getLogisticsInfo() != null) {
+            dto.setLogisticsCompanyCode(projection.getLogisticsInfo().getCompanyCode());
+            dto.setLogisticsCompanyName(projection.getLogisticsInfo().getCompanyName());
+            dto.setTrackingNo(projection.getLogisticsInfo().getTrackingNo());
+            dto.setShippedTime(projection.getLogisticsInfo().getShippedAt());
+        }
+        dto.setUpdatedAt(projection.getUpdatedAt());
+        if (projection.getOrderItems() != null) {
+            dto.setItems(projection.getOrderItems().stream()
+                    .map(OrderItemDTO::from)
+                    .toList());
+        }
         return dto;
     }
 

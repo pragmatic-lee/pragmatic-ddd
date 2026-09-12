@@ -24,7 +24,7 @@ import java.util.stream.Stream;
  *
  * @author wizard-lee
  */
-final class OrderEsConditionFactory {
+public final class OrderEsConditionFactory {
 
     private OrderEsConditionFactory() {
     }
@@ -35,7 +35,7 @@ final class OrderEsConditionFactory {
      * @param condition 综合检索条件族
      * @return ES bool 查询；条件全缺省时等价于 match_all
      */
-    static Query build(OrderPageQuery.ByConditions condition) {
+    public static Query build(OrderPageQuery.ByConditions condition) {
         List<Query> filter = Stream.of(
                         termLong("orderId", condition.orderId()),
                         termInt("status", condition.status()),

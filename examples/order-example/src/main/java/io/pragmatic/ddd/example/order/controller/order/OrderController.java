@@ -19,6 +19,7 @@ import io.pragmatic.ddd.example.order.application.order.input.CreateOrderItemInp
 import io.pragmatic.ddd.example.order.application.order.input.PayOrderInput;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
 import io.pragmatic.ddd.repository.query.paging.PageRequest;
@@ -95,11 +96,11 @@ public class OrderController {
     }
 
     /**
-     * 订单详情（读模型 ES 全量投影裁剪）。
+     * 订单详情（走 Redis 缓存副本投影）。
      */
     @GetMapping("/{orderId}")
     public Result<OrderDetailDTO> orderDetail(@PathVariable Long orderId) {
-        OrderEsProjection projection = orderReadService.queryById(orderId, OrderEsProjection.class);
+        OrderCacheProjection projection = orderReadService.queryById(orderId, OrderCacheProjection.class);
         if (projection == null) {
             throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
         }

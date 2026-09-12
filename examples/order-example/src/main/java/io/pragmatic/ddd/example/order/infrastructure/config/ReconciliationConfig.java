@@ -1,8 +1,7 @@
 package io.pragmatic.ddd.example.order.infrastructure.config;
 
 import io.pragmatic.ddd.example.order.infrastructure.config.reconciliation.InMemoryTimeWindowReconcileDedup;
-import io.pragmatic.ddd.repository.reconciliation.IReadModelResynchronizer;
-import io.pragmatic.ddd.repository.reconciliation.IReadModelVersionResolver;
+import io.pragmatic.ddd.repository.IReadModelReplica;
 import io.pragmatic.ddd.repository.reconciliation.IReconcileDedup;
 import io.pragmatic.ddd.repository.reconciliation.IReconciliationCandidateProvider;
 import io.pragmatic.ddd.repository.reconciliation.ReconciliationContribution;
@@ -18,8 +17,8 @@ import java.util.List;
 
 /**
  * 通用对账配置（聚合无关）：提供共享的 ReconciliationRegistry 与 ReconciliationManager，
- * 并通过集合注入收编所有聚合的版本解析器、补同步器与仓储接线贡献，不感知具体聚合类型。
- * 各聚合只需在专属配置中提供 IReadModelVersionResolver / IReadModelResynchronizer /
+ * 并通过集合注入收编所有副本（即读侧源）与仓储接线贡献，不感知具体聚合类型。
+ * 各聚合只需让源实现 {@link IReadModelReplica}（读侧源天然满足）并在专属配置中提供
  * ReconciliationContribution 的 Bean 即可被自动登记。
  *
  * @author wizard-lee
@@ -29,12 +28,10 @@ public class ReconciliationConfig {
 
     @Bean
     public ReconciliationRegistry reconciliationRegistry(
-            List<IReadModelVersionResolver<?>> resolvers,
-            List<IReadModelResynchronizer<?>> resyncers,
+            List<IReadModelReplica<?>> replicas,
             List<ReconciliationContribution> contributions) {
         ReconciliationRegistry registry = new ReconciliationRegistry();
-        resolvers.forEach(registry::registerResolver);
-        resyncers.forEach(registry::registerResynchronizer);
+        registry.registerReplicas(replicas);
         contributions.forEach(contribution -> contribution.contribute(registry));
         return registry;
     }

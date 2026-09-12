@@ -41,6 +41,35 @@
 - **事务抽象包迁移**（Breaking）：`TransactionOperations` / `TransactionCallback` / `Propagation`
   由 `io.pragmatic.ddd.application.outbox.spi` 迁至 `io.pragmatic.ddd.application.spi`（通用事务抽象，与 outbox 解耦；
   顺带解除 `DbSegmentAllocator` / `IdGeneratorConfig` 对 outbox 包的依赖）。旧包类型已删除。
+- **读模型对账收敛为「源即副本」**（Breaking）：取消独立的对账目标概念，副本的自我维护能力下沉为源自身契约。
+  读侧源（`AbstractProjectionSource`）实现 `IReadModelReplica` 后，写（`materialize` / `purge`）、读（查询族）
+  与对账（`readVersion` / `rebuild` / `purgeOrphan`）收敛于同一对象，一个副本只需一个类。
+  - **删除** `ReconciliationTarget`，由 `ReplicaKey`（聚合类型 + 副本标识，`record`）取代其值语义位置。
+  - **删除** `IReadModelVersionResolver` / `IReadModelResynchronizer` 两个 SPI 接口，能力并入 `IReadModelReplica`。
+  - **删除** `ProjectorRegistry.targetOf(ProjectionSource)`（target 已不存在）。
+  - `ReconciliationRegistry` 由 resolver / resyncer 双表合并为单表 `Map<ReplicaKey, IReadModelReplica<?>>`，
+    登记入口为 `registerReplica` / `registerReplicas`；`replicaKeysOf(aggregateType)` 由 O(n) 线性扫描改为 O(1) 前缀索引；
+    重复登记由静默覆盖改为抛 `ReconcileDuplicateReplicaException`，未登记取用由返回 `null` 改为抛 `ReplicaNotFoundException`。
+  - `ReconciliationManager.reconcile(Class, ID)` / `reconcileBatch` 返回类型改为 `Map<ReplicaKey, Reconciliation>`；
+    `reconcile(ReconciliationTarget, ID)` 改为 `reconcile(ReplicaKey, ID)`；新增 `reconcileReplica(IReadModelReplica, Class, ID)`
+    供调用方已持有副本实例时直取对账、避免按聚合类型全量遍历。
+  - `IReconcileDedup` 的 `shouldSkip` / `mark` 参数由 `ReconciliationTarget` 改为 `ReplicaKey`。
+  - `Reconciler` 参数命名归位：`replica`（读侧副本，原误称 `target`）+ `writeModel`（写模型，原误称 `source`）。
+  - **`AbstractProjectionSource` 泛型形参由 2 个扩为 3 个**（`<T extends AggregateRoot<ID>, ID, P>`），
+    使源直接实现 `IReadModelReplica<ID>` 而非 `<Object>`：`readVersion` / `rebuild` 接收真实标识类型（如 `Long`），
+    子类不再需要手工转换。`ProjectorRegistry` 的字段与 4 个方法泛型同步补 `ID` 形参。
+  - **新增两个抽象方法** `readVersion(ID)` / `rebuild(ID)`（子类必须实现；不提供默认实现，因「每个源都必须可对账」是框架不变式）；
+    新增 `purgeOrphan(ID)` 默认实现（委托 `purge`，不可命名为 `purge` 以避免与源既有 `purge(Object)` 在类型擦除后重载歧义）。
+  - `IReadModelReplica` / `ReplicaKey` 置于 `repository` 父包，使 `query.projection` 与 `reconciliation` 两个子包
+    互不依赖、共同依赖该契约（此前 `query.projection` 单向依赖 `reconciliation`）。
+  - ⚠️ **`readVersion` 缺省值语义由实现自定**：`0` = 副本缺失、需重建（判 STALE）；`-1` = 未追踪（判 UNTRACKED，**不触发重建**）。
+    实现须按本副本物理存储语义选择；误用 `-1` 将使副本永久落后且静默无告警。
+- **order-example 对账收敛**（Breaking）：`OrderEsSource` / `OrderRedisSource` 落地
+  `readVersion`（ES 读 `_version`、Redis 解投影 JSON 内嵌 version，副本缺失均返回 0）与 `rebuild`（`findById` → `sync`），
+  并注入 `OrderRepository`；删除 `OrderEsVersionResolver` / `OrderEsResynchronizer` / `OrderRedisVersionResolver` /
+  `OrderRedisResynchronizer` 四个适配器类（副本类数由 3 降至 1）；`OrderEsTargets` / `OrderCacheTargets` 的
+  `TARGET_*` 常量替换为 `REPLICA_ID` + `REPLICA_KEY`；`ReconciliationConfig` 由注入两个 SPI 集合
+  改为注入 `List<IReadModelReplica<?>>`（源即副本，装配同源）。
 
 ### 新增
 
