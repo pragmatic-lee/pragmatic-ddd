@@ -38,7 +38,6 @@ repository.query                 查询能力（调用方视角：只有子包�
     IListQuerySearcher<P,C>      查询族：按精确条件检索列表（含 TOP N）
     IPagedQuerySearcher<P,C>     查询族：分页 / 滚动检索
     IReducer<S,X>                裁剪器：索引级全量投影 → 业务子投影（Java 内存）
-    ProjectorRegistry            源登记中心（sourceId → Source，极薄）
   exception/                     读侧投影检索域异常体系
     ProjectionException (基类) + 各具体异常 + ProjectionExceptions (包装辅助)
 
@@ -66,7 +65,6 @@ repository（父包，两个子包共同依赖）
 | `IAggregateProjector` / `AbstractAggregateProjector` | `io.pragmatic.ddd.repository.query.projection` | 投影映射 |
 | `IProjectionByIdSearcher` / `IOneQuerySearcher` / `IListQuerySearcher` / `IPagedQuerySearcher` | `io.pragmatic.ddd.repository.query.projection` | 四个查询族 SPI（由源 `implements`） |
 | `IReducer` | `io.pragmatic.ddd.repository.query.projection` | 裁剪器（随源走） |
-| `ProjectorRegistry` | `io.pragmatic.ddd.repository.query.projection` | 源登记中心（sourceId → Source） |
 | `ProjectionException` 体系 / `ProjectionExceptions` | `io.pragmatic.ddd.repository.query.exception` | 读侧投影检索域异常与包装辅助 |
 | `IReadModelReplica` / `ReplicaKey` | `io.pragmatic.ddd.repository` | 副本自我维护契约与寻址键（对账与投影两个子包共同依赖的上层抽象） |
 | `Reconciliation` / `ReconciliationStatus` | `io.pragmatic.ddd.repository.reconciliation` | 对账状态判定 |
@@ -180,7 +178,7 @@ public interface IReducer<S extends IAggregateProjection, X extends IAggregatePr
 
 > **重要约束（版本冲突语义）**：异构存储写入应使用 **external 版本号**（如 ES `versionType(External).version(v)`、Redis 写入前比对当前版本）。迟到 / 重复事件导致版本不前进时，存储返回 409（或检出当前版本 ≥ 写入版本），`materialize` 应**静默丢弃**该次写入（仅记 debug 日志）——这是 external 版本乐观锁的标准语义，不是「副本落后需 resync」。真正的写失败（连接断开、映射错误）仍应上抛。
 
-> **重要约束（源标识唯一性）**：同一进程内 `ProjectionSource` 的寻址串全局唯一。`ProjectorRegistry.register` 与 `ReconciliationRegistry.registerReplica` 都不允许两个不同源共用同一标识——重复登记分别抛 `ProjectionSourceConflictException` 与 `ReconcileDuplicateReplicaException`。
+> **重要约束（源标识唯一性）**：同一进程内 `ProjectionSource` 的寻址串全局唯一。`ReconciliationRegistry.registerReplica` 不允许两个不同源共用同一标识——重复登记抛 `ReconcileDuplicateReplicaException`。业务方应引用已定义的常量（如 `OrderEsTargets.REPLICA_ID`），避免 key 不一致导致对账寻址失败。
 
 > **重要约束（裁剪器来源）**：`getReducer(Class<X>)` 用 `target.isAssignableFrom(reducer.projectionType())` 取首个匹配，**未注册返回 `null`，不抛异常**。因此：
 > - 同一子投影**可以由多个源各自产出**（如 ES 源与 Redis 源各有一个产出 `OrderSummaryProjection` 的裁剪器），二者在不同源内独立定位、互不冲突；
@@ -220,19 +218,6 @@ public class OrderSummaryProjector extends AbstractAggregateProjector<Order, Ord
 | `source` / `projectionType` / `projector` / `reducers` | `@Getter` 暴露的构造参数 |
 
 **读方法不在基类上**：源按需要 `implements` 领域层源端口（其 `extends` 查询族 SPI），由子类自行实现 `getById` / `getByIds` / `search` / `searchPage` / `searchScroll`。
-
-#### `ProjectorRegistry`
-
-极薄化后只做「源 id → 源实例」登记，不涉及检索器 / 裁剪器 / 选路：
-
-| 方法 | 说明 | 未登记时 |
-| --- | --- | --- |
-| `register(AbstractProjectionSource<T,ID,P>)` | 按源标识登记源；重复登记不同实例抛 `ProjectionSourceConflictException` | — |
-| `getSource(ProjectionSource)` | 按源标识取源实例 | 抛 `ProjectionSourceNotFoundException` |
-| `findSource(ProjectionSource)` | 按源标识取源实例 | 返回 `Optional.empty()` |
-| `getProjector(ProjectionSource)` | 取该源的投影器 | 抛 `ProjectionSourceNotFoundException` |
-
-> 读侧寻址不再经过 registry：应用服务注入的是**领域层源接口**（Spring Bean），registry 只服务于「需要按源 id 反查源实例」的场景。
 
 #### 关键约束
 
@@ -394,8 +379,7 @@ RuntimeException
 | 条件无法翻译 | 抛 `ProjectionConditionException` | `ProjectionExceptions.translate` |
 | searcher 未登记 | 抛 `ProjectionSearcherNotFoundException` | 按源取用检索器处 |
 | reducer 未登记 | `getReducer` 返回 `null`；**由调用方决定是否抛** `ProjectionReducerNotFoundException` | `AbstractProjectionSource.getReducer` / 应用服务 |
-| 同一源 id 重复登记 | 抛 `ProjectionSourceConflictException` | `ProjectorRegistry.register` |
-| 按源 id 取源未登记 | 抛 `ProjectionSourceNotFoundException` | `ProjectorRegistry.getSource` |
+| 同一源 id 重复登记 | 抛 `ReconcileDuplicateReplicaException` | `ReconciliationRegistry.registerReplica` |
 | `STALE` / `ORPHAN` | `log.warning` 不一致副本并执行补救 | `ReconciliationManager` |
 | 副本未登记 | 抛 `ReplicaNotFoundException` | `ReconciliationRegistry.replicaFor` |
 | 同一副本键重复登记 | 抛 `ReconcileDuplicateReplicaException` | `ReconciliationRegistry.registerReplica` |
@@ -418,7 +402,7 @@ RuntimeException
 | 投影 | 实现 `IAggregateProjection`，用 sealed interface 封闭 | 投影与聚合根是两套体系，不可混用 |
 | 投影器 | 继承 `AbstractAggregateProjector` | `project` 纯映射不含存储；返回 `null` 表示不满足 |
 | 源 | 继承 `AbstractProjectionSource<T, ID, P>` | 写读对账一体，源自身即副本；`materialize` 形参需强转；external 版本冲突静默丢弃 |
-| 登记 | `ProjectorRegistry`（仅 sourceId → Source） | 不参与选路；同 id 重复登记抛异常 |
+| 源装配 | 源标注 `@Component`，写侧由订阅者注入、读侧由读服务注入领域源端口、对账侧由集合注入自动收集 | 无需任何登记吸附；副本标识唯一由 `ReconciliationRegistry` 保证 |
 | 裁剪器 | 实现 `IReducer<S, X>`，注入源构造器 | `reduce` 纯函数；`getReducer` 未注册返回 `null`；分页留在源侧 |
 | 读侧取数 | 应用服务注入领域源端口，查全量 → 内存裁剪 | 无框架编排基类、无回源链；`totalCount` / `nextCursor` 取裁剪前 |
 | 分页 / 滚动 | `PageRequest` / `ScrollPosition` | `pageSize ∈ [1,200]`；游标不透明 |

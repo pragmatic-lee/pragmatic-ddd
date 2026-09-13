@@ -22,8 +22,7 @@ io.pragmatic.ddd.repository
 │     │    ├─ IAggregateProjector / AbstractAggregateProjector  (聚合 → 投影)
 │     │    ├─ ProjectionSource / AbstractProjectionSource  (源标识 / 写读对账一体源：materialize + 裁剪器持有)
 │     │    ├─ IProjectionByIdSearcher / IOneQuerySearcher / IListQuerySearcher / IPagedQuerySearcher  (四族查询 SPI，由源 implements)
-│     │    ├─ IReducer                   裁剪器（随源注入）
-│     │    └─ ProjectorRegistry          源登记中心（sourceId → Source）
+│     │    └─ IReducer                   裁剪器（随源注入）
 │     └─ exception/               ProjectionException 体系 + ProjectionExceptions 包装辅助
 └── reconciliation                读模型对账子包
       ├─ Reconciliation / ReconciliationStatus                        (对账结果与状态)
@@ -172,22 +171,21 @@ public interface IOrderESSource
 | 类型 | 角色 | 约束 / 说明 |
 |------|------|-------------|
 | `IAggregateProjection` | 读模型投影标记接口 | 仅聚合拓扑级投影实现；嵌套子实体投影不需实现 |
-| `IAggregateProjector<T, P>` | 聚合 → 投影映射（纯映射，无存储细节，可独立单测） | `project(T)` 可返回 `null`；`projectionType()` 供 registry 按型定位 |
+| `IAggregateProjector<T, P>` | 聚合 → 投影映射（纯映射，无存储细节，可独立单测） | `project(T)` 可返回 `null`；`projectionType()` 标识本源唯一承载的全量投影类型 |
 | `AbstractAggregateProjector<T, P>` | 抽象基类 | 预置 `projectionType()`（`final`），子类只实现 `project`；**框架不提供任何默认映射逻辑**，字段取值手写 |
 | `AbstractProjectionSource<T, P>` | 投影 → 异构存储写入（写读一体） | 各集成模块（ES / Redis / 读表）继承；`materialize(P, version)` 持久化 version、`purge(aggregateId)` 清残留，并 `bind` 检索器 / 裁剪器 |
 
 投影类型 `P` 建议用 `sealed interface` 继承 `IAggregateProjection` 形成封闭体系，调用方通过 pattern match 获取具体投影。
 
-#### 源与登记中心
+#### 源与装配
 
-`ProjectorRegistry`（纯 core、无 Spring 依赖）统一管理 `IAggregateProjector` 与 `AbstractProjectionSource`：
+源不再经任何登记中心寻址：投影器与裁剪器列表在**构造时注入源**，三者作为一个对象装配。
 
-| 方法 | 定位 key | 说明 |
-|------|----------|------|
-| `register(source)` | （源标识 `ProjectionSource`） | 源构造时已注入投影器与裁剪器列表；不同源标识可共存 |
-| `getSource(source)` | （源标识） | 未登记抛 `ProjectionSourceNotFoundException` |
-| `findSource(source)` | （源标识） | 未登记返回 `Optional.empty()` |
-| `getProjector(source)` | （源标识） | 取该源的投影器；未登记抛 `ProjectionSourceNotFoundException` |
+| 路径 | 装配方式 |
+|------|----------|
+| 写侧（物化） | 事件订阅者直接注入目标源实例，调用 `源.sync(aggregate)` |
+| 读侧（查询） | 读服务注入领域层源端口（`IOrderESSource` 等），不注入具体源类 |
+| 对账侧 | `ReconciliationRegistry` 经 `List<IReadModelReplica<?>>` 集合注入自动收集全部副本 |
 
 > 读侧寻址不再经过 registry：应用服务注入的是领域层源端口（Spring Bean），registry 只服务「按源 id 反查源实例」的场景，不参与选路。
 
@@ -327,7 +325,6 @@ V' <  V           → STALE       （副本落后，需补同步）
 | `AbstractRepository` | 继承并实现 `doInsert` / `doUpdate` / `doRemove` | `insert/update/remove` 为 `final`，落库前统一触发 `triggerDataSyncHook` |
 | 查询族 SPI | 源按需 `implements` 四个 `I*QuerySearcher` / `IProjectionByIdSearcher` | 泛型实参钉死条件与投影类型；未 extends 的族编译期不可调用 |
 | `AbstractAggregateProjector` | 继承、实现 `project` | 框架无默认映射逻辑，字段取值手写 |
-| `ProjectorRegistry` | 显式登记源（`register(source)`） | 仅「源 id → 源实例」登记，不参与选路；同 id 重复登记抛异常 |
 | `AbstractProjectionSource` | 调用 `sync(aggregate)` / `purge(id)`；读能力由 `implements` 查询族提供 | 写读对账一体，源自身即副本；`materialize` 形参需强转；投影为 `null` 时静默跳过 |
 | `Reconciliation` | `Reconciliation.of(V', V)` | 先 UNTRACKED，再 ORPHAN（存在性），后 CONSISTENT/STALE |
 | `IReadModelReplica` | 源实现 `readVersion` / `rebuild` / `purgeOrphan` | `rebuild` 从写模型重建，不重放事件；`readVersion` 缺省值按存储语义选 0 或 -1 |

@@ -15,6 +15,6 @@ public interface IAggregateProjector<T extends AggregateRoot<?>, P extends IAggr
     /** 将聚合根投影为指定类型 P；聚合不满足投影条件可返回 null（由调用方决定）。 */
     P project(T aggregateRoot);
 
-    /** 本投影器产出的投影类型，供 ProjectorRegistry 按型定位。 */
+    /** 本投影器产出的投影类型，与承载它的源一一对应（源一次只能承载一种全量投影）。 */
     Class<P> projectionType();
 }

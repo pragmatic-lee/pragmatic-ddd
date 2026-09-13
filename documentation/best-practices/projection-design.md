@@ -66,7 +66,6 @@ infrastructure/persistent/order/projection/replica/    基础设施：写读对�
   └── OrderRedisSource                         extends AbstractProjectionSource<Order, Long, OrderCacheProjection>
                                                implements IOrderRedisSource
 infrastructure/config/order/                    Spring 装配
-  ├── OrderProjectionConfig                    登记源到 ProjectorRegistry
   └── OrderReconciliationConfig                产出 ReconciliationContribution，登记聚合仓储
 application/order/                             应用层：读/写应用服务（注入源端口，业务编排门面）
   ├── OrderWriteService                        extends AbstractApplicationService implements ICommandApplicationService（写）
@@ -746,7 +745,7 @@ public class OrderReadService implements IQueryApplicationService {
 
 编写规则：
 
-- **读服务只依赖领域源接口**：构造注入 `IOrderRedisSource` / `IOrderESSource`，不注入 `OrderEsSource` 具体类、不注入 `ProjectorRegistry`、不注入存储客户端。
+- **读服务只依赖领域源接口**：构造注入 `IOrderRedisSource` / `IOrderESSource`，不注入 `OrderEsSource` 具体类、不注入任何登记中心、不注入存储客户端。
 - **每个方法内显式指定源**：本项目 ById 族走 Redis，One / List / Page 族走 ES，直接写在方法体里（见 §4.8）。
 - **目标即索引级全量投影时短路**：`reduceWith` 里先 `projectionType.isInstance(full)`，命中直接 `cast`，不查 reducer、不新建对象。
 - **`getReducer` 返回 `null` 时必须显式抛 `ProjectionReducerNotFoundException`**：基类不抛异常（返回 `null`），判断责任在读服务。
@@ -796,7 +795,7 @@ PageResult<OrderEsProjection> page = orderReadService.queryPage(criteria, pageRe
   - 若业务需要「缓存未命中回源 ES」，就在读服务里显式写（`if (full == null) { return queryByIdFromEs(...); }`），把策略放在明处而不是框架里的隐式规则。
   - 若需要「缓存未命中即重建」，走对账路径（见 §5.3），而不是读路径。
 - **同一个子投影可以有多个来源裁剪器**：`OrderSummaryProjection` 由 `OrderSummaryReducer`（源 ES）与 `OrderCacheSummaryReducer`（源 Redis）各自产出，`getReducer` 在**各自源内**独立定位，互不冲突（不像旧设计那样全局唯一）。
-- **`ProjectorRegistry` 不参与选路**：它现在只是「源 id → 源实例」的登记表（见 §4.12），读服务不需要它。
+- **不存在「按源 id 反查源」的动作**：框架已删除源登记中心 `ProjectorRegistry`（见 §4.12），读服务注入领域源接口即可，没有任何反查环节。
 
 > ⚠️ **为什么不再有框架级回源链**：回源链要求框架在运行时判断「这个源有没有挂对应条件族的检索器」，而判断依据（源实现了哪些族）**编译期就已确定**。把它搬到运行期既多一层间接、又把「源不支持某族」从编译错误降级成运行期异常。现设计直接让「不支持」无法编译。
 >
@@ -1011,8 +1010,8 @@ ProjectionExceptions.translate(() -> buildConditionQuery(condition), "buildCondi
 | `ProjectionConditionException` | 条件无法翻译为该存储的检索请求 | 否 | 条件字段无对应索引 |
 | `ProjectionSearcherNotFoundException` | 无对应检索器 | 否 | 按源取用检索器时缺失 |
 | `ProjectionReducerNotFoundException` | 无对应裁剪器 | 否 | 源未注册目标子投影的裁剪器 |
-| `ProjectionSourceConflictException` | 同一源 id 重复登记不同实例 | 否 | 装配期 `ProjectorRegistry.register` 冲突 |
-| `ProjectionSourceNotFoundException` | 按源 id 取源未登记 | 否 | `ProjectorRegistry.getSource` |
+| `ProjectionSourceConflictException` | 同一源 id 重复登记不同实例 | 否 | 使用方自建装配期源注册表时的冲突（框架内已无此入口） |
+| `ProjectionSourceNotFoundException` | 按源 id 取源未登记 | 否 | 使用方自建按 id 取源的场合（框架内已无此入口） |
 | `ProjectionSourceAmbiguousException` | 多源且无默认源 | 否 | 需要唯一定源的场景 |
 
 > ⚠️ **不要把 `ProjectionSearcherNotFoundException` / `ProjectionReducerNotFoundException` 当「业务上查不到」处理**。它们表示装配缺失，属于接线 bug。**注意 `getReducer` 未注册时返回 `null` 而不抛异常**（见 §4.11），是否抛 `ProjectionReducerNotFoundException` 由读服务决定。
@@ -1073,34 +1072,19 @@ public class OrderSummaryReducer
 >
 > ⚠️ **裁剪器不能复用 `IAggregateProjector`**：`IAggregateProjector<T, P>` 要求 `T extends AggregateRoot<?>`，而索引级全量投影是 `@Data` 数据容器、并非聚合根。二者是平级且互不替代的抽象——投影器是「聚合根 → 投影」，裁剪器是「全量投影 → 子投影」。
 
-### 4.12 装配：`OrderProjectionConfig` + `OrderReconciliationConfig`
+### 4.12 装配：源零登记，只需 `OrderReconciliationConfig`
 
-投影装配**只登记源**；检索是源的方法、裁剪器随源注入，都不需要单独登记：
+投影侧**没有任何装配代码**：源标注 `@Component` 即为 Bean，检索是源的方法、裁剪器随源注入，都不需要登记到任何中心。写侧订阅者与读侧读服务直接注入使用：
 
 ```java
-@Configuration
-public class OrderProjectionConfig {
-
-    @Bean
-    public ProjectorRegistry orderProjectorRegistry(OrderEsSource orderEsSource, OrderRedisSource orderRedisSource) {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        registry.register(orderEsSource);
-        registry.register(orderRedisSource);
-        return registry;
-    }
+@Component
+public class OrderEsSource extends AbstractProjectionSource<Order, Long, OrderEsProjection>
+        implements IOrderESSource {
+    // 投影器与裁剪器列表在构造时注入；sync 由写侧订阅者调用
 }
 ```
 
-`ProjectorRegistry` 现只有四个方法：
-
-| 方法 | 说明 | 未登记时 |
-| --- | --- | --- |
-| `register(source)` | 按源 id 登记源；重复登记不同实例抛 `ProjectionSourceConflictException` | — |
-| `getSource(ProjectionSource)` | 按源 id 取源 | 抛 `ProjectionSourceNotFoundException` |
-| `findSource(ProjectionSource)` | 按源 id 取源 | 返回 `Optional.empty()` |
-| `getProjector(ProjectionSource)` | 取该源的投影器 | 抛 `ProjectionSourceNotFoundException` |
-
-对账装配与之分离，聚合侧只需贡献「聚合类型 → 仓储」这一条框架无法推导的接线：
+唯一的装配代码属于对账侧——贡献「聚合类型 → 仓储」这一条框架无法推导的接线：
 
 ```java
 @Configuration
@@ -1115,11 +1099,11 @@ public class OrderReconciliationConfig {
 
 副本（即源）由通用 `ReconciliationConfig` 注入 `List<IReadModelReplica<?>>` 统一 `registerReplicas`——**新增副本无需改任何装配代码**。
 
-> ⚠️ **装配核心是「登记源」+「贡献仓储」**。漏登记源不影响读（读服务注入的是 Spring Bean），但会让 `ProjectorRegistry.getSource` 抛 `ProjectionSourceNotFoundException`；漏登记仓储会让对账取不到写模型版本。
+> ⚠️ **装配核心只有「贡献仓储」一条**。源无需登记：读服务注入的是 Spring Bean，写侧订阅者注入的也是同一个 Bean，缺少 `@Component` 会在启动期直接失败而非静默降级；漏登记仓储则会让对账取不到写模型版本。
 >
 > ⚠️ **裁剪器注入源构造器，参数声明为具体实现类**（如 `OrderSummaryReducer`），与源同处基础设施层；裁剪器不上升到领域层，替换实现只影响该源的装配。
 >
-> ⚠️ **每个源必须有唯一 `REPLICA_ID`**：两个源共用同一 id 会在 `register` 时抛 `ProjectionSourceConflictException`，在对账注册表 `registerReplica` 时抛 `ReconcileDuplicateReplicaException`。
+> ⚠️ **每个源必须有唯一 `REPLICA_ID`**：两个源共用同一 id 会在对账注册表 `registerReplica` 时抛 `ReconcileDuplicateReplicaException`。
 
 ### 4.13 扩展模式：新增一个存储副本 / 索引
 
@@ -1129,7 +1113,7 @@ public class OrderReconciliationConfig {
 
 - **一个 `源`（`AbstractProjectionSource` 子类）= 一份物理副本**。源在结构上绑定：`(副本标识, 聚合类型, 全量投影类型)` + 投影器 + 裁剪器列表 + 写读对账（materialize / purge / readVersion / rebuild / purgeOrphan）。**源自身即副本**（实现 `IReadModelReplica`），无需另建版本解析器 / 补同步器。
 - **领域层为每份副本定义一个源端口**，按需 `extends` 查询族——这份副本「能被怎么查」在此声明。
-- **新增副本 = 新增一个源对象 + 一个源端口**，`ProjectorRegistry.register` 只累加、不覆盖；对账侧由 `List<IReadModelReplica<?>>` 集合注入自动登记，**对账装配代码无需改动**。
+- **新增副本 = 新增一个源对象 + 一个源端口**，无需登记到任何中心（原 `ProjectorRegistry` 已删除）；对账侧由 `List<IReadModelReplica<?>>` 集合注入自动登记，**对账装配代码无需改动**。
 
 #### 什么时候才需要加副本（先判断，再动手）
 
@@ -1191,16 +1175,12 @@ public class OrderRedisSource extends AbstractProjectionSource<Order, Long, Orde
 
 > ⚠️ **若新副本是「同存储、第二个索引」**（如 ES 详情索引 + 概要索引），它和 Redis 源的区别仅在：仍用 `ElasticsearchClient`、全量投影是新的 `OrderXxxProjection`。写路径 / 版本 / 对账各自独立——**每个源都有自己的一份 `readVersion` 与 `rebuild`**，副本标识由 `REPLICA_ID` 保证唯一。
 
-**③ 装配——register**
+**③ 装配——无需任何登记**
 
 ```java
-@Bean
-public ProjectorRegistry orderProjectorRegistry(OrderEsSource esSource, OrderRedisSource redisSource) {
-    ProjectorRegistry registry = new ProjectorRegistry();
-    registry.register(esSource);
-    registry.register(redisSource);                 // 新增源只在这里 +1 行
-    return registry;
-}
+@Component                                          // 新增源只需加这一个注解，没有装配类要改
+public class OrderXxxSource extends AbstractProjectionSource<Order, Long, OrderXxxProjection>
+        implements IOrderXxxSource { ... }
 // 对账侧无需改动：源实现 IReadModelReplica，由 List<IReadModelReplica<?>> 自动入账
 ```
 
@@ -1443,7 +1423,7 @@ Optional.ofNullable(first.nextCursor())
 | 单位换算散落在字段赋值语句中 | 换算规则无法统一审计、改 Mapping 时易漏改 | 集中在具名方法内（如 `amountOf` → 换算方法），并注明换算原因 |
 | 源端口 `extends` 了它并不支撑的查询族 | 为不存在的检索能力补空实现，调用方拿到空列表 | 只 `extends` 该副本真实要支撑的族；未 extends 即编译期不可调用 |
 | 在源外另建 `*Searcher` 类并由注册中心登记 | 检索能力脱离源，「源支持什么族」退化为运行期查表 | 检索实现是源的方法 |
-| 读服务继承框架查询基类 / 注入 `ProjectorRegistry` | 框架已不提供查询基类；registry 不参与选路 | 读服务 `implements IQueryApplicationService`，注入领域源接口 |
+| 读服务继承框架查询基类 / 注入登记中心选源 | 框架已不提供查询基类，也不再有任何源登记中心 | 读服务 `implements IQueryApplicationService`，构造注入领域源接口 |
 | 读服务把 `ProjectionSource` 或源接口作为方法入参 | 调用方必须懂源与副本才知道调哪个方法 | 选源写在读服务方法体内，对外只暴露业务查询方法 |
 | 期望缓存未命中自动回退 ES | 现设计无运行期回源链，`queryById` 未命中返回 `null` | 需要回退就在读服务里显式写；需要自愈走对账路径 |
 | 读服务 `OrderReadService` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改读服务 | DSL 翻译下沉到源（或外置的条件工厂） |

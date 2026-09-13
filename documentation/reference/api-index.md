@@ -131,7 +131,6 @@
 | 接口 | `IListQuerySearcher<P, C>` | 查询族：按精确条件查列表（含 TOP N） |
 | 接口 | `IPagedQuerySearcher<P, C>` | 查询族：分页 / 游标滚动 |
 | 接口 | `IReducer<S, X>` | 裁剪器：全量投影 → 业务子投影 |
-| 类 | `ProjectorRegistry` | 源登记中心（sourceId → Source） |
 | 抽象类 | `AbstractProjectionSource<T, ID, P>` | 写读对账一体源基类（materialize / purge + readVersion / rebuild + 裁剪器持有 + sync 编排） |
 | 接口 | `QueryCriteria` / `OneQueryCriteria` / `ListQueryCriteria` / `PageQueryCriteria` | 条件族契约（`query.criteria` 子包） |
 | record | `PageRequest` | 分页请求 |

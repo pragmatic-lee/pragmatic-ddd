@@ -289,13 +289,13 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 
     private final OrderRepository orderRepository;
 
-    private final ProjectorRegistry projectorRegistry;
+    private final OrderEsSource esSource;
 
     public OrderDataSyncEsProjectionHandle(
             OrderRepository orderRepository,
-            ProjectorRegistry projectorRegistry) {
+            OrderEsSource esSource) {
         this.orderRepository = orderRepository;
-        this.projectorRegistry = projectorRegistry;
+        this.esSource = esSource;
     }
 
     /**
@@ -413,14 +413,11 @@ public final class EventSubscriberAliases {
 
 ### 5.7 未登记构件的两种行为
 
-| 调用 | 未登记时 | 原因 |
+| 调用 | 结果 | 原因 |
 | --- | --- | --- |
-| `projectorRegistry.getSource(source)` | **抛** `ProjectionSourceNotFoundException` | 按源 id 取源，缺失属接线 bug |
-| `projectorRegistry.findSource(source)` | 返回 `Optional.empty()` | 显式可选语义 |
-| `projectorRegistry.getProjector(source)` | **抛** `ProjectionSourceNotFoundException` | 源未登记则无从取投影器 |
 | `源.getReducer(目标子投影类型)` | 返回 `null` | 裁剪器可选；由调用方决定是否抛 `ProjectionReducerNotFoundException` |
 
-因此读模型型订阅者直接持有目标源并调用 `源.sync(aggregate)` 即可；`sync` 内部对投影为 `null` 做短路跳过，但**不要**把它当正常情况静默——副本会持续落后，应配合启动自检暴露。
+框架不再提供「源 id → 源实例」的登记表（原 `ProjectorRegistry` 已删除），因此**不存在按 id 反查源、也不存在「源未登记」分支**——订阅者构造注入什么源就写什么源，`Missing Bean` 在 Spring 启动期即失败而非静默降级。读模型型订阅者直接持有目标源并调用 `源.sync(aggregate)` 即可；`sync` 内部对投影为 `null` 做短路跳过，但**不要**把它当正常情况静默——副本会持续落后，应配合启动自检暴露。
 
 ### 5.8 幂等与版本
 

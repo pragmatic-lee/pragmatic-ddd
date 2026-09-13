@@ -269,8 +269,8 @@ infrastructure/
     ├── RedisConfig.java
     ├── RocketMQConfig.java
     └── order/                              # 绑定订单的配置
-        ├── OrderProjectionConfig.java
-        └── OrderMybatisTypeHandlerConfig.java  # 订单专属 TypeHandler 注册
+        ├── OrderMybatisTypeHandlerConfig.java  # 订单专属 TypeHandler 注册
+        └── OrderReconciliationConfig.java      # 订单专属对账接线（登记聚合仓储）
 ```
 
 #### 2.3.4 使用前须知（基础设施层）

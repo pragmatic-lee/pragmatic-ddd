@@ -1,7 +1,6 @@
 package io.pragmatic.ddd.repository.query.projection;
 
 import io.pragmatic.ddd.base.fixture.SampleAggregate;
-import io.pragmatic.ddd.repository.query.exception.ProjectionSourceConflictException;
 import io.pragmatic.ddd.repository.query.projection.fixture.StubProjector;
 import io.pragmatic.ddd.repository.query.projection.IAggregateProjection;
 import org.junit.jupiter.api.Test;
@@ -11,11 +10,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * 聚合投影映射落地测试：覆盖 ProjectorRegistry 以「源」为中心的登记/解析，
- * 以及 AbstractProjectionSource 以「源」为中心的同步（sync）/清除（purge）编排。
+ * 聚合投影映射落地测试：覆盖 AbstractProjectionSource 以「源」为中心的同步（sync）/清除（purge）编排。
  * @author wizard-lee
  */
 class AggregateProjectionMappingTest {
@@ -76,24 +73,6 @@ class AggregateProjectionMappingTest {
         @Override
         public void rebuild(Long aggregateId) {
         }
-    }
-
-    @Test
-    void registry_register_source_resolvesById() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        SampleSource es = new SampleSource(SampleSource.ES_SOURCE);
-        registry.register(es);
-
-        assertThat(registry.getSource(SampleSource.ES_SOURCE)).isSameAs(es);
-    }
-
-    @Test
-    void registry_register_duplicateSourceId_conflicts() {
-        ProjectorRegistry registry = new ProjectorRegistry();
-        registry.register(new SampleSource(SampleSource.ES_SOURCE));
-
-        assertThrows(ProjectionSourceConflictException.class,
-                () -> registry.register(new SampleSource(SampleSource.ES_SOURCE)));
     }
 
     @Test

@@ -234,7 +234,7 @@ public class OrderReadService implements IQueryApplicationService {
 }
 ```
 
-> **选源写在读服务方法体内，不外泄给调用方**：不要把 `ProjectionSource` 作为方法入参、也不要注入 `ProjectorRegistry`（它现在只是「源 id → 源实例」登记表，不参与选路）。调用方只传条件与目标投影类型。
+> **选源写在读服务方法体内，不外泄给调用方**：不要把 `ProjectionSource` 作为方法入参。读服务直接注入领域层源端口（框架已无 `ProjectorRegistry` 这一「源 id → 源实例」登记表，无从按 id 反查源），选源写死在方法体内。调用方只传条件与目标投影类型。
 
 > 读服务的**角色定位**（为什么门面放应用层、选源写在这里）与**两跳 / 裁剪的完整落地**见 [投影读模型代码落地指南](./projection-design.md#_4-8-选源由源支持哪些查询族在编译期决定)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
 

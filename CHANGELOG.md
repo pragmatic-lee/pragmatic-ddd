@@ -14,6 +14,8 @@
 
 #### 核心模块 pragmatic-ddd-core
 
+- **删除投影源登记中心 `ProjectorRegistry`**（Breaking）：其能力在 `#fc6fd49`（写编排下沉 `AbstractProjectionSource.sync`）与 `#6d3506f`（读能力由源自身 `implements` 查询族）之后已无主代码消费者——全仓库仅剩一处装配往里 `register`、没有任何 `getSource` / `findSource` / `getProjector` 调用。框架的源登记事实来源统一收敛到 `ReconciliationRegistry`（经 `List<IReadModelReplica<?>>` 集合注入自动收集副本，新增副本无需任何装配改动）。迁移方式：写侧订阅者与读侧读服务改为直接构造注入目标源实例或领域源端口；按 id 反查源的场景请自行审视是否必要（按既有反模式清单，不应存在）。`ProjectionSourceConflictException` / `ProjectionSourceNotFoundException` 作为使用方可选的语义化异常保留。
+
 - **删除投影同步门面 `AggregateProjectorSupport`**（Breaking）：`project → materialize` 与 `purge` 编排下沉到 `AbstractProjectionSource`（新增 `sync(aggregate)` / 复用 `purge(id)`）；`ProjectorRegistry` 同步删除仅被门面使用的 `sourceById(String)` 与 `getSource(String id)` 两个按 storeId 反查方法。调用方（事件处理器、`IReadModelResynchronizer`）改为直接持有并注入目标源实例（如 `OrderEsSource` / `OrderRedisSource`）后调用 `source.sync(order)` / `source.purge(id)`，消除调用方本就持有目标源时「按 target 反查源」的绕行冗余与 `Source ⇄ Registry` 双向依赖风险。
 
 - **工作单元执行模型三阶段化**（`AbstractUnitOfWork` / `UnitOfWork` / `OutboxUnitOfWork`）：

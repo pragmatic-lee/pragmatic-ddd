@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author wizard-lee
  */
-class ProjectorRegistryReducerTest {
+class ProjectionSourceReducerTest {
 
     /** 索引级全量投影：对齐某物理存储索引的文档形状。 */
     private static final class FullProjection implements IAggregateProjection {

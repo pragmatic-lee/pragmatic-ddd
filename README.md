@@ -68,7 +68,7 @@
 | 能力 | 说明 |
 |------|------|
 | 写模型仓储 | `IRepository<ID, T>` + `AbstractRepository` 聚合级持久化契约，含落库前数据同步钩子 |
-| 读模型投影 | `IAggregateProjection` / `IAggregateProjector` + `ProjectorRegistry` 寻址，把聚合映射为异构存储视图 |
+| 读模型投影 | `IAggregateProjection` / `IAggregateProjector` + 写读对账一体源 `AbstractProjectionSource`，把聚合映射为异构存储视图 |
 | 查询端口族 | `IAggregateQuery` / `AbstractProjectionQuery` 提供 `queryById` / `queryByIds` / `queryOne` / `queryList` / `queryPage` / `queryScroll`，含分页与游标滚动值对象；读服务覆写 `fallbackChain()` 内置回源顺序，链上源按能力自动跳过 |
 | 物化与对账 | `IProjectionMaterializer` 写入异构存储；`Reconciler` / `ReconciliationManager` 提供补偿、去重与版本对账 |
 | 变更追踪 | `TrackedList` / `TrackedMap` 把一对多集合拆为「新增 / 修改 / 删除」三桶，持久化只做增量而非全删全插 |
