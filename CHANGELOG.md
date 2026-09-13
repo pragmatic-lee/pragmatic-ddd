@@ -86,11 +86,23 @@
   与本地线程池实现 `ThreadPoolEventManager`。
 - **操作追踪**：`OperationRegistry` / `EntityOperation` / `TriggeredOperations`，用于领域事件归因。
 - **仓储与查询**：写模型契约 `IRepository` 与抽象基类 `AbstractRepository`（落库前统一触发聚合根数据同步钩子）；
-  读模型查询包 `repository.query` 按职责与受众分为根包（6 个 ISP 查询 trait、`IAggregateQuery` 便捷组合与
-  `AbstractProjectionQuery` 三跳编排）与四个子包：`criteria`（条件族契约）、`paging`（分页 / 滚动值对象）、
-  `projection`（投影模型 `IAggregateProjection`、投影器 / 检索器 / 裁剪器 SPI、源适配器 `AbstractProjectionSource`
-  与登记中心 `ProjectorRegistry`）、`exception`（读侧异常体系），依赖单向向下无包级循环；
+  读模型查询包 `repository.query` 按职责与受众拆为四个子包（根包仅 `package-info`，无查询门面与编排基类）：
+  `criteria`（条件族契约 `OneQueryCriteria` / `ListQueryCriteria` / `PageQueryCriteria`）、
+  `paging`（分页 / 滚动值对象）、
+  `projection`（投影模型 `IAggregateProjection`、`IAggregateProjector`、四个查询族 SPI
+  `IProjectionByIdSearcher` / `IOneQuerySearcher` / `IListQuerySearcher` / `IPagedQuerySearcher`、
+  裁剪器 `IReducer`、写读对账一体源 `AbstractProjectionSource<T, ID, P>` 与登记中心 `ProjectorRegistry`）、
+  `exception`（读侧异常体系），依赖单向向下无包级循环；
   读模型对账子包 `repository.reconciliation`（`Reconciler` / `ReconciliationManager`，支持补偿、去重与版本对账）。
+- **查询能力以查询族 SPI 下沉到源**：检索实现是源自身的方法（源 `implements` 查询族），不再有独立的
+  `*Searcher` 类与运行期查表；「源支持哪些族」由 `implements` 的泛型实参编译期钉死。
+- **读侧编排收进应用服务**：移除 `AbstractProjectionQuery` 三跳编排基类、`IAggregateQuery` 与 6 个 ISP 查询
+  trait；读服务改为 `implements IQueryApplicationService` 并注入领域层源端口，按族分派完成
+  「查全量 → 裁剪」两跳，不再有 `fallbackChain()` 回源链。
+- **`ProjectorRegistry` 极薄化**：仅保留 `register` / `getSource` / `findSource` / `getProjector`，
+  移除 `resolveProjector` / `resolveSource` / `registerDefaultSource` / `sourceByProjection` / 检索器与裁剪器查询。
+- **裁剪器改名并瘦身**：`IProjectionReducer` → `IReducer`，移除 `sourceType()`；`getReducer` 未注册返回 `null`，
+  不再抛冲突异常（同一子投影可由多个源各自产出）。
 - **应用层**：`AbstractApplicationService`、工作单元（`IUnitOfWork` / `AbstractUnitOfWork` / `UnitOfWork`）、
   命令执行器（`ICommandExecutor` / `AbstractCommandExecutor`，含 DryRun 试跑）与实体装配工具（`EntityFactory` / `EntityUpdater`）。
 - **事务性 Outbox**：`application.outbox` 子包（`OutboxUnitOfWork` 同事务落库 +

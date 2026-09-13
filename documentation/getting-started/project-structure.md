@@ -64,8 +64,7 @@ com/yourcompany/{module}/
 |----|-----------|---------------------|------|
 | `model/` | 聚合根、实体、值对象、`enums/`、`valueobject/` | `AggregateRoot` | 业务数据与行为载体 |
 | `repository/` | `I{Aggregate}Repository` | `IRepository<ID,T>` | 写模型持久化契约（仅接口） |
-| `projection/` | `{Agg}Projection`（sealed 基类）、具体投影、`I{Agg}ProjectionQuery` | `IAggregateProjection`、`IAggregateQuery` | 读模型视图 + 查询契约（`{Agg}Projection` 是视图容器，`I{Agg}ProjectionQuery` 是查询入口） |
-| `projection/replica/` | `I{Agg}{Store}Source`（读侧源窄化契约） | `IAggregateProjection` 等 | 副本的读侧窄化契约（仅接口，projection 子目录）；**对账能力由源实现 `IReadModelReplica`，无需领域接口** |
+| `projection/` | `{Agg}Projection`（sealed 基类）、具体投影、`I{Agg}{Store}Source`（源端口）、`query/` 条件族 | `IAggregateProjection`、`IProjectionByIdSearcher` / `IOneQuerySearcher` / `IListQuerySearcher` / `IPagedQuerySearcher` | 读模型视图 + 源端口 + 查询条件族。源端口按需 `extends` 查询族，声明「这份副本能被怎么查」；**对账能力由源实现 `IReadModelReplica`，不另下沉领域接口** |
 | `rule/` | `{Agg}EntityRule`、`{Agg}BrokenRuleRegistry` | `EntityRule`、`BrokenRuleRegistry` | 规则表类型（空壳）+ 消息码 |
 | `event/` | `{Agg}{Action}Event` | `IDomainEvent` | 领域业务事实（事件定义） |
 | `dependency/` | `I{External}Dependency` | `@ExternalDependency` | **仅声明**本聚合依赖哪些外部系统（端口/契约），实现在基础设施层 |
@@ -86,14 +85,17 @@ domain/{agg}/
 │       ├── Address.java
 │       └── Money.java
 ├── repository/IOrderRepository.java          # 继承 IRepository<ID, T>
-├── projection/                     # 投影子系统：读模型视图形态 + 异构存储写入契约
+├── projection/                     # 投影子系统：读模型视图形态 + 源端口 + 查询条件族
 │   ├── IOrderProjection.java        # sealed 基类，实现 IAggregateProjection（含 id+version+子实体）
 │   ├── OrderSummaryProjection.java  # permits 于 IOrderProjection
 │   ├── OrderDetailProjection.java
 │   ├── OrderItemProjection.java     # 子实体投影（被聚合根投影包裹，自身不实现 IAggregateProjection）
-│   ├── IOrderProjectionQuery.java   # 继承 IAggregateQuery（查询契约）
-│   └── replica/                    # 副本：读侧源窄化契约（仅接口，projection 子目录）
-│       └── IOrderESSource.java
+│   ├── IOrderESSource.java          # 源端口：按需 extends 查询族（本例四族全能力）+ getReducer
+│   ├── IOrderRedisSource.java       # 源端口：仅 extends IProjectionByIdSearcher（主键直取）
+│   └── query/                       # 三族查询条件（sealed interface + record）
+│       ├── OrderOneQuery.java
+│       ├── OrderListQuery.java
+│       └── OrderPageQuery.java
 ├── rule/                           # 规则表类型 + 消息码
 │   ├── OrderEntityRule.java        # 继承 EntityRule（空壳）
 │   └── OrderBrokenRuleRegistry.java # 继承 BrokenRuleRegistry
@@ -222,9 +224,9 @@ public class OrderReadService implements IQueryApplicationService { ... }
 |----|-----------|--------------|------|
 | `persistent/{agg}/repository/` | `repository/` | `IRepository` | 持久化（主存储） |
 | `persistent/{agg}/projection/projector/` | `projection/` | `{Agg}{Store}Projector`（继承 `AbstractAggregateProjector`） | 持久化（聚合 → 投影的纯映射） |
-| `persistent/{agg}/projection/searcher/` | `projection/` | `IProjectionByIdSearcher`、`IProjectionSearcher`、`IProjectionPagedSearcher` | 持久化（条件翻译 + 检索 / 分页 / 滚动） |
-| `persistent/{agg}/projection/reducer/` | `projection/reducer/` | `IProjectionReducer` 的 `{Agg}` 专属契约 | 持久化（全量投影 → 业务子投影，Java 内存裁剪） |
-| `persistent/{agg}/projection/replica/` | `projection/replica/` | `{Agg}{Store}Source`（继承 `AbstractProjectionSource`，源自身即副本） | 持久化（写读对账一体源：materialize/purge + readVersion/rebuild） |
+| `persistent/{agg}/projection/searcher/` | `projection/query/` | 无状态条件翻译工厂（如 `OrderEsConditionFactory`） | 持久化（条件族 → 存储查询 DSL 的纯函数，可选；检索实现本身落在源内） |
+| `persistent/{agg}/projection/reducer/` | `projection/` | `IReducer<S, X>` | 持久化（全量投影 → 业务子投影，Java 内存裁剪） |
+| `persistent/{agg}/projection/replica/` | `projection/` | `{Agg}{Store}Source`（继承 `AbstractProjectionSource`，`implements` 领域源端口，源自身即副本） | 持久化（写读对账一体源：materialize/purge + 查询族检索 + readVersion/rebuild） |
 | `dependency/{agg}/` | （外部依赖统一承载） | `ExternalCall`/`Abstract*Gateway`/`Acl*` 异常 | 外部依赖 ACL 执行模板：封装远程调用（纯技术通道） |
 | `dependency/shared/` | — | — | 跨聚合共享的防腐适配器（可选，避免多聚合各放一份） |
 | `config/` | — | — | 通用技术配置（数据源/Redis/ES/MQ/发号/Outbox/事务抽象），放外层 |
@@ -247,17 +249,14 @@ infrastructure/
 │       ├── projector/                       # 聚合 → 投影（纯映射）
 │       │   ├── OrderEsProjector.java        # 继承 AbstractAggregateProjector
 │       │   └── OrderCacheProjector.java
-│       ├── searcher/                        # 存储 → 全量投影（条件翻译 + 检索）
-│       │   ├── OrderByIdSearcher.java
-│       │   ├── OrderOneSearcher.java
-│       │   ├── OrderListSearcher.java
-│       │   ├── OrderPageSearcher.java
+│       ├── searcher/                        # 条件族 → 存储查询 DSL（无状态纯函数，可选）
 │       │   └── OrderEsConditionFactory.java
 │       ├── reducer/                         # 全量投影 → 业务子投影（内存裁剪）
-│       │   └── OrderSummaryReducer.java
+│       │   ├── OrderSummaryReducer.java     # implements IReducer<OrderEsProjection, OrderSummaryProjection>
+│       │   └── OrderCacheSummaryReducer.java
 │       └── replica/                         # 写读对账一体源（源自身即副本）
-│           ├── OrderEsSource.java           # 继承 AbstractProjectionSource（写读对账一体源）
-│           └── OrderRedisSource.java        # 继承 AbstractProjectionSource（写读对账一体源）
+│           ├── OrderEsSource.java           # 继承 AbstractProjectionSource，implements IOrderESSource
+│           └── OrderRedisSource.java        # 继承 AbstractProjectionSource，implements IOrderRedisSource
 ├── dependency/                             # 防腐层（类型 / 聚合）
 │   ├── order/
 │   │   ├── InventoryGateway.java           # 封装远程调用（纯技术通道）

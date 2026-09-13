@@ -14,15 +14,17 @@
 io.pragmatic.ddd.repository
 ├── IRepository<ID, T>            写模型契约接口
 │     └─ AbstractRepository<ID, T>  抽象基类：落库前统一触发数据同步钩子
-├── query                         读模型查询子包
-│     ├─ IQueryById / IQueryByIds / IQueryOne / IQueryList / IQueryPage / IQueryScroll  (6 个 ISP trait)
-│     ├─ IAggregateQuery           (6 类查询能力全量组合)
-│     ├─ IAggregateProjection      读模型投影标记接口
-│     ├─ IAggregateProjector / AbstractAggregateProjector  (聚合 → 投影)
-│     ├─ ProjectionSource / AbstractProjectionSource  (源标识 / 写读一体源：materialize + 检索器 + 裁剪器)
-│     ├─ IProjectionSearcher / IProjectionByIdSearcher / IProjectionPagedSearcher / IProjectionReducer  (检索 / 裁剪构件，挂在源上)
-│     ├─ ProjectorRegistry          源登记中心
-│     └─ PageRequest / PageResult / ScrollPosition / ScrollResult  (分页/滚动值对象)
+├── query                         读模型查询子包（根包只有 package-info，无门面/编排基类）
+│     ├─ criteria/                OneQueryCriteria / ListQueryCriteria / PageQueryCriteria  (三族条件契约)
+│     ├─ paging/                  PageRequest / PageResult / ScrollPosition / ScrollResult  (分页/滚动值对象)
+│     ├─ projection/
+│     │    ├─ IAggregateProjection      读模型投影标记接口
+│     │    ├─ IAggregateProjector / AbstractAggregateProjector  (聚合 → 投影)
+│     │    ├─ ProjectionSource / AbstractProjectionSource  (源标识 / 写读对账一体源：materialize + 裁剪器持有)
+│     │    ├─ IProjectionByIdSearcher / IOneQuerySearcher / IListQuerySearcher / IPagedQuerySearcher  (四族查询 SPI，由源 implements)
+│     │    ├─ IReducer                   裁剪器（随源注入）
+│     │    └─ ProjectorRegistry          源登记中心（sourceId → Source）
+│     └─ exception/               ProjectionException 体系 + ProjectionExceptions 包装辅助
 └── reconciliation                读模型对账子包
       ├─ Reconciliation / ReconciliationStatus                        (对账结果与状态)
       ├─ IReconcileDedup / NoOpReconcileDedup                          (去重 SPI)
@@ -47,15 +49,15 @@ io.pragmatic.ddd.repository
 Command Service                 Query Service
     │                               │
     ▼                               ▼
-IRepository                     IAggregateProjection / IAggregateQuery
-(INSERT/UPDATE/DELETE)          (SELECT → 投影 / DTO / VO)
+IRepository                     源（implements 查询族 SPI）
+(INSERT/UPDATE/DELETE)          (SELECT → 索引级全量投影 → 裁剪为业务子投影)
     │                               │
     ▼                               ▼
 聚合根（完整领域模型）            投影（查询专用视图）
 ```
 
 - **写走仓储**：`IRepository.save()` 操作完整聚合根，保证不变量与版本一致性。
-- **读走投影**：`IAggregateProjection` / `IAggregateQuery` 直接查表返回 DTO，不走聚合根装配。
+- **读走投影**：源 `implements` 查询族 SPI 直接查表返回**索引级全量投影**，经裁剪器在内存中转为业务子投影，不走聚合根装配。
 - **读写可异库**：写库为聚合根表，读库可为物化视图 / 宽表 / Elasticsearch / Redis。
 
 ## 2. 核心概念详解
@@ -131,43 +133,37 @@ public class OrderRepository extends AbstractRepository<Long, Order> {
 }
 ```
 
-### 2.3 读模型查询契约：`query` 子包
+### 2.3 读模型查询族 SPI：`query.projection` 子包
 
-#### 6 个 ISP trait
-
-细粒度查询契约，可按需独立组合：
+查询能力不再由框架基类编排，而是由各**源**按需 `implements` 四个查询族接口；应用层通过**领域层源端口**注入调用。
 
 | 接口 | 方法 | 返回未命中语义 |
 |------|------|----------------|
-| `IQueryById<ID, R>` | `R queryById(ID id)` | 返回 `null` |
-| `IQueryByIds<ID, R>` | `List<R> queryByIds(List<ID> ids)` | 返回空列表（非 `null`） |
-| `IQueryOne<R, C>` | `R queryOne(C condition)` | 返回 `null`；匹配多条由实现层定义（取首条或抛异常） |
-| `IQueryList<R, C>` | `List<R> queryList(C condition)` | 返回空列表（非 `null`） |
-| `IQueryPage<R, C>` | `PageResult<R> queryPage(C condition, PageRequest page)` | 含当页数据与总记录数 |
-| `IQueryScroll<R, C>` | `ScrollResult<R> queryScroll(C condition, ScrollPosition cursor, int pageSize)` | `nextCursor == null` 表示无更多数据 |
+| `IProjectionByIdSearcher<P>` | `P getById(Object id)` / `List<P> getByIds(List<Object> ids)` | 单条返回 `null`；批量返回空列表（非 `null`） |
+| `IOneQuerySearcher<P, C extends OneQueryCriteria>` | `List<P> search(C criteria)` | 返回空列表（非 `null`）；取首条由调用方决定 |
+| `IListQuerySearcher<P, C extends ListQueryCriteria>` | `List<P> search(C criteria)` | 返回空列表（非 `null`） |
+| `IPagedQuerySearcher<P, C extends PageQueryCriteria>` | `PageResult<P> searchPage(C, PageRequest)` / `ScrollResult<P> searchScroll(C, ScrollPosition, int)` | 分页含当页数据与总记录数；滚动 `nextCursor == null` 表示无更多数据 |
 
-`queryOne` / `queryList` 的条件对象字段通常全必填（精确规约）；`queryPage` / `queryScroll` 的条件字段通常全 `Optional`（按需过滤）。
-
-#### 便捷组合：`IAggregateQuery`
-
-`IAggregateQuery<ID, PROJECTION, ONE_QUERY, LIST_QUERY, PAGE_QUERY>` 一次性继承上述 6 个 trait。泛型含义：
-
-- `ID` — 聚合 ID 类型（`queryById` / `queryByIds`）
-- `PROJECTION` — 投影类型，通常传 sealed 基类（全部方法共享）
-- `ONE_QUERY` — `queryOne` 条件（通常 sealed interface）
-- `LIST_QUERY` — `queryList` 条件（通常 sealed interface）
-- `PAGE_QUERY` — `queryPage` / `queryScroll` 共享条件（字段通常全 `Optional`）
+`OneQuery` / `ListQuery` 的条件对象字段通常全必填（精确规约）；`PageQuery` 的条件字段通常全 `Optional`（按需过滤）。
 
 #### 关键约束
 
-> **重要约束**：若所有查询共用同一条件类型，可将后三个泛型传同一类型（如 `Q, Q, Q`）。若需更多独立条件类型，可不继承 `IAggregateQuery`，直接按需组合 ISP trait。
+> **重要约束**：接口**没有** `criteriaType()` / `projectionType()` 元数据方法。条件类型与投影类型由 `implements` 时的泛型实参钉死，「源支持哪些族」是编译期事实，不支持即无法编译——无需运行期查表与判断。
+
+> **重要约束**：`P` 恒为该源承载的**索引级全量投影**具体类（对齐某物理存储的文档形状），不是业务子投影、也不是投影体系接口。
+
+> **重要约束**：三族条件父类（`OneQueryCriteria` / `ListQueryCriteria` / `PageQueryCriteria`）互不继承，只有共同 marker 父接口 `QueryCriteria`。**跨族传参在编译期报错**，用于防止「精确规约」与「按需过滤」语义混用。
 
 #### 示例代码
 
 ```java
-public class OrderQueryService implements
-        IAggregateQuery<Long, OrderSummary, OrderOneQuery, OrderListQuery, OrderPageQuery> {
-    // queryById / queryPage / ... 直接 SELECT 投影列，返回 OrderSummary 而非聚合根
+// 领域层源端口：声明这份副本支持哪些族
+public interface IOrderESSource
+        extends IProjectionByIdSearcher<OrderEsProjection>,
+                IOneQuerySearcher<OrderEsProjection, OrderOneQuery>,
+                IListQuerySearcher<OrderEsProjection, OrderListQuery>,
+                IPagedQuerySearcher<OrderEsProjection, OrderPageQuery> {
+    <X extends IAggregateProjection> IReducer<OrderEsProjection, X> getReducer(Class<X> target);
 }
 ```
 
@@ -188,11 +184,12 @@ public class OrderQueryService implements
 
 | 方法 | 定位 key | 说明 |
 |------|----------|------|
-| `register(aggregateType, projector)` | （聚合类型 → 投影类型） | projector 按型登记 |
-| `register(source)` | （源标识 `ProjectionSource`） | 源内已 `bind` 检索器 / 裁剪器；支持同一投影类多源共存 |
-| `resolveProjector(aggregateType, projectionType)` | （聚合类型, 投影类型） | 找不到返回 `null` |
-| `resolveSource(source, projectionType)` | （源标识, 投影类型） | 找不到返回 `null` |
-| `registerDefaultSource(projectionType, source)` | 子投影类 → 默认源 | 查该子投影未指定源时取默认源 |
+| `register(source)` | （源标识 `ProjectionSource`） | 源构造时已注入投影器与裁剪器列表；不同源标识可共存 |
+| `getSource(source)` | （源标识） | 未登记抛 `ProjectionSourceNotFoundException` |
+| `findSource(source)` | （源标识） | 未登记返回 `Optional.empty()` |
+| `getProjector(source)` | （源标识） | 取该源的投影器；未登记抛 `ProjectionSourceNotFoundException` |
+
+> 读侧寻址不再经过 registry：应用服务注入的是领域层源端口（Spring Bean），registry 只服务「按源 id 反查源实例」的场景，不参与选路。
 
 `AbstractProjectionSource` 在源自身承载 `project → materialize` 并暴露 `purge`：
 
@@ -309,8 +306,9 @@ V' <  V           → STALE       （副本落后，需补同步）
 | 仓储契约接口 | `I{聚合}Repository`（继承 `IRepository`） | `IOrderRepository` |
 | 仓储实现类 | `{聚合}Repository`（继承 `AbstractRepository`） | `OrderRepository` |
 | 落库抽象方法 | `do{Insert/Update/Remove}`（仅 AbstractRepository 子类实现） | `doInsert` |
-| 查询契约 trait | `IQuery{查询形态}`（ISP，按需组合） | `IQueryPage` |
-| 聚合查询组合接口 | `I{聚合}AggregateQuery`（继承 `IAggregateQuery`） | `IOrderAggregateQuery` |
+| 查询族 SPI | `IProjectionByIdSearcher` / `I{One/List/Paged}QuerySearcher`（由源 implements） | `IPagedQuerySearcher` |
+| 领域源端口 | `I{聚合}{存储}Source`（领域层，`extends` 查询族 + `getReducer`） | `IOrderESSource` |
+| 裁剪器 | `{聚合}{目标}Reducer`（实现 `IReducer<S, X>`） | `OrderSummaryReducer` |
 | 投影标记接口 | `{聚合}Projection`（实现 `IAggregateProjection`） | `OrderSummary` |
 | 投影抽象基类 | `Abstract{聚合}Projector`（继承 `AbstractAggregateProjector`） | `AbstractOrderProjector` |
 | 写读一体源 | `{聚合}{存储}Source`（继承 `AbstractProjectionSource`） | `OrderEsSource` |
@@ -327,10 +325,10 @@ V' <  V           → STALE       （副本落后，需补同步）
 |------|----------|------------|
 | `IRepository` | 实现 `insert` / `update` / `findById` / `remove`；`save` 自动路由 | `remove` 无默认空实现，必须提供真实删除逻辑 |
 | `AbstractRepository` | 继承并实现 `doInsert` / `doUpdate` / `doRemove` | `insert/update/remove` 为 `final`，落库前统一触发 `triggerDataSyncHook` |
-| `IAggregateQuery` | 继承组合 6 类查询，返回投影 | 投影非聚合根；未命中返回 `null` 或空列表 |
+| 查询族 SPI | 源按需 `implements` 四个 `I*QuerySearcher` / `IProjectionByIdSearcher` | 泛型实参钉死条件与投影类型；未 extends 的族编译期不可调用 |
 | `AbstractAggregateProjector` | 继承、实现 `project` | 框架无默认映射逻辑，字段取值手写 |
-| `ProjectorRegistry` | 显式登记 projector / 源 | 源的 `source()` 标识即定位权威来源；同一投影类可多源共存 |
-| `AbstractProjectionSource` | 调用 `sync(aggregate)` / `purge(id)` | 投影为 `null` 时静默跳过（源由调用方注入） |
+| `ProjectorRegistry` | 显式登记源（`register(source)`） | 仅「源 id → 源实例」登记，不参与选路；同 id 重复登记抛异常 |
+| `AbstractProjectionSource` | 调用 `sync(aggregate)` / `purge(id)`；读能力由 `implements` 查询族提供 | 写读对账一体，源自身即副本；`materialize` 形参需强转；投影为 `null` 时静默跳过 |
 | `Reconciliation` | `Reconciliation.of(V', V)` | 先 UNTRACKED，再 ORPHAN（存在性），后 CONSISTENT/STALE |
 | `IReadModelReplica` | 源实现 `readVersion` / `rebuild` / `purgeOrphan` | `rebuild` 从写模型重建，不重放事件；`readVersion` 缺省值按存储语义选 0 或 -1 |
 | `Reconciler` / `ReconciliationManager` | `reconcile(type, id)` 一行对账 | 同步原语，延迟复核由调用方异步编排 |

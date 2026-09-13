@@ -415,9 +415,10 @@ public final class EventSubscriberAliases {
 
 | 调用 | 未登记时 | 原因 |
 | --- | --- | --- |
-| `projectorRegistry.resolveProjector(...)` | 返回 `null` | 投影器可选，缺登记则本次不物化 |
-| `projectorRegistry.resolveSource(source)` | 返回 `null` | 源可选，缺登记则本次不物化 |
-| `projectorRegistry.getSearcher(...)` / `getByIdSearcher(...)` | **抛异常** | 检索器缺失属接线 bug |
+| `projectorRegistry.getSource(source)` | **抛** `ProjectionSourceNotFoundException` | 按源 id 取源，缺失属接线 bug |
+| `projectorRegistry.findSource(source)` | 返回 `Optional.empty()` | 显式可选语义 |
+| `projectorRegistry.getProjector(source)` | **抛** `ProjectionSourceNotFoundException` | 源未登记则无从取投影器 |
+| `源.getReducer(目标子投影类型)` | 返回 `null` | 裁剪器可选；由调用方决定是否抛 `ProjectionReducerNotFoundException` |
 
 因此读模型型订阅者直接持有目标源并调用 `源.sync(aggregate)` 即可；`sync` 内部对投影为 `null` 做短路跳过，但**不要**把它当正常情况静默——副本会持续落后，应配合启动自检暴露。
 

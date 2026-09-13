@@ -52,21 +52,20 @@ RestClient                 低层 HTTP 客户端（Apache HttpClient），管理
 
 ### 1.5 配置与使用分离
 
-配置类产出 Bean，源（`OrderEsSource`）/ 版本解析器 / 查询服务消费 Bean（`ElasticsearchClient`）。使用方只关心"怎么用"，不关心"怎么建"；配置只关心"怎么建"，不关心"怎么查"。
+配置类产出 Bean，源（`OrderEsSource`）/ 读服务消费 Bean（`ElasticsearchClient`）。使用方只关心"怎么用"，不关心"怎么建"；配置只关心"怎么建"，不关心"怎么查"。
 
 ```java
 @Bean
 public OrderEsSource orderEsSource(
         OrderEsProjector projector,
-        OrderByIdSearcher byIdSearcher,
-        OrderOneSearcher oneSearcher,
-        OrderListSearcher listSearcher,
-        OrderPageSearcher pageSearcher,
         OrderSummaryReducer summaryReducer,
-        ElasticsearchClient elasticsearchClient) {
-    return new OrderEsSource(projector, byIdSearcher, oneSearcher, listSearcher, pageSearcher, summaryReducer, elasticsearchClient);
+        ElasticsearchClient elasticsearchClient,
+        OrderRepository orderRepository) {
+    return new OrderEsSource(projector, summaryReducer, elasticsearchClient, orderRepository);
 }
 ```
+
+> 检索实现是 `OrderEsSource` 自身的方法（`implements IOrderESSource` 的四个查询族），不再单建 `*Searcher`；对账能力（`readVersion` / `rebuild`）也由同一源承担，故需注入 `OrderRepository` 供 `rebuild` 使用。
 
 ---
 

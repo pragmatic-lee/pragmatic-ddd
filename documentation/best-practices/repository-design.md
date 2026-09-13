@@ -35,7 +35,7 @@ public class OrderRepository extends AbstractOrderRepository {
 仓储分两个方向，职责不同，**不要混在一个类里**：
 
 - **命令侧（写模型，C 侧）**：`IRepository<ID, T>`——聚合的增删改，入参/出参都是**聚合根对象**。
-- **查询侧（读模型，Q 侧）**：`io.pragmatic.ddd.repository.query` 子包——聚合级查询契约（`IQueryById` / `IQueryByIds` / `IQueryList` / `IQueryPage` / `IQueryOne` / `IQueryScroll`）与读模型投影（`IAggregateProjector`）。
+- **查询侧（读模型，Q 侧）**：`io.pragmatic.ddd.repository.query` 子包——四个查询族 SPI（`IProjectionByIdSearcher` / `IOneQuerySearcher` / `IListQuerySearcher` / `IPagedQuerySearcher`，由源 `implements`）、读模型投影（`IAggregateProjector`）与裁剪器（`IReducer`）。详见 [投影读模型代码落地指南](./projection-design.md)。
 
 命令侧操作的是"要落库的聚合"，查询侧投影出"页面要展示的读模型"。聚合根写仓储不做复杂查询，复杂查询交给查询侧。
 

@@ -8,7 +8,7 @@
 
 - 职责：**编排**（把 Factory / Updater / Rule / Repository / EventManager 串起来）。
 - 不做：不写业务逻辑（业务逻辑在聚合根）、不操作持久化细节（仓储承担）、不做协议转换（UI 层承担）。
-- 核心形态：应用服务分**命令（写）**与**查询（读）**两类——写服务 `{Agg}WriteService` 继承 `AbstractApplicationService`，每个用例一个公开方法、内部走 `execute()` / `tryExecute()`；读服务 `{Agg}ReadService` 继承 `AbstractProjectionQuery`、只读不写（见 §4.8）。
+- 核心形态：应用服务分**命令（写）**与**查询（读）**两类——写服务 `{Agg}WriteService` 继承 `AbstractApplicationService`，每个用例一个公开方法、内部走 `execute()` / `tryExecute()`；读服务 `{Agg}ReadService` 无框架基类，注入领域层源端口、`implements IQueryApplicationService`，只读不写（见 §4.8）。
 
 ## 2. 命名与包结构
 
@@ -195,35 +195,48 @@ public class OrderRuleConfig {
 
 | 维度 | WriteService（命令侧） | ReadService（查询侧） |
 | --- | --- | --- |
-| 承载基类 | `extends AbstractApplicationService`（可写） | `extends AbstractProjectionQuery`（只读） |
+| 承载基类 | `extends AbstractApplicationService`（可写） | **无基类**（只读，只 `implements` 标记接口） |
 | 应用服务标记 | `implements ICommandApplicationService` | `implements IQueryApplicationService` |
 | 是否走 `execute()` / `tryExecute()` | 走模板（校验 → 落库 → 发布事件） | **不走**：只查，不建/改聚合 |
 | 是否产生领域事件 / 写库 | 是（同步落库 + 事件发布） | **否**：读不产生业务事件、不持有写仓储 |
-| 依赖 | Factory / Updater / Rule / Repository / EventManager | `ProjectorRegistry`（读模型寻址） |
+| 依赖 | Factory / Updater / Rule / Repository / EventManager | 领域层源端口（`IOrderRedisSource` / `IOrderESSource`） |
 
-**读服务为什么继承 `AbstractProjectionQuery` 而非 `AbstractApplicationService`**：读侧没有"改聚合 → 校验 → 落库 → 发事件"这一套写语义，不需要 `execute()` 模板。读侧要做的是「选源 → 查全量 → 裁剪」的三跳取数与多源回源编排，这部分能力由 `AbstractProjectionQuery` 基类提供，读服务只需在应用层暴露给 Controller / 其它应用服务：
+**读服务为什么不继承 `AbstractApplicationService`**：读侧没有"改聚合 → 校验 → 落库 → 发事件"这一套写语义，不需要 `execute()` 模板。框架**也不再提供** `AbstractProjectionQuery` 查询基类——「用哪个源」由「源端口 extends 了哪些查询族」在编译期决定，读服务只需注入领域源端口、按族分派并完成「查全量 → 裁剪」两跳：
 
 ```java
 @Service
-public class OrderReadService
-        extends AbstractProjectionQuery<Long, IOrderProjection, OrderOneQuery, OrderListQuery, OrderPageQuery>
-        implements IQueryApplicationService {
+public class OrderReadService implements IQueryApplicationService {
 
-    public OrderReadService(ProjectorRegistry projectorRegistry) {
-        super(projectorRegistry, OrderOneQuery.class, OrderListQuery.class, OrderPageQuery.class);
+    private final IOrderRedisSource redisSource;
+    private final IOrderESSource esSource;
+
+    public OrderReadService(IOrderRedisSource redisSource, IOrderESSource esSource) {
+        this.redisSource = redisSource;
+        this.esSource = esSource;
     }
 
-    // 选源内置：6 个查询能力全部由基类提供，本类只声明回源顺序（Redis 优先，未命中回退 ES）
-    @Override
-    protected List<ProjectionSource> fallbackChain() {
-        return List.of(REDIS_SOURCE, ES_SOURCE);
+    // 选源写死在方法体内（本项目：主键族走 Redis，条件族 / 分页族走 ES）
+    public <X extends IOrderProjection> X queryById(Long id, Class<X> projectionType) {
+        var full = redisSource.getById(id);
+        if (full == null) {
+            return null;
+        }
+        return reduceWith(redisSource.getReducer(projectionType), full, projectionType);
     }
+
+    public <X extends IOrderProjection> List<X> queryList(OrderListQuery criteria, Class<X> projectionType) {
+        var reducer = esSource.getReducer(projectionType);
+        return esSource.search(criteria).stream()
+                .map(full -> reduceWith(reducer, full, projectionType))
+                .toList();
+    }
+    // queryByIds / queryOne / queryPage 同构；reduceWith 为私有两跳编排
 }
 ```
 
-> **读服务自身不写查询方法**：查询能力继承基类，读服务只覆写 `fallbackChain()` 声明回源顺序，调用方只传条件与目标投影类型；**不要把 `ProjectionSource` 作为方法入参、也不要为「查哪个源」新增业务方法**，否则同名方法语义分裂、调用方从签名看不出差别。
+> **选源写在读服务方法体内，不外泄给调用方**：不要把 `ProjectionSource` 作为方法入参、也不要注入 `ProjectorRegistry`（它现在只是「源 id → 源实例」登记表，不参与选路）。调用方只传条件与目标投影类型。
 
-> 读服务的**角色定位**（为什么门面放应用层、选源内置在这里）与**三跳 / 回退链的完整落地**见 [投影读模型代码落地指南](./projection-design.md#_4-8-选源内置与回源链)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
+> 读服务的**角色定位**（为什么门面放应用层、选源写在这里）与**两跳 / 裁剪的完整落地**见 [投影读模型代码落地指南](./projection-design.md#_4-8-选源由源支持哪些查询族在编译期决定)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
 
 > ⚠️ **读侧不发布领域事件、不持有写仓储**：读模型由写侧事件物化而来（见 [投影设计](./projection-design.md)），`ReadService` 只消费读模型副本，不反向触发业务事件，避免读路径污染写一致性。
 

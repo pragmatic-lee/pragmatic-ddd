@@ -122,18 +122,18 @@
 | --- | --- | --- |
 | 接口 | `IRepository<ID, T extends AggregateRoot<ID>>` | 聚合仓储契约 |
 | 抽象类 | `AbstractRepository<ID, T extends AggregateRoot<ID>>` | 仓储基类 |
-| 接口 | `IAggregateQuery` | 查询端口标记 |
+| 接口 | `IQueryApplicationService` | 读侧应用服务标记（`io.pragmatic.ddd.application` 包） |
 | 接口 | `IAggregateProjection` | 聚合投影标记（仅聚合拓扑级投影实现） |
 | 接口 | `IAggregateProjector<T, P>` | 聚合投影器契约 |
 | 抽象类 | `AbstractAggregateProjector<T, P>` | 投影器基类 |
-| 类 | `ProjectorRegistry` | 源与投影器注册表 |
-| 抽象类 | `AbstractProjectionSource<T, P>` | 写读一体源基类（materialize + 检索器 + 裁剪器 + sync / purge 编排） |
-| 接口 | `IQueryById<ID, PROJECTION>` | 按主键查 |
-| 接口 | `IQueryByIds<ID, PROJECTION>` | 批量按主键查 |
-| 接口 | `IQueryOne<PROJECTION, QUERY_CRITERIA>` | 按条件查单条 |
-| 接口 | `IQueryList<PROJECTION, QUERY_CRITERIA>` | 按条件查列表 |
-| 接口 | `IQueryPage<PROJECTION, QUERY_CRITERIA>` | 分页查询 |
-| 接口 | `IQueryScroll<PROJECTION, QUERY_CRITERIA>` | 游标滚动查询 |
+| 接口 | `IProjectionByIdSearcher<P>` | 查询族：按主键 / 批量主键查 |
+| 接口 | `IOneQuerySearcher<P, C>` | 查询族：按精确条件查（返回列表） |
+| 接口 | `IListQuerySearcher<P, C>` | 查询族：按精确条件查列表（含 TOP N） |
+| 接口 | `IPagedQuerySearcher<P, C>` | 查询族：分页 / 游标滚动 |
+| 接口 | `IReducer<S, X>` | 裁剪器：全量投影 → 业务子投影 |
+| 类 | `ProjectorRegistry` | 源登记中心（sourceId → Source） |
+| 抽象类 | `AbstractProjectionSource<T, ID, P>` | 写读对账一体源基类（materialize / purge + readVersion / rebuild + 裁剪器持有 + sync 编排） |
+| 接口 | `QueryCriteria` / `OneQueryCriteria` / `ListQueryCriteria` / `PageQueryCriteria` | 条件族契约（`query.criteria` 子包） |
 | record | `PageRequest` | 分页请求 |
 | record | `PageResult<R>` | 分页结果 |
 | record | `ScrollPosition` | 游标位置 |
