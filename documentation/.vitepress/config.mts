@@ -134,6 +134,13 @@ export default defineConfig({
                 { text: '事件建模指南', link: '/best-practices/event-modeling' },
                 { text: '事件订阅领域服务落地模式', link: '/best-practices/event-subscriber-pattern' }
               ]
+            },
+            {
+              text: '⑦ 设计文档规范',
+              collapsed: true,
+              items: [
+                { text: '设计文档编写规范', link: '/best-practices/design-doc-template' }
+              ]
             }
           ]
         }
