@@ -36,7 +36,15 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
             MessageCode.of("ORDER_ADDRESS_REQUIRED", "收货地址不能为空");
 
     public static final MessageCode ORDER_SHIP_STATUS_INVALID =
-            MessageCode.of("ORDER_SHIP_STATUS_INVALID", "仅进行中的订单可发货");
+            MessageCode.of("ORDER_SHIP_STATUS_INVALID", "仅待发货且进行中的订单可发货");
+
+    public static final MessageCode ORDER_LOGISTICS_CORRECTION_STATUS_INVALID =
+            MessageCode.of("ORDER_LOGISTICS_CORRECTION_STATUS_INVALID",
+                    "仅已发货未签收且进行中的订单可修正物流信息");
+
+    public static final MessageCode ORDER_LOGISTICS_CORRECTION_NO_CHANGE =
+            MessageCode.of("ORDER_LOGISTICS_CORRECTION_NO_CHANGE",
+                    "修正后的物流信息与当前一致，无需修正");
 
     public static final MessageCode ORDER_PAY_STATUS_INVALID =
             MessageCode.of("ORDER_PAY_STATUS_INVALID", "仅待支付且进行中的订单可支付");

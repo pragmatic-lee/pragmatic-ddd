@@ -110,14 +110,27 @@ public class OrderRule extends EntityRule<Order> {
                 IActiveRuleCondition.of(order -> order.hasOperation(OrderOperationRegistry.PLACE)
                         ? ActiveStatus.ACTIVE
                         : ActiveStatus.INACTIVE));
-        // 仅允许进行中的订单发货：已取消 / 已关闭 / 已完成的订单不可发起发货。
+        // 仅允许待发货且进行中的订单发货：已发货 / 已签收 / 已取消 / 已完成的订单不可再次发货。
+        // 支付维度不做限制：待支付与已支付均可发货，以支持货到付款。
+        // 与支付守卫同理，ship() 先执行、已把物流状态推进为 SHIPPED，
+        // 当前状态无法区分「首次发货」与「重复发货」，必须基于修改前的旧快照判定。
         // 激活条件叠加「本次工作单元触发了 SHIP 操作」，保证该规则只在真正执行发货时才校验。
         this.addRule(
-                EntityRule.of(order -> RuleCheckResult.of(this.shipStatusValid(order))),
+                (order, old) -> RuleCheckResult.of(this.shipStatusValid(old)),
                 OrderRuleRegistry.ORDER_SHIP_STATUS_INVALID,
-                IActiveRuleCondition.of(order -> order.hasOperation(OrderOperationRegistry.SHIP)
-                        ? ActiveStatus.ACTIVE
-                        : ActiveStatus.INACTIVE));
+                IActiveRuleCondition.of(this::shipRuleActiveStatus));
+        // 仅允许已发货未签收且进行中的订单修正物流信息：未发货 / 已签收 / 已取消的订单不可修正。
+        // 修正动作不推进物流状态，此处 old 与当前态等价，仍保持与发货守卫一致的旧快照读法，
+        // 避免将来修正动作被赋予状态语义后出现判定偏差。
+        this.addRule(
+                (order, old) -> RuleCheckResult.of(this.logisticsCorrectionStatusValid(old)),
+                OrderRuleRegistry.ORDER_LOGISTICS_CORRECTION_STATUS_INVALID,
+                IActiveRuleCondition.of(this::logisticsCorrectionRuleActiveStatus));
+        // 物流信息无变化时不产出修正事件：避免重复提交刷出大量无意义的修正事件。
+        this.addRule(
+                (order, old) -> RuleCheckResult.of(this.logisticsChanged(order, old)),
+                OrderRuleRegistry.ORDER_LOGISTICS_CORRECTION_NO_CHANGE,
+                IActiveRuleCondition.of(this::logisticsCorrectionRuleActiveStatus));
         // 仅允许已发货且进行中的订单签收：已签收 / 已取消 / 未发货的订单不可发起签收。
         // 与支付守卫同理，sign() 先执行、已把物流与生命周期状态推进为 SIGNED / COMPLETED，
         // 故基于修改前的旧快照判定发货状态，避免当前状态无法反推发货前状态。
@@ -172,21 +185,51 @@ public class OrderRule extends EntityRule<Order> {
     }
 
     /**
-     * 发货前置校验：仅进行中的订单可发货。
+     * 发货前置校验：基于发货前的旧快照判定，仅待发货且进行中的订单可发货。
      *
-     * <p>支付维度不做限制：待支付与已支付均可发货，以支持货到付款。
+     * <p>必须基于旧快照：ship() 已把物流状态推进为 SHIPPED，读当前态无法拦截重复发货。
+     * 支付维度不做限制：待支付与已支付均可发货，以支持货到付款。
      * 若将来需要强制「先款后货」，在此追加 {@code paymentStatus == PaymentStatus.PAID} 即可。</p>
      */
-    private boolean shipStatusValid(Order order) {
-        OrderStatus status = order.getStatus();
-        if (status == null) {
+    private boolean shipStatusValid(Order oldOrder) {
+        if (oldOrder == null) {
             return false;
         }
-        if (status != OrderStatus.IN_PROGRESS) {
+        if (oldOrder.getStatus() != OrderStatus.IN_PROGRESS) {
             return false;
         }
-        return order.getPaymentStatus() == PaymentStatus.PAID
-                || order.getPaymentStatus() == PaymentStatus.PENDING;
+        if (oldOrder.getShipmentStatus() != ShipmentStatus.PENDING) {
+            return false;
+        }
+        return oldOrder.getPaymentStatus() == PaymentStatus.PAID
+                || oldOrder.getPaymentStatus() == PaymentStatus.PENDING;
+    }
+
+    /**
+     * 修正物流信息前置校验：基于旧快照判定，仅已发货未签收且进行中的订单可修正。
+     */
+    private boolean logisticsCorrectionStatusValid(Order oldOrder) {
+        if (oldOrder == null) {
+            return false;
+        }
+        if (oldOrder.getStatus() != OrderStatus.IN_PROGRESS) {
+            return false;
+        }
+        return oldOrder.getShipmentStatus() == ShipmentStatus.SHIPPED
+                || oldOrder.getShipmentStatus() == ShipmentStatus.IN_TRANSIT;
+    }
+
+    /**
+     * 判定本次修正是否产生了实际变化：与旧快照的物流信息完全一致时视为无变化。
+     *
+     * <p>LogisticsInfo 继承 ValueObject 并按 equalityComponents 判定结构相等，
+     * 因此可直接用 equals 比对trackingNo / companyCode / companyName / shippedAt 四个分量。</p>
+     */
+    private boolean logisticsChanged(Order order, Order oldOrder) {
+        if (oldOrder == null || oldOrder.getLogisticsInfo() == null) {
+            return true;
+        }
+        return !oldOrder.getLogisticsInfo().equals(order.getLogisticsInfo());
     }
 
     /**
@@ -215,6 +258,20 @@ public class OrderRule extends EntityRule<Order> {
 
     private ActiveStatus addressChangeRuleActiveStatus(Order order) {
         if (order.hasOperation(OrderOperationRegistry.CHANGE_ADDRESS)) {
+            return ActiveStatus.ACTIVE;
+        }
+        return ActiveStatus.INACTIVE;
+    }
+
+    private ActiveStatus shipRuleActiveStatus(Order order) {
+        if (order.hasOperation(OrderOperationRegistry.SHIP)) {
+            return ActiveStatus.ACTIVE;
+        }
+        return ActiveStatus.INACTIVE;
+    }
+
+    private ActiveStatus logisticsCorrectionRuleActiveStatus(Order order) {
+        if (order.hasOperation(OrderOperationRegistry.CORRECT_LOGISTICS)) {
             return ActiveStatus.ACTIVE;
         }
         return ActiveStatus.INACTIVE;

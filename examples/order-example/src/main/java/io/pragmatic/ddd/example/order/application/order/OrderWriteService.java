@@ -11,6 +11,7 @@ import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.example.order.application.order.factory.OrderFactory;
 import io.pragmatic.ddd.example.order.application.order.input.AddOrderItemInput;
 import io.pragmatic.ddd.example.order.application.order.input.ChangeOrderAddressInput;
+import io.pragmatic.ddd.example.order.application.order.input.CorrectLogisticsInput;
 import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.PayOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.RemoveOrderItemInput;
@@ -18,6 +19,7 @@ import io.pragmatic.ddd.example.order.application.order.input.ShipOrderInput;
 import io.pragmatic.ddd.example.order.application.order.input.UpdateOrderItemInput;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderAddressUpdater;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderAddItemUpdater;
+import io.pragmatic.ddd.example.order.application.order.updater.OrderLogisticsCorrectionUpdater;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderPayUpdater;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderRemoveItemUpdater;
 import io.pragmatic.ddd.example.order.application.order.updater.OrderShipUpdater;
@@ -49,6 +51,8 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
 
     private final OrderShipUpdater orderShipUpdater;
 
+    private final OrderLogisticsCorrectionUpdater orderLogisticsCorrectionUpdater;
+
     private final OrderPayUpdater orderPayUpdater;
 
     private final OrderAddItemUpdater orderAddItemUpdater;
@@ -72,6 +76,7 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                              OrderRepository orderRepository,
                              OrderAddressUpdater orderAddressUpdater,
                              OrderShipUpdater orderShipUpdater,
+                             OrderLogisticsCorrectionUpdater orderLogisticsCorrectionUpdater,
                              OrderPayUpdater orderPayUpdater,
                              OrderAddItemUpdater orderAddItemUpdater,
                              OrderUpdateItemUpdater orderUpdateItemUpdater,
@@ -82,6 +87,7 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         this.orderRepository = orderRepository;
         this.orderAddressUpdater = orderAddressUpdater;
         this.orderShipUpdater = orderShipUpdater;
+        this.orderLogisticsCorrectionUpdater = orderLogisticsCorrectionUpdater;
         this.orderPayUpdater = orderPayUpdater;
         this.orderAddItemUpdater = orderAddItemUpdater;
         this.orderUpdateItemUpdater = orderUpdateItemUpdater;
@@ -129,6 +135,26 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
             return null;
         }
         return super.tryExecute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
+    }
+
+    /** 修正物流信息：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。 */
+    public Order correctLogistics(Long orderId, CorrectLogisticsInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.execute(order, orderRule, orderRepository,
+                t -> orderLogisticsCorrectionUpdater.apply(t, input));
+    }
+
+    /** 预校验修正物流信息：不落库、不发布，仅返回结构化校验结果。 */
+    public DryRunResult tryCorrectLogistics(Long orderId, CorrectLogisticsInput input) {
+        Order order = orderRepository.findById(orderId);
+        if (order == null) {
+            return null;
+        }
+        return super.tryExecute(order, orderRule, orderRepository,
+                t -> orderLogisticsCorrectionUpdater.apply(t, input));
     }
 
     /** 签收：加载聚合后直接以 Order::sign 完成赋值与收尾（无入参，无需 Updater），再统一校验与持久化。 */

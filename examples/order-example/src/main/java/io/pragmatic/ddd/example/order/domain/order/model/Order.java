@@ -221,6 +221,21 @@ public class Order extends AggregateRoot<Long> {
     }
 
     /**
+     * 修正已录入的物流信息，并发布物流信息修正事件。
+     * 仅替换物流信息用于纠错，不推进物流状态、不改动支付状态与订单生命周期状态。
+     *
+     * @param logisticsInfo 修正后的物流信息
+     * @param reason        修正原因
+     */
+    public void correctLogisticsInfo(LogisticsInfo logisticsInfo, String reason) {
+        LogisticsInfo previousLogisticsInfo = this.logisticsInfo;
+        this.logisticsInfo = logisticsInfo;
+        this.markModified();
+        this.recordOperation(OrderOperationRegistry.CORRECT_LOGISTICS);
+        this.collectEvent(OrderLogisticsCorrectedEvent.buildEvent(this, previousLogisticsInfo, reason));
+    }
+
+    /**
      * 标记订单已支付并记录支付信息，并发布订单支付事件。
      * 只推进支付状态，不改动物流状态与订单生命周期状态。
      *

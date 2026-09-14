@@ -6,6 +6,9 @@ import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsInfo;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 /**
  * 订单发货修改器：修改场景 Input → 实体编排。
  * 负责把 ShipOrderInput 转换为领域值对象 LogisticsInfo，并调用聚合充血方法完成发货。
@@ -22,7 +25,7 @@ public class OrderShipUpdater implements EntityUpdater<Order, ShipOrderInput> {
                 command.getTrackingNo(),
                 command.getCompanyCode(),
                 command.getCompanyName(),
-                command.getShippedAt());
+                Optional.ofNullable(command.getShippedAt()).orElse(LocalDateTime.now()));
         aggregateRoot.ship(logisticsInfo);
     }
 }

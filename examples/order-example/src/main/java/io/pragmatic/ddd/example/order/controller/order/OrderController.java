@@ -8,15 +8,14 @@ import io.pragmatic.ddd.example.order.api.common.Result;
 import io.pragmatic.ddd.example.order.api.order.dto.OrderDetailDTO;
 import io.pragmatic.ddd.example.order.api.order.dto.OrderSummaryDTO;
 import io.pragmatic.ddd.example.order.api.order.dto.SubmitOrderResponseDTO;
+import io.pragmatic.ddd.example.order.api.order.request.CorrectLogisticsRequest;
 import io.pragmatic.ddd.example.order.api.order.request.PayOrderRequest;
 import io.pragmatic.ddd.example.order.api.order.request.SearchOrderRequest;
+import io.pragmatic.ddd.example.order.api.order.request.ShipOrderRequest;
 import io.pragmatic.ddd.example.order.api.order.request.SubmitOrderRequest;
 import io.pragmatic.ddd.example.order.application.order.OrderReadService;
 import io.pragmatic.ddd.example.order.application.order.OrderWriteService;
-import io.pragmatic.ddd.example.order.application.order.input.CreateOrderAddressInput;
-import io.pragmatic.ddd.example.order.application.order.input.CreateOrderInput;
-import io.pragmatic.ddd.example.order.application.order.input.CreateOrderItemInput;
-import io.pragmatic.ddd.example.order.application.order.input.PayOrderInput;
+import io.pragmatic.ddd.example.order.application.order.input.*;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.model.enums.PaymentMethod;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
@@ -27,6 +26,7 @@ import io.pragmatic.ddd.repository.query.paging.PageResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,7 +71,6 @@ public class OrderController {
         Order order = orderWriteService.placeOrder(toCreateOrderInput(request));
         return Result.ok(SubmitOrderResponseDTO.from(order));
     }
-
     /**
      * 订单分页查询：入参全部条件参与 ES 检索，默认按创建时间倒序。
      * orderId / customerId / trackingNo / status 精确匹配，remark 模糊匹配。
@@ -133,6 +132,49 @@ public class OrderController {
             throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
         }
         return Result.ok(OrderDetailDTO.from(order));
+    }
+
+    @PostMapping("/{orderId}/shipment")
+    public Result<OrderDetailDTO> shipOrder(@PathVariable Long orderId, @RequestBody ShipOrderRequest request) {
+        Order order = orderWriteService.shipOrder(orderId, toShipOrderInput(request));
+        if (order == null) {
+            throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
+        }
+        return Result.ok(OrderDetailDTO.from(order));
+    }
+
+    /**
+     * 修正物流信息：已发货未签收区间的纠错入口，不推进物流状态。
+     */
+    @PutMapping("/{orderId}/logistics")
+    public Result<OrderDetailDTO> correctLogistics(@PathVariable Long orderId,
+                                                  @RequestBody CorrectLogisticsRequest request) {
+        Order order = orderWriteService.correctLogistics(orderId, toCorrectLogisticsInput(request));
+        if (order == null) {
+            throw new ApiException(ApiErrorCode.ORDER_NOT_FOUND, "订单不存在");
+        }
+        return Result.ok(OrderDetailDTO.from(order));
+    }
+
+    private ShipOrderInput toShipOrderInput(ShipOrderRequest request) {
+        ShipOrderInput shipOrderInput = new ShipOrderInput();
+        shipOrderInput.setCompanyCode(request.getCompanyCode());
+        shipOrderInput.setCompanyName(request.getCompanyName());
+        shipOrderInput.setTrackingNo(request.getTrackingNo());
+        shipOrderInput.setShippedAt(request.getShippedAt());
+
+        return shipOrderInput;
+
+    }
+
+    private CorrectLogisticsInput toCorrectLogisticsInput(CorrectLogisticsRequest request) {
+        CorrectLogisticsInput input = new CorrectLogisticsInput();
+        input.setCompanyCode(request.getCompanyCode());
+        input.setCompanyName(request.getCompanyName());
+        input.setTrackingNo(request.getTrackingNo());
+        input.setShippedAt(request.getShippedAt());
+        input.setReason(request.getReason());
+        return input;
     }
 
     /**

@@ -72,6 +72,8 @@ public class OrderSummaryDTO {
         dto.setStatus(projection.getStatus());
         dto.setPaymentStatusName(projection.getPaymentStatusName());
         dto.setShipmentStatusName(projection.getShipmentStatusName());
+        dto.setShipmentStatus(projection.getShipmentStatus());
+        dto.setPaymentStatus(projection.getPaymentStatus());
         dto.setTotalAmount(projection.getTotalAmount());
         dto.setActualAmount(projection.getActualAmount());
         dto.setRemark(projection.getRemark());

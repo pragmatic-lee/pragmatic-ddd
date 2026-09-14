@@ -29,6 +29,9 @@ public class OrderOperationRegistry extends OperationRegistry {
 
     public static final EntityOperation SHIP = EntityOperation.of("SHIP", "发货");
 
+    public static final EntityOperation CORRECT_LOGISTICS =
+            EntityOperation.of("CORRECT_LOGISTICS", "修正物流信息");
+
     public static final EntityOperation SIGN = EntityOperation.of("SIGN", "签收");
 
     public static final OrderOperationRegistry INSTANCE = new OrderOperationRegistry();
