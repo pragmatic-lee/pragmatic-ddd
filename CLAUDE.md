@@ -11,6 +11,7 @@
 * pragmatic-ddd-spring-boot 和 SpringBoot 集成的包
 * pragmatic-ddd/docs 里面放的是一些提案文档以及设计文档，设计文档统一放到这个目录下面，可以根据代码的包去分类
 * pragmatic-ddd/documentation 这个目录是放使用文档的地方，注意这个是 VitePress 的文档，生成 markdown 文件时不需要生成目录，因为 VitePress 已有目录
+* pragmatic-ddd/documentation/articles 是文档站的「文章」区（观点 / 科普类长文，与规范性的 best-practices 区分），文章源文件在 docs/article/，收录时迁移到此目录并改为英文 slug 文件名，中文标题写在 frontmatter 的 title 里
 
 # 设计原则
 * 这是一个领域驱动的框架库，设计时要考虑框架的通用性，以及和其他项目引用该框架后的易于集成

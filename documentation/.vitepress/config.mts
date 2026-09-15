@@ -20,6 +20,7 @@ export default defineConfig({
       { text: '核心', link: '/core/domain-modeling' },
       { text: '集成', link: '/integration/mybatis' },
       { text: '最佳实践', link: '/best-practices/' },
+      { text: '文章', link: '/articles/' },
       { text: '参考', link: '/reference/api-index' },
       {
         text: '2.0.0',
@@ -142,6 +143,15 @@ export default defineConfig({
                 { text: '设计文档编写规范', link: '/best-practices/design-doc-template' }
               ]
             }
+          ]
+        }
+      ],
+      '/articles/': [
+        {
+          text: '文章',
+          collapsed: false,
+          items: [
+            { text: '落地 DDD 的真正第一步，不是画 ER 图', link: '/articles/ddd-design-order' }
           ]
         }
       ],

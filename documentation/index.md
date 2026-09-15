@@ -61,4 +61,5 @@ Pragmatic DDD 选择了一条更底层的路——**纯 Java、SPI 驱动、不�
 - [核心概念](/core/domain-modeling)：领域建模、领域服务、领域事件、业务规则、应用服务、仓储、变更追踪、防腐层、配置体系、对外广播
 - [集成](/integration/mybatis)：MyBatis 集成、RocketMQ 集成
 - [最佳实践](/best-practices/)：聚合目录落地骨架、聚合设计原则、领域服务落地模式、应用层落地模式、仓储设计、投影读模型、配置装配、事件建模
+- [文章](/articles/)：围绕 DDD 落地与框架设计的长文，讲清「为什么这么做」——如[落地 DDD 的真正第一步，不是画 ER 图](/articles/ddd-design-order)
 - [参考](/reference/api-index)：API 速查索引、配置项参考
