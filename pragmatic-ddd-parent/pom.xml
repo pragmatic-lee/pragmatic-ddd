@@ -51,16 +51,16 @@
         <!-- Dependency versions (third-party only; internal module versions live in pragmatic-ddd-bom) -->
         <fastjson2.version>2.0.53</fastjson2.version>
         <commons-lang3.version>3.17.0</commons-lang3.version>
-        <rocketmq.version>5.3.2</rocketmq.version>
+        <rocketmq.version>5.1.4</rocketmq.version>
         <rocketmq.grpc.version>5.2.1</rocketmq.grpc.version>
         <kafka.version>3.6.1</kafka.version>
         <junit-jupiter.version>5.11.4</junit-jupiter.version>
         <assertj.version>3.27.3</assertj.version>
-        <slf4j.version>2.0.16</slf4j.version>
-        <logback.version>1.5.34</logback.version>
+        <slf4j.version>2.0.12</slf4j.version>
+        <logback.version>1.4.14</logback.version>
         <lombok.version>1.18.46</lombok.version>
         <mybatis.version>3.5.16</mybatis.version>
-        <mysql.version>9.7.0</mysql.version>
+        <mysql.version>8.3.0</mysql.version>
 
         <!-- Plugin versions -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>

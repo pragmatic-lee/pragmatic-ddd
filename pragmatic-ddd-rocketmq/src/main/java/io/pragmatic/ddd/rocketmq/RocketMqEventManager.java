@@ -1,6 +1,5 @@
 package io.pragmatic.ddd.rocketmq;
 
-import com.google.common.base.Charsets;
 import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.PublishEventException;
 import io.pragmatic.ddd.event.RegisterDomainEventException;
@@ -25,7 +24,6 @@ import org.apache.rocketmq.common.message.MessageExt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
