@@ -187,7 +187,7 @@ public class OrderRuleConfig {
 | `CommandExecutor` | 落库后立即发布事件 | 不需要 Outbox 的事务一致性兜底 |
 | `OutboxCommandExecutor` | 聚合写 + outbox 行同事务，异步投递 | 跨模块可靠投递 / 崩溃兜底（见 [Outbox 链路装配](./outbox-config.md)） |
 
-> `AbstractApplicationService` 不再提供默认构造器，执行器与工作单元工厂必须由继承者**显式注入**（通常以组合根 `@Bean` 提供成品），且二者语义须一致：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用。
+> `AbstractApplicationService` 不再提供默认构造器，执行器与工作单元工厂必须由继承者**显式注入**（通常以组合根 `@Bean` 提供成品），且二者语义须一致：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用。工作单元的装配（原型工厂）与多聚合根直接编排写法见 [§4.9](#49-工作单元unitofwork--outboxunitofwork落地写法)。
 
 ### 4.8 读侧 ReadService：不进 `execute()` 模板
 
@@ -240,6 +240,92 @@ public class OrderReadService implements IQueryApplicationService {
 
 > ⚠️ **读侧不发布领域事件、不持有写仓储**：读模型由写侧事件物化而来（见 [投影设计](./projection-design.md)），`ReadService` 只消费读模型副本，不反向触发业务事件，避免读路径污染写一致性。
 
+### 4.9 工作单元（UnitOfWork / OutboxUnitOfWork）落地写法
+
+单个聚合根的写用例走 `execute()` 即可（§4.1）；**当一次用例需要操作多个聚合根、并要求它们落在同一数据库事务内统一提交**时，才需要直接拿到工作单元——`AbstractApplicationService` 暴露 `beginUnitOfWork()` 产出由工厂（`Supplier<IUnitOfWork>`）创建的新实例（`AbstractApplicationService.java:60`）。
+
+> 工作单元是「跨聚合根事务编排」的语义载体，不是 `execute()` 的替代品：单聚合根请继续用 `execute()`，多聚合根才用 `beginUnitOfWork()`。
+
+#### 4.9.1 三阶段模板（事实依据）
+
+`AbstractUnitOfWork` 固定三阶段，子类只实现 `persistAndCollect` 与 `dispatchEvents` 两个钩子（`AbstractUnitOfWork.java:170`、`:173`）：
+
+```text
+阶段一（事务外）validateAndCollect   AbstractUnitOfWork.java:62
+  逐条执行领域逻辑 + 规则校验 + 汇总事件；任一违反即终止，事务根本不开
+阶段二（事务内）persistAndCollect    AbstractUnitOfWork.java:68
+  纯数据库写（save / 落 outbox），事务边界由基类统一提供
+阶段三（事务外）dispatchEvents       AbstractUnitOfWork.java:74
+  统一发布事件（publishList / publishAfterCommit）
+```
+
+- 默认 `UnitOfWork`：阶段二逐条 `repository.save`，阶段三 `eventManager.publishList`（`UnitOfWork.java:33`、`:51`）。
+- `OutboxUnitOfWork`：阶段二「save + 整批落 outbox（PENDING）同事务」，阶段三 `publishAfterCommit` 提交后主动推送（`OutboxUnitOfWork.java:53`、`:79`）。
+
+> ⚠️ **顺序不可颠倒**：阶段一在事务外完成，是为了让规则校验里的外部调用 / 旧快照查询**不占用数据库连接**；阶段三在事务提交之后，是为了规避「提交前误发」。手动编排工作单元时严禁自创顺序。
+
+#### 4.9.2 装配：Supplier 原型语义与执行器配对
+
+工作单元**有状态、单次消费**，绝不能直接暴露单例。组合根以 `Supplier<IUnitOfWork>` 承载「每次 `get()` 产出全新实例」的原型语义（`OutboxConfig.java:133`）：
+
+```java
+@Bean
+public Supplier<IUnitOfWork> outboxUnitOfWorkFactory(IOutboxStore outboxStore,
+                                                     TransactionOperations txOps,
+                                                     IEventSerializer serializer,
+                                                     EagerOutboxPublisher eagerPublisher) {
+    // 每次 get() new 一个全新 OutboxUnitOfWork；工作单元有状态、单次消费，不得直接暴露单例
+    return () -> new OutboxUnitOfWork(outboxStore, txOps, serializer, eagerPublisher);
+}
+```
+
+执行器与工作单元工厂**必须语义一致**（§4.7 已述，此处强调）：
+
+| 执行器 | 工作单元工厂 | 场景 |
+| --- | --- | --- |
+| `CommandExecutor` | `UnitOfWork` 工厂 | 不需 Outbox 事务一致性 |
+| `OutboxCommandExecutor` | `OutboxUnitOfWork` 工厂 | 跨模块可靠投递 / 崩溃兜底 |
+
+> ⚠️ **禁止混用**：同一服务内不得出现「`CommandExecutor` + `OutboxUnitOfWork`」或反之两套一致性语义。
+
+#### 4.9.3 写法示例（多聚合根 + try-with-resources）
+
+以下为「支付订单 + 扣减库存」两个聚合根同一事务落地的**示意写法**（演示 API 用法，非项目既有用例）。`IUnitOfWork` 实现 `AutoCloseable`，未提交时 `close()` 自动清空各条目暂存事件（`AbstractUnitOfWork.java:151`、`:159`），因此**一律用 try-with-resources**，防止跨请求事件串味：
+
+```java
+/** 支付订单并扣减库存：两个聚合根同事务统一提交。 */
+public void payWithDeduction(Long orderId, Long inventoryId, PayOrderInput input) {
+    Order order = orderRepository.findById(orderId);
+    Inventory inventory = inventoryRepository.findById(inventoryId);
+    if (order == null || inventory == null) {
+        return;
+    }
+    try (IUnitOfWork uow = beginUnitOfWork()) {   // 工厂产出全新实例，prototype 语义
+        uow.register(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input))
+           .register(inventory, inventoryRule, inventoryRepository, Inventory::deduct)
+           .commit();   // 事务外校验 → 事务内统一落库 → 事务外发布事件
+    }                  // 未提交时 close() 自动 clearWorkUnitState，防事件泄漏
+}
+```
+
+要点：
+
+- `beginUnitOfWork()` 由基类提供，底层即 `unitOfWorkFactory.get()`（`AbstractApplicationService.java:60`）；无需在服务内手动 `new`。
+- `register(...)` 链式调用，每个条目带「聚合根 + 规则 + 仓储 + 领域逻辑（`Consumer<T>`）」四元组，与 `execute()` 四参一一对应。
+- 即便走 `OutboxUnitOfWork` 工厂，上面的写法**零改动**——换工厂即可切换一致性语义，业务代码不感知。
+
+#### 4.9.4 避坑
+
+| 坑 | 事实依据 | 正确做法 |
+| --- | --- | --- |
+| 重复 `commit()` / `tryCommit()` | `commit()` 二次调用抛 `UnitOfWorkStateException`（`AbstractUnitOfWork.java:54`） | 单次消费；试跑（`tryCommit`）会消费工作单元，之后不可再 `commit` |
+| 把 `UnitOfWork` 当单例 Bean 注入 | 有状态、单次消费，注释明确「不得直接暴露单例」（`OutboxConfig.java:122`） | 注入 `Supplier<IUnitOfWork>` 工厂，用 `beginUnitOfWork()` 取新实例 |
+| 不用 try-with-resources | 未提交时 `close()` 才清事件（`AbstractUnitOfWork.java:151`） | 一律 `try (IUnitOfWork uow = beginUnitOfWork())` |
+| 参与工作单元的聚合无乐观锁 | 阶段一校验到阶段二落库之间存在并发窗口 | 参与聚合须带版本，`doUpdate` 校验 `affected rows`，为 0 抛乐观锁冲突回滚 |
+| 执行器与工作单元语义混用 | 同服务两套一致性语义（`AbstractApplicationService.java:13`） | 执行器与工厂成对匹配，禁止跨语义组合 |
+
+> 工作单元底层机制、Outbox 状态机与兜底轮询的完整说明见 [核心：应用服务](../core/application-service.md#_2-2-跨聚合根工作单元iunitofwork--unitofwork)。
+
 ## 5. 关键机制与避坑
 
 - **业务方法内"先 `recordOperation` 后 `collectEvent`"**：事件 `operationCode` 自动取最近一次操作；顺序颠倒抛 `OperationException`。详见 [操作注册表设计](./operation-registry-design.md)。
@@ -263,6 +349,10 @@ public ResponseEntity<ErrorResponse> handleBrokenRule(BrokenRuleException e) {
 | Updater / Factory 里做校验或持久化 | 职责混杂、模板被打断 | Updater 只转换 + 调充血方法；校验 / 持久化交模板 |
 | 每个方法 new 一个执行器 / 事件管理器 | 资源浪费、语义漂移 | 构造器注入一次，复用 `AbstractApplicationService` |
 | WriteService 直接操作仓储细节 / 批量 SQL | 仓储职责泄漏 | 复杂查询交查询侧，写仓储只收聚合根 |
+| 多聚合根场景仍逐个 `execute()` 提交 | 多个聚合根不在同一事务，部分成功部分失败无法整体回滚 | 用 `beginUnitOfWork()` 注册多条目统一 `commit`（见 §4.9） |
+| 把 `UnitOfWork` 当单例 Bean 直接注入 | 有状态、单次消费的工作单元跨请求复用，事件 / 状态串味 | 注入 `Supplier<IUnitOfWork>` 工厂，用 `beginUnitOfWork()` 取新实例 |
+| 工作单元不用 try-with-resources | 未提交时暂存事件未清理，内存泄漏 / 跨请求误发 | 一律 `try (IUnitOfWork uow = beginUnitOfWork())` |
+| 执行器与工作单元语义混用 | 同一服务内两套一致性语义，Outbox 行与事件不同步 | 成对匹配：`CommandExecutor`+`UnitOfWork`、`OutboxCommandExecutor`+`OutboxUnitOfWork` |
 
 ## 7. 下一步
 
