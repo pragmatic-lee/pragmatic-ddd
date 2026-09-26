@@ -23,10 +23,10 @@ public final class RocketMqConfiguration extends AbstractConfiguration {
     /**
      * 返回 RocketMQ 统一配置（前缀 {@code rocketmq}）。
      *
-     * @return 绑定后的 RocketMqConfig
+     * @return 绑定后的 RocketMqProperties
      */
-    public RocketMqConfig config() {
-        return bind("rocketmq", RocketMqConfig.class);
+    public RocketMqProperties config() {
+        return bind("rocketmq", RocketMqProperties.class);
     }
 
     /**

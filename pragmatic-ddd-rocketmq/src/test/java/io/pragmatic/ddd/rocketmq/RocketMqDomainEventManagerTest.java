@@ -218,7 +218,7 @@ class RocketMqDomainEventManagerTest {
     @Test
     void route_differentEventsToDifferentTopics() throws InterruptedException {
         RocketMqEventManager manager = RocketMqEventManager.builder()
-                .config(new RocketMqConfig().setNameServer(RocketMqTestSupport.nameServer())
+                .config(new RocketMqProperties().setNameServer(RocketMqTestSupport.nameServer())
                         .setConsumerGroup("pdd-ddd-test-4x"))
                 .topicResolver(RocketMqTestSupport.perEventTypeResolver(
                         DEFAULT_TOPIC, MyDomainEvent.class.getName(), EVENT_A_TOPIC,

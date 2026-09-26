@@ -16,7 +16,7 @@ import lombok.Getter;
  * @author wizard-lee
  */
 @Getter
-public class RocketMqConfig {
+public class RocketMqProperties {
 
     /** NameServer 地址（Remoting 协议，框架自建 Producer/Consumer 时需要） */
     private String nameServer;
@@ -37,24 +37,24 @@ public class RocketMqConfig {
 
     // ── setters（保持链式返回 this）──
 
-    public RocketMqConfig setNameServer(String nameServer) { this.nameServer = nameServer; return this; }
+    public RocketMqProperties setNameServer(String nameServer) { this.nameServer = nameServer; return this; }
 
-    public RocketMqConfig setProxyAddr(String proxyAddr) { this.proxyAddr = proxyAddr; return this; }
+    public RocketMqProperties setProxyAddr(String proxyAddr) { this.proxyAddr = proxyAddr; return this; }
 
-    public RocketMqConfig setRetryTimesWhenSendFailed(int retryTimesWhenSendFailed) { this.retryTimesWhenSendFailed = retryTimesWhenSendFailed; return this; }
+    public RocketMqProperties setRetryTimesWhenSendFailed(int retryTimesWhenSendFailed) { this.retryTimesWhenSendFailed = retryTimesWhenSendFailed; return this; }
 
-    public RocketMqConfig setSendMsgTimeout(int sendMsgTimeout) { this.sendMsgTimeout = sendMsgTimeout; return this; }
+    public RocketMqProperties setSendMsgTimeout(int sendMsgTimeout) { this.sendMsgTimeout = sendMsgTimeout; return this; }
 
     /** @return 消息体压缩阈值，超过此大小触发压缩 */
-    public RocketMqConfig setCompressMsgBodyOverHowmuch(int compressMsgBodyOverHowmuch) { this.compressMsgBodyOverHowmuch = compressMsgBodyOverHowmuch; return this; }
+    public RocketMqProperties setCompressMsgBodyOverHowmuch(int compressMsgBodyOverHowmuch) { this.compressMsgBodyOverHowmuch = compressMsgBodyOverHowmuch; return this; }
 
-    public RocketMqConfig setProducerGroup(String producerGroup) { this.producerGroup = producerGroup; return this; }
+    public RocketMqProperties setProducerGroup(String producerGroup) { this.producerGroup = producerGroup; return this; }
 
-    public RocketMqConfig setDefaultDelayLevel(int defaultDelayLevel) { this.defaultDelayLevel = defaultDelayLevel; return this; }
+    public RocketMqProperties setDefaultDelayLevel(int defaultDelayLevel) { this.defaultDelayLevel = defaultDelayLevel; return this; }
 
-    public RocketMqConfig setMaxReconsumeTimes(int maxReconsumeTimes) { this.maxReconsumeTimes = maxReconsumeTimes; return this; }
+    public RocketMqProperties setMaxReconsumeTimes(int maxReconsumeTimes) { this.maxReconsumeTimes = maxReconsumeTimes; return this; }
 
-    public RocketMqConfig setConsumerGroup(String consumerGroup) { this.consumerGroup = consumerGroup; return this; }
+    public RocketMqProperties setConsumerGroup(String consumerGroup) { this.consumerGroup = consumerGroup; return this; }
 
     /**
      * 从配置源按 {@code rocketmq} 前缀绑定统一配置（兼容并收敛既有配置）。
@@ -65,7 +65,7 @@ public class RocketMqConfig {
      * @param source 配置源
      * @return 绑定后的配置
      */
-    public static RocketMqConfig bind(IConfigurationSource source) {
-        return ConfigurationBinder.bind(source, "rocketmq", RocketMqConfig.class);
+    public static RocketMqProperties bind(IConfigurationSource source) {
+        return ConfigurationBinder.bind(source, "rocketmq", RocketMqProperties.class);
     }
 }

@@ -80,7 +80,7 @@ public final class KafkaTestSupport {
     /**
      * 使用自定义主题解析器与配置构建一个连接到真实 broker 的 {@link KafkaEventManager}。
      */
-    public static KafkaEventManager createManager(ITopicResolver resolver, KafkaConfig config) {
+    public static KafkaEventManager createManager(ITopicResolver resolver, KafkaProperties config) {
         return KafkaEventManager.builder(config, resolver)
                 .serializer(new KafkaEventSerializer())
                 .build();
@@ -92,7 +92,7 @@ public final class KafkaTestSupport {
      * @param group 消费者组
      * @return 集成测试用 Kafka 配置
      */
-    public static KafkaConfig testConfig(String group) {
+    public static KafkaProperties testConfig(String group) {
         return testConfig(group, 2, "", "100,100");
     }
 
@@ -105,11 +105,11 @@ public final class KafkaTestSupport {
      * @param retryHopBackoffMs 重试 topic 退避表
      * @return 集成测试用 Kafka 配置
      */
-    public static KafkaConfig testConfig(String group,
+    public static KafkaProperties testConfig(String group,
                                          int maxReconsume,
                                          String retryTopicSuffix,
                                          String retryHopBackoffMs) {
-        return new KafkaConfig(
+        return new KafkaProperties(
                 bootstrapServers(),
                 group,
                 "",
@@ -140,8 +140,8 @@ public final class KafkaTestSupport {
      * @param defaultDelaySeconds 延时时长（秒）
      * @return 集成测试用 Kafka 配置
      */
-    public static KafkaConfig testDelayConfig(String group, int defaultDelaySeconds) {
-        return new KafkaConfig(
+    public static KafkaProperties testDelayConfig(String group, int defaultDelaySeconds) {
+        return new KafkaProperties(
                 bootstrapServers(),
                 group,
                 "",

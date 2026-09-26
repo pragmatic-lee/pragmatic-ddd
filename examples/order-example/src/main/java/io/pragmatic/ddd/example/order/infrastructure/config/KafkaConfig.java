@@ -35,13 +35,13 @@ public class KafkaConfig {
 
     /**
      * 装配 Kafka 统一配置，从 Spring Environment 按 {@code kafka} 前缀绑定；
-     * 未显式配置的项回退到框架默认值（由 {@code KafkaConfig.withDefaults(...)} 兜底）。
+     * 未显式配置的项回退到框架默认值（由 {@code KafkaProperties.withDefaults(...)} 兜底）。
      *
      * @param environment Spring 环境（承载外部化配置）
      * @return Kafka 统一配置
      */
     @Bean
-    public io.pragmatic.ddd.kafka.KafkaConfig kafkaConfig(Environment environment) {
+    public io.pragmatic.ddd.kafka.KafkaProperties kafkaConfig(Environment environment) {
         String bootstrapServers = environment.getProperty("kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
         String group = environment.getProperty("kafka.group", DEFAULT_GROUP);
         MapConfigurationSource source = new MapConfigurationSource();
@@ -70,8 +70,8 @@ public class KafkaConfig {
         return ConfigurationBinder.bind(
                 source,
                 "kafka",
-                io.pragmatic.ddd.kafka.KafkaConfig.class,
-                io.pragmatic.ddd.kafka.KafkaConfig.withDefaults(bootstrapServers, group));
+                io.pragmatic.ddd.kafka.KafkaProperties.class,
+                io.pragmatic.ddd.kafka.KafkaProperties.withDefaults(bootstrapServers, group));
     }
 
     /**
@@ -85,7 +85,7 @@ public class KafkaConfig {
      */
     @Bean(destroyMethod = "shutdown")
     public IEventManager orderEventManager(
-            io.pragmatic.ddd.kafka.KafkaConfig config,
+            io.pragmatic.ddd.kafka.KafkaProperties config,
             ITopicResolver topicResolver) {
         return KafkaEventManager.builder(config, topicResolver)
                 .serializer(new KafkaEventSerializer())

@@ -41,8 +41,8 @@ class KafkaRedeliverRelayTest {
 
     private static final TopicPartition RETRY_PARTITION = new TopicPartition(RETRY_TOPIC, 0);
 
-    private KafkaConfig config() {
-        return new KafkaConfig(
+    private KafkaProperties config() {
+        return new KafkaProperties(
                 "localhost:9092",
                 "g1",
                 "",

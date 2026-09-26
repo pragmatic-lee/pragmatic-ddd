@@ -5,14 +5,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * KafkaConfig 重试相关配置的取值、退避取档与非法表降级测试。
+ * KafkaProperties 重试相关配置的取值、退避取档与非法表降级测试。
  *
  * @author wizard-lee
  */
-class KafkaConfigTest {
+class KafkaPropertiesTest {
 
-    private KafkaConfig config(String inlineRetryIntervalsMs, String retryHopBackoffMs, int maxReconsume) {
-        return new KafkaConfig(
+    private KafkaProperties config(String inlineRetryIntervalsMs, String retryHopBackoffMs, int maxReconsume) {
+        return new KafkaProperties(
                 "localhost:9092",
                 "g1",
                 "",
@@ -37,7 +37,7 @@ class KafkaConfigTest {
 
     @Test
     void withDefaultsProvidesRocketMqAlignedRetryWindow() {
-        KafkaConfig config = KafkaConfig.withDefaults("localhost:9092", "g1");
+        KafkaProperties config = KafkaProperties.withDefaults("localhost:9092", "g1");
 
         assertThat(config.maxReconsume()).isEqualTo(16);
         assertThat(config.attemptLimit()).isEqualTo(17);
@@ -71,7 +71,7 @@ class KafkaConfigTest {
 
     @Test
     void inlineRetryBackoffTakesRoundPositionAndRestartsEachRound() {
-        KafkaConfig config = config("100,500", "1000", 16);
+        KafkaProperties config = config("100,500", "1000", 16);
 
         // 轮内位置：1 → 100ms、2 → 500ms；下一轮（times 4、5）重新从第 1 档起算
         assertThat(config.inlineRetryBackoffMs(1)).isEqualTo(100);
@@ -83,7 +83,7 @@ class KafkaConfigTest {
 
     @Test
     void retryHopBackoffTakesHopIndexAndClampsToLastEntry() {
-        KafkaConfig config = config("100,500", "1000,5000,10000", 16);
+        KafkaProperties config = config("100,500", "1000,5000,10000", 16);
 
         assertThat(config.retryHopBackoffMs(1)).isEqualTo(1000);
         assertThat(config.retryHopBackoffMs(3)).isEqualTo(10000);
@@ -95,7 +95,7 @@ class KafkaConfigTest {
 
     @Test
     void emptyOrInvalidTablesDegradeToZeroBackoff() {
-        KafkaConfig config = config("", "abc", 16);
+        KafkaProperties config = config("", "abc", 16);
 
         assertThat(config.inlineRetryIntervalTable()).isEmpty();
         assertThat(config.inlineRetryTimes()).isZero();
@@ -107,9 +107,9 @@ class KafkaConfigTest {
 
     @Test
     void parseMsTableSkipsBlankInvalidAndNonPositiveEntries() {
-        assertThat(KafkaConfig.parseMsTable(" 100 , 500 ")).containsExactly(100, 500);
-        assertThat(KafkaConfig.parseMsTable("100,abc,-5,,200")).containsExactly(100, 200);
-        assertThat(KafkaConfig.parseMsTable(" , ")).isEmpty();
-        assertThat(KafkaConfig.parseMsTable(null)).isEmpty();
+        assertThat(KafkaProperties.parseMsTable(" 100 , 500 ")).containsExactly(100, 500);
+        assertThat(KafkaProperties.parseMsTable("100,abc,-5,,200")).containsExactly(100, 200);
+        assertThat(KafkaProperties.parseMsTable(" , ")).isEmpty();
+        assertThat(KafkaProperties.parseMsTable(null)).isEmpty();
     }
 }

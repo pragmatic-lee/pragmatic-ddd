@@ -4,7 +4,7 @@ import io.pragmatic.ddd.config.MapConfigurationSource;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
 import io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer;
-import io.pragmatic.ddd.rocketmq.RocketMqConfig;
+import io.pragmatic.ddd.rocketmq.RocketMqProperties;
 import io.pragmatic.ddd.rocketmq.RocketMqEventManager;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.springframework.boot.ApplicationArguments;
@@ -37,7 +37,7 @@ public class RocketMQConfig {
      * @return RocketMQ 统一配置
      */
     @Bean
-    public RocketMqConfig rocketMqConfig(Environment environment) {
+    public RocketMqProperties rocketMqConfig(Environment environment) {
         MapConfigurationSource source = new MapConfigurationSource();
         source.put("rocketmq.name-server", environment.getProperty("rocketmq.name-server", "127.0.0.1:9876"));
         source.put("rocketmq.producer-group", environment.getProperty("rocketmq.producer-group", "order_example_producer"));
@@ -45,7 +45,7 @@ public class RocketMQConfig {
         source.put("rocketmq.retry-times-when-send-failed", environment.getProperty("rocketmq.retry-times-when-send-failed", "3"));
         source.put("rocketmq.send-msg-timeout", environment.getProperty("rocketmq.send-msg-timeout", "3000"));
         source.put("rocketmq.max-reconsume-times", environment.getProperty("rocketmq.max-reconsume-times", "16"));
-        return RocketMqConfig.bind(source);
+        return RocketMqProperties.bind(source);
     }
 
     /**
@@ -56,7 +56,7 @@ public class RocketMQConfig {
      * @return RocketMQ 生产者
      */
     @Bean(destroyMethod = "shutdown")
-    public DefaultMQProducer rocketMqProducer(RocketMqConfig config) {
+    public DefaultMQProducer rocketMqProducer(RocketMqProperties config) {
         DefaultMQProducer producer = new DefaultMQProducer(config.getProducerGroup());
         producer.setNamesrvAddr(config.getNameServer());
         producer.setRetryTimesWhenSendFailed(config.getRetryTimesWhenSendFailed());
@@ -68,7 +68,7 @@ public class RocketMQConfig {
      * 装配 RocketMQ 事件管理器（core 端口 IEventManager 的 Remoting 实现）。
      * 仅 build 实例，不在此 start；启动延后到 {@link ApplicationRunner}（应用完全就绪后）调用 start()，
      * 确保 Consumer 订阅与各通道收发在依赖全部就绪后再拉起。
-     * 外部注入的 Producer 由 {@link #rocketMqProducer(RocketMqConfig)} 自身生命周期回收（shutdown 守卫避免重复关闭）。
+     * 外部注入的 Producer 由 {@link #rocketMqProducer(RocketMqProperties)} 自身生命周期回收（shutdown 守卫避免重复关闭）。
      *
      * @param config       RocketMQ 统一配置
      * @param topicResolver 订单域主题路由
@@ -77,7 +77,7 @@ public class RocketMQConfig {
      */
     @Bean(destroyMethod = "shutdown")
     public IEventManager orderEventManager(
-            RocketMqConfig config,
+            RocketMqProperties config,
             ITopicResolver topicResolver,
             DefaultMQProducer producer) {
         return RocketMqEventManager.builder()

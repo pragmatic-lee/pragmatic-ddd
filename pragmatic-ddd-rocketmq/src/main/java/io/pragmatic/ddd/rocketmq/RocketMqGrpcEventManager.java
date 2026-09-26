@@ -55,7 +55,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
             600000, 1200000, 1800000, 3600000, 7200000
     };
 
-    private final RocketMqConfig config;
+    private final RocketMqProperties config;
     private final ClientServiceProvider provider;
     private Producer producer;
     private final List<PushConsumer> consumerList = new ArrayList<>();
@@ -107,7 +107,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
      * RocketMqGrpcEventManager 的构建器。
      */
     public static class Builder {
-        private RocketMqConfig config;
+        private RocketMqProperties config;
         private ITopicResolver topicResolver;
         private Producer producer;
         private ISubscriberOrderManager orderManager;
@@ -117,7 +117,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
         /**
          * 设置 RocketMQ 配置。
          */
-        public Builder config(RocketMqConfig c) { this.config = c; return this; }
+        public Builder config(RocketMqProperties c) { this.config = c; return this; }
         /**
          * 设置主题解析器。
          */
@@ -143,7 +143,7 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
          * 构建并返回 RocketMqGrpcEventManager 实例。
          */
         public RocketMqGrpcEventManager build() {
-            Objects.requireNonNull(config, "RocketMqConfig required");
+            Objects.requireNonNull(config, "RocketMqProperties required");
             Objects.requireNonNull(topicResolver, "topicResolver required");
             return new RocketMqGrpcEventManager(this);
         }

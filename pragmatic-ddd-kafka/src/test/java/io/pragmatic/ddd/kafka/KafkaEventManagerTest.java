@@ -64,22 +64,22 @@ class KafkaEventManagerTest {
         };
     }
 
-    private KafkaConfig config(int concurrency, int maxReconsume) {
+    private KafkaProperties config(int concurrency, int maxReconsume) {
         return configWith(concurrency, maxReconsume, "immediate", 10_000);
     }
 
-    private KafkaConfig configWith(int concurrency, int maxReconsume, String delayedPolicy, int sendTimeoutMs) {
+    private KafkaProperties configWith(int concurrency, int maxReconsume, String delayedPolicy, int sendTimeoutMs) {
         return configWith(concurrency, maxReconsume, delayedPolicy, sendTimeoutMs, "100,500", "-retry", "1000,5000");
     }
 
-    private KafkaConfig configWith(int concurrency,
+    private KafkaProperties configWith(int concurrency,
                                    int maxReconsume,
                                    String delayedPolicy,
                                    int sendTimeoutMs,
                                    String inlineRetryIntervalsMs,
                                    String retryTopicSuffix,
                                    String retryHopBackoffMs) {
-        return new KafkaConfig(
+        return new KafkaProperties(
                 "localhost:9092",
                 "g1",
                 "",
@@ -103,13 +103,13 @@ class KafkaEventManagerTest {
     }
 
     /** 重试链路用例配置：内联间隔压到 1ms、退避 100ms，缩短用例时长。 */
-    private KafkaConfig retryConfig(int maxReconsume, String retryTopicSuffix) {
+    private KafkaProperties retryConfig(int maxReconsume, String retryTopicSuffix) {
         return configWith(1, maxReconsume, "immediate", 50, "1,1", retryTopicSuffix, "100,100");
     }
 
     /** 批次预算用例配置：batchBudgetMs 压到 1ms，触发「超预算留待下轮」。 */
-    private KafkaConfig budgetConfig(int maxReconsume) {
-        return new KafkaConfig(
+    private KafkaProperties budgetConfig(int maxReconsume) {
+        return new KafkaProperties(
                 "localhost:9092",
                 "g1",
                 "",
@@ -673,7 +673,7 @@ class KafkaEventManagerTest {
 
         private final boolean backoffResult;
 
-        BackoffRecordingManager(KafkaConfig config,
+        BackoffRecordingManager(KafkaProperties config,
                                 ITopicResolver resolver,
                                 Producer<String, byte[]> producer,
                                 boolean backoffResult) {
@@ -699,11 +699,11 @@ class KafkaEventManagerTest {
 
         private final AtomicInteger created = new AtomicInteger(0);
 
-        TestableManager(KafkaConfig config, ITopicResolver resolver) {
+        TestableManager(KafkaProperties config, ITopicResolver resolver) {
             this(config, resolver, null);
         }
 
-        TestableManager(KafkaConfig config, ITopicResolver resolver, Producer<String, byte[]> producer) {
+        TestableManager(KafkaProperties config, ITopicResolver resolver, Producer<String, byte[]> producer) {
             super(KafkaEventManager.builder(config, resolver).producer(producer));
         }
 

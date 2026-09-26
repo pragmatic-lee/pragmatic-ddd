@@ -33,7 +33,7 @@ import java.util.OptionalInt;
  *
  * @author wizard-lee
  */
-public record KafkaConfig(
+public record KafkaProperties(
 
         /*
          * Kafka broker 地址，对应 bootstrap.servers
@@ -140,10 +140,10 @@ public record KafkaConfig(
      *
      * @param bootstrapServers broker 地址
      * @param group            消费者组
-     * @return 采用默认值的 KafkaConfig
+     * @return 采用默认值的 KafkaProperties
      */
-    public static KafkaConfig withDefaults(String bootstrapServers, String group) {
-        return new KafkaConfig(
+    public static KafkaProperties withDefaults(String bootstrapServers, String group) {
+        return new KafkaProperties(
                 bootstrapServers,
                 group,
                 "",
@@ -259,7 +259,7 @@ public record KafkaConfig(
         }
         return Arrays.stream(raw.split(","))
                 .map(String::trim)
-                .map(KafkaConfig::parseMs)
+                .map(KafkaProperties::parseMs)
                 .filter(OptionalInt::isPresent)
                 .mapToInt(OptionalInt::getAsInt)
                 .filter(ms -> ms > 0)

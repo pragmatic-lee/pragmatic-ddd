@@ -38,7 +38,7 @@ import java.util.Set;
  * <p>
  * 核心特性：
  * <ul>
- *   <li>通过 RocketMqConfig 统一配置入口</li>
+ *   <li>通过 RocketMqProperties 统一配置入口</li>
  *   <li>Producer 支持外部注入（与 Spring 容器共享），未注入时框架自建；单实例复用</li>
  *   <li>Consumer 始终框架内部创建（不同 Consumer Group 完全独立，不可共用）</li>
  *   <li>消费异常返回 RECONSUME_LATER，保障最终一致性</li>
@@ -54,7 +54,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
     private static final Logger log = LoggerFactory.getLogger(RocketMqEventManager.class);
 
     // ── 配置 ──
-    private final RocketMqConfig config;
+    private final RocketMqProperties config;
 
     // ── 资源 ──
     private volatile MQProducer sharedProducer;
@@ -82,7 +82,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
      * RocketMqEventManager 的构建器。
      */
     public static class Builder {
-        private RocketMqConfig config;
+        private RocketMqProperties config;
         private ITopicResolver topicResolver;
         private MQProducer producer;
         private ISubscriberOrderManager orderManager;
@@ -92,7 +92,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
         /**
          * 设置 RocketMQ 配置。
          */
-        public Builder config(RocketMqConfig c) { this.config = c; return this; }
+        public Builder config(RocketMqProperties c) { this.config = c; return this; }
         /**
          * 设置主题解析器。
          */
@@ -118,7 +118,7 @@ public class RocketMqEventManager extends AbstractMQEventManager
          * 构建并返回 RocketMqEventManager 实例。
          */
         public RocketMqEventManager build() {
-            Objects.requireNonNull(config, "RocketMqConfig required");
+            Objects.requireNonNull(config, "RocketMqProperties required");
             Objects.requireNonNull(topicResolver, "topicResolver required");
             return new RocketMqEventManager(this);
         }

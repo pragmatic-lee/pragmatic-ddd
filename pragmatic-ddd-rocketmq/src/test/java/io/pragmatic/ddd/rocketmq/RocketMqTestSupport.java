@@ -83,7 +83,7 @@ final class RocketMqTestSupport {
     /** 创建 4.x 事件管理器（可注入顺序管理器）。 */
     static RocketMqEventManager create4xManager(String defaultTopic, ISubscriberOrderManager orderManager) {
         RocketMqEventManager.Builder builder = RocketMqEventManager.builder()
-                .config(new RocketMqConfig().setNameServer(nameServer())
+                .config(new RocketMqProperties().setNameServer(nameServer())
                         .setConsumerGroup("pdd-ddd-test-4x"))
                 .topicResolver(ConfigurableTopicResolver.builder().globalDefaultTopic(defaultTopic).build())
                 .serializer(new Fastjson2EventSerializer());
@@ -101,7 +101,7 @@ final class RocketMqTestSupport {
     /** 创建 5.x 事件管理器（可注入顺序管理器）。 */
     static RocketMqGrpcEventManager create5xManager(String defaultTopic, ISubscriberOrderManager orderManager) {
         RocketMqGrpcEventManager.Builder builder = RocketMqGrpcEventManager.builder()
-                .config(new RocketMqConfig().setProxyAddr(proxyAddr())
+                .config(new RocketMqProperties().setProxyAddr(proxyAddr())
                         .setConsumerGroup("pdd-ddd-test-5x"))
                 .topicResolver(ConfigurableTopicResolver.builder().globalDefaultTopic(defaultTopic).build())
                 .serializer(new Fastjson2EventSerializer());

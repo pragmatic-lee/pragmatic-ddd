@@ -61,7 +61,7 @@ final class KafkaRedeliverRelay {
 
     private final Producer<String, byte[]> producer;
 
-    private final KafkaConfig config;
+    private final KafkaProperties config;
 
     private final String label;
 
@@ -85,7 +85,7 @@ final class KafkaRedeliverRelay {
      * @param topicSuffix    待订阅 topic 的后缀，{@code {businessTopic}{suffix}}
      */
     KafkaRedeliverRelay(Producer<String, byte[]> producer,
-                        KafkaConfig config,
+                        KafkaProperties config,
                         Set<String> businessTopics,
                         String label,
                         String topicSuffix) {

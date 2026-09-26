@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Kafka 领域事件管理器，继承 {@link AbstractMQEventManager} 实现订阅（拉取消费）与发布。
  * <p>
- * 订阅侧按 {@link KafkaConfig#concurrency()} 创建多个独立的 {@link KafkaConsumer}（同 group.id），
+ * 订阅侧按 {@link KafkaProperties#concurrency()} 创建多个独立的 {@link KafkaConsumer}（同 group.id），
  * 各自在独立后台线程中 poll，由 Kafka 自动分摊分区以实现单机多核并行；跨容器部署（同 group）可横向扩展。
  * 可靠性语义（at-least-once，与 RocketMQ 实现一致）：
  * <ul>
@@ -83,7 +83,7 @@ public class KafkaEventManager extends AbstractMQEventManager {
     /** 内联重试等待的分片长度（毫秒），决定停机响应的上限延迟。 */
     private static final long BACKOFF_SLICE_MS = 100L;
 
-    private final KafkaConfig config;
+    private final KafkaProperties config;
 
     private final IEventMetrics metrics;
 
@@ -152,7 +152,7 @@ public class KafkaEventManager extends AbstractMQEventManager {
      * @param topicResolver topic 解析器
      * @return 构建器
      */
-    public static Builder builder(KafkaConfig config, ITopicResolver topicResolver) {
+    public static Builder builder(KafkaProperties config, ITopicResolver topicResolver) {
         return new Builder(config, topicResolver);
     }
 
@@ -694,7 +694,7 @@ public class KafkaEventManager extends AbstractMQEventManager {
      */
     public static final class Builder {
 
-        private final KafkaConfig config;
+        private final KafkaProperties config;
 
         private final ITopicResolver topicResolver;
 
@@ -706,7 +706,7 @@ public class KafkaEventManager extends AbstractMQEventManager {
 
         private Producer<String, byte[]> producer;
 
-        private Builder(KafkaConfig config, ITopicResolver topicResolver) {
+        private Builder(KafkaProperties config, ITopicResolver topicResolver) {
             this.config = config;
             this.topicResolver = topicResolver;
         }

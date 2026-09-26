@@ -22,7 +22,7 @@ class RocketMqConfigurationBindTest {
         IConfigurationContext context = new DefaultConfigurationContext(source);
         RocketMqConfiguration configuration = new RocketMqConfiguration(context);
 
-        RocketMqConfig config = configuration.config();
+        RocketMqProperties config = configuration.config();
         assertThat(config.getNameServer()).isEqualTo("127.0.0.1:9876");
         assertThat(config.getProxyAddr()).isEqualTo("127.0.0.1:8081");
         assertThat(config.getRetryTimesWhenSendFailed()).isEqualTo(5);
