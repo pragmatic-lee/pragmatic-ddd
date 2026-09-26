@@ -3,30 +3,32 @@ package io.pragmatic.ddd.example.order.infrastructure.config;
 import io.pragmatic.ddd.config.MapConfigurationSource;
 import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
-import io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver;
 import io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer;
 import io.pragmatic.ddd.rocketmq.RocketMqConfig;
 import io.pragmatic.ddd.rocketmq.RocketMqEventManager;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 /**
  * RocketMQ 4.x（Remoting）事件基础设施配置。
- * 负责装配框架统一配置、订单域主题路由与事件管理器；事件管理器的启动延后到
+ * 负责装配框架统一配置与事件管理器；事件管理器的启动延后到
  * 应用完全就绪后（由 startRocketMqOnReady 触发），避免提前收发。
  * 订阅登记由订单域订阅者注册表（EventSubscriberRegistry 实现）承担，本类不负责订阅绑定。
+ * 订单域主题路由由 {@link OrderEventTopicConfig} 统一提供（与 Kafka 共用）。
+ *
+ * <p>与 {@code KafkaConfig} 互斥：仅当 {@code event.bus} 缺省或为 {@code rocketmq} 时生效，
+ * 保证容器中始终只有一个 {@link IEventManager} Bean。</p>
  *
  * @author wizard-lee
  */
 @Configuration
+@ConditionalOnProperty(name = "event.bus", havingValue = "rocketmq", matchIfMissing = true)
 public class RocketMQConfig {
-
-    /** 订单域事件汇聚的默认 topic。 */
-    private static final String DEFAULT_TOPIC = "data_sync_event";
 
     /**
      * 装配 RocketMQ 统一配置，从 Spring Environment 按 {@code rocketmq} 前缀绑定。
@@ -44,19 +46,6 @@ public class RocketMQConfig {
         source.put("rocketmq.send-msg-timeout", environment.getProperty("rocketmq.send-msg-timeout", "3000"));
         source.put("rocketmq.max-reconsume-times", environment.getProperty("rocketmq.max-reconsume-times", "16"));
         return RocketMqConfig.bind(source);
-    }
-
-    /**
-     * 装配订单域主题路由：复用框架 ConfigurableTopicResolver，全局默认 topic 为 {@code data_sync_event}；
-     * 后续如需按事件或订阅者分流到国内/海外等其它 topic，通过 eventTopic/subscriberTopic 扩展，无需手写实现。
-     *
-     * @return 订单域主题路由
-     */
-    @Bean
-    public ITopicResolver orderTopicResolver() {
-        return ConfigurableTopicResolver.builder()
-                .globalDefaultTopic(DEFAULT_TOPIC)
-                .build();
     }
 
     /**
