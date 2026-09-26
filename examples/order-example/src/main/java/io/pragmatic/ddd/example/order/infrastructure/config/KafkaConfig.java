@@ -6,6 +6,7 @@ import io.pragmatic.ddd.event.spi.IEventManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
 import io.pragmatic.ddd.kafka.KafkaEventManager;
 import io.pragmatic.ddd.kafka.KafkaEventSerializer;
+import io.pragmatic.ddd.kafka.KafkaProperties;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -41,7 +42,7 @@ public class KafkaConfig {
      * @return Kafka 统一配置
      */
     @Bean
-    public io.pragmatic.ddd.kafka.KafkaProperties kafkaConfig(Environment environment) {
+    public KafkaProperties kafkaConfig(Environment environment) {
         String bootstrapServers = environment.getProperty("kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
         String group = environment.getProperty("kafka.group", DEFAULT_GROUP);
         MapConfigurationSource source = new MapConfigurationSource();
@@ -70,8 +71,8 @@ public class KafkaConfig {
         return ConfigurationBinder.bind(
                 source,
                 "kafka",
-                io.pragmatic.ddd.kafka.KafkaProperties.class,
-                io.pragmatic.ddd.kafka.KafkaProperties.withDefaults(bootstrapServers, group));
+                KafkaProperties.class,
+                KafkaProperties.withDefaults(bootstrapServers, group));
     }
 
     /**
