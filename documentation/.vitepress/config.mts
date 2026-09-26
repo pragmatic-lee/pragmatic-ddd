@@ -133,7 +133,8 @@ export default defineConfig({
               collapsed: true,
               items: [
                 { text: '事件建模指南', link: '/best-practices/event-modeling' },
-                { text: '事件订阅领域服务落地模式', link: '/best-practices/event-subscriber-pattern' }
+                { text: '事件订阅领域服务落地模式', link: '/best-practices/event-subscriber-pattern' },
+                { text: '对外广播落地模式', link: '/best-practices/broadcast' }
               ]
             },
             {
