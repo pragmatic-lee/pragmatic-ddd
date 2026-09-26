@@ -74,11 +74,45 @@ public final class KafkaTestSupport {
      * 使用自定义主题解析器构建一个连接到真实 broker 的 {@link KafkaEventManager}。
      */
     public static KafkaEventManager createManager(ITopicResolver resolver, String group) {
-        KafkaConfig config = new KafkaConfig(
+        return createManager(resolver, testConfig(group));
+    }
+
+    /**
+     * 使用自定义主题解析器与配置构建一个连接到真实 broker 的 {@link KafkaEventManager}。
+     */
+    public static KafkaEventManager createManager(ITopicResolver resolver, KafkaConfig config) {
+        return KafkaEventManager.builder(config, resolver)
+                .serializer(new KafkaEventSerializer())
+                .build();
+    }
+
+    /**
+     * 集成测试基线配置：重试窗口收窄（内联 50ms ×2、max-reconsume=2）且默认关闭重试通道，缩短用例时长。
+     *
+     * @param group 消费者组
+     * @return 集成测试用 Kafka 配置
+     */
+    public static KafkaConfig testConfig(String group) {
+        return testConfig(group, 2, "", "100,100");
+    }
+
+    /**
+     * 集成测试配置：可独立指定重试窗口与重试通道，其余取测试基线。
+     *
+     * @param group            消费者组
+     * @param maxReconsume     最大重试次数（不含首投）
+     * @param retryTopicSuffix 重试 topic 后缀，空串表示关闭重试通道
+     * @param retryHopBackoffMs 重试 topic 退避表
+     * @return 集成测试用 Kafka 配置
+     */
+    public static KafkaConfig testConfig(String group,
+                                         int maxReconsume,
+                                         String retryTopicSuffix,
+                                         String retryHopBackoffMs) {
+        return new KafkaConfig(
                 bootstrapServers(),
                 group,
                 "",
-                false,
                 500,
                 1000,
                 "earliest",
@@ -86,11 +120,48 @@ public final class KafkaTestSupport {
                 "",
                 true,
                 "-dlq",
-                3,
-                1);
-        return KafkaEventManager.builder(config, resolver)
-                .serializer(new KafkaEventSerializer())
-                .build();
+                maxReconsume,
+                1,
+                10000,
+                "immediate",
+                10,
+                "-delay",
+                "50,50",
+                retryTopicSuffix,
+                retryHopBackoffMs,
+                30000);
+    }
+
+    /**
+     * 延时通道集成测试配置：delayed-policy=relay，延时事件转存 {topic}-delay 并在 defaultDelaySeconds 秒后回投业务 topic；
+     * 重试通道关闭，避免两链路互相干扰。
+     *
+     * @param group               消费者组
+     * @param defaultDelaySeconds 延时时长（秒）
+     * @return 集成测试用 Kafka 配置
+     */
+    public static KafkaConfig testDelayConfig(String group, int defaultDelaySeconds) {
+        return new KafkaConfig(
+                bootstrapServers(),
+                group,
+                "",
+                500,
+                1000,
+                "earliest",
+                "all",
+                "",
+                true,
+                "-dlq",
+                2,
+                1,
+                10000,
+                "relay",
+                defaultDelaySeconds,
+                "-delay",
+                "50,50",
+                "",
+                "100,100",
+                30000);
     }
 
     /**

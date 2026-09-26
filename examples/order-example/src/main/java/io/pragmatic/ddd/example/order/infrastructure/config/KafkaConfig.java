@@ -48,15 +48,24 @@ public class KafkaConfig {
         source.put("kafka.bootstrap-servers", bootstrapServers);
         source.put("kafka.group", group);
         source.put("kafka.client-id", environment.getProperty("kafka.client-id", ""));
-        source.put("kafka.enable-auto-commit", environment.getProperty("kafka.enable-auto-commit", "false"));
         source.put("kafka.max-poll-records", environment.getProperty("kafka.max-poll-records", "500"));
+        source.put("kafka.send-timeout-ms", environment.getProperty("kafka.send-timeout-ms", "10000"));
+        source.put("kafka.delayed-policy", environment.getProperty("kafka.delayed-policy", "immediate"));
+        source.put("kafka.default-delay-seconds", environment.getProperty("kafka.default-delay-seconds", "10"));
+        source.put("kafka.delay-topic-suffix", environment.getProperty("kafka.delay-topic-suffix", "-delay"));
         source.put("kafka.poll-timeout-ms", environment.getProperty("kafka.poll-timeout-ms", "1000"));
         source.put("kafka.auto-offset-reset", environment.getProperty("kafka.auto-offset-reset", "latest"));
         source.put("kafka.ack", environment.getProperty("kafka.ack", "all"));
         source.put("kafka.compression-type", environment.getProperty("kafka.compression-type", ""));
         source.put("kafka.enable-idempotence", environment.getProperty("kafka.enable-idempotence", "true"));
         source.put("kafka.dlq-suffix", environment.getProperty("kafka.dlq-suffix", "-dlq"));
-        source.put("kafka.max-reconsume", environment.getProperty("kafka.max-reconsume", "3"));
+        source.put("kafka.max-reconsume", environment.getProperty("kafka.max-reconsume", "16"));
+        source.put("kafka.inline-retry-intervals-ms",
+                environment.getProperty("kafka.inline-retry-intervals-ms", "100,500"));
+        source.put("kafka.retry-topic-suffix", environment.getProperty("kafka.retry-topic-suffix", "-retry"));
+        source.put("kafka.retry-hop-backoff-ms", environment.getProperty(
+                "kafka.retry-hop-backoff-ms", "1000,5000,10000,30000,60000,120000,180000,240000"));
+        source.put("kafka.batch-budget-ms", environment.getProperty("kafka.batch-budget-ms", "30000"));
         source.put("kafka.concurrency", environment.getProperty("kafka.concurrency", "1"));
         return ConfigurationBinder.bind(
                 source,
