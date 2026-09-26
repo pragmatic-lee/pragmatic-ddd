@@ -34,7 +34,12 @@ public abstract class AbstractEventManager implements IEventManager {
         this.orderManager = orderManager;
     }
 
-    /** 返回某事件的根订阅者映射（排除存在前置依赖的非根订阅者）。 */
+    /**
+     * 返回某事件的根订阅者映射（排除存在前置依赖的非根订阅者）。
+     *
+     * @param eventName 事件名
+     * @return 根订阅者映射，无匹配时为空
+     */
     protected Map<String, SubscriberInfo> filterSubscriberInfoMap(String eventName) {
         Map<String, SubscriberInfo> subscriberMap = this.subscribers.get(eventName);
         if (subscriberMap != null && this.orderManager != null) {
@@ -46,7 +51,15 @@ public abstract class AbstractEventManager implements IEventManager {
         return Optional.ofNullable(subscriberMap).orElse(new HashMap<>());
     }
 
-    /** 按别名查找某事件的订阅者信息，执行条件判定为跳过时返回 null。 */
+    /**
+     * 按别名查找某事件的订阅者信息，执行条件判定为跳过时返回 null。
+     *
+     * @param <T>        领域事件类型
+     * @param obj        待处理的事件对象
+     * @param subscriber 订阅者别名
+     * @param eventName  事件名
+     * @return 命中的订阅者信息，被跳过或未找到时为 null
+     */
     protected <T extends IDomainEvent> SubscriberInfo findSubscriberInfo(T obj, String subscriber, String eventName) {
         Map<String, SubscriberInfo> subscriberMap = this.subscribers.get(eventName);
         if (subscriberMap == null) {
@@ -68,7 +81,13 @@ public abstract class AbstractEventManager implements IEventManager {
         return subscriberInfo;
     }
 
-    /** 执行条件判定：条件为空时回退默认条件，异常时视为跳过。 */
+    /**
+     * 执行条件判定：条件为空时回退默认条件，异常时视为跳过。
+     *
+     * @param t                 待判定的领域事件
+     * @param iExecuteCondition 执行条件，可为 null
+     * @return 执行状态
+     */
     protected ExecuteStatus executeCheck(final IDomainEvent t, IExecuteCondition iExecuteCondition) {
         try {
             return Optional.ofNullable(iExecuteCondition).orElse(defaultCondition).status(t);
@@ -77,7 +96,13 @@ public abstract class AbstractEventManager implements IEventManager {
         }
     }
 
-    /** 订阅者级开关判定：条件为空时回退默认条件，异常时视为跳过。 */
+    /**
+     * 订阅者级开关判定：条件为空时回退默认条件，异常时视为跳过。
+     *
+     * @param alias             订阅者别名
+     * @param iExecuteCondition 开关条件，可为 null
+     * @return 执行状态
+     */
     protected ExecuteStatus switchCheck(final String alias, IExecuteCondition iExecuteCondition) {
         try {
             return Optional.ofNullable(iExecuteCondition).orElse(defaultCondition).switchStatus(alias);
@@ -131,7 +156,15 @@ public abstract class AbstractEventManager implements IEventManager {
         this.doRegister(subscriberCode, SubscriberFactory.build(cls, handle), condition, dependSubscriber, policy);
     }
 
-    /** 完成单个订阅者的注册与依赖登记。 */
+    /**
+     * 完成单个订阅者的注册与依赖登记。
+     *
+     * @param subscriberCode   订阅者别名
+     * @param subscriber       订阅者实例
+     * @param condition        执行条件
+     * @param dependSubscriber 前置依赖的订阅者别名，可为 null
+     * @param policy           投递策略
+     */
     protected void doRegister(String subscriberCode, ISubscriber subscriber,
                               IExecuteCondition condition,
                               String dependSubscriber,

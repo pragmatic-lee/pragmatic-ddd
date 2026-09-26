@@ -9,6 +9,10 @@ import io.pragmatic.ddd.event.IDomainEvent;
  * @author wizard-lee
  */
 public interface IHandle<T extends IDomainEvent> {
-    /** 处理一个领域事件。 */
+    /**
+     * 处理一个领域事件。
+     *
+     * @param t 待处理的领域事件
+     */
     void handleEvent(T t);
 }

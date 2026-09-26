@@ -12,9 +12,18 @@ import io.pragmatic.ddd.base.AggregateRoot;
  */
 public interface IAggregateProjector<T extends AggregateRoot<?>, P extends IAggregateProjection> {
 
-    /** 将聚合根投影为指定类型 P；聚合不满足投影条件可返回 null（由调用方决定）。 */
+    /**
+     * 将聚合根投影为指定类型 P；聚合不满足投影条件可返回 null（由调用方决定）。
+     *
+     * @param aggregateRoot 待投影的聚合根
+     * @return 投影结果，不满足条件时可为 null
+     */
     P project(T aggregateRoot);
 
-    /** 本投影器产出的投影类型，与承载它的源一一对应（源一次只能承载一种全量投影）。 */
+    /**
+     * 本投影器产出的投影类型，与承载它的源一一对应（源一次只能承载一种全量投影）。
+     *
+     * @return 投影类型
+     */
     Class<P> projectionType();
 }

@@ -38,7 +38,14 @@ public abstract class AbstractCommandExecutor implements ICommandExecutor {
         return aggregateRoot;
     }
 
-    /** 钩子：在合适的事务边界内持久化聚合根并完成领域事件分发。 */
+    /**
+     * 钩子：在合适的事务边界内持久化聚合根并完成领域事件分发。
+     *
+     * @param <ID>          聚合根标识类型
+     * @param <T>           聚合根类型
+     * @param aggregateRoot 待持久化的聚合根
+     * @param repository    执行持久化与事件分发的仓储
+     */
     protected abstract <ID, T extends AggregateRoot<ID>> void persistAndDispatch(
             T aggregateRoot, IRepository<ID, T> repository);
 }

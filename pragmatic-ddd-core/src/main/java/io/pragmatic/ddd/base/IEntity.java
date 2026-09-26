@@ -8,6 +8,10 @@ package io.pragmatic.ddd.base;
  * @author wizard-lee
  */
 public interface IEntity<T> {
-	/** 返回实体标识。 */
+	/**
+	 * 返回实体标识。
+	 *
+	 * @return 实体标识
+	 */
 	T getEntityId();
 }

@@ -15,6 +15,11 @@ public abstract class AbstractAggregateProjector<T extends AggregateRoot<?>, P e
 
     private final Class<P> projectionType;
 
+    /**
+     * 预置投影类型，子类仅需实现 {@link #project(AggregateRoot)}。
+     *
+     * @param projectionType 本投影器产出的投影类型
+     */
     protected AbstractAggregateProjector(Class<P> projectionType) {
         this.projectionType = projectionType;
     }

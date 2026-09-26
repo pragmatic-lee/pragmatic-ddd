@@ -27,6 +27,14 @@ public abstract class AbstractBroadcastSubscriber<T extends IDomainEvent, P> imp
     private final String broadcastTopic;
     private final String senderCode;
 
+    /**
+     * 注入对外广播所需的协作对象。
+     *
+     * @param messenger      对外广播通道
+     * @param serializer     信封序列化器
+     * @param broadcastTopic 对外广播 topic
+     * @param senderCode     发送方标识
+     */
     protected AbstractBroadcastSubscriber(IBroadcastMessenger messenger,
                                            IEventSerializer serializer,
                                            String broadcastTopic,
@@ -37,13 +45,28 @@ public abstract class AbstractBroadcastSubscriber<T extends IDomainEvent, P> imp
         this.senderCode = Objects.requireNonNull(senderCode, "senderCode required");
     }
 
-    /** 订阅的事件类型，供注册时传入 Class&lt;T&gt;。 */
+    /**
+     * 订阅的事件类型，供注册时传入 Class&lt;T&gt;。
+     *
+     * @return 订阅的领域事件类型
+     */
     public abstract Class<T> subscribedToEventType();
 
-    /** 由领域事件构建对接方约定的消息体。 */
+    /**
+     * 由领域事件构建对接方约定的消息体。
+     *
+     * @param event 触发广播的领域事件
+     * @return 对外消息体
+     */
     protected abstract P buildPayload(T event);
 
-    /** 用事件与消息体组装对外信封。 */
+    /**
+     * 用事件与消息体组装对外信封。
+     *
+     * @param event   触发广播的领域事件
+     * @param payload 对外消息体
+     * @return 组装后的对外信封
+     */
     protected abstract AggregateMessageEnvelope<P> wrap(T event, P payload);
 
     @Override

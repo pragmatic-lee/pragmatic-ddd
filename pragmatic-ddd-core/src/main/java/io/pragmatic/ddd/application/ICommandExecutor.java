@@ -15,6 +15,17 @@ import java.util.function.Consumer;
  */
 public interface ICommandExecutor {
 
+    /**
+     * 执行单聚合根命令：领域逻辑 → 规则校验 → 持久化 → 事件分发。
+     *
+     * @param <ID>          聚合根标识类型
+     * @param <T>           聚合根类型
+     * @param aggregateRoot 目标聚合根
+     * @param rule          业务规则，为 null 时视为无规则约束
+     * @param repository    仓储，用于持久化与事件分发
+     * @param domainLogic   领域逻辑
+     * @return 执行后的聚合根
+     */
     <ID, T extends AggregateRoot<ID>> T execute(
             T aggregateRoot,
             IRule<?> rule,
@@ -26,6 +37,8 @@ public interface ICommandExecutor {
      * 但跳过持久化与事件分发，以结构化结果返回校验结论。
      * 对应设计文档《应用服务层 Try-run（Dry-run）能力支持》5.2 节。
      *
+     * @param <ID>          聚合根标识类型
+     * @param <T>           聚合根类型
      * @param aggregateRoot 本次试跑专用的聚合根实例（试跑后不得再用于真实执行）
      * @param rule          业务规则，为 null 时视为无规则约束
      * @param repository    仓储，试跑不使用，保持与 execute 签名对称
