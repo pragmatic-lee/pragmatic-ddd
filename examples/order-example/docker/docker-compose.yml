@@ -114,7 +114,56 @@ services:
       - dev-network
     restart: always
 
-  # 8. Order Example (业务示例应用，基于镜像 order-example:2.0.0)
+  # 8. Kafka (基于镜像 confluentinc/cp-kafka:7.6.1，底层 Kafka 3.6.1，使用 KRaft 模式，无需 ZooKeeper)
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: my-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"  # 固定的 KRaft 集群 ID（仅用于开发环境）
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    volumes:
+      - ./kafka/data:/var/lib/kafka/data
+    # 先执行 configure 生成 kafka.properties，再格式化 KRaft 存储（幂等），最后启动
+    command:
+      - bash
+      - -c
+      - |
+        /etc/confluent/docker/configure
+        kafka-storage format -t $$CLUSTER_ID -c /etc/kafka/kafka.properties --ignore-formatted
+        exec /etc/confluent/docker/run
+    networks:
+      - dev-network
+    restart: always
+
+  # 9. Kafka UI (基于镜像 provectuslabs/kafka-ui，用于可视化查看主题与消息)
+  kafkaui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: my-kafka-ui
+    ports:
+      - "8082:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=dev-kafka
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    depends_on:
+      - kafka
+    networks:
+      - dev-network
+    restart: always
+
+  # 10. Order Example (业务示例应用，基于镜像 order-example:2.0.0)
   order-example:
     image: order-example:2.0.0
     container_name: my-order-example

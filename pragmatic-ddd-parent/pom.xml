@@ -11,7 +11,7 @@
 
     <name>Pragmatic DDD Parent</name>
     <description>Minimal build parent POM for Pragmatic DDD — manages compiler/plugins/license only. Does NOT manage module versions (see pragmatic-ddd-bom).</description>
-    <url>https://github.com/lixiaojing/pragmatic-ddd</url>
+    <url>https://github.com/pragmatic-lee/pragmatic-ddd</url>
 
     <licenses>
         <license>
@@ -26,7 +26,7 @@
             <id>wizard</id>
             <name>Wizard Lee</name>
             <email>postmaster@pragmatic-ddd.com</email>
-            <url>https://gitee.com/lixiaojing/pragmatic-ddd</url>
+            <url>https://gitee.com/wizard-lee/pragmatic-ddd</url>
             <organization>Pragmatic DDD</organization>
             <roles>
                 <role>architect</role>
@@ -36,9 +36,9 @@
     </developers>
 
     <scm>
-        <url>https://github.com/lixiaojing/pragmatic-ddd</url>
-        <connection>scm:git:https://github.com/lixiaojing/pragmatic-ddd.git</connection>
-        <developerConnection>scm:git:https://github.com/lixiaojing/pragmatic-ddd.git</developerConnection>
+        <url>https://github.com/pragmatic-lee/pragmatic-ddd</url>
+        <connection>scm:git:https://github.com/pragmatic-lee/pragmatic-ddd.git</connection>
+        <developerConnection>scm:git:https://github.com/pragmatic-lee/pragmatic-ddd.git</developerConnection>
     </scm>
 
     <properties>

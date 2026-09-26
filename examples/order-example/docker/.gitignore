@@ -9,3 +9,4 @@ rocketmq/broker/store/
 qdrant/storage/
 order-example/logs/
 .DS_Store
+kafka/
