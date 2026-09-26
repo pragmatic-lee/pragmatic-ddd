@@ -42,7 +42,7 @@ public class KafkaConfig {
      * @return Kafka 统一配置
      */
     @Bean
-    public KafkaProperties kafkaConfig(Environment environment) {
+    public KafkaProperties kafkaProperties(Environment environment) {
         String bootstrapServers = environment.getProperty("kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
         String group = environment.getProperty("kafka.group", DEFAULT_GROUP);
         MapConfigurationSource source = new MapConfigurationSource();
