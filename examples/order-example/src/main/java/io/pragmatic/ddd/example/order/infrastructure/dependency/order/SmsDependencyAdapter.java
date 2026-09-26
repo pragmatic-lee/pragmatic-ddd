@@ -20,5 +20,7 @@ public class SmsDependencyAdapter implements ISmsDependency {
     public void sendSms(SmsMessage message) {
         // 打桩：真实场景调用第三方短信平台（阿里云 / 腾讯云等）
         log.info("send sms to {}: {}", message.mobile(), message.content());
+
+        throw new RuntimeException("send message Error");
     }
 }

@@ -73,7 +73,10 @@ public final class ReconciliationManager {
         return Reconciler.reconcileAndResync(replica, repo, id);
     }
 
-    /** 批量对账（定时 / 扫描器调用）。 */
+    /**
+     * 批量对账：由调用方自备候选 ID 集合（如新增副本回填、运维修复存量漂移）。
+     * 框架不提供调度与候选来源——「何时对账、对账哪些」由业务方决定。
+     */
     @SuppressWarnings("unchecked")
     public <ID> Map<ReplicaKey, Reconciliation> reconcileBatch(Class<?> type, Collection<ID> ids) {
         Map<ReplicaKey, Reconciliation> results = new LinkedHashMap<>();

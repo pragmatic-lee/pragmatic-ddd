@@ -14,6 +14,18 @@
 
 #### 核心模块 pragmatic-ddd-core
 
+- **移除轮询式对账（定时扫描）**（Breaking）：对账触发收敛为事件驱动的单条自愈，框架不再提供常驻周期扫描与候选 ID 来源。
+  - **删除** `ReconciliationScanner`（周期调度 + 并行对账）、`ScanConfig`（扫描参数载体）、`IReconciliationCandidateProvider`（候选 ID 来源 SPI）三个类型；框架不再持有任何调度线程与线程池。
+  - `ReconciliationManager.reconcileBatch(Class, Collection<ID>)` **保留**，语义改为「由调用方自备候选 ID 集合的批量对账」（新增副本回填 / 运维修复存量漂移），不再与任何调度绑定；原注释「定时 / 扫描器」作废。
+  - `Reconciler` / `ReconciliationManager` / `ReconciliationRegistry` / `ReconciliationContribution` / `IReconcileDedup` 均不变，L2 写后延迟复核链路不受影响。
+  - 迁移方式：依赖定时扫描兜底的接入方改为 ① 保障事件链路（Outbox + 消费重试 + DLQ 告警），② 需要回填/修复时自行准备 ID 集合调用 `reconcileBatch`。
+- **order-example 移除轮询对账接线**（Breaking）：删除 `OrderReconciliationCandidateProvider`、
+  `OrderRepository#findReconcileCandidateIds` 与 `OrderMapper.selectReconcileCandidateIds`；
+  `ReconciliationConfig` 不再产出 `ReconciliationScanner` Bean；移除 `order.reconcile.scan.*` 五个配置项
+  （`initial-delay-seconds` / `interval-seconds` / `batch-size` / `change-window-minutes` / `concurrency`）。
+  对账触发保留 `OrderReconcileHandle`（`OrderDataSyncEvent` 的 `DELAYED` 订阅者），去重配置
+  `order.reconcile.dedup.window-seconds` 不变。
+
 - **删除投影源登记中心 `ProjectorRegistry`**（Breaking）：其能力在 `#fc6fd49`（写编排下沉 `AbstractProjectionSource.sync`）与 `#6d3506f`（读能力由源自身 `implements` 查询族）之后已无主代码消费者——全仓库仅剩一处装配往里 `register`、没有任何 `getSource` / `findSource` / `getProjector` 调用。框架的源登记事实来源统一收敛到 `ReconciliationRegistry`（经 `List<IReadModelReplica<?>>` 集合注入自动收集副本，新增副本无需任何装配改动）。迁移方式：写侧订阅者与读侧读服务改为直接构造注入目标源实例或领域源端口；按 id 反查源的场景请自行审视是否必要（按既有反模式清单，不应存在）。`ProjectionSourceConflictException` / `ProjectionSourceNotFoundException` 作为使用方可选的语义化异常保留。
 
 - **删除投影同步门面 `AggregateProjectorSupport`**（Breaking）：`project → materialize` 与 `purge` 编排下沉到 `AbstractProjectionSource`（新增 `sync(aggregate)` / 复用 `purge(id)`）；`ProjectorRegistry` 同步删除仅被门面使用的 `sourceById(String)` 与 `getSource(String id)` 两个按 storeId 反查方法。调用方（事件处理器、`IReadModelResynchronizer`）改为直接持有并注入目标源实例（如 `OrderEsSource` / `OrderRedisSource`）后调用 `source.sync(order)` / `source.purge(id)`，消除调用方本就持有目标源时「按 target 反查源」的绕行冗余与 `Source ⇄ Registry` 双向依赖风险。

@@ -46,7 +46,6 @@ repository.reconciliation
   IReconcileDedup / NoOpReconcileDedup                          去重
   ReconciliationRegistry / ReconciliationManager / Reconciler   登记 / 入口 / 原语
   ReconciliationContribution                                    聚合专属接线贡献（业务侧实现）
-  ReconciliationScanner / ScanConfig                            批量扫描
 
 repository（父包，两个子包共同依赖）
   IReadModelReplica / ReplicaKey                                副本自我维护契约与寻址键
@@ -270,7 +269,8 @@ orderRedisSource.purge(orderId);
 | `ReconciliationRegistry` | 登记中心：汇聚各副本（`registerReplica` / `registerReplicas`）与各聚合的 repository（`registerRepository`）；`replicaKeysOf` 前缀索引 O(1) |
 | `ReconciliationManager` | 统一入口：`reconcile(type, id)` 循环该聚合全部已注册副本，调用 `Reconciler` 并告警，返回 `Map<ReplicaKey, Reconciliation>` |
 | `Reconciler` | 纯函数原语：`reconcile`(仅检测) / `reconcileAndResync`(检测+立即补救) |
-| `ReconciliationScanner` / `ScanConfig` | 批量扫描（定时全量对账） |
+
+> 本子包**不提供调度与候选 ID 来源**：对账触发为事件驱动（写模型落库 → Outbox → 事件 → `DELAYED` 订阅者单条复核）。批量对账由调用方自备 ID 集合调用 `ReconciliationManager.reconcileBatch`。
 
 #### 关键约束
 

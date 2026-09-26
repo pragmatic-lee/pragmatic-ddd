@@ -212,6 +212,8 @@ public interface IOrderESSource
 
 当读写异库时，读模型副本可能因事件丢失/延迟而与写模型不一致。本子包提供目标无关的对账原语，覆盖检测（STALE / ORPHAN / UNTRACKED）与补救（resync / purge）。
 
+> **触发时机不由框架决定**：本子包不含任何调度组件。对账由业务方在「写后延迟复核」等事件驱动时点调用；需要批量对账时，由调用方自备候选 ID 集合调用 `reconcileBatch`。
+
 | 类型 | 角色 | 关键方法 / 字段 |
 |------|------|-----------------|
 | `ReplicaKey` | 副本寻址键（`record`，`repository` 父包）：聚合类型 + 副本标识，如 `("Order", "es:orders")`；作为 Registry 的 map key | `aggregateType()`、`replicaId()`；构造时 `nonNull` 校验 |
@@ -266,7 +268,7 @@ V' <  V           → STALE       （副本落后，需补同步）
 | `reconcile(Class, id)` | 对该聚合全部已注册副本对账（含补救），返回每副本 `Reconciliation`；不一致时 `log.warning`；命中 `dedup.shouldSkip` 跳过 |
 | `reconcile(ReplicaKey, id)` | 单个指定副本对账 |
 | `reconcileReplica(IReadModelReplica, Class, id)` | 按副本直取对账：调用方已持有副本实例时使用，避免按聚合类型全量遍历 |
-| `reconcileBatch(Class, Collection<ID>)` | 批量对账（定时 / 扫描器） |
+| `reconcileBatch(Class, Collection<ID>)` | 批量对账：调用方自备候选 ID 集合（新增副本回填 / 运维修复存量漂移）；框架不提供调度与候选来源 |
 
 ### 3.5 关键约束汇总
 
