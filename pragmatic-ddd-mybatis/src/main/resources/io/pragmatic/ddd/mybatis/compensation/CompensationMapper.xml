@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  CompensationMapper 契约接口的 SQL 实现。
+  namespace 必须等于被注册的契约接口全限定名，MyBatis 才能将 XML 中的语句绑定到该接口。
+  表名 compensation_log 写死于本文件（默认用法零配置，引用方无需关心任何变量）。
+  本文件即“当前数据库实现（MySQL）”，未来要支持其他数据库或自定义表名，只需提供同名
+  （namespace 同为 io.pragmatic.ddd.mybatis.compensation.CompensationMapper）的 XML 替换即可，
+  MybatisCompensationLog 等使用方代码无需任何改动。
+-->
+<mapper namespace="io.pragmatic.ddd.mybatis.compensation.CompensationMapper">
+
+    <resultMap id="CompensationRecordResult" type="io.pragmatic.ddd.application.compensation.spi.CompensationRecord">
+        <constructor>
+            <idArg column="action_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.CompensationStatus"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="handler" javaType="java.lang.String"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="attempts" javaType="int"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO compensation_log
+            (action_key,
+             handler,
+             payload,
+             status,
+             attempts,
+             created_at,
+             updated_at)
+        VALUES
+            (#{record.actionKey},
+             #{record.handler},
+             #{record.payload},
+             #{record.status},
+             #{record.attempts},
+             #{record.updatedAt},
+             #{record.updatedAt})
+    </insert>
+
+    <update id="markExecuted">
+        UPDATE compensation_log
+        SET status = 'EXECUTED',
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE action_key = #{actionKey}
+          AND status = 'PENDING'
+    </update>
+
+    <update id="markCompensating">
+        UPDATE compensation_log
+        SET status = 'COMPENSATING',
+            claim_token = #{claimToken},
+            claimed_at = CURRENT_TIMESTAMP(3),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE action_key = #{actionKey}
+          AND status = 'EXECUTED'
+    </update>
+
+    <update id="markCompensated">
+        UPDATE compensation_log
+        SET status = 'COMPENSATED',
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE action_key = #{actionKey}
+          AND status IN ('EXECUTED', 'COMPENSATING')
+    </update>
+
+    <update id="markFailed">
+        UPDATE compensation_log
+        SET status = 'FAILED',
+            attempts = attempts + 1,
+            last_error = #{reason},
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE action_key = #{actionKey}
+    </update>
+
+    <select id="findExecuted" resultMap="CompensationRecordResult">
+        SELECT * FROM compensation_log
+        WHERE status = 'EXECUTED'
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findSuspended" resultMap="CompensationRecordResult">
+        SELECT * FROM compensation_log
+        WHERE status = 'PENDING'
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findFailed" resultMap="CompensationRecordResult">
+        SELECT * FROM compensation_log
+        WHERE status = 'FAILED'
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -119,6 +119,37 @@ public enum DependencyType {
 
 > **重要约束**：`@ExternalDependency` 仅标记"依赖了什么"，不承载任何调用行为。真正的远程调用、协议转换与异常分类由防腐层（ACL）负责，二者职责不可混用。
 
+### 3.4 外部派生值进入领域的规则
+
+调用外部依赖会返回值（如库存预占返回预占单号、支付返回流水号、实名认证返回认证流水号）。这些来自外部的数据能否进入领域模型并持久化，按以下规则判定：
+
+| 允许 | 禁止 |
+| --- | --- |
+| ACL 响应转换后的**领域值**（基本类型 / `String` / 值对象 / 枚举）作为聚合字段持久化 | 外部契约对象（对方 `Request` / `Response` / DTO / SDK 对象）进入领域模型 |
+| 外部标识符以 `String` 或基本类型承载（如 `inventoryReservationNo`） | 领域层直接发起远程调用 |
+| 应用层编排时把转换后的领域值作为参数传给聚合方法 | 把整包外部响应塞给聚合方法 |
+
+> **判断依据**：[防腐层（ACL）](./acl.md) §1.1 将调用套路定义为「领域入参 → 请求转换 → 调用对方 → **响应转换 → 领域返回值**」，`toDomainResult(S response)` 的产物按定义已是**领域返回值**，不再属于外部契约。因此真正需要拦截的是「外部契约对象泄漏」，而不是「数据不能落库」——把业务所需的外部标识符（预占单号、支付流水号）持久化下来是正当且必要的。
+
+> **注意**：本条约束的是**数据归属**，与「调用不入本聚合事务」是两件事。远程调用本身仍不得发生在本聚合 DB 事务内（否则外部不可用会引发本地回滚风暴），但调用结果随本聚合事务落库不受限制。
+
+```java
+// 端口签名使用领域类型——第一道闸门
+@ExternalDependency(targetName = "inventory", type = DependencyType.EXTERNAL_SYSTEM,
+        description = "库存系统：按订单预占库存并返回预占单号")
+public interface IInventoryDependency extends IDependency {
+    String reserve(String sku, int qty);      // 返回预占单号（领域值）
+    void release(String reserveNo);           // 逆向操作，须幂等
+}
+
+// 聚合仅把它当作普通字段，不感知其来自远程——第二道闸门已由 ACL 完成
+public class Order extends AggregateRoot<Long> {
+    private String inventoryReservationNo;    // 后续核销 / 释放 / 对账的依据
+}
+```
+
+> ⚠️ **常见误读**：「领域模型不持久化外部返回值」这句话**不成立**。被禁止的是持久化**外部契约对象**，而非持久化**转换后的领域值**。若连转换后的标识符都不落库，预占释放、退款原交易定位、物流追溯、以及对账与补偿都将失去依据。
+
 ## 4. 异常与错误处理体系
 
 外部依赖声明本身**不定义专属异常类型**，也不在运行期强制校验依赖的可用性。依赖调用过程中出现的通信、转换、超时等异常由防腐层（ACL）负责分类与处理，详见 [防腐层（ACL）](./acl.md)。
@@ -131,6 +162,7 @@ public enum DependencyType {
 | 标记接口 | 所有外部依赖接口继承 `IDependency` | 纯标记，供框架识别，不承载行为 |
 | 依赖类型 | `type = DependencyType.AGGREGATE / EXTERNAL_SYSTEM` | 默认 `AGGREGATE` |
 | 与 ACL 关系 | 声明契约，由防腐适配器实现 | 声明管"依赖什么"，ACL 管"怎么调用"，职责正交 |
+| 外部派生值入领域 | ACL 响应转换产出领域值后可持久化为聚合字段 | 禁入领域模型的是外部契约对象（`Request` / `Response` / DTO），不是转换后的数据本身（见 §3.4） |
 
 **下一步阅读**
 

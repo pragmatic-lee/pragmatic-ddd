@@ -45,9 +45,11 @@ infrastructure/order/
 | --- | --- |
 | 声明元数据（`targetName` / `type` / `description`） | 远程调用、协议转换、异常分类（归 ACL） |
 | 端口接口方法签名（声明「能取什么 / 能做什么」） | 运行期可用性保证（声明不强制校验） |
-| 业务意图描述（`description` 解释依赖目的） | 领域模型对外部状态的持久化 |
+| 业务意图描述（`description` 解释依赖目的） | 外部契约对象（对方 `Request` / `Response` / DTO / SDK 对象）进入领域模型 |
 
-> 端口由应用层服务 / 事件订阅者通过构造注入消费；领域模型本身不持有远程状态、不持久化外部返回值。
+> 端口由应用层服务 / 事件订阅者通过构造注入消费；领域模型**不持有远程状态、不承载外部契约对象**（对方 `Request` / `Response` / DTO / SDK 对象）。
+>
+> 外部返回值须先经 ACL 的「响应转换」产出**本上下文的领域值**（基本类型 / `String` / 值对象 / 枚举），之后方可作为聚合字段持久化——**持久化的是转换后的领域值，不是外部响应本身**（见 [core/dependency.md §3.4](../core/dependency.md)）。
 
 ## 4. 落地方式（核心）
 
@@ -159,6 +161,26 @@ public class UserPointsDependencyAdapter
 }
 ```
 
+> **外部返回值转换后可入领域**：上面 `increasePoints` 是 `void`；若外部调用会返回标识符（如库存预占返回预占单号、支付返回流水号、实名认证返回认证流水号），同样由端口以**领域类型**返回。ACL 在 `toDomainResult` 完成响应转换后，该标识可作为聚合字段随本聚合事务落库：
+>
+> ```java
+> @ExternalDependency(targetName = "inventory", type = DependencyType.EXTERNAL_SYSTEM,
+>         description = "库存系统：按订单预占库存并返回预占单号")
+> public interface IInventoryDependency extends IDependency {
+>     /** 预占库存，返回预占单号（已由 ACL 转为领域值，可直接进聚合并持久化）。 */
+>     String reserve(String sku, int qty);
+>     /** 释放预占（逆向操作，须幂等）。 */
+>     void release(String reserveNo);
+> }
+>
+> // 聚合仅将其当作普通字段持有，不感知其来自远程
+> public class Order extends AggregateRoot<Long> {
+>     private String inventoryReservationNo;   // 预占单号：后续核销 / 释放 / 对账的依据
+> }
+> ```
+>
+> 单值标识符直接用 `String` / 基本类型承载即可，无需包装为值对象；仅当外部产物是复合结构（多字段组合）时才用值对象表达。
+
 ### 4.5 装配
 
 端口与适配器均交由 Spring 管理：适配器 `@Component` 后即可被应用层按类型注入，无需额外 `@Bean`；`@ExternalDependency` 仅作元数据，不参与运行期装配。
@@ -170,7 +192,8 @@ public class UserPointsDependencyAdapter
 - **仅标记「依赖了什么」**：远程调用、协议转换、异常分类归 ACL，禁止塞进依赖接口（见 [core/dependency.md §3.3](../core/dependency.md)）。
 - **接口以 `I` 开头、继承 `IDependency`**：供架构扫描统一识别。
 - **`type` 默认 `AGGREGATE`**：跨系统边界显式声明 `EXTERNAL_SYSTEM`（见 [core/dependency.md §2.3](../core/dependency.md)）。
-- **端口消费在应用层**：领域模型不持久化外部返回值；外部读不入本聚合事务。外部调用经事件订阅者触发（见 [事件订阅领域服务落地模式](./event-subscriber-pattern.md)），不进本聚合数据库事务，避免外部不可用导致本地事务回滚风暴。
+- **端口消费在应用层**：端口由应用层服务 / 事件订阅者构造注入消费；外部调用经事件订阅者 / 应用服务触发（见 [事件订阅领域服务落地模式](./event-subscriber-pattern.md)），**不进本聚合数据库事务**，避免外部不可用导致本地事务回滚风暴。
+- **外部派生值可入领域**：被禁止进入领域模型的是**外部契约对象**（对方 `Response` / DTO），不是数据本身。外部返回值经 ACL 转换为领域值后，可作为聚合字段随本聚合事务落库（见 [core/dependency.md §3.4](../core/dependency.md)）。
 
 > ⚠️ **`targetName` 不一致是高频坑**：声明与实现用同一全局唯一 `targetName`，否则依赖可视化 / 架构分析无法把声明与实现关联起来。
 
@@ -179,6 +202,7 @@ public class UserPointsDependencyAdapter
 | 反模式 | 问题 | 正确做法 |
 | --- | --- | --- |
 | 领域层直接写 HTTP / RPC 调用 | 违反分层与依赖倒置，领域模型耦合远程细节 | 定义 `I{目标}Dependency` 端口 + 基础设施 ACL 适配器 |
+| 把外部契约对象（对方 `Response` / DTO）直接作为聚合字段 | 外部契约污染领域，对方改版本即破坏本聚合 | ACL `toDomainResult` 转为领域值后再入聚合（见 [core/dependency.md §3.4](../core/dependency.md)） |
 | `targetName` 命名与适配器目标不一致 | 架构血缘 / 可视化关联失败 | 声明与实现用同一全局唯一 `targetName` |
 | 把 `@ExternalDependency` 当运行时可用性保证 | 实则不校验，误以为缺依赖会被拦截 | 端口注入缺失由容器负责，声明只管血缘 |
 | 把调用行为 / 异常分类写进依赖接口 | 声明与调用职责混用 | 接口只定义方法签名；实现侧封装转换与 `AclExceptions` |
