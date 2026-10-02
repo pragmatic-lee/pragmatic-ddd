@@ -64,6 +64,7 @@
 | [Elasticsearch 配置设计原则](./elasticsearch-config.md) | RestClient → Transport → Client 三层构建、认证超时 | ES → 任何外部存储客户端 |
 | [事件管理器装配与选择](./event-manager-config.md) | `IEventManager` 二选一装配原则、本地线程池实现与数据丢失风险 | 事件管理器 → 任何应用 |
 | [RocketMQ 配置设计原则](./rocketmq-config.md) | 应用级 MQ 装配、主题路由、订阅落地 | Order → MQ → 任何聚合事件 |
+| [Kafka 配置设计原则](./kafka-config.md) | 与 RocketMQ 互斥的应用级 Kafka 装配、消费者组、延时/重试回投器 | Order → Kafka → 任何聚合事件 |
 | [Outbox 链路装配](./outbox-config.md) | 事务性发件箱五个协作 Bean 的装配 | Order → Outbox → 任何聚合事件 |
 
 ### ⑥ 事件与一致性
