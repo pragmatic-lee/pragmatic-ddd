@@ -31,6 +31,7 @@ import io.pragmatic.ddd.event.spi.IEventManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -64,9 +65,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
     /**
      * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 OutboxConfig），不再内部 new 组装。
      *
-     * @param eventManager         事件管理器
-     * @param commandExecutor      outbox 命令执行器成品
-     * @param unitOfWorkFactory    outbox 工作单元工厂成品
+     * @param eventManager      事件管理器
+     * @param commandExecutor   outbox 命令执行器成品
+     * @param unitOfWorkFactory outbox 工作单元工厂成品
      */
     public OrderWriteService(IEventManager eventManager,
                              OutboxCommandExecutor commandExecutor,
@@ -94,14 +95,38 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         this.orderRemoveItemUpdater = orderRemoveItemUpdater;
     }
 
-    /** 下单：创建并持久化订单。 */
+    /**
+     * 下单：创建并持久化订单。
+     */
     public Order placeOrder(CreateOrderInput input) {
         Order order = orderFactory.create(input);
         return super.execute(order, orderRule, orderRepository, t -> {
         });
     }
 
-    /** 变更收货地址：加载聚合后经 Updater 完成 Input→Address 转换与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 批量下单
+     */
+    public List<Order> batchPlaceOrder(List<CreateOrderInput> inputList) {
+
+        try (IUnitOfWork unitOfWork = this.beginUnitOfWork()) {
+
+            List<Order> orderList = inputList.stream()
+                    .map(orderFactory::create).toList();
+
+            orderList.forEach(order -> {
+                unitOfWork.register(order, orderRule, orderRepository, t -> {
+                });
+            });
+            unitOfWork.commit();
+            return orderList;
+        }
+    }
+
+
+    /**
+     * 变更收货地址：加载聚合后经 Updater 完成 Input→Address 转换与充血方法调用，再统一校验与持久化。
+     */
     public Order changeOrderAddress(Long orderId, ChangeOrderAddressInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -110,7 +135,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderAddressUpdater.apply(t, input));
     }
 
-    /** 预校验变更收货地址：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验变更收货地址：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryChangeOrderAddress(Long orderId, ChangeOrderAddressInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -119,7 +146,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderAddressUpdater.apply(t, input));
     }
 
-    /** 发货：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 发货：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。
+     */
     public Order shipOrder(Long orderId, ShipOrderInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -128,7 +157,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
     }
 
-    /** 预校验发货：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验发货：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryShipOrder(Long orderId, ShipOrderInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -137,7 +168,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderShipUpdater.apply(t, input));
     }
 
-    /** 修正物流信息：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 修正物流信息：加载聚合后经 Updater 完成 Input→LogisticsInfo 转换与充血方法调用，再统一校验与持久化。
+     */
     public Order correctLogistics(Long orderId, CorrectLogisticsInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -147,7 +180,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                 t -> orderLogisticsCorrectionUpdater.apply(t, input));
     }
 
-    /** 预校验修正物流信息：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验修正物流信息：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryCorrectLogistics(Long orderId, CorrectLogisticsInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -157,7 +192,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                 t -> orderLogisticsCorrectionUpdater.apply(t, input));
     }
 
-    /** 签收：加载聚合后直接以 Order::sign 完成赋值与收尾（无入参，无需 Updater），再统一校验与持久化。 */
+    /**
+     * 签收：加载聚合后直接以 Order::sign 完成赋值与收尾（无入参，无需 Updater），再统一校验与持久化。
+     */
     public Order signOrder(Long orderId) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -166,7 +203,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, Order::sign);
     }
 
-    /** 预校验签收：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验签收：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult trySignOrder(Long orderId) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -175,7 +214,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, Order::sign);
     }
 
-    /** 支付：加载聚合后经 Updater 完成 Input→PaymentInfo 转换与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 支付：加载聚合后经 Updater 完成 Input→PaymentInfo 转换与充血方法调用，再统一校验与持久化。
+     */
     public Order payOrder(Long orderId, PayOrderInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -184,7 +225,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input));
     }
 
-    /** 预校验支付：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验支付：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryPayOrder(Long orderId, PayOrderInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -193,7 +236,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input));
     }
 
-    /** 新增订单项：加载聚合后经 Updater 完成 Input→OrderItem 转换、总额重算与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 新增订单项：加载聚合后经 Updater 完成 Input→OrderItem 转换、总额重算与充血方法调用，再统一校验与持久化。
+     */
     public Order addItem(Long orderId, AddOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -202,7 +247,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderAddItemUpdater.apply(t, input));
     }
 
-    /** 预校验新增订单项：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验新增订单项：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryAddItem(Long orderId, AddOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -211,7 +258,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderAddItemUpdater.apply(t, input));
     }
 
-    /** 更新订单项：加载聚合后经 Updater 完成数量更新、总额重算与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 更新订单项：加载聚合后经 Updater 完成数量更新、总额重算与充血方法调用，再统一校验与持久化。
+     */
     public Order updateItem(Long orderId, UpdateOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -220,7 +269,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderUpdateItemUpdater.apply(t, input));
     }
 
-    /** 预校验更新订单项：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验更新订单项：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryUpdateItem(Long orderId, UpdateOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -229,7 +280,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.tryExecute(order, orderRule, orderRepository, t -> orderUpdateItemUpdater.apply(t, input));
     }
 
-    /** 移除订单项：加载聚合后经 Updater 完成项移除、剩余项总额重算与充血方法调用，再统一校验与持久化。 */
+    /**
+     * 移除订单项：加载聚合后经 Updater 完成项移除、剩余项总额重算与充血方法调用，再统一校验与持久化。
+     */
     public Order removeItem(Long orderId, RemoveOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
@@ -238,7 +291,9 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
         return super.execute(order, orderRule, orderRepository, t -> orderRemoveItemUpdater.apply(t, input));
     }
 
-    /** 预校验移除订单项：不落库、不发布，仅返回结构化校验结果。 */
+    /**
+     * 预校验移除订单项：不落库、不发布，仅返回结构化校验结果。
+     */
     public DryRunResult tryRemoveItem(Long orderId, RemoveOrderItemInput input) {
         Order order = orderRepository.findById(orderId);
         if (order == null) {
