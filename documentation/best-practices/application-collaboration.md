@@ -101,11 +101,16 @@ public class OrderWriteService extends AbstractApplicationService
 ```text
 1. domainLogic.accept(aggregateRoot)   执行领域逻辑（Factory 建 / Updater 改）
 2. satisfiesRule(rule)                 规则校验，失败抛 BrokenRuleException
-3. persistAndDispatch                  落库（repository.save）+ 事件发布（eventManager.publish）
-4. clearWorkUnitState()                事件 / 操作清空（防止跨请求串味）
+3. persistAndDispatch                  事务内 repository.save（覆盖聚合全部表）
+4. 事务提交后 publish                   事件发布严格晚于提交
+5. clearWorkUnitState()                事件 / 操作清空（防止跨请求串味），置于 finally
 ```
 
 > 事件发布后的清理由模板内置，继承 `AbstractApplicationService` 无需手动调用；仅在自研编排时需要。
+>
+> 第 3、4 步的**事务边界完全由子类的 `persistAndDispatch` 钩子决定**，模板不感知事务。`CommandExecutor` 与 `OutboxCommandExecutor` 都遵循"事务内只落库、提交后再发事件"：前者提交后直发 MQ（不保证事件不丢），后者提交后走 eager 推送 + Relay 兜底（保证事件不丢）。
+>
+> 仓储不管理事务（见 [仓储设计原则 §1.5](./repository-design.md)）：事务由执行器经 `TransactionOperations` 开启，仓储需用 Spring 托管的 `SqlSessionTemplate` 自动加入当前事务。
 
 ### 4.3 创建场景：EntityFactory（先算后赋）
 
@@ -184,7 +189,7 @@ public class OrderRuleConfig {
 
 | 执行器 | 语义 | 场景 |
 | --- | --- | --- |
-| `CommandExecutor` | 落库后立即发布事件 | 不需要 Outbox 的事务一致性兜底 |
+| `CommandExecutor` | 同事务落库，提交后直发事件 | 事件丢失可接受、不需要 Outbox 兜底 |
 | `OutboxCommandExecutor` | 聚合写 + outbox 行同事务，异步投递 | 跨模块可靠投递 / 崩溃兜底（见 [Outbox 链路装配](./outbox-config.md)） |
 
 > `AbstractApplicationService` 不再提供默认构造器，执行器与工作单元工厂必须由继承者**显式注入**（通常以组合根 `@Bean` 提供成品），且二者语义须一致：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用。工作单元的装配（原型工厂）与多聚合根直接编排写法见 [§4.9](#49-工作单元unitofwork--outboxunitofwork落地写法)。

@@ -30,6 +30,16 @@
 
 - **删除投影同步门面 `AggregateProjectorSupport`**（Breaking）：`project → materialize` 与 `purge` 编排下沉到 `AbstractProjectionSource`（新增 `sync(aggregate)` / 复用 `purge(id)`）；`ProjectorRegistry` 同步删除仅被门面使用的 `sourceById(String)` 与 `getSource(String id)` 两个按 storeId 反查方法。调用方（事件处理器、`IReadModelResynchronizer`）改为直接持有并注入目标源实例（如 `OrderEsSource` / `OrderRedisSource`）后调用 `source.sync(order)` / `source.purge(id)`，消除调用方本就持有目标源时「按 target 反查源」的绕行冗余与 `Source ⇄ Registry` 双向依赖风险。
 
+- **默认命令执行器支持事务**（Breaking）：`CommandExecutor` 构造器由 `(IEventManager)` 改为
+  `(IEventManager, TransactionOperations)`，落库收敛为"同一事务内 `repository.save` → 事务提交后再发布领域事件"。
+  单聚合根常映射为多张表（主表 + 从表），一次 `save` 发出多条 SQL，此前 `CommandExecutor` 无事务边界，
+  中途失败会残留"主表已写、从表未写"的撕裂态；现整体回滚。**事件发布必须晚于提交**——否则提交前发出、
+  事务随后回滚，会让下游收到数据库中并不存在的业务事实。无事务场景须显式传入 `NoOpTransactionOperations`
+  （该实现置于 `test`，生产不提供）。
+- **`AbstractCommandExecutor` 事件清空移入 `finally`**：此前落库失败、事务回滚或事件发布失败时，
+  `clearWorkUnitState()` 不会执行，聚合根上残留脏事件，被后续重试一并带入；现无论成败必定清理。
+  规则校验短路（第 2 步）发生在进入 `try` 之前，聚合根仍保留领域逻辑已收集的事件，属既有行为：
+  该场景命令已被拒绝、聚合根不会提交，由调用方整体丢弃该实例。
 - **工作单元执行模型三阶段化**（`AbstractUnitOfWork` / `UnitOfWork` / `OutboxUnitOfWork`）：
   领域逻辑与规则校验移至**事务外**（阶段一 `validateAndCollect`），持久化收敛为**独立的数据库事务**（阶段二 `persistAndCollect`），
   事件发布保持在**事务外**（阶段三 `dispatchEvents`）。规则校验中的外部调用与旧快照查询不再占用数据库连接，

@@ -65,7 +65,16 @@ repo.updateOrderItems(orderId, items); // 绕过聚合根直接改子表
 
 ### 1.5 事务边界由应用层负责
 
-仓储**不管理事务**。`insert` / `update` / `remove` 只是发出落库动作，事务边界由调用方（应用层 `@Transactional`）负责。这也是为什么 `AbstractRepository` 的模板方法里没有 `@Transactional`——保持仓储纯粹，事务归属应用层编排。
+仓储**不管理事务**。`insert` / `update` / `remove` 只是发出落库动作，事务边界由调用方（应用服务 → 命令执行器 / 工作单元）经框架事务抽象 `TransactionOperations` 负责。这也是为什么 `AbstractRepository` 的模板方法里没有任何事务声明——保持仓储纯粹，事务归属应用层编排。
+
+两个执行器都提供事务边界（`REQUIRED`），单聚合多表整体原子：
+
+| 执行器 | 事务内 | 事务提交后 |
+| --- | --- | --- |
+| `CommandExecutor` | `repository.save` | `eventManager.publish`（不保证事件不丢） |
+| `OutboxCommandExecutor` | `repository.save` + `outboxStore.store` | `eagerPublisher.publishAfterCommit`（Relay 兜底） |
+
+> ⚠️ 事务全程使用编程式 `TransactionOperations`（Spring 下适配为 `TransactionTemplate`），**不使用 `@Transactional` 注解**。要生效，仓储必须使用由 Spring 托管的 `SqlSessionTemplate`（或等价会话模板）以自动加入当前事务，裸 `SqlSessionFactory#openSession()` 每次会另开连接，事务形同虚设。
 
 > 注意：聚合根子集合为 MyBatis 懒加载时，访问子集合必须在**事务内**，否则懒加载代理取不到连接会抛异常。order-example 的测试正是靠 `@SpringBootTest` 默认的事务包装来保证事务内访问。
 
@@ -360,7 +369,7 @@ void cleanup() {
 | 删除时不清理子表 | 产生孤儿行 | 先删子表再删主表 |
 | 绕过版本列直接 UPDATE | 乐观锁失效，并发覆盖 | 以 `version = oldVersion` 做 CAS，冲突即抛异常 |
 | 查询列混入逻辑外键且不显式映射 | 字段隐射错乱、维护困难 | 显式 resultMap + `autoMapping="false"`，逻辑外键不入查询列 |
-| 仓储里开启事务注解 | 事务边界混乱、与应用层编排冲突 | 事务由应用层 `@Transactional` 统一负责 |
+| 仓储里开启事务注解 | 事务边界混乱、与应用层编排冲突 | 事务由执行器经 `TransactionOperations` 统一负责 |
 | 把复杂报表查询塞进写仓储 | 写仓储臃肿、读模型被拖累 | 复杂查询交给查询侧（`query` 子包契约） |
 
 ---

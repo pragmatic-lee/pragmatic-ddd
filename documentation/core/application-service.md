@@ -37,7 +37,7 @@ application.outbox
 
 | 类型 | 包路径 | 用途 |
 | --- | --- | --- |
-| `ICommandExecutor` / `AbstractCommandExecutor` / `CommandExecutor` | `io.pragmatic.ddd.application` | 单聚合根命令（默认：先 save 再逐条 publish） |
+| `ICommandExecutor` / `AbstractCommandExecutor` / `CommandExecutor` | `io.pragmatic.ddd.application` | 单聚合根命令（默认：同事务 save，提交后 publish） |
 | `IUnitOfWork` / `AbstractUnitOfWork` / `UnitOfWork` | `io.pragmatic.ddd.application` | 跨聚合根工作单元（默认：统一 save 后 publishList） |
 | `AbstractApplicationService` | `io.pragmatic.ddd.application` | 应用服务便捷基类 |
 | `DryRunResult` | `io.pragmatic.ddd.application` | 试跑（Dry-run）结构化结果（record） |
@@ -51,27 +51,38 @@ application.outbox
 
 ### 2.1 单聚合根命令：`ICommandExecutor` / `CommandExecutor`
 
-`AbstractCommandExecutor` 固定五步模板，`CommandExecutor`（默认）在 `persistAndDispatch` 钩子中先 `save`、再逐条 `publish`：
+`AbstractCommandExecutor` 固定五步模板，`CommandExecutor`（默认）在 `persistAndDispatch` 钩子中**同一事务内落库、事务提交后再发布事件**：
 
 ```text
 1. 执行领域逻辑    domainLogic.accept(aggregateRoot)
 2. 规则校验        aggregateRoot.satisfiesRule(rule) → 未通过则 throwBrokenRuleException
-3. 持久化          repository.save(aggregateRoot)            ← persistAndDispatch 钩子
-4. 发布事件        aggregateRoot.getDomainEvents().forEach(eventManager::publish)
-5. 清空状态        aggregateRoot.clearWorkUnitState()
+3. 持久化（事务内）  repository.save(aggregateRoot)
+4. 发布事件（事务外）事件快照 forEach(eventManager::publish)   ← 事务已提交
+5. 清空状态        aggregateRoot.clearWorkUnitState()            ← 置于 finally
 ```
+
+> ⚠️ 单个聚合根在数据库中往往映射为**多张表**（主表 + 从表），一次 `repository.save` 会发出多条 SQL。因此 `CommandExecutor` 把落库整体收敛到一个数据库事务（`TransactionOperations`，默认 `REQUIRED`）：任一条 SQL 失败则整体回滚，不会残留"主表已写、从表未写"的撕裂态。
+>
+> 事件发布**必须晚于事务提交**——提交前发出而事务随后回滚，会让下游收到数据库中并不存在的业务事实。
+>
+> ⚠️ `CommandExecutor` 走的是"提交后直接发 MQ"，**不保证事件不丢**：`publish` 在事务提交后失败时，数据已落库但事件永久丢失。需闭合该缺口请用 Outbox 链路（见 §3）。
 
 ```java
 IEventManager eventManager = new ThreadPoolEventManager(LocalEventManagerConfig.defaultConfig());
 eventManager.start();
 
-CommandExecutor executor = new CommandExecutor(eventManager);
+// 事务抽象由基础设施模块提供实现（Spring 下用 TransactionTemplate 适配）
+TransactionOperations txOps = new SpringTransactionOperations(platformTransactionManager);
+
+CommandExecutor executor = new CommandExecutor(eventManager, txOps);
 OrderRepository repository = new OrderRepository();
 OrderRule rule = new OrderRule();
 
 Order order = new Order(1L, "张三", 100);
 Order result = executor.execute(order, rule, repository, Order::cancel);
 ```
+
+> 事务为必填参数。明确不需要事务的场景须显式传入 `NoOpTransactionOperations`（该实现置于 `test`，生产不提供），避免"以为有事务"的假象。仓储侧需使用由 Spring 托管的 `SqlSessionTemplate`（或等价物）才能自动加入当前事务，**不可**使用裸 `SqlSessionFactory#openSession()`。
 
 #### 试跑 Dry-run
 
@@ -284,9 +295,11 @@ relay.start();   // 启动周期性轮询（scheduleAtFixedRate）
 
 ### 3.3 何时用 Outbox 替代默认执行器
 
+两个执行器都已提供事务边界（单聚合多表原子落库），**差别在事件可靠性**：
+
 | 场景 | 推荐 |
 | --- | --- |
-| 单体应用，事件即时发布即可 | `CommandExecutor` / `UnitOfWork` |
+| 单体应用，事件即时发布即可，事件丢失可接受 | `CommandExecutor` / `UnitOfWork` |
 | 需保证事件与聚合根同事务原子性 | `OutboxCommandExecutor` / `OutboxUnitOfWork` |
 | 多实例部署，需防重复投递（claim_token 机制） | Outbox（`OutboxRelay.claimPending` 原子认领） |
 | 事件投递可容忍少量延迟（兜底补偿） | Outbox |

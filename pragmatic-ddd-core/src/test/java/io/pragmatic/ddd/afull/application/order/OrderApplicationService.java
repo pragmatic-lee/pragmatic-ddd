@@ -45,7 +45,7 @@ public class OrderApplicationService extends AbstractApplicationService {
                                    OrderFactory orderFactory,
                                    OrderEntityRule orderEntityRule) {
         super(eventManager,
-                new CommandExecutor(eventManager),
+                new CommandExecutor(eventManager, new NoOpTransactionOperations()),
                 () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         this.orderRepository = orderRepository;
         this.orderFactory = orderFactory;

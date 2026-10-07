@@ -166,15 +166,18 @@ public class OrderRepository implements IRepository<Long, Order> {
 // 1. 构建聚合根
 Order order = new Order(1L, "张三", 100);
 
-// 2. 构建命令执行器（需要 IEventManager，这里用本地实现示意）
+// 2. 构建命令执行器（需要 IEventManager + 事务抽象，这里用本地实现示意）
 IEventManager eventManager = new ThreadPoolEventManager(LocalEventManagerConfig.defaultConfig());
 eventManager.start();
 
-CommandExecutor executor = new CommandExecutor(eventManager);
+// 事务抽象：把聚合落库绑定到数据库事务，单聚合多表整体原子
+TransactionOperations txOps = new SpringTransactionOperations(platformTransactionManager);
+
+CommandExecutor executor = new CommandExecutor(eventManager, txOps);
 OrderRepository repository = new OrderRepository();
 OrderRule rule = new OrderRule();
 
-// 3. 执行：领域逻辑 → 规则校验 → 落库 → 发布事件 → 清空
+// 3. 执行：领域逻辑 → 规则校验 → 同事务落库 → 提交后发布事件 → 清空
 Order result = executor.execute(order, rule, repository, Order::cancel);
 
 // 4. 关闭

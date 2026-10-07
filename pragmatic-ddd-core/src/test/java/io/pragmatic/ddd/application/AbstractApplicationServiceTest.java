@@ -29,7 +29,7 @@ class AbstractApplicationServiceTest {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
         StubApplicationService service = new StubApplicationService(eventManager,
-                new CommandExecutor(eventManager),
+                new CommandExecutor(eventManager, new NoOpTransactionOperations()),
                 () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
@@ -46,7 +46,7 @@ class AbstractApplicationServiceTest {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
         StubApplicationService service = new StubApplicationService(eventManager,
-                new CommandExecutor(eventManager),
+                new CommandExecutor(eventManager, new NoOpTransactionOperations()),
                 () -> new UnitOfWork(eventManager, new NoOpTransactionOperations()));
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
@@ -96,7 +96,7 @@ class AbstractApplicationServiceTest {
         Supplier<IUnitOfWork> factory = () -> expected;
 
         StubApplicationService service = new StubApplicationService(
-                eventManager, new CommandExecutor(eventManager), factory);
+                eventManager, new CommandExecutor(eventManager, new NoOpTransactionOperations()), factory);
 
         IUnitOfWork produced = service.runBeginUnitOfWork();
 

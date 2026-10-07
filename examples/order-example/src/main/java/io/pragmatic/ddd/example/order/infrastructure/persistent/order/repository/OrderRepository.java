@@ -15,8 +15,10 @@ import java.util.Map;
  * 订单聚合仓储实现：经 SqlSessionTemplate 操作 OrderMapper（纯 XML），
  * 完成订单主表整存整取与 TrackedList<OrderItem> 的结构差量同步。
  *
- * <p>事务边界由调用方（应用层 @Transactional）负责；orderItems 为 MyBatis 懒加载，
- * 调用方在事务内首次访问时触发子查询。</p>
+ * <p>仓储不管理事务：insert / update / remove 仅发出落库动作。事务边界由命令执行器
+ * （OutboxCommandExecutor）经框架事务抽象 TransactionOperations（Spring TransactionTemplate 编程式事务）
+ * 在 persistAndDispatch 阶段统一开启并提交，仓储通过 SqlSessionTemplate 自动加入当前活跃事务。
+ * orderItems 为 MyBatis 懒加载（fetchType=lazy），由仓储在 save 落库的差量同步阶段于事务内访问触发子查询。</p>
  *
  * @author wizard-lee
  */

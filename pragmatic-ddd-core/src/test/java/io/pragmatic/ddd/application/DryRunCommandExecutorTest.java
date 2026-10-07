@@ -2,6 +2,7 @@ package io.pragmatic.ddd.application;
 
 import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.fixture.CountingRepository;
+import io.pragmatic.ddd.application.fixture.CountingTransactionOperations;
 import io.pragmatic.ddd.application.fixture.DryRunAggregate;
 import io.pragmatic.ddd.application.fixture.DryRunRule;
 import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
@@ -13,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 对应设计文档《应用服务层 Try-run（Dry-run）能力支持》第 8 节：ICommandExecutor#tryExecute 的零副作用与结果语义测试。
-  * @author wizard-lee
+ * @author wizard-lee
  */
 class DryRunCommandExecutorTest {
 
@@ -21,7 +22,7 @@ class DryRunCommandExecutorTest {
     void tryExecute_rulePassed_returnsPassed_noSaveNoPublish() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        CommandExecutor executor = new CommandExecutor(eventManager);
+        CommandExecutor executor = new CommandExecutor(eventManager, new CountingTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         DryRunResult result = executor.tryExecute(aggregate,
@@ -39,7 +40,7 @@ class DryRunCommandExecutorTest {
     void tryExecute_ruleViolated_returnsRejectedWithBrokenRules() {
         CountingEventManager eventManager = new CountingEventManager();
         CountingRepository repository = new CountingRepository();
-        CommandExecutor executor = new CommandExecutor(eventManager);
+        CommandExecutor executor = new CommandExecutor(eventManager, new CountingTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         DryRunResult result = executor.tryExecute(aggregate,
@@ -58,7 +59,8 @@ class DryRunCommandExecutorTest {
 
     @Test
     void tryExecute_domainLogicThrowsBrokenRuleException_returnsRejected() {
-        CommandExecutor executor = new CommandExecutor(new CountingEventManager());
+        CommandExecutor executor =
+                new CommandExecutor(new CountingEventManager(), new CountingTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         DryRunResult result = executor.tryExecute(aggregate, null, new CountingRepository(),
@@ -73,7 +75,8 @@ class DryRunCommandExecutorTest {
 
     @Test
     void tryExecute_domainLogicThrowsNonRuleException_propagates() {
-        CommandExecutor executor = new CommandExecutor(new CountingEventManager());
+        CommandExecutor executor =
+                new CommandExecutor(new CountingEventManager(), new CountingTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         assertThatThrownBy(() -> executor.tryExecute(aggregate, null, new CountingRepository(),
@@ -86,7 +89,8 @@ class DryRunCommandExecutorTest {
 
     @Test
     void tryExecute_clearsCollectedDomainEvents() {
-        CommandExecutor executor = new CommandExecutor(new CountingEventManager());
+        CommandExecutor executor =
+                new CommandExecutor(new CountingEventManager(), new CountingTransactionOperations());
         DryRunAggregate aggregate = new DryRunAggregate(1L);
 
         executor.tryExecute(aggregate, null, new CountingRepository(), DryRunAggregate::raiseEvent);

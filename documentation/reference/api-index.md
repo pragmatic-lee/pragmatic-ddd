@@ -89,7 +89,7 @@
 | 接口 | `IUnitOfWork` | 工作单元契约（继承 `AutoCloseable`）+ `tryCommit` |
 | 抽象类 | `AbstractCommandExecutor` | 命令模板基类 |
 | 抽象类 | `AbstractUnitOfWork` | 工作单元模板基类 |
-| 类 | `CommandExecutor` | 默认命令执行器（save 后立即 publish） |
+| 类 | `CommandExecutor` | 默认命令执行器（同事务 save，提交后 publish） |
 | 类 | `UnitOfWork` | 默认工作单元（逐条 save → 统一 publishList） |
 | 抽象类 | `AbstractApplicationService` | 应用服务便捷基类 |
 | 接口 | `ICommandApplicationService` | 命令服务标记 |
