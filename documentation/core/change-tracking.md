@@ -1,6 +1,6 @@
 # 变更追踪
 
-> 本文档说明 `io.pragmatic.ddd.track` 包提供的变更追踪能力：把一对多 / 键值集合的状态拆为基线 / 新增 / 删除三桶，使持久化只做增量 `INSERT` / `DELETE` / `UPDATE`，而非"全删全插"。相关文档：[领域建模](./domain-modeling.md) · [仓储](./repository.md) · [MyBatis 集成](../integration/mybatis.md)。
+> 本文档说明 `io.pragmatic.ddd.track` 包提供的变更追踪能力：把一对多 / 键值集合的状态拆为基线 / 新增 / 删除三桶，使持久化只做增量 `INSERT` / `DELETE` / `UPDATE`，而非"全删全插"。相关文档：[领域建模](./domain-modeling.md) · [仓储总览](./repository.md) · [MyBatis 集成](../integration/mybatis.md)。
 
 ## 1. 概述
 
@@ -464,6 +464,6 @@ public void update(T oldItem, T newItem) {
 
 **下一步阅读**
 
-- [仓储](./repository.md)：仓储如何利用变更追踪做增量持久化
+- [仓储总览](./repository.md)：仓储如何利用变更追踪做增量持久化
 - [MyBatis 集成](../integration/mybatis.md)：枚举 / JSON / 集合 TypeHandler 的装配
 - [领域建模](./domain-modeling.md)：实体 / 值对象 / 聚合根基础

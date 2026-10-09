@@ -1,6 +1,6 @@
 # 领域操作：实体业务操作与因果归属
 
-> 本文档说明 `io.pragmatic.ddd.operation` 包提供的领域操作能力，以及它与聚合根、领域事件的集成方式。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
+> 本文档说明 `io.pragmatic.ddd.operation` 包提供的领域操作能力，以及它与聚合根、领域事件的集成方式。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储总览](./repository.md)。
 
 ## 1. 概述
 

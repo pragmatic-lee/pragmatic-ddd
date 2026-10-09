@@ -1,6 +1,6 @@
 # 投影读模型（Projection / Read Model）
 
-> 本文档说明 `io.pragmatic.ddd.repository.query` 与 `io.pragmatic.ddd.repository.reconciliation` 子包提供的读模型能力。相关文档：[仓储写模型](./repository-write.md) · [领域事件](./domain-events.md) · [领域建模](./domain-modeling.md)。
+> 本文档说明 `io.pragmatic.ddd.repository.query` 与 `io.pragmatic.ddd.repository.reconciliation` 子包提供的读模型能力。相关文档：[仓储总览](./repository.md) · [仓储写模型](./repository-write.md) · [领域事件](./domain-events.md) · [领域建模](./domain-modeling.md)。
 
 ## 1. 概述
 

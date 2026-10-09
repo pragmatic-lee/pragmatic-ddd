@@ -1,6 +1,6 @@
 # 业务规则引擎（Business Rules）
 
-> 本文档说明 `io.pragmatic.ddd.base` 与 `io.pragmatic.ddd.rules` 包提供的业务规则能力。其中规则顶层抽象 `IRule` 与违规收集（`BrokenRule` / `MessageCode` 等）位于 `base` 包，校验项级契约 `ICheckRule` / `RuleCheckResult` 及其容器实现位于 `rules` 包。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
+> 本文档说明 `io.pragmatic.ddd.base` 与 `io.pragmatic.ddd.rules` 包提供的业务规则能力。其中规则顶层抽象 `IRule` 与违规收集（`BrokenRule` / `MessageCode` 等）位于 `base` 包，校验项级契约 `ICheckRule` / `RuleCheckResult` 及其容器实现位于 `rules` 包。相关文档：[领域建模](./domain-modeling.md) · [领域事件](./domain-events.md) · [仓储总览](./repository.md)。
 
 ## 1. 概述
 
@@ -350,7 +350,7 @@ RuntimeException
 
 - [领域建模](./domain-modeling.md)：`AggregateRoot` 与 `MessageCode` 基础能力
 - [领域事件](./domain-events.md)：跨聚合一致性的事件方案
-- [仓储](./repository.md)：聚合持久化与版本对账
+- [仓储总览](./repository.md)：聚合持久化与版本对账
 
 ## 命名规范速查
 

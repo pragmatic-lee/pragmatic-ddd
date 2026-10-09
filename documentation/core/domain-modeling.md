@@ -1,6 +1,6 @@
 # 领域建模：实体、值对象与聚合根
 
-> 本文档说明 `io.pragmatic.ddd.base` 包提供的领域建模能力。相关文档：[业务规则引擎](./business-rules.md) · [领域事件](./domain-events.md) · [仓储](./repository.md)。
+> 本文档说明 `io.pragmatic.ddd.base` 包提供的领域建模能力。相关文档：[业务规则引擎](./business-rules.md) · [领域事件](./domain-events.md) · [仓储总览](./repository.md)。
 
 ## 1. 概述
 
@@ -401,4 +401,4 @@ RuntimeException
 
 - [业务规则引擎](./business-rules.md)：`IRule` / `EntityRule` 聚合级校验
 - [领域事件](./domain-events.md)：`BaseDomainEvent` 与事件发布
-- [仓储](./repository.md)：聚合持久化与版本对账
+- [仓储总览](./repository.md)：聚合持久化与版本对账

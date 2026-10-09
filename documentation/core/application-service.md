@@ -353,6 +353,6 @@ relay.start();   // 启动周期性轮询（scheduleAtFixedRate）
 
 **下一步阅读**
 
-- [仓储](./repository.md)：聚合根的持久化与版本对账
+- [仓储总览](./repository.md)：聚合根的持久化与版本对账
 - [Outbox 链路装配](../best-practices/outbox-config.md)
 - [MyBatis 集成](../integration/mybatis.md)：`MybatisOutboxStore` 的使用
