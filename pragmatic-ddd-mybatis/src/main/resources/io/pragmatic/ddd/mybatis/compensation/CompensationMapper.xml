@@ -57,7 +57,7 @@
             claimed_at = CURRENT_TIMESTAMP(3),
             updated_at = CURRENT_TIMESTAMP(3)
         WHERE action_key = #{actionKey}
-          AND status = 'EXECUTED'
+          AND status IN ('EXECUTED', 'FAILED')
     </update>
 
     <update id="markCompensated">
@@ -77,6 +77,23 @@
         WHERE action_key = #{actionKey}
     </update>
 
+    <update id="markConfirmed">
+        UPDATE compensation_log
+        SET status = 'CONFIRMED',
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE action_key = #{actionKey}
+          AND status IN ('EXECUTED', 'COMPENSATING')
+    </update>
+
+    <update id="releaseStaleClaims">
+        UPDATE compensation_log
+        SET status = 'EXECUTED',
+            claim_token = NULL,
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE status = 'COMPENSATING'
+          AND claimed_at &lt; DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL #{leaseSeconds} SECOND)
+    </update>
+
     <select id="findExecuted" resultMap="CompensationRecordResult">
         SELECT * FROM compensation_log
         WHERE status = 'EXECUTED'
@@ -94,6 +111,14 @@
     <select id="findFailed" resultMap="CompensationRecordResult">
         SELECT * FROM compensation_log
         WHERE status = 'FAILED'
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findRetryableFailed" resultMap="CompensationRecordResult">
+        SELECT * FROM compensation_log
+        WHERE status = 'FAILED'
+          AND attempts &lt; #{maxAttempts}
         ORDER BY updated_at ASC
         LIMIT #{limit}
     </select>

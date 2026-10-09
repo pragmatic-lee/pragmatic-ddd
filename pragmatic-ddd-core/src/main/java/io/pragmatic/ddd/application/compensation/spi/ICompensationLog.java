@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.application.compensation.spi;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -17,8 +18,8 @@ public interface ICompensationLog {
     void markExecuted(String actionKey);
 
     /**
-     * 补偿前原子认领：仅当记录仍处 EXECUTED 时置 COMPENSATING 并返回 true，
-     * 否则返回 false（已被其他实例认领）。多实例并发安全。
+     * 补偿前原子认领：仅当记录处于 EXECUTED 或可重试的 FAILED 时置 COMPENSATING 并返回 true，
+     * 否则返回 false（已被其他实例认领或不可认领）。多实例并发安全。
      *
      * @param actionKey  幂等键
      * @param claimToken 认领令牌
@@ -32,12 +33,26 @@ public interface ICompensationLog {
     /** 补偿失败后标记失败（FAILED）并累加尝试次数。 */
     void markFailed(String actionKey, String reason);
 
+    /** 业务提交成功后标记为正向确认（CONFIRMED，终态），永不补偿。 */
+    void markConfirmed(String actionKey);
+
     /** 查询待补偿记录（status = EXECUTED），供中继自动重试。 */
     List<CompensationRecord> findExecuted(int limit);
 
     /** 查询悬挂记录（status = PENDING，正向结果未知），供对账与人工排查，不得自动补偿。 */
     List<CompensationRecord> findSuspended(int limit);
 
-    /** 查询补偿失败记录（status = FAILED），供人工介入与死信处理。 */
+    /** 查询补偿失败记录（status = FAILED），供人工介入与死信处理（全量入口）。 */
     List<CompensationRecord> findFailed(int limit);
+
+    /** 查询可重试的补偿失败记录（status = FAILED 且 attempts &lt; maxAttempts），供中继重试。 */
+    List<CompensationRecord> findRetryableFailed(int limit, int maxAttempts);
+
+    /**
+     * 把认领超时未收口的 COMPENSATING 记录打回 EXECUTED，返回回收条数。
+     *
+     * @param lease 认领租约时长
+     * @return 回收条数
+     */
+    int releaseStaleClaims(Duration lease);
 }

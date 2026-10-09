@@ -5,6 +5,7 @@ import io.pragmatic.ddd.application.compensation.spi.ICompensationLog;
 import io.pragmatic.ddd.application.spi.Propagation;
 import io.pragmatic.ddd.application.spi.TransactionOperations;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -14,7 +15,7 @@ import java.util.List;
  *   <li><b>独立短事务</b>：全部写操作与查询各自包裹在注入的 {@link TransactionOperations}
  *       （REQUIRES_NEW）内作为独立短事务立即提交，绝不参与业务本地事务。</li>
  *   <li><b>原子认领</b>：{@link #markCompensating} 依赖单条
- *       {@code UPDATE ... WHERE action_key = ? AND status = 'EXECUTED'} 的受影响行数，
+ *       {@code UPDATE ... WHERE action_key = ? AND status IN ('EXECUTED', 'FAILED')} 的受影响行数，
  *       多实例并发下同一记录只会被一个实例认领成功。</li>
  * </ul>
  *
@@ -71,6 +72,14 @@ public class MybatisCompensationLog implements ICompensationLog {
     }
 
     @Override
+    public void markConfirmed(String actionKey) {
+        txOps.execute(() -> {
+            executor.markConfirmed(CompensationStatements.MARK_CONFIRMED, actionKey);
+            return null;
+        }, Propagation.REQUIRES_NEW);
+    }
+
+    @Override
     public List<CompensationRecord> findExecuted(int limit) {
         return txOps.execute(
                 () -> executor.findExecuted(CompensationStatements.FIND_EXECUTED, limit),
@@ -88,6 +97,20 @@ public class MybatisCompensationLog implements ICompensationLog {
     public List<CompensationRecord> findFailed(int limit) {
         return txOps.execute(
                 () -> executor.findFailed(CompensationStatements.FIND_FAILED, limit),
+                Propagation.REQUIRES_NEW);
+    }
+
+    @Override
+    public List<CompensationRecord> findRetryableFailed(int limit, int maxAttempts) {
+        return txOps.execute(
+                () -> executor.findRetryableFailed(CompensationStatements.FIND_RETRYABLE_FAILED, limit, maxAttempts),
+                Propagation.REQUIRES_NEW);
+    }
+
+    @Override
+    public int releaseStaleClaims(Duration lease) {
+        return txOps.execute(
+                () -> executor.releaseStaleClaims(CompensationStatements.RELEASE_STALE_CLAIMS, lease.toSeconds()),
                 Propagation.REQUIRES_NEW);
     }
 }

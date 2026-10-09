@@ -23,9 +23,15 @@ public interface ICompensationStatementExecutor {
 
     void markFailed(String statementKey, String actionKey, String reason);
 
+    void markConfirmed(String statementKey, String actionKey);
+
     List<CompensationRecord> findExecuted(String statementKey, int limit);
 
     List<CompensationRecord> findSuspended(String statementKey, int limit);
 
     List<CompensationRecord> findFailed(String statementKey, int limit);
+
+    List<CompensationRecord> findRetryableFailed(String statementKey, int limit, int maxAttempts);
+
+    int releaseStaleClaims(String statementKey, long leaseSeconds);
 }

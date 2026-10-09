@@ -15,9 +15,12 @@ public final class CompensationStatements {
     public static final String MARK_COMPENSATING = NAMESPACE + ".markCompensating";
     public static final String MARK_COMPENSATED = NAMESPACE + ".markCompensated";
     public static final String MARK_FAILED = NAMESPACE + ".markFailed";
+    public static final String MARK_CONFIRMED = NAMESPACE + ".markConfirmed";
     public static final String FIND_EXECUTED = NAMESPACE + ".findExecuted";
     public static final String FIND_SUSPENDED = NAMESPACE + ".findSuspended";
     public static final String FIND_FAILED = NAMESPACE + ".findFailed";
+    public static final String FIND_RETRYABLE_FAILED = NAMESPACE + ".findRetryableFailed";
+    public static final String RELEASE_STALE_CLAIMS = NAMESPACE + ".releaseStaleClaims";
 
     private CompensationStatements() {
     }

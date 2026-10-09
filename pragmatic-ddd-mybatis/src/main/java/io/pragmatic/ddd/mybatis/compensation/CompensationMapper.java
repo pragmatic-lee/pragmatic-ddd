@@ -31,6 +31,9 @@ public interface CompensationMapper {
     /** → FAILED，累加尝试次数并记录原因。 */
     int markFailed(@Param("actionKey") String actionKey, @Param("reason") String reason);
 
+    /** EXECUTED / COMPENSATING → CONFIRMED（业务提交成功，永不补偿）。 */
+    int markConfirmed(@Param("actionKey") String actionKey);
+
     /** 待补偿记录（status = EXECUTED）。 */
     List<CompensationRecord> findExecuted(@Param("limit") int limit);
 
@@ -39,4 +42,11 @@ public interface CompensationMapper {
 
     /** 补偿失败记录（status = FAILED）。 */
     List<CompensationRecord> findFailed(@Param("limit") int limit);
+
+    /** 可重试的失败记录（status = FAILED 且 attempts &lt; maxAttempts）。 */
+    List<CompensationRecord> findRetryableFailed(@Param("limit") int limit,
+                                                 @Param("maxAttempts") int maxAttempts);
+
+    /** 把认领超时未收口的 COMPENSATING 打回 EXECUTED，返回回收条数。 */
+    int releaseStaleClaims(@Param("leaseSeconds") long leaseSeconds);
 }

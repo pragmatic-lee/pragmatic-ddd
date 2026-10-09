@@ -91,8 +91,7 @@ final class LocalCompensationScope implements ICompensationScope {
         ensureOpen();
         this.committed = true;
         for (Executed<?, ?, ?> item : this.executed) {
-            // CONFIRMED 终态（markConfirmed）随阶段三的 SPI 新方法与 mybatis 实现一并落地；
-            // 阶段二先保持 v2 语义：提交仅触发 Confirm 回调，不改写日志状态。
+            markConfirmed(item.command().actionKey());   // [L3] 置终态，永不补偿（修复中继误补偿）
             item.confirmIfNeeded(reason -> markFailed(item.command().actionKey(), reason));
         }
     }
@@ -157,6 +156,10 @@ final class LocalCompensationScope implements ICompensationScope {
 
     private void markExecuted(String key) {
         compensationLog().ifPresent(store -> store.markExecuted(key));
+    }
+
+    private void markConfirmed(String key) {
+        compensationLog().ifPresent(store -> store.markConfirmed(key));
     }
 
     private void markCompensated(String key) {

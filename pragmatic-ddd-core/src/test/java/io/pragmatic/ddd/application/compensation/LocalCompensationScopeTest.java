@@ -180,9 +180,10 @@ class LocalCompensationScopeTest {
         scope.commit();
         scope.close();
 
-        // WAL 语义：record(PENDING) 必须先于外部调用落库
+        // WAL 语义：record(PENDING) 必须先于外部调用落库；提交成功置 CONFIRMED 终态
         assertThat(journal).containsExactly(
-                "record:" + key("a") + ":PENDING", "execute:a", "markExecuted:" + key("a"));
+                "record:" + key("a") + ":PENDING", "execute:a", "markExecuted:" + key("a"),
+                "markConfirmed:" + key("a"));
     }
 
     @Test
@@ -199,6 +200,20 @@ class LocalCompensationScopeTest {
         assertThat(journal).containsExactly(
                 "record:" + key("a") + ":PENDING", "execute:a", "markExecuted:" + key("a"),
                 "markCompensating:" + key("a"), "compensate:a", "markCompensated:" + key("a"));
+    }
+
+    @Test
+    void durable_commit_marksConfirmed() {
+        List<String> journal = new ArrayList<>();
+        InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
+        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+
+        scope.execute(new RecordingAction("a", journal).command());
+        scope.commit();
+        scope.close();
+
+        // 业务提交成功 → CONFIRMED 终态，中继不再补偿（修复 P0：成功业务被误撤销）
+        assertThat(log.get(key("a")).status()).isEqualTo(CompensationStatus.CONFIRMED);
     }
 
     @Test
