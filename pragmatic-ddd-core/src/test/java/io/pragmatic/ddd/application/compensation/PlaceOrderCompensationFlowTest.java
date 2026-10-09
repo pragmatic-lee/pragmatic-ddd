@@ -1,10 +1,12 @@
 package io.pragmatic.ddd.application.compensation;
 
+import io.pragmatic.ddd.base.IExternalRequirement;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 下单编排的补偿全流程演示：把 CompensationTemplate 作为一个"应用服务编排多个外部副作用"的真实载体。
  * 覆盖四种典型路径：全程成功不补偿、中途失败逆序补偿并重抛、返回值的 call + TCC confirm、补偿失败抛 CompensationFailedException。
+ * v3 形态下各动作的幂等键由框架按需求生成，业务参数改由需求 record 承载。
  *
  * @author wizard-lee
  */
@@ -27,9 +30,9 @@ class PlaceOrderCompensationFlowTest {
 
         // 模板登记三个外部副作用，全部成功 → commit，不补偿
         CompensationTemplate.run(manager, scope -> {
-            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2));
-            scope.execute(new DeductPointsAction(journal, "U-100", 50));
-            scope.execute(new ChargePaymentAction(journal, "U-100", 100));
+            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2).command());
+            scope.execute(new DeductPointsAction(journal, "U-100", 50).command());
+            scope.execute(new ChargePaymentAction(journal, "U-100", 100).command());
         });
 
         assertThat(journal).containsExactly(
@@ -46,9 +49,9 @@ class PlaceOrderCompensationFlowTest {
 
         // 收款（第三个动作）失败 → 已执行的库存/积分按逆序补偿，原异常被重抛
         assertThatThrownBy(() -> CompensationTemplate.run(manager, scope -> {
-            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2));
-            scope.execute(new DeductPointsAction(journal, "U-100", 50));
-            scope.execute(new ChargePaymentAction(journal, "U-100", 100).failOnExecute(paymentError));
+            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2).command());
+            scope.execute(new DeductPointsAction(journal, "U-100", 50).command());
+            scope.execute(new ChargePaymentAction(journal, "U-100", 100).failOnExecute(paymentError).command());
         })).isSameAs(paymentError);
 
         // 所见即所偿：收款未登记成功，只补偿其前的积分、库存（逆序）；收款本身无补偿
@@ -67,14 +70,17 @@ class PlaceOrderCompensationFlowTest {
 
         // 正向积分失败 → 已执行的库存补偿也失败 → 抛出 CompensationFailedException（携带原异常为 cause）
         assertThatThrownBy(() -> CompensationTemplate.run(manager, scope -> {
-            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2).withPolicy(NO_RETRY).failOnCompensate(true));
-            scope.execute(new DeductPointsAction(journal, "U-100", 50).failOnExecute(original));
+            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2)
+                    .withPolicy(NO_RETRY)
+                    .failOnCompensate()
+                    .command());
+            scope.execute(new DeductPointsAction(journal, "U-100", 50).failOnExecute(original).command());
         }))
                 .isInstanceOf(CompensationFailedException.class)
                 .hasCause(original)
                 .satisfies(ex -> assertThat(((CompensationFailedException) ex).getFailures())
                         .extracting(CompensationFailure::actionKey)
-                        .containsExactly("reserve-inventory:SKU-001"));
+                        .containsExactly("TestAggregate:1:reserve-inventory"));
 
         // 积分正向失败未登记，仅补偿已成功的库存（其补偿本身失败）
         assertThat(journal).containsExactly(
@@ -89,8 +95,8 @@ class PlaceOrderCompensationFlowTest {
 
         // 实现 IConfirmableAction 的通知动作：提交成功后才收到 confirm（TCC Confirm 阶段）
         String orderId = CompensationTemplate.call(manager, scope -> {
-            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2));
-            scope.execute(new NotifyOrderCreatedAction(journal, "U-100"));
+            scope.execute(new ReserveInventoryAction(journal, "SKU-001", 2).command());
+            scope.execute(new NotifyOrderCreatedAction(journal, "U-100").command());
             return "SO-20261002-0001";
         });
 
@@ -101,22 +107,24 @@ class PlaceOrderCompensationFlowTest {
                 "confirm:U-100");
     }
 
+    /** 流程测试用需求：code 为路由编码，ref / amount 承载业务参数（演示参数不在聚合上的场景）。 */
+    private record FlowRequirement(String code, String ref, int amount) implements IExternalRequirement {
+    }
+
     /** 预占库存：正向记录占用，逆向释放。 */
-    private static class ReserveInventoryAction implements ICompensableAction<String> {
+    private static class ReserveInventoryAction implements ICompensableAction<TestAggregate, FlowRequirement, String> {
+        private final FlowRequirement requirement;
         private final List<String> journal;
-        private final String sku;
-        private final int qty;
         private boolean failOnCompensate;
         private CompensationPolicy policy = CompensationPolicy.defaultPolicy();
 
         ReserveInventoryAction(List<String> journal, String sku, int qty) {
             this.journal = journal;
-            this.sku = sku;
-            this.qty = qty;
+            this.requirement = new FlowRequirement("reserve-inventory", sku, qty);
         }
 
-        ReserveInventoryAction failOnCompensate(boolean fail) {
-            this.failOnCompensate = fail;
+        ReserveInventoryAction failOnCompensate() {
+            this.failOnCompensate = true;
             return this;
         }
 
@@ -125,42 +133,59 @@ class PlaceOrderCompensationFlowTest {
             return this;
         }
 
-        @Override
-        public String actionKey() {
-            return "reserve-inventory:" + sku;
+        CompensationCommand<TestAggregate, FlowRequirement, String> command() {
+            return new CompensationCommand<>(this, new TestAggregate(), this.requirement);
         }
 
         @Override
-        public String execute() {
-            journal.add("reserve:" + sku + ":" + qty);
-            return "RES-" + sku;
+        public Class<FlowRequirement> requirementType() {
+            return FlowRequirement.class;
         }
 
         @Override
-        public void compensate(String result) {
-            journal.add("release:" + sku);
+        public Class<TestAggregate> aggregateType() {
+            return TestAggregate.class;
+        }
+
+        @Override
+        public String execute(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            journal.add("reserve:" + requirement.ref() + ":" + requirement.amount());
+            return "RES-" + requirement.ref();
+        }
+
+        @Override
+        public void apply(TestAggregate aggregateRoot, String result) {
+            // 无回填
+        }
+
+        @Override
+        public void compensate(TestAggregate aggregateRoot, String result) {
+            journal.add("release:" + requirement.ref());
             if (failOnCompensate) {
-                throw new IllegalStateException("释放库存失败: " + sku);
+                throw new IllegalStateException("释放库存失败: " + requirement.ref());
             }
         }
 
         @Override
-        public CompensationPolicy policy() {
-            return policy;
+        public String payload(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            return requirement.ref() + ":" + requirement.amount();
+        }
+
+        @Override
+        public Optional<CompensationPolicy> policy() {
+            return Optional.of(policy);
         }
     }
 
     /** 扣减积分：正向扣减，逆向回退。 */
-    private static class DeductPointsAction implements ICompensableAction<String> {
+    private static class DeductPointsAction implements ICompensableAction<TestAggregate, FlowRequirement, String> {
+        private final FlowRequirement requirement;
         private final List<String> journal;
-        private final String userId;
-        private final int points;
         private RuntimeException executeError;
 
         DeductPointsAction(List<String> journal, String userId, int points) {
             this.journal = journal;
-            this.userId = userId;
-            this.points = points;
+            this.requirement = new FlowRequirement("deduct-points", userId, points);
         }
 
         DeductPointsAction failOnExecute(RuntimeException error) {
@@ -168,37 +193,54 @@ class PlaceOrderCompensationFlowTest {
             return this;
         }
 
-        @Override
-        public String actionKey() {
-            return "deduct-points:" + userId;
+        CompensationCommand<TestAggregate, FlowRequirement, String> command() {
+            return new CompensationCommand<>(this, new TestAggregate(), this.requirement);
         }
 
         @Override
-        public String execute() {
+        public Class<FlowRequirement> requirementType() {
+            return FlowRequirement.class;
+        }
+
+        @Override
+        public Class<TestAggregate> aggregateType() {
+            return TestAggregate.class;
+        }
+
+        @Override
+        public String execute(TestAggregate aggregateRoot, FlowRequirement requirement) {
             if (executeError != null) {
                 throw executeError;
             }
-            journal.add("deduct:" + userId + ":" + points);
-            return "PT-" + userId;
+            journal.add("deduct:" + requirement.ref() + ":" + requirement.amount());
+            return "PT-" + requirement.ref();
         }
 
         @Override
-        public void compensate(String result) {
-            journal.add("restore:" + userId);
+        public void apply(TestAggregate aggregateRoot, String result) {
+            // 无回填
+        }
+
+        @Override
+        public void compensate(TestAggregate aggregateRoot, String result) {
+            journal.add("restore:" + requirement.ref());
+        }
+
+        @Override
+        public String payload(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            return requirement.ref() + ":" + requirement.amount();
         }
     }
 
     /** 收款：正向扣款，逆向退款；可配置正向失败。 */
-    private static class ChargePaymentAction implements ICompensableAction<String> {
+    private static class ChargePaymentAction implements ICompensableAction<TestAggregate, FlowRequirement, String> {
+        private final FlowRequirement requirement;
         private final List<String> journal;
-        private final String userId;
-        private final int amount;
         private RuntimeException executeError;
 
         ChargePaymentAction(List<String> journal, String userId, int amount) {
             this.journal = journal;
-            this.userId = userId;
-            this.amount = amount;
+            this.requirement = new FlowRequirement("charge-payment", userId, amount);
         }
 
         ChargePaymentAction failOnExecute(RuntimeException error) {
@@ -206,55 +248,95 @@ class PlaceOrderCompensationFlowTest {
             return this;
         }
 
-        @Override
-        public String actionKey() {
-            return "charge-payment:" + userId;
+        CompensationCommand<TestAggregate, FlowRequirement, String> command() {
+            return new CompensationCommand<>(this, new TestAggregate(), this.requirement);
         }
 
         @Override
-        public String execute() {
+        public Class<FlowRequirement> requirementType() {
+            return FlowRequirement.class;
+        }
+
+        @Override
+        public Class<TestAggregate> aggregateType() {
+            return TestAggregate.class;
+        }
+
+        @Override
+        public String execute(TestAggregate aggregateRoot, FlowRequirement requirement) {
             if (executeError != null) {
                 throw executeError;
             }
-            journal.add("charge:" + userId + ":" + amount);
-            return "PAY-" + userId;
+            journal.add("charge:" + requirement.ref() + ":" + requirement.amount());
+            return "PAY-" + requirement.ref();
         }
 
         @Override
-        public void compensate(String result) {
-            journal.add("refund:" + userId);
+        public void apply(TestAggregate aggregateRoot, String result) {
+            // 无回填
+        }
+
+        @Override
+        public void compensate(TestAggregate aggregateRoot, String result) {
+            journal.add("refund:" + requirement.ref());
+        }
+
+        @Override
+        public String payload(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            return requirement.ref() + ":" + requirement.amount();
         }
     }
 
     /** 下单通知：实现 IConfirmableAction，提交成功后收到 confirm（TCC Confirm）。 */
-    private static class NotifyOrderCreatedAction implements IConfirmableAction<String> {
+    private static class NotifyOrderCreatedAction
+            implements IConfirmableAction<TestAggregate, FlowRequirement, String> {
+
+        private final FlowRequirement requirement;
         private final List<String> journal;
-        private final String userId;
 
         NotifyOrderCreatedAction(List<String> journal, String userId) {
             this.journal = journal;
-            this.userId = userId;
+            this.requirement = new FlowRequirement("notify-order", userId, 0);
+        }
+
+        CompensationCommand<TestAggregate, FlowRequirement, String> command() {
+            return new CompensationCommand<>(this, new TestAggregate(), this.requirement);
         }
 
         @Override
-        public String actionKey() {
-            return "notify-order:" + userId;
+        public Class<FlowRequirement> requirementType() {
+            return FlowRequirement.class;
         }
 
         @Override
-        public String execute() {
-            journal.add("notify:" + userId);
-            return "MSG-" + userId;
+        public Class<TestAggregate> aggregateType() {
+            return TestAggregate.class;
         }
 
         @Override
-        public void compensate(String result) {
-            journal.add("cancel-notify:" + userId);
+        public String execute(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            journal.add("notify:" + requirement.ref());
+            return "MSG-" + requirement.ref();
         }
 
         @Override
-        public void confirm(String result) {
-            journal.add("confirm:" + userId);
+        public void apply(TestAggregate aggregateRoot, String result) {
+            // 无回填
+        }
+
+        @Override
+        public void compensate(TestAggregate aggregateRoot, String result) {
+            journal.add("cancel-notify:" + requirement.ref());
+        }
+
+        @Override
+        public String payload(TestAggregate aggregateRoot, FlowRequirement requirement) {
+            return requirement.ref();
+        }
+
+        @Override
+        public void confirm(TestAggregate aggregateRoot, String result) {
+            journal.add("confirm:" + requirement.ref());
         }
     }
 }

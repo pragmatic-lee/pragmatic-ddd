@@ -1,5 +1,7 @@
 package io.pragmatic.ddd.application.compensation;
 
+import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.base.IExternalRequirement;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -20,7 +22,7 @@ class CompensationTemplateTest {
         List<String> journal = new ArrayList<>();
 
         CompensationTemplate.run(new LocalCompensationManager(),
-                scope -> scope.execute(new RecordingAction("a", journal)));
+                scope -> scope.execute(new RecordingAction("a", journal).command()));
 
         assertThat(journal).containsExactly("execute:a");
     }
@@ -28,7 +30,7 @@ class CompensationTemplateTest {
     @Test
     void call_returnsValue() {
         String result = CompensationTemplate.call(new LocalCompensationManager(),
-                scope -> scope.execute(new RecordingAction("a", new ArrayList<>())));
+                scope -> scope.execute(new RecordingAction("a", new ArrayList<>()).command()));
 
         assertThat(result).isEqualTo("result-a");
     }
@@ -39,7 +41,7 @@ class CompensationTemplateTest {
         IllegalStateException original = new IllegalStateException("boom");
 
         assertThatThrownBy(() -> CompensationTemplate.call(new LocalCompensationManager(), scope -> {
-            scope.execute(new RecordingAction("a", journal));
+            scope.execute(new RecordingAction("a", journal).command());
             throw original;
         })).isSameAs(original);
 
@@ -77,8 +79,9 @@ class CompensationTemplateTest {
     private static class ThrowingCloseScope implements ICompensationScope {
 
         @Override
-        public <T> T execute(ICompensableAction<T> action) {
-            return action.execute();
+        public <A extends AggregateRoot<?>, REQ extends IExternalRequirement, R> R execute(
+                CompensationCommand<A, REQ, R> command) {
+            return command.execute();
         }
 
         @Override

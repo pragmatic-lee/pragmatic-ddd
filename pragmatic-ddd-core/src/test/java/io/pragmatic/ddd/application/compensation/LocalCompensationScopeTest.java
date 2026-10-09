@@ -11,7 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 补偿范围状态机测试：逆序、所见即所偿、补偿不中断、状态守卫、Confirm 钩子。
+ * 补偿范围状态机测试：逆序、所见即所偿、补偿不中断、状态守卫、Confirm 钩子、
+ * durable 前置校验（聚合标识非空 + payload 非空）与策略回落。
  *
  * @author wizard-lee
  */
@@ -24,8 +25,8 @@ class LocalCompensationScopeTest {
         List<String> journal = new ArrayList<>();
         ICompensationScope scope = new LocalCompensationManager().begin();
 
-        scope.execute(new RecordingAction("a", journal));
-        scope.execute(new RecordingAction("b", journal));
+        scope.execute(new RecordingAction("a", journal).command());
+        scope.execute(new RecordingAction("b", journal).command());
         scope.commit();
         scope.close();
 
@@ -38,9 +39,9 @@ class LocalCompensationScopeTest {
         BrokenRuleAggregateException rule = new BrokenRuleAggregateException(List.of());
 
         assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
-            scope.execute(new RecordingAction("a", journal));
-            scope.execute(new RecordingAction("b", journal));
-            scope.execute(new RecordingAction("c", journal));
+            scope.execute(new RecordingAction("a", journal).command());
+            scope.execute(new RecordingAction("b", journal).command());
+            scope.execute(new RecordingAction("c", journal).command());
             throw rule;
         })).isSameAs(rule);
 
@@ -54,8 +55,8 @@ class LocalCompensationScopeTest {
         List<String> journal = new ArrayList<>();
 
         assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
-            scope.execute(new RecordingAction("a", journal));
-            scope.execute(new RecordingAction("b", journal).failOnExecute());
+            scope.execute(new RecordingAction("a", journal).command());
+            scope.execute(new RecordingAction("b", journal).failOnExecute().command());
         })).isInstanceOf(IllegalStateException.class);
 
         // 所见即所偿：B 正向失败未登记，仅补偿已成功的 A
@@ -65,7 +66,8 @@ class LocalCompensationScopeTest {
     @Test
     void rollback_compensationFails_throwsCompensationFailedException_withOriginalCause() {
         List<String> journal = new ArrayList<>();
-        RecordingAction a = new RecordingAction("a", journal).failOnCompensate().withPolicy(NO_RETRY);
+        CompensationCommand<TestAggregate, TestRequirement, String> a =
+                new RecordingAction("a", journal).failOnCompensate().withPolicy(NO_RETRY).command();
         IllegalStateException original = new IllegalStateException("boom");
 
         assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
@@ -76,7 +78,7 @@ class LocalCompensationScopeTest {
                 .hasCause(original)
                 .satisfies(ex -> assertThat(((CompensationFailedException) ex).getFailures())
                         .extracting(CompensationFailure::actionKey)
-                        .containsExactly("a"));
+                        .containsExactly(key("a")));
     }
 
     @Test
@@ -84,15 +86,15 @@ class LocalCompensationScopeTest {
         List<String> journal = new ArrayList<>();
 
         assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
-            scope.execute(new RecordingAction("a", journal));
-            scope.execute(new RecordingAction("b", journal).failOnCompensate().withPolicy(NO_RETRY));
-            scope.execute(new RecordingAction("c", journal));
+            scope.execute(new RecordingAction("a", journal).command());
+            scope.execute(new RecordingAction("b", journal).failOnCompensate().withPolicy(NO_RETRY).command());
+            scope.execute(new RecordingAction("c", journal).command());
             throw new IllegalStateException("boom");
         }))
                 .isInstanceOf(CompensationFailedException.class)
                 .satisfies(ex -> assertThat(((CompensationFailedException) ex).getFailures())
                         .extracting(CompensationFailure::actionKey)
-                        .containsExactly("b"));
+                        .containsExactly(key("b")));
 
         // B 补偿失败不牵连 C、A：逆序循环必须走完
         assertThat(journal).containsExactly(
@@ -104,14 +106,14 @@ class LocalCompensationScopeTest {
     void commit_thenAnyFurtherLifecycleCall_throwsStateException_andNoCompensation() {
         List<String> journal = new ArrayList<>();
         ICompensationScope scope = new LocalCompensationManager().begin();
-        scope.execute(new RecordingAction("a", journal));
+        scope.execute(new RecordingAction("a", journal).command());
         scope.commit();
 
         assertThatThrownBy(() -> scope.rollback(new IllegalStateException("late")))
                 .isInstanceOf(CompensationStateException.class);
         assertThatThrownBy(() -> scope.commit())
                 .isInstanceOf(CompensationStateException.class);
-        assertThatThrownBy(() -> scope.execute(new RecordingAction("b", journal)))
+        assertThatThrownBy(() -> scope.execute(new RecordingAction("b", journal).command()))
                 .isInstanceOf(CompensationStateException.class);
         assertThat(journal).containsExactly("execute:a");
     }
@@ -128,9 +130,9 @@ class LocalCompensationScopeTest {
     void duplicateActionKey_failsFast() {
         List<String> journal = new ArrayList<>();
         ICompensationScope scope = new LocalCompensationManager().begin();
-        scope.execute(new RecordingAction("a", journal));
+        scope.execute(new RecordingAction("a", journal).command());
 
-        assertThatThrownBy(() -> scope.execute(new RecordingAction("a", journal)))
+        assertThatThrownBy(() -> scope.execute(new RecordingAction("a", journal).command()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("duplicate actionKey");
     }
@@ -141,9 +143,9 @@ class LocalCompensationScopeTest {
         ICompensationManager manager = new LocalCompensationManager();
 
         assertThatThrownBy(() -> CompensationTemplate.run(manager, outer -> {
-            outer.execute(new RecordingAction("outer-a", journal));
+            outer.execute(new RecordingAction("outer-a", journal).command());
             CompensationTemplate.run(manager, inner -> {
-                inner.execute(new RecordingAction("inner-a", journal));
+                inner.execute(new RecordingAction("inner-a", journal).command());
                 throw new IllegalStateException("inner boom");
             });
         })).isInstanceOf(IllegalStateException.class);
@@ -159,7 +161,7 @@ class LocalCompensationScopeTest {
         ICompensationScope scope = new LocalCompensationManager().begin();
 
         scope.execute(confirmable("c1", journal));
-        scope.execute(new RecordingAction("p", journal));
+        scope.execute(new RecordingAction("p", journal).command());
         scope.execute(confirmable("c2", journal));
         scope.commit();
 
@@ -174,12 +176,13 @@ class LocalCompensationScopeTest {
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
         ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
 
-        scope.execute(new RecordingAction("a", journal));
+        scope.execute(new RecordingAction("a", journal).command());
         scope.commit();
         scope.close();
 
         // WAL 语义：record(PENDING) 必须先于外部调用落库
-        assertThat(journal).containsExactly("record:a:PENDING", "execute:a", "markExecuted:a");
+        assertThat(journal).containsExactly(
+                "record:" + key("a") + ":PENDING", "execute:a", "markExecuted:" + key("a"));
     }
 
     @Test
@@ -188,36 +191,136 @@ class LocalCompensationScopeTest {
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
         ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
 
-        scope.execute(new RecordingAction("a", journal));
+        scope.execute(new RecordingAction("a", journal).command());
         scope.rollback(new IllegalStateException("boom"));
         scope.close();
 
+        // rollback 先原子认领再补偿（避免与中继并发重复补偿）
         assertThat(journal).containsExactly(
-                "record:a:PENDING", "execute:a", "markExecuted:a", "compensate:a", "markCompensated:a");
+                "record:" + key("a") + ":PENDING", "execute:a", "markExecuted:" + key("a"),
+                "markCompensating:" + key("a"), "compensate:a", "markCompensated:" + key("a"));
     }
 
-    private static IConfirmableAction<String> confirmable(String key, List<String> journal) {
-        return new IConfirmableAction<>() {
+    @Test
+    void durable_nullEntityId_failsFast_beforeAnySideEffect() {
+        List<String> journal = new ArrayList<>();
+        InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
+        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        RecordingAction action = new RecordingAction("a", journal);
+        CompensationCommand<TestAggregate, TestRequirement, String> command =
+                new CompensationCommand<>(action, new TestAggregate(null), action.requirement());
+
+        assertThatThrownBy(() -> scope.execute(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("identified aggregate");
+
+        // 校验位于正向执行之前：外部未调用、WAL 未写入
+        assertThat(journal).isEmpty();
+    }
+
+    @Test
+    void durable_emptyPayload_failsFast_beforeAnySideEffect() {
+        List<String> journal = new ArrayList<>();
+        InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
+        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        // 静态工厂不覆写 payload → 默认空串
+        ICompensableAction<TestAggregate, TestRequirement, String> noPayload = CompensableActions.of(
+                TestRequirement.class,
+                TestAggregate.class,
+                (aggregate, requirement) -> {
+                    journal.add("execute:" + requirement.code());
+                    return "result";
+                },
+                (aggregate, result) -> {
+                },
+                (aggregate, result) -> {
+                });
+        CompensationCommand<TestAggregate, TestRequirement, String> command =
+                new CompensationCommand<>(noPayload, new TestAggregate(), new TestRequirement("a"));
+
+        assertThatThrownBy(() -> scope.execute(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("non-empty payload");
+
+        assertThat(journal).isEmpty();
+    }
+
+    @Test
+    void inMemory_nullEntityId_executesNormally() {
+        List<String> journal = new ArrayList<>();
+        ICompensationScope scope = new LocalCompensationManager().begin();
+        RecordingAction action = new RecordingAction("a", journal);
+
+        scope.execute(new CompensationCommand<>(action, new TestAggregate(null), action.requirement()));
+        scope.commit();
+        scope.close();
+
+        // 内存模式不做 durable 前置校验，退化路径保持可用
+        assertThat(journal).containsExactly("execute:a");
+    }
+
+    @Test
+    void compensationFails_noPolicyDeclared_fallsBackToOptionsDefaultPolicy() {
+        List<String> journal = new ArrayList<>();
+        // 范围默认策略为 1 次尝试：动作未声明策略时应回落到它，而非动作内建的 3 次
+        CompensationOptions options = new CompensationOptions(false, NO_RETRY);
+        ICompensationScope scope = new LocalCompensationManager().begin(options);
+        CompensationCommand<TestAggregate, TestRequirement, String> command =
+                new RecordingAction("a", journal).failOnCompensate().withoutPolicy().command();
+
+        assertThatThrownBy(() -> CompensationTemplate.run(scope, inner -> {
+            inner.execute(command);
+            throw new IllegalStateException("boom");
+        })).isInstanceOf(CompensationFailedException.class);
+
+        // 仅一次补偿尝试（回落到 1 次），否则会是三次
+        assertThat(journal).containsExactly("execute:a", "compensate:a");
+    }
+
+    private static String key(String code) {
+        return "TestAggregate:1:" + code;
+    }
+
+    private static CompensationCommand<TestAggregate, TestRequirement, String> confirmable(String code,
+                                                                                          List<String> journal) {
+        TestRequirement requirement = new TestRequirement(code);
+        IConfirmableAction<TestAggregate, TestRequirement, String> action = new IConfirmableAction<>() {
             @Override
-            public String actionKey() {
-                return key;
+            public Class<TestRequirement> requirementType() {
+                return TestRequirement.class;
             }
 
             @Override
-            public String execute() {
-                journal.add("execute:" + key);
-                return "result-" + key;
+            public Class<TestAggregate> aggregateType() {
+                return TestAggregate.class;
             }
 
             @Override
-            public void compensate(String result) {
-                journal.add("compensate:" + key);
+            public String execute(TestAggregate aggregateRoot, TestRequirement requirement) {
+                journal.add("execute:" + requirement.code());
+                return "result-" + requirement.code();
             }
 
             @Override
-            public void confirm(String result) {
-                journal.add("confirm:" + key);
+            public void apply(TestAggregate aggregateRoot, String result) {
+                // 无回填
+            }
+
+            @Override
+            public void compensate(TestAggregate aggregateRoot, String result) {
+                journal.add("compensate:" + requirement.code());
+            }
+
+            @Override
+            public String payload(TestAggregate aggregateRoot, TestRequirement requirement) {
+                return requirement.code();
+            }
+
+            @Override
+            public void confirm(TestAggregate aggregateRoot, String result) {
+                journal.add("confirm:" + requirement.code());
             }
         };
+        return new CompensationCommand<>(action, new TestAggregate(), requirement);
     }
 }

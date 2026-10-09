@@ -1,5 +1,8 @@
 package io.pragmatic.ddd.application.compensation;
 
+import io.pragmatic.ddd.base.AggregateRoot;
+import io.pragmatic.ddd.base.IExternalRequirement;
+
 /**
  * 补偿范围：一次应用服务调用内登记的"可补偿外部副作用"集合。
  * 正常结束视为成功不补偿；判定为失败则按正向逆序对"已执行"的动作执行补偿。
@@ -9,13 +12,16 @@ package io.pragmatic.ddd.application.compensation;
 public interface ICompensationScope extends AutoCloseable {
 
     /**
-     * 执行并登记一个可补偿动作：仅当正向执行成功才进入待补偿集合。
+     * 执行并登记一条补偿命令：仅当正向执行成功才进入待补偿集合。
      *
-     * @param action 补偿动作
-     * @param <T>    正向产出类型
+     * @param command 待执行补偿命令
+     * @param <A>     聚合类型
+     * @param <REQ>   需求类型
+     * @param <R>     正向产出类型
      * @return 正向执行产出
      */
-    <T> T execute(ICompensableAction<T> action);
+    <A extends AggregateRoot<?>, REQ extends IExternalRequirement, R> R execute(
+            CompensationCommand<A, REQ, R> command);
 
     /** 标记本范围成功结束：不再触发任何补偿。 */
     void commit();
