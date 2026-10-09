@@ -33,17 +33,6 @@ class AggregateRootEventTest {
     }
 
     @Test
-    void multiValueCollection_recordAB_collect_attributionB_andHasAll() {
-        SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
-        entity.recordOperation(SampleRegistry.A);
-        entity.recordOperation(SampleRegistry.B);
-        SampleEvent e = new SampleEvent("1");
-        entity.collectEvent(e);
-        assertThat(e.operationCode).isEqualTo("B");
-        assertThat(entity.hasAllOperations(SampleRegistry.A, SampleRegistry.B)).isTrue();
-    }
-
-    @Test
     void explicitPriority_recordA_collectExplicitC_attributionC() {
         SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
         entity.recordOperation(SampleRegistry.A);
@@ -68,12 +57,11 @@ class AggregateRootEventTest {
     }
 
     @Test
-    void delayedEvent_attributionCapturedAtPublish() {
+    void delayedEvent_materialize_carriesOperationCode() {
         SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
         entity.recordOperation(SampleRegistry.A);
         Supplier<IDomainEvent> supplier = () -> new SampleEvent("1");
         entity.collectEvent(supplier);
-        entity.recordOperation(SampleRegistry.B);
         List<IDomainEvent> events = entity.getDomainEvents();
         assertThat(events).hasSize(1);
         SampleEvent materialized = (SampleEvent) events.get(0);

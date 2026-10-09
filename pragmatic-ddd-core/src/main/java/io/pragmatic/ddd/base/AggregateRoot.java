@@ -10,6 +10,7 @@ import io.pragmatic.ddd.operation.TriggeredOperations;
 import lombok.Getter;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -59,9 +60,6 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     private final TriggeredEvents triggeredEvents = new TriggeredEvents();
     private TriggeredOperations triggeredOperations;
-
-    /** 最近一次 recordOperation 记录的操作（因果归属用，单值指针）。 */
-    private EntityOperation lastRecordedOperation;
 
     // ============ 规则校验委托（public 供 rules 包跨包调用） ============
 
@@ -118,7 +116,7 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     // ============ 领域事件 ============
 
-    /** 收集领域事件；成因默认取最近一次 recordOperation 的操作。 */
+    /** 收集领域事件；成因取本次工作单元记录的操作。 */
     protected void collectEvent(BaseDomainEvent event) {
         event.operationCode = this.resolveOperationCode();
         event.version = this.getNewVersion();
@@ -161,8 +159,10 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
     }
 
     private String resolveOperationCode() {
-        if (this.lastRecordedOperation != null) {
-            return this.lastRecordedOperation.code();
+        Optional<EntityOperation> current = Optional.ofNullable(this.triggeredOperations)
+                .flatMap(TriggeredOperations::current);
+        if (current.isPresent()) {
+            return current.get().code();
         }
         if (this.operationRegistry() != null) {
             throw new OperationException(
@@ -180,30 +180,31 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
         if (this.triggeredOperations != null) {
             this.triggeredOperations.clear();
         }
-        this.lastRecordedOperation = null;
     }
 
     // ============ 操作追踪 ============
 
-    /** 记录一次操作，更新多值集合与因果指针。 */
+    /** 记录本次工作单元的因果操作。 */
     protected void recordOperation(EntityOperation operation) {
-        this.triggeredOperations().put(operation);   // 多值收集：不变
-        this.lastRecordedOperation = operation;       // 更新因果指针
+        this.triggeredOperations().record(operation);
     }
 
-    /** 判断已触发的操作中是否包含指定操作。 */
+    /** 判断本次工作单元的因果操作是否为指定操作。 */
     public boolean hasOperation(EntityOperation operation) {
         return this.triggeredOperations().contains(operation);
     }
 
-    /** 判断已触发的操作是否包含全部指定操作。 */
-    public boolean hasAllOperations(EntityOperation... operations) {
-        return this.triggeredOperations().containsAll(operations);
-    }
-
-    /** 判断已触发的操作是否包含任一指定操作。 */
+    /** 判断本次工作单元的因果操作是否属于指定操作之一。 */
     public boolean hasAnyOperation(EntityOperation... operations) {
         return this.triggeredOperations().containsAny(operations);
+    }
+
+    /**
+     * 判断本次工作单元的因果操作是否存在且不属于指定操作集合。
+     * 用于「除指定操作外，其余操作都要激活」的规则 gate；未记录操作时返回 false。
+     */
+    public boolean hasExceptOperation(EntityOperation... operations) {
+        return this.triggeredOperations().containsExceptOperation(operations);
     }
 
     private TriggeredOperations triggeredOperations() {

@@ -42,7 +42,7 @@ class AggregateRootVersionAndLifecycleTest {
     }
 
     @Test
-    void clearWorkUnitState_clearsEventsOperationsPointer() {
+    void clearWorkUnitState_clearsEventsAndOperation() {
         SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
         entity.recordOperation(SampleRegistry.A);
         entity.collectEvent(new SampleEvent("1"));
@@ -52,7 +52,7 @@ class AggregateRootVersionAndLifecycleTest {
         entity.clearWorkUnitState();
         assertThat(entity.getDomainEvents()).isEmpty();
         assertThat(entity.hasOperation(SampleRegistry.A)).isFalse();
-        // 指针已重置 → 再 collect 应 fail-fast
+        // 因果操作已清空 → 再 collect 应 fail-fast
         assertThatThrownBy(() -> entity.collectEvent(new SampleEvent("1")))
                 .isInstanceOf(OperationException.class);
     }

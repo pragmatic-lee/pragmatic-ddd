@@ -85,7 +85,10 @@ public class PersonTest {
         personInitData.setPhone("11123231");
         personInitData.setStatus(Status.ACTIVE);
 
-        return new Person(personInitData);
+        Person person = new Person(personInitData);
+        // 创建是独立的一次命令，完成后清空工作单元状态；后续 update / updateStatus 属于另一条命令
+        person.clearWorkUnitState();
+        return person;
     }
 
 

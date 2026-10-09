@@ -6,9 +6,12 @@ import io.pragmatic.ddd.application.fixture.CountingTransactionOperations;
 import io.pragmatic.ddd.application.fixture.DryRunAggregate;
 import io.pragmatic.ddd.application.fixture.DryRunRule;
 import io.pragmatic.ddd.application.fixture.MultiTableRepository;
+import io.pragmatic.ddd.application.fixture.NoOpRepository;
+import io.pragmatic.ddd.application.fixture.OperationRecordingAggregate;
 import io.pragmatic.ddd.application.fixture.RecordingEventManager;
 import io.pragmatic.ddd.application.fixture.RecordingTransactionOperations;
 import io.pragmatic.ddd.base.BrokenRuleException;
+import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.base.fixture.SampleMessages;
 import org.junit.jupiter.api.Test;
 
@@ -135,6 +138,32 @@ class CommandExecutorTest {
         assertThat(txOps.txCount()).isOne();
         assertThat(repository.committedStatements()).containsExactlyElementsOf(THREE_TABLES);
         assertThat(eventManager.publishedCount()).isOne();
+    }
+
+    @Test
+    void execute_reuseAggregateAfterRuleRejection_noFalsePositiveOnSecondCommand() {
+        CountingTransactionOperations txOps = new CountingTransactionOperations();
+        CountingEventManager eventManager = new CountingEventManager();
+        NoOpRepository<OperationRecordingAggregate> repository = new NoOpRepository<>();
+        CommandExecutor executor = new CommandExecutor(eventManager, txOps);
+        OperationRecordingAggregate aggregate = new OperationRecordingAggregate(1L);
+
+        IRule<OperationRecordingAggregate> failingRule = model -> {
+            model.addBrokenRule(SampleMessages.NAME_ERROR);
+            return false;
+        };
+
+        // 第一条命令：规则校验失败被拒绝（短路于 try 之前），聚合实例上残留了领域逻辑已记录的操作 A
+        assertThatThrownBy(() -> executor.execute(aggregate, failingRule,
+                repository, OperationRecordingAggregate::actAsOperationA))
+                .isInstanceOf(BrokenRuleException.class);
+
+        // 第二条命令：复用同一实例执行操作 B，入口清场应保证不把残留的 A 误判为「第二个因果操作」
+        executor.execute(aggregate, null, repository, OperationRecordingAggregate::actAsOperationB);
+
+        assertThat(txOps.executeCount()).isOne();
+        assertThat(eventManager.publishedCount()).isOne();
+        assertThat(aggregate.getDomainEvents()).isEmpty();
     }
 
     @Test

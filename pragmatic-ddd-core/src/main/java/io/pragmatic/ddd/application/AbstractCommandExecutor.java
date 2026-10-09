@@ -24,6 +24,9 @@ public abstract class AbstractCommandExecutor implements ICommandExecutor {
             IRepository<ID, T> repository,
             Consumer<T> domainLogic) {
 
+        // 0. 入口清场：保证本次执行起点无残留操作/事件，避免上次异常路径的脏状态触发误判
+        aggregateRoot.clearWorkUnitState();
+
         // 1. 执行领域逻辑
         domainLogic.accept(aggregateRoot);
 

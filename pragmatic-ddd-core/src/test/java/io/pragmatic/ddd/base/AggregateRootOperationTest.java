@@ -2,7 +2,7 @@ package io.pragmatic.ddd.base;
 
 import io.pragmatic.ddd.base.fixture.SampleAggregate;
 import io.pragmatic.ddd.base.fixture.SampleMessages;
-import io.pragmatic.ddd.operation.EntityOperation;
+import io.pragmatic.ddd.operation.MultipleOperationsException;
 import io.pragmatic.ddd.operation.OperationException;
 import io.pragmatic.ddd.operation.SampleRegistry;
 import org.junit.jupiter.api.Test;
@@ -25,14 +25,33 @@ class AggregateRootOperationTest {
     }
 
     @Test
-    void hasAllOperations_hasAnyOperation_combinations() {
+    void recordOperation_secondDifferentCode_throwsMultipleOperationsException() {
         SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
         entity.recordOperation(SampleRegistry.A);
-        entity.recordOperation(SampleRegistry.B);
-        assertThat(entity.hasAllOperations(SampleRegistry.A, SampleRegistry.B)).isTrue();
-        assertThat(entity.hasAllOperations(SampleRegistry.A, SampleRegistry.C)).isFalse();
+        assertThatThrownBy(() -> entity.recordOperation(SampleRegistry.B))
+                .isInstanceOf(MultipleOperationsException.class);
+    }
+
+    @Test
+    void hasAnyOperation_matchesCurrentOperation() {
+        SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
+        entity.recordOperation(SampleRegistry.A);
         assertThat(entity.hasAnyOperation(SampleRegistry.A, SampleRegistry.C)).isTrue();
-        assertThat(entity.hasAnyOperation(SampleRegistry.C)).isFalse();
+        assertThat(entity.hasAnyOperation(SampleRegistry.B, SampleRegistry.C)).isFalse();
+    }
+
+    @Test
+    void hasExceptOperation_matchesOtherOperations() {
+        SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
+        entity.recordOperation(SampleRegistry.A);
+        assertThat(entity.hasExceptOperation(SampleRegistry.B, SampleRegistry.C)).isTrue();
+        assertThat(entity.hasExceptOperation(SampleRegistry.A, SampleRegistry.B)).isFalse();
+    }
+
+    @Test
+    void hasExceptOperation_noOperation_returnsFalse() {
+        SampleAggregate entity = new SampleAggregate(SampleMessages.INSTANCE, new SampleRegistry());
+        assertThat(entity.hasExceptOperation(SampleRegistry.B, SampleRegistry.C)).isFalse();
     }
 
     @Test

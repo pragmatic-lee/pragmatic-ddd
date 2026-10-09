@@ -21,67 +21,98 @@ class TriggeredOperationsTest {
     }
 
     @Test
-    void put_registeredOperation_thenContains() {
-        triggeredOperations.put(SampleRegistry.A);
+    void record_registeredOperation_thenContains() {
+        triggeredOperations.record(SampleRegistry.A);
 
         assertThat(triggeredOperations.contains(SampleRegistry.A)).isTrue();
         assertThat(triggeredOperations.contains(SampleRegistry.B)).isFalse();
     }
 
     @Test
-    void put_unregisteredOperation_throwsOperationException() {
+    void record_unregisteredOperation_throwsOperationException() {
         EntityOperation unregistered = EntityOperation.of("UNREGISTERED");
 
-        assertThatThrownBy(() -> triggeredOperations.put(unregistered))
+        assertThatThrownBy(() -> triggeredOperations.record(unregistered))
                 .isInstanceOf(OperationException.class)
                 .hasMessageContaining("UNREGISTERED");
     }
 
     @Test
-    void put_builtinNewAndDelete_thenContains() {
-        triggeredOperations.put(OperationRegistry.NEW);
-        triggeredOperations.put(OperationRegistry.DELETE);
+    void record_sameCodeTwice_idempotent() {
+        triggeredOperations.record(SampleRegistry.A);
+        triggeredOperations.record(SampleRegistry.A);
 
-        assertThat(triggeredOperations.containsAll(OperationRegistry.NEW, OperationRegistry.DELETE)).isTrue();
+        assertThat(triggeredOperations.contains(SampleRegistry.A)).isTrue();
+        assertThat(triggeredOperations.current()).contains(SampleRegistry.A);
     }
 
     @Test
-    void containsAll_allTriggered_returnsTrue() {
-        triggeredOperations.put(SampleRegistry.A);
-        triggeredOperations.put(SampleRegistry.B);
+    void record_secondDifferentCode_throwsMultipleOperationsException() {
+        triggeredOperations.record(SampleRegistry.A);
 
-        assertThat(triggeredOperations.containsAll(SampleRegistry.A, SampleRegistry.B)).isTrue();
+        assertThatThrownBy(() -> triggeredOperations.record(SampleRegistry.B))
+                .isInstanceOf(MultipleOperationsException.class)
+                .hasMessageContaining("A")
+                .hasMessageContaining("B");
     }
 
     @Test
-    void containsAll_partialTriggered_returnsFalse() {
-        triggeredOperations.put(SampleRegistry.A);
-
-        assertThat(triggeredOperations.containsAll(SampleRegistry.A, SampleRegistry.B)).isFalse();
-    }
-
-    @Test
-    void containsAny_anyTriggered_returnsTrue() {
-        triggeredOperations.put(SampleRegistry.A);
+    void containsAny_currentInSet_returnsTrue() {
+        triggeredOperations.record(SampleRegistry.A);
 
         assertThat(triggeredOperations.containsAny(SampleRegistry.A, SampleRegistry.C)).isTrue();
     }
 
     @Test
-    void containsAny_noneTriggered_returnsFalse() {
-        triggeredOperations.put(SampleRegistry.A);
+    void containsAny_currentNotInSet_returnsFalse() {
+        triggeredOperations.record(SampleRegistry.A);
 
         assertThat(triggeredOperations.containsAny(SampleRegistry.B, SampleRegistry.C)).isFalse();
     }
 
     @Test
+    void containsAny_notRecorded_returnsFalse() {
+        assertThat(triggeredOperations.containsAny(SampleRegistry.A, SampleRegistry.B)).isFalse();
+    }
+
+    @Test
+    void containsExceptOperation_currentNotInSet_returnsTrue() {
+        triggeredOperations.record(SampleRegistry.A);
+
+        assertThat(triggeredOperations.containsExceptOperation(SampleRegistry.B, SampleRegistry.C)).isTrue();
+    }
+
+    @Test
+    void containsExceptOperation_currentInSet_returnsFalse() {
+        triggeredOperations.record(SampleRegistry.A);
+
+        assertThat(triggeredOperations.containsExceptOperation(SampleRegistry.A, SampleRegistry.C)).isFalse();
+    }
+
+    @Test
+    void containsExceptOperation_notRecorded_returnsFalse() {
+        assertThat(triggeredOperations.containsExceptOperation(SampleRegistry.A, SampleRegistry.B)).isFalse();
+    }
+
+    @Test
+    void current_notRecorded_empty() {
+        assertThat(triggeredOperations.current()).isEmpty();
+    }
+
+    @Test
+    void current_afterRecord_returnsOperation() {
+        triggeredOperations.record(SampleRegistry.A);
+
+        assertThat(triggeredOperations.current()).contains(SampleRegistry.A);
+    }
+
+    @Test
     void clear_thenNothingContained() {
-        triggeredOperations.put(SampleRegistry.A);
-        triggeredOperations.put(SampleRegistry.B);
+        triggeredOperations.record(SampleRegistry.A);
 
         triggeredOperations.clear();
 
         assertThat(triggeredOperations.contains(SampleRegistry.A)).isFalse();
-        assertThat(triggeredOperations.contains(SampleRegistry.B)).isFalse();
+        assertThat(triggeredOperations.current()).isEmpty();
     }
 }
