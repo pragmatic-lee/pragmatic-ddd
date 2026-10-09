@@ -148,6 +148,25 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
         return this.triggeredEvents.getEvents();
     }
 
+    // ============ 外部需求 ============
+
+    private final TriggeredExternalRequirements triggeredExternalRequirements = new TriggeredExternalRequirements();
+
+    /**
+     * 声明一项外部需求：由领域方法在执行过程中调用，与 collectEvent 同构。
+     * 声明只表达"需要什么"，不表达"怎么调用外部系统"。
+     *
+     * @param requirement 外部需求（强类型 record 实例）
+     */
+    protected void requireExternal(IExternalRequirement requirement) {
+        this.triggeredExternalRequirements.collect(requirement);
+    }
+
+    /** 返回本工作单元已声明的外部需求（只读，按声明顺序）。 */
+    public List<IExternalRequirement> getExternalRequirements() {
+        return this.triggeredExternalRequirements.getRequirements();
+    }
+
     /**
      * 数据同步钩子：由持久化仓储在 insert / update / remove 落库前统一调用，
      * 供聚合根在此收集"聚合自身"异构事件（如同步读模型 / 宽表 / 缓存）。
@@ -174,9 +193,10 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     // ============ 工作单元清理 ============
 
-    /** 清空工作单元临时状态（领域事件、已触发操作与因果指针），由应用层在事件分发完成后调用。 */
+    /** 清空工作单元临时状态（领域事件、外部需求、已触发操作与因果指针），由应用层在事件分发完成后调用。 */
     public void clearWorkUnitState() {
         this.triggeredEvents.clear();
+        this.triggeredExternalRequirements.clear();
         if (this.triggeredOperations != null) {
             this.triggeredOperations.clear();
         }

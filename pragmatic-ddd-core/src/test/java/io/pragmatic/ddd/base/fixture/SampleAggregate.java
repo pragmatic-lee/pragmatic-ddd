@@ -2,6 +2,7 @@ package io.pragmatic.ddd.base.fixture;
 
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
+import io.pragmatic.ddd.base.IExternalRequirement;
 import io.pragmatic.ddd.operation.OperationRegistry;
 
 /**
@@ -31,5 +32,10 @@ public class SampleAggregate extends AggregateRoot<Long> {
     @Override
     protected OperationRegistry operationRegistry() {
         return operationRegistry;
+    }
+
+    /** 测试用：对外暴露受保护的 requireExternal 声明入口。 */
+    public void declareExternal(IExternalRequirement requirement) {
+        this.requireExternal(requirement);
     }
 }
