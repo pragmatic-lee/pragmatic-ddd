@@ -2,6 +2,7 @@ package io.pragmatic.ddd.application.outbox;
 
 import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.outbox.fixture.InMemoryOutboxStore;
+import io.pragmatic.ddd.application.outbox.fixture.RejectedExecutorService;
 import io.pragmatic.ddd.application.outbox.fixture.SyncExecutorService;
 import io.pragmatic.ddd.application.outbox.fixture.ThrowingEventManager;
 import io.pragmatic.ddd.base.fixture.SampleEvent;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * EagerOutboxPublisher 提交后主动推送测试：验证成功标记 SENT、失败保持 PENDING 交由 Relay 兜底。
@@ -86,5 +88,25 @@ class EagerOutboxPublisherTest {
         assertThat(eventManager.publishedCount()).isEqualTo(2);
         assertThat(store.find("a").getStatus()).isEqualTo(OutboxStatus.SENT);
         assertThat(store.find("b").getStatus()).isEqualTo(OutboxStatus.SENT);
+    }
+
+    @Test
+    void publishAfterCommit_poolRejects_keepsPendingAndDoesNotThrow() {
+        InMemoryOutboxStore store = new InMemoryOutboxStore();
+        CountingEventManager eventManager = new CountingEventManager();
+        EagerOutboxPublisher publisher =
+                new EagerOutboxPublisher(store, eventManager, new RejectedExecutorService());
+
+        String id = "m-3";
+        store.store(List.of(new OutboxMessage() {{
+            setId(id);
+            setStatus(OutboxStatus.PENDING);
+        }}));
+
+        // 线程池拒绝提交：提交后路径不得抛异常，事件未发布，保留 PENDING 交由 Relay 兜底
+        assertThatCode(() -> publisher.publishAfterCommit(List.of(entry(id))))
+                .doesNotThrowAnyException();
+        assertThat(eventManager.publishedCount()).isZero();
+        assertThat(store.find(id).getStatus()).isEqualTo(OutboxStatus.PENDING);
     }
 }
