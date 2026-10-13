@@ -147,7 +147,7 @@ class CompensableCommandExecutorStageThreeTest {
                 delegate,
                 null,
                 CompensationOptions.inMemory(),
-                actions);
+                new CompensationActionRegistry(actions));
     }
 
     private ICompensableAction<StageThreeAggregate, ReserveRequirement, String> reserveAction() {

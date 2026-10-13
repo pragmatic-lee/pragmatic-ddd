@@ -33,16 +33,16 @@ public class CompensableCommandExecutor implements ICommandExecutor {
      * @param delegate        真实的落库 + 事件分发出路（默认 / Outbox 命令执行器）
      * @param compensationLog 持久化补偿日志，内存模式下传 null
      * @param options         补偿选项（durable 开关与默认策略）
-     * @param actions         可补偿动作集合（按需求类型索引，重复类型构造即失败）
+     * @param registry        补偿动作注册表（所有聚合共用，由应用层装配注入）
      */
     public CompensableCommandExecutor(ICommandExecutor delegate,
                                       ICompensationLog compensationLog,
                                       CompensationOptions options,
-                                      List<ICompensableAction<?, ?, ?>> actions) {
+                                      CompensationActionRegistry registry) {
         this.delegate = delegate;
         this.compensationLog = compensationLog;
         this.options = options;
-        this.registry = new CompensationActionRegistry(actions);
+        this.registry = registry;
     }
 
     @Override

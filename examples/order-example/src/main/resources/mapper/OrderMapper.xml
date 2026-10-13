@@ -31,6 +31,7 @@
         payment_serial_no,
         platform_discount,
         actual_amount,
+        reserve_no,
         created_at,
         created_by,
         updated_at,
@@ -87,6 +88,7 @@
         <result property="paymentSerialNo" column="payment_serial_no"/>
         <result property="platformDiscount" column="platform_discount"/>
         <result property="actualAmount" column="actual_amount"/>
+        <result property="reserveNo" column="reserve_no"/>
         <result property="createdAt" column="created_at"/>
         <result property="createdBy" column="created_by"/>
         <result property="updatedAt" column="updated_at"/>
@@ -134,6 +136,7 @@
             payment_serial_no,
             platform_discount,
             actual_amount,
+            reserve_no,
             created_at,
             created_by,
             updated_at,
@@ -156,6 +159,7 @@
             #{paymentSerialNo},
             #{platformDiscount},
             #{actualAmount},
+            #{reserveNo},
             #{createdAt},
             #{createdBy},
             #{updatedAt},
@@ -182,6 +186,7 @@
             payment_serial_no = #{paymentSerialNo},
             platform_discount = #{platformDiscount},
             actual_amount = #{actualAmount},
+            reserve_no = #{reserveNo},
             updated_at = #{updatedAt},
             updated_by = #{updatedBy},
             version = #{newVersion}

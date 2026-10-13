@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS t_order (
     payment_serial_no VARCHAR(64)  NULL COMMENT '支付流水号',
     platform_discount JSON         NULL COMMENT 'Money 值对象',
     actual_amount     JSON         NULL COMMENT 'Money 值对象',
+    reserve_no        VARCHAR(64)  NULL COMMENT '库存预占单号',
     created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     created_by        VARCHAR(64)  NULL COMMENT '创建人（AbstractEntity.createdBy）',
     updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

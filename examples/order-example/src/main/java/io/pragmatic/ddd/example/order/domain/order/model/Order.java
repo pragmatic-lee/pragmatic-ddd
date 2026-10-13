@@ -13,6 +13,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.LogisticsInfo;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.PaymentInfo;
 import io.pragmatic.ddd.example.order.domain.order.operation.OrderOperationRegistry;
+import io.pragmatic.ddd.example.order.domain.order.requirement.ReserveInventoryRequirement;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRuleRegistry;
 import io.pragmatic.ddd.track.TrackedList;
 import lombok.AccessLevel;
@@ -108,6 +109,11 @@ public class Order extends AggregateRoot<Long> {
     private String paymentSerialNo;
 
     /**
+     * 库存预占单号：外部库存系统预占成功后的事实回填。
+     */
+    private String reserveNo;
+
+    /**
      * 支付平台优惠金额
      */
     private Money platformDiscount;
@@ -136,6 +142,10 @@ public class Order extends AggregateRoot<Long> {
         this.totalAmount = data.getTotalAmount();
         this.orderItems = new TrackedList<>(data.getOrderItems() == null ? List.of() : data.getOrderItems());
         this.recordOperation(OrderOperationRegistry.PLACE);
+        // 下单即声明库存预占需求：由应用层的 ReserveInventoryAction 在补偿范围内兑现。
+        // ⚠️ OrderFactory 构造的探测 Order（probeOrder）同样会执行本构造器并声明需求，
+        //    但 probe 仅用于算价、随后被丢弃，不进入任何补偿范围，无副作用。
+        this.requireExternal(ReserveInventoryRequirement.INSTANCE);
         this.markCreated();
         this.markNew();
         this.collectEvent(OrderCreatedEvent.buildEvent(this));
@@ -250,6 +260,20 @@ public class Order extends AggregateRoot<Long> {
         this.markModified();
         this.recordOperation(OrderOperationRegistry.PAY);
         this.collectEvent(OrderPaidEvent.buildEvent(this));
+    }
+
+    /**
+     * 绑定库存预占单号：外部库存系统预占成功后的事实回填。
+     * 只能调用本业务方法回填（含状态守卫），禁止外部 setter 直改。
+     *
+     * @param reserveNo 库存预占单号
+     */
+    public void bindReserveNo(String reserveNo) {
+        if (this.status != OrderStatus.IN_PROGRESS) {
+            throw new IllegalStateException("仅进行中的订单可绑定预占单号");
+        }
+        this.reserveNo = reserveNo;
+        this.markModified();
     }
 
     /**

@@ -121,7 +121,7 @@ class PlaceOrderCompensationFlowTest {
                 new NoOpDelegate(),
                 null,
                 CompensationOptions.inMemory(),
-                List.of(actions));
+                new CompensationActionRegistry(List.of(actions)));
     }
 
     /** 落库 + 事件分发的空实现：本流程测试只关注外部动作与补偿编排。 */

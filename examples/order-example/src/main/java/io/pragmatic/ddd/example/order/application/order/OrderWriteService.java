@@ -4,6 +4,7 @@ import io.pragmatic.ddd.application.AbstractApplicationService;
 import io.pragmatic.ddd.application.DryRunResult;
 import io.pragmatic.ddd.application.ICommandApplicationService;
 import io.pragmatic.ddd.application.IUnitOfWork;
+import io.pragmatic.ddd.application.compensation.CompensableCommandExecutor;
 import io.pragmatic.ddd.application.outbox.EagerOutboxPublisher;
 import io.pragmatic.ddd.application.outbox.OutboxCommandExecutor;
 import io.pragmatic.ddd.application.outbox.spi.IOutboxStore;
@@ -27,7 +28,6 @@ import io.pragmatic.ddd.example.order.application.order.updater.OrderUpdateItemU
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.rule.OrderRule;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.repository.OrderRepository;
-import io.pragmatic.ddd.event.spi.IEventManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -38,9 +38,12 @@ import java.util.function.Supplier;
  * 订单写服务：下单、改址、发货、支付与订单项维护命令的应用服务编排。
  * Input 接入 → 工厂建聚合 / Updater 改聚合 → 规则校验 → 仓储持久化 → 领域事件发布，置于同一事务单元。
  * 命令执行器与工作单元工厂由 OutboxConfig 以成品 Bean 注入，服务内不再手动装配。
+ * 下单命令额外使用 CompensableCommandExecutor（由 CompensationConfig 装配），为库存预占叠加逆序补偿。
  */
 @Service
 public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
+
+    private final CompensableCommandExecutor compensableExecutor;
 
     private final OrderFactory orderFactory;
 
@@ -63,15 +66,18 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
     private final OrderRemoveItemUpdater orderRemoveItemUpdater;
 
     /**
-     * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 OutboxConfig），不再内部 new 组装。
+     * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 OutboxConfig），不再内部 new 组装；
+     * 可补偿命令执行器成品用于下单命令（装配点收敛于 CompensationConfig）。
      *
-     * @param eventManager      事件管理器
-     * @param commandExecutor   outbox 命令执行器成品
-     * @param unitOfWorkFactory outbox 工作单元工厂成品
+     * @param eventManager        事件管理器
+     * @param commandExecutor     outbox 命令执行器成品
+     * @param unitOfWorkFactory   outbox 工作单元工厂成品
+     * @param compensableExecutor 可补偿命令执行器成品（仅下单命令使用）
      */
     public OrderWriteService(IEventManager eventManager,
                              OutboxCommandExecutor commandExecutor,
                              Supplier<IUnitOfWork> unitOfWorkFactory,
+                             CompensableCommandExecutor compensableExecutor,
                              OrderFactory orderFactory,
                              OrderRule orderRule,
                              OrderRepository orderRepository,
@@ -83,6 +89,7 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
                              OrderUpdateItemUpdater orderUpdateItemUpdater,
                              OrderRemoveItemUpdater orderRemoveItemUpdater) {
         super(eventManager, commandExecutor, unitOfWorkFactory);
+        this.compensableExecutor = compensableExecutor;
         this.orderFactory = orderFactory;
         this.orderRule = orderRule;
         this.orderRepository = orderRepository;
@@ -96,11 +103,12 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
     }
 
     /**
-     * 下单：创建并持久化订单。
+     * 下单：建聚合（聚合声明库存预占需求）→ 框架执行外部动作并兜底补偿 → 校验落库发事件。
+     * 仅本命令使用补偿执行器；其余命令继续走基类的 outbox 执行器。
      */
     public Order placeOrder(CreateOrderInput input) {
         Order order = orderFactory.create(input);
-        return super.execute(order, orderRule, orderRepository, t -> {
+        return this.compensableExecutor.execute(order, orderRule, orderRepository, t -> {
         });
     }
 

@@ -26,7 +26,8 @@
   - [5.6 运行应用](#56-运行应用)
 - [6. docker 目录结构](#6-docker-目录结构)
 - [7. 常见问题 FAQ](#7-常见问题-faq)
-- [8. 下一步](#8-下一步)
+- [8. 补偿能力示例（下单预占库存）](#8-补偿能力示例下单预占库存)
+- [9. 下一步](#9-下一步)
 
 ---
 
@@ -413,7 +414,41 @@ bash setup.sh
 
 首次构建需下载基础镜像与依赖；之后复用缓存。也可先 `docker pull eclipse-temurin:17-jre` 预热。
 
-## 8. 下一步
+## 8. 补偿能力示例（下单预占库存）
+
+示例已接入框架的**补偿能力**：下单时预占库存，若后续规则校验 / 落库失败，框架自动逆序释放预占。
+
+**装配点只有一处**（`application/order/compensation/OrderCompensationConfig.java`，内存模式）：
+
+```java
+new CompensableCommandExecutor(
+        outboxCommandExecutor,       // 被装饰的真实执行器（落库 + outbox + 事件）
+        null,                        // 内存模式：不装配 ICompensationLog
+        CompensationOptions.inMemory(),
+        List.of(reserveInventoryAction));
+```
+
+**参与的类**：
+
+| 层 | 类 | 职责 |
+| --- | --- | --- |
+| 领域 | `ReserveInventoryRequirement` | 库存预占需求，订单构造时由 `requireExternal(...)` 声明 |
+| 领域 | `Order.bindReserveNo(...)` | 预占单号回填（带状态守卫，禁止 setter 直改） |
+| 应用 | `ReserveInventoryAction` | 正向预占 / 回写订单 / 逆向释放 |
+| 基础设施 | `InventoryDependencyAdapter` | 外部库存系统 Stub，打印预占与释放轨迹 |
+
+**验证方式**：控制台观测 `[inventory] reserve` 与 `[inventory] release` 两条日志。
+
+| 场景 | 触发方式 | 预期 |
+| --- | --- | --- |
+| 正常下单 | 常规下单请求 | 仅 `reserve`、无 `release`；订单落库且 `reserve_no` 已写入 |
+| 规则失败 | 提交订单项为空的下单请求 | `reserve` → `release`；订单未落库 |
+| 预占失败 | `example.inventory.reserve-fail=true` | 抛异常，**无** `release`（所见即所偿） |
+
+> ⚠️ **内存模式不覆盖 JVM 崩溃**：补偿依据仅存于堆内，进程在"外部已预占、本地未落库"之间崩溃时无人释放。
+> 需要崩溃安全请切换到 durable 模式（装配 `MybatisCompensationLog` + `CompensationRelay`）——切换点**仅在装配层**，领域与应用层代码完全不变。
+
+## 9. 下一步
 
 - **跑通后看代码**：`KafkaConfig`（事件总线装配）→ `OrderEventTopicConfig`（topic 解析）→ `OrderEventSubscriberRegistry`（订阅者登记）→ 从 `Order` 聚合根（`domain/order/model`）→ 应用服务（`application/order/service`）→ 投影链路（`infrastructure/persistent/order/projection`）逐层阅读
 - **换回 RocketMQ**：把 `event.bus` 改为 `rocketmq`，对比 `RocketMQConfig` 与 `KafkaConfig` 的差异，理解同一套领域事件如何适配两种中间件
