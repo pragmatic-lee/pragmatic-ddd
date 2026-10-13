@@ -1,10 +1,10 @@
 package io.pragmatic.ddd.mybatis.compensation;
 
+import io.pragmatic.ddd.application.compensation.CompensationRecordConflictException;
 import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
 import io.pragmatic.ddd.mybatis.MysqlTestSupport;
 import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
-import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -195,9 +195,11 @@ class MybatisCompensationLogMysqlTest {
     void record_duplicateActionKey_failsFast() {
         log.record(pending("k1"));
 
-        // 当前实现为裸 INSERT：同一 actionKey 重复登记直接主键冲突（不静默覆盖）
+        // 同一 actionKey 重复登记 → 主键冲突，翻译成框架显式异常（不静默覆盖、不静默降级）
         assertThatThrownBy(() -> log.record(pending("k1")))
-                .isInstanceOf(PersistenceException.class);
+                .isInstanceOf(CompensationRecordConflictException.class)
+                .satisfies(ex -> assertThat(((CompensationRecordConflictException) ex).getActionKey())
+                        .isEqualTo("k1"));
     }
 
     @Test

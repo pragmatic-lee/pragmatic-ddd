@@ -448,6 +448,8 @@ new CompensableCommandExecutor(
 > ⚠️ **内存模式不覆盖 JVM 崩溃**：补偿依据仅存于堆内，进程在"外部已预占、本地未落库"之间崩溃时无人释放。
 > 需要崩溃安全请切换到 durable 模式（装配 `MybatisCompensationLog` + `CompensationRelay`）——切换点**仅在装配层**，领域与应用层代码完全不变。
 
+**切换到 durable（L3）**：设置 `pragmatic.compensation.mode=durable`，并确认 `compensation_log` 表已建立（已收录于 `docker/mysql/init/01-schema.sql`）。durable 下中继每 10 秒轮询一次，把崩溃残留的 `EXECUTED` 记录补完；内存模式为默认，不装配日志与中继、零数据库依赖。设计详见 `docs/design/examples/order-compensation-l3-durable-design.md`。
+
 ## 9. 下一步
 
 - **跑通后看代码**：`KafkaConfig`（事件总线装配）→ `OrderEventTopicConfig`（topic 解析）→ `OrderEventSubscriberRegistry`（订阅者登记）→ 从 `Order` 聚合根（`domain/order/model`）→ 应用服务（`application/order/service`）→ 投影链路（`infrastructure/persistent/order/projection`）逐层阅读

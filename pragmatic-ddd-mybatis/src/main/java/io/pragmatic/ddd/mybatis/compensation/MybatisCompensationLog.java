@@ -1,10 +1,12 @@
 package io.pragmatic.ddd.mybatis.compensation;
 
+import io.pragmatic.ddd.application.compensation.CompensationRecordConflictException;
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
 import io.pragmatic.ddd.application.compensation.spi.ICompensationLog;
 import io.pragmatic.ddd.application.spi.Propagation;
 import io.pragmatic.ddd.application.spi.TransactionOperations;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Duration;
 import java.util.List;
 
@@ -17,6 +19,8 @@ import java.util.List;
  *   <li><b>原子认领</b>：{@link #markCompensating} 依赖单条
  *       {@code UPDATE ... WHERE action_key = ? AND status IN ('EXECUTED', 'FAILED')} 的受影响行数，
  *       多实例并发下同一记录只会被一个实例认领成功。</li>
+ *   <li><b>冲突 fail-fast</b>：{@link #record} 遇到主键 / 唯一键冲突时翻译成
+ *       {@link CompensationRecordConflictException}，不静默降级。</li>
  * </ul>
  *
  * @author wizard-lee
@@ -33,10 +37,17 @@ public class MybatisCompensationLog implements ICompensationLog {
 
     @Override
     public void record(CompensationRecord record) {
-        txOps.execute(() -> {
-            executor.insert(CompensationStatements.INSERT, record);
-            return null;
-        }, Propagation.REQUIRES_NEW);
+        try {
+            txOps.execute(() -> {
+                executor.insert(CompensationStatements.INSERT, record);
+                return null;
+            }, Propagation.REQUIRES_NEW);
+        } catch (RuntimeException e) {
+            if (isIntegrityConstraintViolation(e)) {
+                throw new CompensationRecordConflictException(record.actionKey(), e);
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -112,5 +123,21 @@ public class MybatisCompensationLog implements ICompensationLog {
         return txOps.execute(
                 () -> executor.releaseStaleClaims(CompensationStatements.RELEASE_STALE_CLAIMS, lease.toSeconds()),
                 Propagation.REQUIRES_NEW);
+    }
+
+    /**
+     * 沿 cause 链查找 JDBC 完整性约束违反（主键 / 唯一键冲突）。
+     * 用 JDBC 标准异常而非 Spring 的重复键异常：本模块不依赖 Spring，且该判断跨数据库通用。
+     *
+     * @param e 待检查的异常
+     * @return 是否为完整性约束冲突
+     */
+    private static boolean isIntegrityConstraintViolation(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLIntegrityConstraintViolationException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

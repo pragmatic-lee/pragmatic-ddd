@@ -37,4 +37,10 @@ public class InventoryDependencyAdapter implements IInventoryDependency {
         // 必须幂等：补偿可能被重试、被中继重放
         System.out.println("[inventory] release  reserveNo=" + reserveNo);
     }
+
+    @Override
+    public void releaseByOrder(Long orderId) {
+        // 崩溃兜底路径：拿不到正向返回的预占单号，只能按订单标识幂等释放
+        System.out.println("[inventory] releaseByOrder  orderId=" + orderId);
+    }
 }

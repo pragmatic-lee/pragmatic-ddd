@@ -145,9 +145,15 @@ public class MySqlConfig {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] frameworkOutboxMappers = resolver.getResources("classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml");
         Resource[] frameworkIdGenMappers = resolver.getResources("classpath*:io/pragmatic/ddd/mybatis/id/*.xml");
+        Resource[] frameworkCompensationMappers =
+                resolver.getResources("classpath*:io/pragmatic/ddd/mybatis/compensation/*.xml");
         Resource[] businessMappers = resolver.getResources("classpath*:mapper/**/*.xml");
 
-        Resource[] allMappers = Stream.of(frameworkIdGenMappers,frameworkOutboxMappers,businessMappers)
+        Resource[] allMappers = Stream.of(
+                        frameworkIdGenMappers,
+                        frameworkOutboxMappers,
+                        frameworkCompensationMappers,
+                        businessMappers)
                 .flatMap(Arrays::stream)
                 .toArray(Resource[]::new);
         sessionFactory.setMapperLocations(allMappers);

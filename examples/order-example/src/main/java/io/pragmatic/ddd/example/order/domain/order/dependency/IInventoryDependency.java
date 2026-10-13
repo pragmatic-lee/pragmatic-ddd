@@ -27,4 +27,11 @@ public interface IInventoryDependency {
      * @param reserveNo 预占单号
      */
     void release(String reserveNo);
+
+    /**
+     * 按订单标识释放预占（崩溃兜底用）：不依赖正向返回的预占单号，必须幂等。
+     *
+     * @param orderId 订单标识
+     */
+    void releaseByOrder(Long orderId);
 }
