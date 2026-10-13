@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.application.compensation;
 
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.ICompensationLog;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.IExternalRequirement;
@@ -17,13 +18,13 @@ import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /**
- * 默认内存补偿范围实现（状态机本体）。
+ * 默认内存补偿范围实现（状态机本体，框架内部）。
  * 登记已成功执行的命令，判失败则逆序、不中断地补偿；重试采用短退避；
  * 开启 durable 时以 WAL 全程落日志，rollback 先原子认领。
  *
  * @author wizard-lee
  */
-final class LocalCompensationScope implements ICompensationScope {
+final class LocalCompensationScope {
 
     private static final Logger LOGGER = Logger.getLogger(LocalCompensationScope.class.getName());
 
@@ -59,7 +60,6 @@ final class LocalCompensationScope implements ICompensationScope {
         this.options = options;
     }
 
-    @Override
     public <A extends AggregateRoot<?>, REQ extends IExternalRequirement, R> R execute(
             CompensationCommand<A, REQ, R> command) {
         ensureOpen();
@@ -89,7 +89,6 @@ final class LocalCompensationScope implements ICompensationScope {
         }
     }
 
-    @Override
     public void commit() {
         ensureOpen();
         this.committed = true;
@@ -106,7 +105,6 @@ final class LocalCompensationScope implements ICompensationScope {
         markFailed(key, reason);
     }
 
-    @Override
     public void rollback(Throwable cause) {
         ensureOpen();
         this.rolledBack = true;
@@ -119,7 +117,6 @@ final class LocalCompensationScope implements ICompensationScope {
         }
     }
 
-    @Override
     public void close() {
         // 仅清理登记项，不抛异常（契约约束）
         this.executed.clear();

@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.application.compensation;
 
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.base.BrokenRuleAggregateException;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class LocalCompensationScopeTest {
     @Test
     void commit_allForwardSucceeded_noCompensation() {
         List<String> journal = new ArrayList<>();
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
 
         scope.execute(new RecordingAction("a", journal).command());
         scope.execute(new RecordingAction("b", journal).command());
@@ -38,7 +39,7 @@ class LocalCompensationScopeTest {
         List<String> journal = new ArrayList<>();
         BrokenRuleAggregateException rule = new BrokenRuleAggregateException(List.of());
 
-        assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
+        assertThatThrownBy(() -> CompensationTemplate.run(inMemoryScope(), scope -> {
             scope.execute(new RecordingAction("a", journal).command());
             scope.execute(new RecordingAction("b", journal).command());
             scope.execute(new RecordingAction("c", journal).command());
@@ -54,7 +55,7 @@ class LocalCompensationScopeTest {
     void execute_secondForwardFails_onlyCompensatesFirst() {
         List<String> journal = new ArrayList<>();
 
-        assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
+        assertThatThrownBy(() -> CompensationTemplate.run(inMemoryScope(), scope -> {
             scope.execute(new RecordingAction("a", journal).command());
             scope.execute(new RecordingAction("b", journal).failOnExecute().command());
         })).isInstanceOf(IllegalStateException.class);
@@ -70,7 +71,7 @@ class LocalCompensationScopeTest {
                 new RecordingAction("a", journal).failOnCompensate().withPolicy(NO_RETRY).command();
         IllegalStateException original = new IllegalStateException("boom");
 
-        assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
+        assertThatThrownBy(() -> CompensationTemplate.run(inMemoryScope(), scope -> {
             scope.execute(a);
             throw original;
         }))
@@ -85,7 +86,7 @@ class LocalCompensationScopeTest {
     void rollback_singleFailure_doesNotInterruptRemaining() {
         List<String> journal = new ArrayList<>();
 
-        assertThatThrownBy(() -> CompensationTemplate.run(new LocalCompensationManager(), scope -> {
+        assertThatThrownBy(() -> CompensationTemplate.run(inMemoryScope(), scope -> {
             scope.execute(new RecordingAction("a", journal).command());
             scope.execute(new RecordingAction("b", journal).failOnCompensate().withPolicy(NO_RETRY).command());
             scope.execute(new RecordingAction("c", journal).command());
@@ -105,13 +106,13 @@ class LocalCompensationScopeTest {
     @Test
     void commit_thenAnyFurtherLifecycleCall_throwsStateException_andNoCompensation() {
         List<String> journal = new ArrayList<>();
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
         scope.execute(new RecordingAction("a", journal).command());
         scope.commit();
 
         assertThatThrownBy(() -> scope.rollback(new IllegalStateException("late")))
                 .isInstanceOf(CompensationStateException.class);
-        assertThatThrownBy(() -> scope.commit())
+        assertThatThrownBy(scope::commit)
                 .isInstanceOf(CompensationStateException.class);
         assertThatThrownBy(() -> scope.execute(new RecordingAction("b", journal).command()))
                 .isInstanceOf(CompensationStateException.class);
@@ -120,7 +121,7 @@ class LocalCompensationScopeTest {
 
     @Test
     void rollback_thenCommit_throwsStateException() {
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
         scope.rollback(new IllegalStateException("boom"));
 
         assertThatThrownBy(scope::commit).isInstanceOf(CompensationStateException.class);
@@ -129,7 +130,7 @@ class LocalCompensationScopeTest {
     @Test
     void duplicateActionKey_failsFast() {
         List<String> journal = new ArrayList<>();
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
         scope.execute(new RecordingAction("a", journal).command());
 
         assertThatThrownBy(() -> scope.execute(new RecordingAction("a", journal).command()))
@@ -140,11 +141,10 @@ class LocalCompensationScopeTest {
     @Test
     void nestedScopes_innerCompensatedBeforeOuter() {
         List<String> journal = new ArrayList<>();
-        ICompensationManager manager = new LocalCompensationManager();
 
-        assertThatThrownBy(() -> CompensationTemplate.run(manager, outer -> {
+        assertThatThrownBy(() -> CompensationTemplate.run(inMemoryScope(), outer -> {
             outer.execute(new RecordingAction("outer-a", journal).command());
-            CompensationTemplate.run(manager, inner -> {
+            CompensationTemplate.run(inMemoryScope(), inner -> {
                 inner.execute(new RecordingAction("inner-a", journal).command());
                 throw new IllegalStateException("inner boom");
             });
@@ -158,7 +158,7 @@ class LocalCompensationScopeTest {
     @Test
     void confirmableAction_receivesConfirmInForwardOrder_othersDoNot() {
         List<String> journal = new ArrayList<>();
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
 
         scope.execute(confirmable("c1", journal));
         scope.execute(new RecordingAction("p", journal).command());
@@ -174,7 +174,7 @@ class LocalCompensationScopeTest {
     void durable_recordsPendingBeforeExecute_andMarksExecutedAfter() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
 
         scope.execute(new RecordingAction("a", journal).command());
         scope.commit();
@@ -190,7 +190,7 @@ class LocalCompensationScopeTest {
     void durable_rollback_marksCompensated() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
 
         scope.execute(new RecordingAction("a", journal).command());
         scope.rollback(new IllegalStateException("boom"));
@@ -206,7 +206,7 @@ class LocalCompensationScopeTest {
     void durable_commit_marksConfirmed() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
 
         scope.execute(new RecordingAction("a", journal).command());
         scope.commit();
@@ -220,7 +220,7 @@ class LocalCompensationScopeTest {
     void commit_confirmFails_recordStaysConfirmed_neverCompensated() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
 
         scope.execute(failingConfirmable("c", journal));
         scope.commit();
@@ -240,7 +240,7 @@ class LocalCompensationScopeTest {
     void durable_nullEntityId_failsFast_beforeAnySideEffect() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
         RecordingAction action = new RecordingAction("a", journal);
         CompensationCommand<TestAggregate, TestRequirement, String> command =
                 new CompensationCommand<>(action, new TestAggregate(null), action.requirement());
@@ -257,7 +257,7 @@ class LocalCompensationScopeTest {
     void durable_emptyPayload_failsFast_beforeAnySideEffect() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
-        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+        LocalCompensationScope scope = CompensationScopes.begin(log, CompensationOptions.durableMode());
         // 静态工厂不覆写 payload → 默认空串
         ICompensableAction<TestAggregate, TestRequirement, String> noPayload = CompensableActions.of(
                 TestRequirement.class,
@@ -283,7 +283,7 @@ class LocalCompensationScopeTest {
     @Test
     void inMemory_nullEntityId_executesNormally() {
         List<String> journal = new ArrayList<>();
-        ICompensationScope scope = new LocalCompensationManager().begin();
+        LocalCompensationScope scope = inMemoryScope();
         RecordingAction action = new RecordingAction("a", journal);
 
         scope.execute(new CompensationCommand<>(action, new TestAggregate(null), action.requirement()));
@@ -299,7 +299,7 @@ class LocalCompensationScopeTest {
         List<String> journal = new ArrayList<>();
         // 范围默认策略为 1 次尝试：动作未声明策略时应回落到它，而非动作内建的 3 次
         CompensationOptions options = new CompensationOptions(false, NO_RETRY);
-        ICompensationScope scope = new LocalCompensationManager().begin(options);
+        LocalCompensationScope scope = CompensationScopes.begin(null, options);
         CompensationCommand<TestAggregate, TestRequirement, String> command =
                 new RecordingAction("a", journal).failOnCompensate().withoutPolicy().command();
 
@@ -310,6 +310,10 @@ class LocalCompensationScopeTest {
 
         // 仅一次补偿尝试（回落到 1 次），否则会是三次
         assertThat(journal).containsExactly("execute:a", "compensate:a");
+    }
+
+    private static LocalCompensationScope inMemoryScope() {
+        return CompensationScopes.begin(null, CompensationOptions.inMemory());
     }
 
     private static String key(String code) {

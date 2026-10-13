@@ -1,6 +1,6 @@
 package io.pragmatic.ddd.mybatis.compensation;
 
-import io.pragmatic.ddd.application.compensation.CompensationStatus;
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
 import io.pragmatic.ddd.mybatis.MysqlTestSupport;
 import io.pragmatic.ddd.mybatis.NoopTransactionOperations;

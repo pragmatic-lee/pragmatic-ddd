@@ -14,7 +14,7 @@
     <resultMap id="CompensationRecordResult" type="io.pragmatic.ddd.application.compensation.spi.CompensationRecord">
         <constructor>
             <idArg column="action_key" javaType="java.lang.String"/>
-            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.CompensationStatus"
+            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.spi.CompensationStatus"
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="handler" javaType="java.lang.String"/>
             <arg column="payload" javaType="java.lang.String"/>

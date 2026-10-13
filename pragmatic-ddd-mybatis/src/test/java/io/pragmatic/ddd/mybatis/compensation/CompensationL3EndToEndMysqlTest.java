@@ -1,21 +1,21 @@
 package io.pragmatic.ddd.mybatis.compensation;
 
-import io.pragmatic.ddd.application.compensation.CompensationCommand;
+import io.pragmatic.ddd.application.ICommandExecutor;
+import io.pragmatic.ddd.application.compensation.CompensableCommandExecutor;
 import io.pragmatic.ddd.application.compensation.CompensationOptions;
-import io.pragmatic.ddd.application.compensation.CompensationStatus;
-import io.pragmatic.ddd.application.compensation.CompensationTemplate;
 import io.pragmatic.ddd.application.compensation.ICompensableAction;
-import io.pragmatic.ddd.application.compensation.ICompensationManager;
-import io.pragmatic.ddd.application.compensation.LocalCompensationManager;
 import io.pragmatic.ddd.application.compensation.relay.CompensationRelay;
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.ICompensationHandler;
 import io.pragmatic.ddd.base.AggregateRoot;
 import io.pragmatic.ddd.base.BrokenRuleRegistry;
 import io.pragmatic.ddd.base.IExternalRequirement;
+import io.pragmatic.ddd.base.IRule;
 import io.pragmatic.ddd.mybatis.MysqlTestSupport;
 import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
 import io.pragmatic.ddd.operation.OperationRegistry;
+import io.pragmatic.ddd.repository.IRepository;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -74,11 +75,13 @@ class CompensationL3EndToEndMysqlTest {
     @Test
     void successPath_allConfirmed_andRelayDoesNotCompensate() {
         List<String> journal = new ArrayList<>();
-        ICompensationManager manager = new LocalCompensationManager(log, CompensationOptions.durableMode());
+        CompensableCommandExecutor executor = executor(
+                new L3Action<>(ReserveRequirement.class, "p1", journal),
+                new L3Action<>(PaymentRequirement.class, "p2", journal));
 
-        CompensationTemplate.run(manager, scope -> {
-            scope.execute(command(new L3Action("a1", "p1", journal)));
-            scope.execute(command(new L3Action("a2", "p2", journal)));
+        executor.execute(new L3Aggregate(), null, null, a -> {
+            a.declare(new ReserveRequirement());
+            a.declare(new PaymentRequirement());
         });
 
         assertThat(journal).containsExactly("execute:a1", "execute:a2");
@@ -95,11 +98,13 @@ class CompensationL3EndToEndMysqlTest {
     @Test
     void midwayFailure_reverseCompensatesExecuted_andFailedForwardStaysSuspended() {
         List<String> journal = new ArrayList<>();
-        ICompensationManager manager = new LocalCompensationManager(log, CompensationOptions.durableMode());
+        CompensableCommandExecutor executor = executor(
+                new L3Action<>(ReserveRequirement.class, "p1", journal),
+                new L3Action<>(PaymentRequirement.class, "p2", journal).failOnExecute());
 
-        assertThatThrownBy(() -> CompensationTemplate.run(manager, scope -> {
-            scope.execute(command(new L3Action("a1", "p1", journal)));
-            scope.execute(command(new L3Action("a2", "p2", journal).failOnExecute()));
+        assertThatThrownBy(() -> executor.execute(new L3Aggregate(), null, null, a -> {
+            a.declare(new ReserveRequirement());
+            a.declare(new PaymentRequirement());
         })).isInstanceOf(IllegalStateException.class);
 
         // 所见即所偿：a2 正向失败未登记（WAL 留在 PENDING 悬挂），只逆序补偿 a1
@@ -155,12 +160,10 @@ class CompensationL3EndToEndMysqlTest {
     @Test
     void durable_emptyPayload_failsFast_beforeAnyRowWritten() {
         List<String> journal = new ArrayList<>();
-        ICompensationManager manager = new LocalCompensationManager(log, CompensationOptions.durableMode());
-        L3Action noPayload = new L3Action("a1", "", journal);
+        CompensableCommandExecutor executor = executor(new L3Action<>(ReserveRequirement.class, "", journal));
 
-        assertThatThrownBy(() -> CompensationTemplate.run(manager, scope -> {
-            scope.execute(command(noPayload));
-        }))
+        assertThatThrownBy(() -> executor.execute(new L3Aggregate(), null, null,
+                a -> a.declare(new ReserveRequirement())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("non-empty payload");
 
@@ -168,12 +171,16 @@ class CompensationL3EndToEndMysqlTest {
         assertThat(countRows()).isZero();
     }
 
-    private String key(String code) {
-        return "L3Aggregate:1:" + code;
+    private CompensableCommandExecutor executor(ICompensableAction<?, ?, ?>... actions) {
+        return new CompensableCommandExecutor(
+                new NoOpDelegate(),
+                log,
+                CompensationOptions.durableMode(),
+                List.of(actions));
     }
 
-    private CompensationCommand<L3Aggregate, L3Requirement, String> command(L3Action action) {
-        return new CompensationCommand<>(action, new L3Aggregate(), action.requirement());
+    private String key(String code) {
+        return "L3Aggregate:1:" + code;
     }
 
     private CompensationRecord pending(String actionKey, String handler, String payload) {
@@ -218,8 +225,35 @@ class CompensationL3EndToEndMysqlTest {
         }
     }
 
-    /** 测试用外部需求：仅携带需求编码。 */
-    private record L3Requirement(String code) implements IExternalRequirement {
+    /** 落库 + 事件分发的空实现：本集成测试只关注 WAL 与中继。 */
+    private static final class NoOpDelegate implements ICommandExecutor {
+
+        @Override
+        public <ID, T extends AggregateRoot<ID>> T execute(T aggregateRoot,
+                                                           IRule<?> rule,
+                                                           IRepository<ID, T> repository,
+                                                           Consumer<T> domainLogic) {
+            domainLogic.accept(aggregateRoot);
+            return aggregateRoot;
+        }
+    }
+
+    /** 测试用外部需求 A：编码 a1。 */
+    private record ReserveRequirement() implements IExternalRequirement {
+
+        @Override
+        public String code() {
+            return "a1";
+        }
+    }
+
+    /** 测试用外部需求 B：编码 a2。 */
+    private record PaymentRequirement() implements IExternalRequirement {
+
+        @Override
+        public String code() {
+            return "a2";
+        }
     }
 
     /** 测试用聚合根桩：固定标识 1，使 actionKey 形如 {@code L3Aggregate:1:code}。 */
@@ -227,6 +261,10 @@ class CompensationL3EndToEndMysqlTest {
 
         L3Aggregate() {
             this.setEntityId(1L);
+        }
+
+        void declare(IExternalRequirement requirement) {
+            this.requireExternal(requirement);
         }
 
         @Override
@@ -241,31 +279,28 @@ class CompensationL3EndToEndMysqlTest {
     }
 
     /** 测试用可补偿动作：正向 / 逆向写入共享 journal，可配置 payload 与正向失败。 */
-    private static final class L3Action implements ICompensableAction<L3Aggregate, L3Requirement, String> {
+    private static final class L3Action<REQ extends IExternalRequirement>
+            implements ICompensableAction<L3Aggregate, REQ, String> {
 
-        private final L3Requirement requirement;
+        private final Class<REQ> requirementType;
         private final String payload;
         private final List<String> journal;
         private boolean failOnExecute;
 
-        L3Action(String code, String payload, List<String> journal) {
-            this.requirement = new L3Requirement(code);
+        L3Action(Class<REQ> requirementType, String payload, List<String> journal) {
+            this.requirementType = requirementType;
             this.payload = payload;
             this.journal = journal;
         }
 
-        L3Action failOnExecute() {
+        L3Action<REQ> failOnExecute() {
             this.failOnExecute = true;
             return this;
         }
 
-        L3Requirement requirement() {
-            return this.requirement;
-        }
-
         @Override
-        public Class<L3Requirement> requirementType() {
-            return L3Requirement.class;
+        public Class<REQ> requirementType() {
+            return this.requirementType;
         }
 
         @Override
@@ -274,12 +309,12 @@ class CompensationL3EndToEndMysqlTest {
         }
 
         @Override
-        public String execute(L3Aggregate aggregateRoot, L3Requirement requirement) {
+        public String execute(L3Aggregate aggregateRoot, REQ requirement) {
             if (this.failOnExecute) {
                 throw new IllegalStateException("execute failed: " + requirement.code());
             }
             this.journal.add("execute:" + requirement.code());
-            return "result-" + requirement.code();
+            return requirement.code();
         }
 
         @Override
@@ -289,11 +324,11 @@ class CompensationL3EndToEndMysqlTest {
 
         @Override
         public void compensate(L3Aggregate aggregateRoot, String result) {
-            this.journal.add("compensate:" + requirement.code());
+            this.journal.add("compensate:" + result);
         }
 
         @Override
-        public String payload(L3Aggregate aggregateRoot, L3Requirement requirement) {
+        public String payload(L3Aggregate aggregateRoot, REQ requirement) {
             return this.payload;
         }
     }

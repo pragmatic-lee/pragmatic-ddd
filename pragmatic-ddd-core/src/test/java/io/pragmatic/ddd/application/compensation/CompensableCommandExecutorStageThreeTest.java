@@ -119,7 +119,7 @@ class CompensableCommandExecutorStageThreeTest {
     }
 
     @Test
-    void knownBoundary_eventsCollectedInStageOne_areClearedByDelegateEntry() {
+    void eventsCollectedInDomainLogic_arePublishedByDelegate() {
         RecordingTransactionOperations txOps = new RecordingTransactionOperations();
         CountingEventManager eventManager = new CountingEventManager();
         StageRepository repository = new StageRepository(txOps, journal);
@@ -134,20 +134,20 @@ class CompensableCommandExecutorStageThreeTest {
                 "execute:reserve-inventory",
                 "apply:reserve-inventory",
                 "save");
-        // ⚠️ 已知边界：段一收集的领域事件被 delegate 入口的 clearWorkUnitState() 清空，
-        // 因此 CommandExecutor 不发布、OutboxCommandExecutor 也不会写出 outbox 行 —— 下游收不到事件。
-        // 修法（待决策）：段三不得再走 AbstractCommandExecutor#execute 的入口清场，
-        // 或把入口清场上移到应用服务层。
+        // 段二并入 delegate 的领域逻辑后，入口清场落在段一之前：段一收集的领域事件不再被清空，
+        // 随落库一并分发给订阅者（此前该事件会被 delegate 入口 clearWorkUnitState() 丢弃）
+        assertThat(eventManager.publishedCount()).isEqualTo(1);
+        // 分发完成后 delegate 的 finally 清空工作单元状态，聚合上不残留事件
         assertThat(aggregate.getDomainEvents()).isEmpty();
-        assertThat(eventManager.publishedCount()).isZero();
     }
 
     private CompensableCommandExecutor executor(ICommandExecutor delegate) {
         List<ICompensableAction<?, ?, ?>> actions = List.of(reserveAction());
         return new CompensableCommandExecutor(
                 delegate,
-                new LocalCompensationManager(),
-                new RegistryCompensationActionResolver(actions));
+                null,
+                CompensationOptions.inMemory(),
+                actions);
     }
 
     private ICompensableAction<StageThreeAggregate, ReserveRequirement, String> reserveAction() {

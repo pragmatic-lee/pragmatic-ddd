@@ -105,8 +105,9 @@ class CompensableCommandExecutorTest {
         List<ICompensableAction<?, ?, ?>> actions = List.of(reserveAction(), chargeAction());
         return new CompensableCommandExecutor(
                 new RecordingDelegate(),
-                new LocalCompensationManager(),
-                new RegistryCompensationActionResolver(actions));
+                null,
+                CompensationOptions.inMemory(),
+                actions);
     }
 
     private ICompensableAction<TestAggregate, ReserveRequirement, String> reserveAction() {

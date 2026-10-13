@@ -1,8 +1,8 @@
 package io.pragmatic.ddd.application.compensation.relay;
 
-import io.pragmatic.ddd.application.compensation.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.InMemoryCompensationLog;
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.ICompensationHandler;
 import org.junit.jupiter.api.Test;
 

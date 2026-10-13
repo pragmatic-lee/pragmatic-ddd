@@ -1,7 +1,5 @@
 package io.pragmatic.ddd.application.compensation.spi;
 
-import io.pragmatic.ddd.application.compensation.CompensationStatus;
-
 import java.time.Instant;
 
 /**

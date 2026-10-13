@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.application.compensation;
 
 import io.pragmatic.ddd.application.compensation.spi.CompensationRecord;
+import io.pragmatic.ddd.application.compensation.spi.CompensationStatus;
 import io.pragmatic.ddd.application.compensation.spi.ICompensationLog;
 
 import java.time.Duration;
