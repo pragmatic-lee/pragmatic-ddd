@@ -2,6 +2,10 @@
 
 > 把领域事件可靠地对接到 RocketMQ 4.x（Remoting）。RocketMQ 技术配置（连接、生产者、事件管理器、Topic 路由）是**应用级**的：一个应用装配一份，全部聚合共用；聚合只负责定义事件与注册订阅。
 
+::: info 使用 `pragmatic-ddd-spring-boot` 时
+本文 §2 的 `RocketMQConfig`、§5 的事件管理器注册与就绪后启动，由 `DddRocketMqAutoConfiguration` 代劳：`RocketMqProperties` 从 Spring `Environment` 按 `rocketmq.*` 绑定，默认序列化器与 `RocketMqEventManager` 自动产出，Producer 由管理器自建并随容器关闭回收（无需自己声明）。**仍然需要你自己提供的**：§3 的主题路由 `ITopicResolver`（领域知识，缺位则总线整块不装配）与 §4 的聚合订阅注册。详见 [Spring Boot Starter 集成](./../integration/spring-boot.md)。
+:::
+
 ## 1. 本质与定位
 
 RocketMQ 基础设施配置是**应用级一次装配**，不是按聚合复制的：

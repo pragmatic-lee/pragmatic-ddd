@@ -70,6 +70,7 @@ export default defineConfig({
           text: '集成模块',
           items: [
             { text: 'MyBatis 集成', link: '/integration/mybatis' },
+            { text: 'Spring Boot Starter', link: '/integration/spring-boot' },
             { text: 'RocketMQ 集成', link: '/integration/rocketmq' },
             { text: 'Kafka 集成', link: '/integration/kafka' },
             { text: '事务性发件箱（Outbox）', link: '/integration/outbox' }

@@ -11,6 +11,10 @@ Kafka 基础设施配置是**应用级一次装配**，不是按聚合复制的�
 - **不做什么**：不在每个聚合下复制一套 MQ 配置，不给每个聚合单独建 producer / consumer group。
 - **与 RocketMQ 互斥**：`KafkaConfig` 与 `RocketMQConfig` 同容器只能启用其一，靠 `event.bus` 开关切换（`@ConditionalOnProperty`），保证容器中始终只有一个 `IEventManager` Bean。
 
+::: info 使用 `pragmatic-ddd-spring-boot` 时
+本文 §2 的 `KafkaConfig`、§5 的事件管理器注册与就绪后启动，由 `DddKafkaAutoConfiguration` 代劳：`KafkaProperties` 从 Spring `Environment` 按 `kafka.*` 绑定（`bootstrap-servers` / `group` 在 starter 下有兜底默认值），默认序列化器与 `KafkaEventManager` 自动产出，延时 / 重试回投器随管理器内部启停；与 RocketMQ 的互斥同样由 `event.bus=kafka` 生效。**仍然需要你自己提供的**：§3 的主题路由 `ITopicResolver`（缺位则总线整块不装配）与 §4 的聚合订阅注册。详见 [Spring Boot Starter 集成](./../integration/spring-boot.md)。
+:::
+
 > `KafkaEventManager` 是 `IEventManager` 端口的**一种实现**。事件管理器是可插拔端口，装配时与本地线程池 `ThreadPoolEventManager`、RocketMQ 实现**三选一**——选择原则、对比与本地实现的装配见 [事件管理器装配与选择](./event-manager-config.md)。
 
 > ⚠️ **常见误区**：多聚合应用里按聚合复制 `orderKafkaConfig` / `productKafkaConfig` 各配一套是**反模式**——bootstrap 地址、消费者组、事件管理器必须全局共享，Topic 由应用级路由表统一解析。

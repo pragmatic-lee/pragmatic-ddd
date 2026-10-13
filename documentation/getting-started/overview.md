@@ -30,8 +30,8 @@ Pragmatic DDD 是一个务实可落地的领域驱动设计（DDD）框架，把
 | `pragmatic-ddd-core` | ✅ 成熟 | 核心库：实体、聚合根、规则、事件、仓储、应用服务、操作追踪、变更追踪、号段 ID |
 | `pragmatic-ddd-mybatis` | ✅ 成熟 | MyBatis 集成：枚举/JSON/集合 TypeHandler、Outbox 落库、号段 ID 生成器 |
 | `pragmatic-ddd-rocketmq` | ✅ 成熟 | RocketMQ 事件基础设施（Remoting 4.x + gRPC 5.x 双协议） |
-| `pragmatic-ddd-kafka` | ⏳ 规划中 | Kafka 集成（待开发） |
-| `pragmatic-ddd-spring-boot` | ⏳ 规划中 | Spring Boot Starter（待开发） |
+| `pragmatic-ddd-kafka` | ✅ 可用 | Kafka 事件基础设施（重试 / 死信 / 延迟 topic 策略） |
+| `pragmatic-ddd-spring-boot` | ✅ 可用 | Spring Boot Starter：桥接适配器 + 8 个自动配置 + 就绪后生命周期，详见 [Spring Boot Starter 集成](/integration/spring-boot) |
 | `pragmatic-ddd-bom` | ✅ 成熟 | BOM，统一版本管理 |
 
 ## 4. 核心概念层级
@@ -81,7 +81,7 @@ AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 
 - **JDK 17+**：框架大量使用 Java 17 特性（record、sealed、pattern matching、switch 表达式）
 - **构建工具**：Maven（通过 BOM 管理版本）
-- **可选集成**：MyBatis 3.x、RocketMQ 4.x/5.x、Spring Boot 3.x
+- **可选集成**：MyBatis 3.x、RocketMQ 4.x/5.x、Kafka、Spring Boot 3.2.x+（Spring Boot 项目可直接引 `pragmatic-ddd-spring-boot` 自动装配，见 [Spring Boot Starter 集成](/integration/spring-boot)）
 
 ## 6. Maven 坐标与 BOM
 

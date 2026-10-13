@@ -58,3 +58,54 @@ TypeHandler 通过 `TypeHandlerContext`（record）装配，非配置文件：
 | `enumRules` | `Map<Class<?>, EnumRule>` 枚举策略 |
 | `voTypes` | `Collection<Class<?>>` VO 类型 |
 | `collections` | `CollectionElementTypeConfig` 集合配置 |
+
+## 5. Kafka 配置
+
+前缀：`kafka`（通过 `ConfigurationBinder.bind(IConfigurationSource, "kafka", KafkaProperties.class)` 绑定）
+
+完整键清单与默认值见 [Kafka 集成 §2.1 统一配置](/integration/kafka)。
+
+::: tip 在 Spring Boot Starter 下的差异
+模块层把 `kafka.bootstrap-servers` / `kafka.group` 视为必填；`DddKafkaAutoConfiguration` 绑定时会传入兜底默认值（`127.0.0.1:9092` / `pragmatic_ddd_consumer`），因此这两项不写也不会报错。使用 starter 时建议显式配置，避免默默连到本机。
+:::
+
+## 6. Spring Boot Starter 配置项
+
+### 6.1 事件总线切换
+
+| 键 | 取值 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `event.bus` | `rocketmq` / `kafka` | `rocketmq` | 两条总线装配互斥；缺省即生效 RocketMQ，选 Kafka 必须显式写 `kafka`；写其他值则两个总线装配均不生效 |
+
+### 6.2 Outbox 链路（前缀 `pragmatic-ddd.outbox`）
+
+由 `DddOutboxProperties`（官方 `@ConfigurationProperties`）绑定：
+
+| 键 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | 关掉后 Outbox 整块不装配，补偿链路连带不装配 |
+| `publisher-pool-size` | int | `4` | 提交后主动推送器的线程池大小 |
+| `poll-interval` | Duration | `5m` | 兜底轮询间隔 |
+| `grace` | Duration | `30s` | 认领宽限期，仅轮询创建时间早于 `now - grace` 的 PENDING 记录 |
+| `batch-size` | int | `200` | 单轮认领的最大记录数 |
+| `max-attempts` | int | `10` | 单条记录最大重试次数，超过转死信 |
+
+后四项经 `toRelayConfig()` 映射为 `OutboxRelayConfig(pollInterval, grace, batchSize, maxAttempts)`。Duration 支持 ISO-8601 与简单写法（`30s` / `5m`）。
+
+### 6.3 补偿链路（前缀 `pragmatic-ddd.compensation`）
+
+| 键 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | 关掉后不装配 `CompensableCommandExecutor` |
+| `mode` | String | `in-memory` | `durable` 且容器中存在 `ICompensationLog` Bean 时才走持久化模式，否则静默回落内存模式 |
+
+### 6.4 键名前缀与绑定规则
+
+| 前缀 | 绑定机制 | relaxed binding |
+| --- | --- | --- |
+| `pragmatic-ddd.outbox.*` | Spring 官方 `@ConfigurationProperties` | 支持（`poll-interval` / `pollInterval` 等效） |
+| `event.bus`、`rocketmq.*`、`kafka.*` | 框架 `ConfigurationBinder`（读 `IConfigurationSource`） | **不支持**，仅 kebab-case 精确匹配 |
+
+::: danger 易错点
+`rocketmq.name-server` 写成 `rocketmq.nameServer` 读不到；`event.bus` 系列键**没有** `pragmatic-ddd.` 前缀（历史遗留口径，以当前代码为准）。完整装配链路与生效条件见 [Spring Boot Starter 集成](/integration/spring-boot)。
+:::

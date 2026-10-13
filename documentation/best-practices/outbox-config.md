@@ -4,6 +4,10 @@
 > 本文以订单示例（`Order`）为承载，给出可直接复用的落地骨架，其他聚合把 `Order` 换成目标聚合即可（举一反三）。
 > 模式原理见 [事务性发件箱](./../integration/outbox.md)，本文只讲"怎么把代码装配对"。
 
+::: info 使用 `pragmatic-ddd-spring-boot` 时
+本文 §3 的五个 Bean，以及 `OutboxCommandExecutor`、`Supplier<IUnitOfWork>` 与工作线程池、`TransactionOperations`、就绪后启动，均由 `DddOutboxAutoConfiguration` / `DddTransactionAutoConfiguration` 自动产出，无需手写 `@Configuration`（生效条件与开关见 [Spring Boot Starter 集成](./../integration/spring-boot.md)）。本文因此转为**原理说明与排查手册**：自动装配不生效时按 §3 的装配顺序回溯条件；有意完全自控 Outbox 链路时，按本文声明同类型 Bean 即可逐点覆盖。
+:::
+
 ## 1. 本质与边界
 
 `OutboxConfig` 是一个**纯装配类**，职责是把框架提供的五个协作者组装成 Spring Bean：

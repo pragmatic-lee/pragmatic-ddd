@@ -35,10 +35,10 @@ features:
     details: ExternalDependencyDeclaration 声明式解耦外部系统，组合式（ExternalCall）与继承式（Abstract*Gateway）双模式并存，覆盖从简单到复杂的全谱场景。
   - icon: 📨
     title: 可靠领域事件与有序编排
-    details: 基于依赖边图的订阅者执行顺序声明（偏序声明 / 注册期循环检测 / 无依赖分支可并行），配合双重条件过滤、即时/延迟事件分离与事务性发件箱（RocketMQ，Kafka 规划中）。
+    details: 基于依赖边图的订阅者执行顺序声明（偏序声明 / 注册期循环检测 / 无依赖分支可并行），配合双重条件过滤、即时/延迟事件分离与事务性发件箱（RocketMQ / Kafka 双总线）。
   - icon: 🔌
     title: 框架而非脚手架
-    details: 核心库零业务侵入，SPI 端口驱动，MyBatis / RocketMQ 实现已落地、Kafka / Spring Boot 集成规划中，实现可插拔替换，可被任意 Java 项目引用。
+    details: 核心库零业务侵入，SPI 端口驱动，MyBatis / RocketMQ / Kafka 实现已落地并提供 Spring Boot Starter 自动装配，实现可插拔替换，可被任意 Java 项目引用。
 ---
 
 ## 为什么是 Pragmatic DDD

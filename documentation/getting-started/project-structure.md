@@ -273,6 +273,10 @@ infrastructure/
         └── OrderReconciliationConfig.java      # 订单专属对账接线（登记聚合仓储）
 ```
 
+::: tip 引入 `pragmatic-ddd-spring-boot` 后
+上述目录中的**框架胶水类**（事件总线装配、Outbox 链路、事务抽象、号段机制装配、就绪后启动）可整体省去，只保留 `MySqlConfig`、`RedisConfig`、`ElasticSearchConfig` 等环境与聚合专属配置；业务仍需提供的领域知识 Bean（`ITopicResolver`、`IdGeneratorDefinition`、聚合 `TypeHandlerContext`）不受影响。对照清单见 [Spring Boot Starter 集成 §10 接入前后对比](./../integration/spring-boot.md)。
+:::
+
 #### 2.3.4 使用前须知（基础设施层）
 
 > ⚠️ **实现类不加 `Impl` 后缀**：如 `OrderRepository`（而非 `OrderRepositoryImpl`）。

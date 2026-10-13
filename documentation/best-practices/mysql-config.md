@@ -2,6 +2,10 @@
 
 > 本文档介绍使用 Pragmatic DDD 进行 MySQL 数据访问配置的最佳实践与常见反模式：先明确配置类的定位与职责边界（通用 `MySqlConfig` 与各聚合专属 TypeHandler 配置如何分工），再说明 SqlSessionFactory 的构建要点与 TypeHandler 体系的多聚合装配机制，最后落到事务管理器与配置规范。
 
+::: info 与 `pragmatic-ddd-spring-boot` 的关系
+本文主张的「显式声明、不依赖自动配置」只适用于 **DataSource / SqlSessionFactory / SqlSessionTemplate / 事务管理器 / TypeHandler** 这一层，它们属于环境与聚合专属决策，starter 不接管、也不重造。starter 只**消费**本配置产出的 `PlatformTransactionManager` 与 `SqlSessionTemplate`，把上层的 `TransactionOperations`、Outbox、号段 ID 等通用装配接起来（见 [Spring Boot Starter 集成](./../integration/spring-boot.md)）。两条路线不冲突：**数据源与聚合 TypeHandler 显式装配，框架胶水交给 starter**；只是无论哪条路线，都要按 §2.3 把框架的 `io/pragmatic/ddd/mybatis/**/*.xml` 纳入 Mapper 扫描路径。
+:::
+
 ## 1. MySQL 配置设计原则
 
 ### 1.1 通用装配与聚合专属分离
@@ -38,7 +42,7 @@ public DataSource dataSource(DataSourceProperties properties) {
 
 ### 1.3 不依赖自动配置，显式声明
 
-配置类显式声明数据源，不依赖 Spring Boot 的 `DataSourceAutoConfiguration`（需在启动类中排除）。这样数据源、会话工厂、事务管理器由本配置全权掌控，避免隐式自动装配带来的不可预期性。
+配置类显式声明数据源，不依赖 Spring Boot 的 `DataSourceAutoConfiguration`（需在启动类中排除）。这样数据源、会话工厂、事务管理器由本配置全权掌控，避免隐式自动装配带来的不可预期性。该结论与是否引入 `pragmatic-ddd-spring-boot` 无关：starter 不创建数据源，只以容器内已有的 `PlatformTransactionManager` / `SqlSessionTemplate` 为前置条件挂接上层装配。
 
 ### 1.4 配置与使用分离
 
