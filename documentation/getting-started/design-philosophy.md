@@ -92,7 +92,7 @@ public void payment() {
 | 事件会累积 | 应用层发布后调用 `clearWorkUnitState()` | 同一事件被重复发布 |
 | 反射扫描注册 | 注册表子类必须为 `public` | 包级私有导致消息码 / 操作码未注册 |
 
-> ⚠️ **重要约束**：`OperationRegistry` / `BrokenRuleRegistry` 子类必须是 `public`。框架在 `io.pragmatic.ddd.base` 包内通过反射 `field.get(null)` 扫描子类的 `static` 字段自动注册；若子类为包级私有，`IllegalAccessException` 被静默吞掉，导致消息码未注册（`getRuleDescription` 返回空串）或操作码未注册（`TriggeredOperations.put` 抛 `OperationException`）。
+> ⚠️ **重要约束**：`OperationRegistry` / `BrokenRuleRegistry` 子类必须是 `public`。框架在 `io.pragmatic.ddd.base` 包内通过反射 `field.get(null)` 扫描子类的 `static` 字段自动注册；若子类为包级私有，`IllegalAccessException` 被静默吞掉，导致消息码未注册（`getRuleDescription` 返回空串）或操作码未注册（`TriggeredOperations.record` 抛 `OperationException`）。
 
 ---
 

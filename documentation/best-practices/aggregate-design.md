@@ -123,11 +123,11 @@ IEntity<T>                    实体标识契约（暴露 getEntityId）
 
 **操作追踪**
 
-`recordOperation(EntityOperation)`（`protected`）记录操作；`hasOperation` / `hasAllOperations` / `hasAnyOperation`（`public`）供应用层判断已触发操作。
+`recordOperation(EntityOperation)`（`protected`）记录本次工作单元的因果操作（单值）；`hasOperation` / `hasAnyOperation` / `hasExceptOperation`（`public`）供应用层判断当前因果操作。
 
 **工作单元清理**
 
-`clearWorkUnitState()` 清空已收集事件、已触发操作与因果指针，由应用层在事件分发完成后调用。
+`clearWorkUnitState()` 清空已收集事件、外部需求与因果操作，由应用层在事件分发完成后调用。
 
 ### 2.4 父类要求聚合根提供的东西
 

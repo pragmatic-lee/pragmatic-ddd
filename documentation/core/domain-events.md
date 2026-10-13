@@ -91,11 +91,11 @@ public class OrderPaidEvent extends BaseDomainEvent {
 
 | 方法 | 说明 |
 |------|------|
-| `collectEvent(BaseDomainEvent)` | 收集即时事件，自动回填 `operationCode`（取最近 `recordOperation`）与 `version` |
+| `collectEvent(BaseDomainEvent)` | 收集即时事件，自动回填 `operationCode`（取本次记录的因果操作）与 `version` |
 | `collectEvent(BaseDomainEvent, EntityOperation)` | 收集即时事件，显式指定成因操作（优先级最高） |
 | `collectEvent(Supplier<IDomainEvent>)` | 收集延迟事件，发布时惰性求值并回填 `operationCode`/`version` |
 | `getDomainEvents()` | 返回本工作单元已收集事件的不可变快照 |
-| `clearWorkUnitState()` | 清空事件、操作与因果指针，由应用层在分发完成后调用 |
+| `clearWorkUnitState()` | 清空事件、外部需求与因果操作，由应用层在分发完成后调用 |
 | `triggerDataSyncHook()` | 持久化前钩子，默认空实现，供子类发"聚合自身"异构事件 |
 
 **基类能力**：`TriggeredEvents` 是底层收集容器，区分即时事件与延迟事件。
@@ -114,7 +114,7 @@ public class OrderPaidEvent extends BaseDomainEvent {
 - `getNewVersion()` 幂等：首次调用返回 `oldVersion + 1` 并缓存，后续调用返回同一值。因此同一工作单元内所有事件共享同一版本号。
 - `collectEvent(BaseDomainEvent)` 在未 `recordOperation` 且实体启用了 operation 体系时抛 `OperationException`：
 
-> ⚠️ **重要约束**：启用 operation 体系的聚合根，调用无操作参数的 `collectEvent` 前必须先 `recordOperation`，或改用 `collectEvent(event, operation)` 显式指定成因。原因：`operationCode` 默认取 `lastRecordedOperation`；当 `operationRegistry()` 非空却无记录操作时，`resolveOperationCode()` 主动抛 `OperationException`，避免事件因果归属缺失。
+> ⚠️ **重要约束**：启用 operation 体系的聚合根，调用无操作参数的 `collectEvent` 前必须先 `recordOperation`，或改用 `collectEvent(event, operation)` 显式指定成因。原因：`operationCode` 默认取本次工作单元记录的因果操作（`TriggeredOperations.current`，单值）；当 `operationRegistry()` 非空却无记录操作时，`resolveOperationCode()` 主动抛 `OperationException`，避免事件因果归属缺失。
 
 - 延迟事件（`Supplier` 形式）在 `getEvents()`/`drain()` 时刻才构造，可捕获 flush 时最新实体状态；但 `materializeDeferred()` 保证整个生命周期只物化一次，根治重复读取产生不同实例的问题。
 - `TriggeredEvents` 非线程安全，单线程工作单元内使用。

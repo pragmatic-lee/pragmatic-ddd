@@ -217,6 +217,26 @@ class LocalCompensationScopeTest {
     }
 
     @Test
+    void commit_confirmFails_recordStaysConfirmed_neverCompensated() {
+        List<String> journal = new ArrayList<>();
+        InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
+        ICompensationScope scope = new LocalCompensationManager(log).begin(CompensationOptions.durableMode());
+
+        scope.execute(failingConfirmable("c", journal));
+        scope.commit();
+        scope.close();
+
+        // Confirm 失败不得把已提交记录打成 FAILED：否则中继会撤销已生效的外部动作
+        assertThat(log.get(key("c")).status()).isEqualTo(CompensationStatus.CONFIRMED);
+        assertThat(journal).containsExactly(
+                "record:" + key("c") + ":PENDING", "execute:c", "markExecuted:" + key("c"),
+                "markConfirmed:" + key("c"), "confirm:c", "markFailed:" + key("c"));
+        // 该记录不进入中继的两类扫描结果
+        assertThat(log.findExecuted(10)).isEmpty();
+        assertThat(log.findRetryableFailed(10, 5)).isEmpty();
+    }
+
+    @Test
     void durable_nullEntityId_failsFast_beforeAnySideEffect() {
         List<String> journal = new ArrayList<>();
         InMemoryCompensationLog log = new InMemoryCompensationLog(journal);
@@ -298,6 +318,19 @@ class LocalCompensationScopeTest {
 
     private static CompensationCommand<TestAggregate, TestRequirement, String> confirmable(String code,
                                                                                           List<String> journal) {
+        return confirmable(code, journal, false);
+    }
+
+    /** Confirm 抛异常的变体：用于验证 Confirm 失败不得令记录转为可补偿状态。 */
+    private static CompensationCommand<TestAggregate, TestRequirement, String> failingConfirmable(
+            String code,
+            List<String> journal) {
+        return confirmable(code, journal, true);
+    }
+
+    private static CompensationCommand<TestAggregate, TestRequirement, String> confirmable(String code,
+                                                                                          List<String> journal,
+                                                                                          boolean failOnConfirm) {
         TestRequirement requirement = new TestRequirement(code);
         IConfirmableAction<TestAggregate, TestRequirement, String> action = new IConfirmableAction<>() {
             @Override
@@ -334,6 +367,9 @@ class LocalCompensationScopeTest {
             @Override
             public void confirm(TestAggregate aggregateRoot, String result) {
                 journal.add("confirm:" + requirement.code());
+                if (failOnConfirm) {
+                    throw new IllegalStateException("confirm failed: " + requirement.code());
+                }
             }
         };
         return new CompensationCommand<>(action, new TestAggregate(), requirement);

@@ -161,8 +161,9 @@
 | 接口 | `IEntityOperation` | 操作接口契约 |
 | 类 | `EntityOperation` | 操作描述符（code + description，final） |
 | 抽象类 | `OperationRegistry` | 操作注册表基类（反射自动注册） |
-| 类 | `TriggeredOperations` | 操作收集器 |
+| 类 | `TriggeredOperations` | 因果操作持有者（单值） |
 | 异常 | `OperationException` | 操作异常 |
+| 异常 | `MultipleOperationsException` | 一次工作单元记录多个不同因果操作（继承 `OperationException`） |
 
 ## 10. 变更追踪（track）
 

@@ -88,7 +88,8 @@ public void cancel(String reason) {
 - **反射自动注册，子类必须 `public`**：基类构造时先注册内置 `NEW` / `DELETE`，再扫描子类声明的 `static EntityOperation` 字段自动注册。子类包级私有时反射 `field.get(null)` 失败被**静默吞掉**——症状**延后**到业务方法 `recordOperation` 时才以 `OperationException`（"operation not found in OperationRegistry"）暴露，比规则注册表更晚发现。
 - **`EntityOperation` 仅按 `code` 判等**：注册表以 `code` 为 key，`description` 不参与判等。
 - **`operationRegistry()` 返回 `null` 即不启用操作体系**：此时 `recordOperation` / `hasOperation*` 抛 `OperationException`，但 `collectEvent` 仍可用（事件 `operationCode` 为 `null`）。这与规则注册表不同——`brokenRuleRegistry()` **不能**返回 `null`。
-- **已触发操作判断**：聚合根提供 `hasOperation` / `hasAnyOperation` / `hasAllOperations`，供规则激活条件与业务分支判断（见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md) §4.4.3）。
+- **一次工作单元只记一个操作**：`TriggeredOperations` 为单值持有者；`recordOperation` 重复记录同一 `code` 幂等，记录第二个不同 `code` 立即抛 `MultipleOperationsException`（继承 `OperationException`）。复合意图应拆分为多个命令（saga）或命名为新的原子操作。
+- **因果操作判断**：聚合根提供 `hasOperation` / `hasAnyOperation` / `hasExceptOperation`，供规则激活条件与业务分支判断（见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md) §4.4.3）。
 
 ## 6. 常见反模式
 

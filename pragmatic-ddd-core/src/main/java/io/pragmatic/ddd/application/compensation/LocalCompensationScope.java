@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 /**
  * 默认内存补偿范围实现（状态机本体）。
@@ -23,6 +24,8 @@ import java.util.function.Consumer;
  * @author wizard-lee
  */
 final class LocalCompensationScope implements ICompensationScope {
+
+    private static final Logger LOGGER = Logger.getLogger(LocalCompensationScope.class.getName());
 
     /** 一次已成功执行的命令：持有命令与正向产出，规避泛型擦除。 */
     private record Executed<A extends AggregateRoot<?>, REQ extends IExternalRequirement, R>(
@@ -92,8 +95,15 @@ final class LocalCompensationScope implements ICompensationScope {
         this.committed = true;
         for (Executed<?, ?, ?> item : this.executed) {
             markConfirmed(item.command().actionKey());   // [L3] 置终态，永不补偿（修复中继误补偿）
-            item.confirmIfNeeded(reason -> markFailed(item.command().actionKey(), reason));
+            item.confirmIfNeeded(reason -> this.onConfirmFailure(item, reason));
         }
+    }
+
+    /** Confirm 失败：告警后上报失败。记录已置 CONFIRMED 终态，日志层守卫使其不会转为 FAILED，中继不会据此撤销。 */
+    private void onConfirmFailure(Executed<?, ?, ?> item, String reason) {
+        String key = item.command().actionKey();
+        LOGGER.severe("compensation confirm failed, actionKey=" + key + ": " + reason);
+        markFailed(key, reason);
     }
 
     @Override

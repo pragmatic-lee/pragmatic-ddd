@@ -231,14 +231,14 @@ protected abstract OperationRegistry operationRegistry();     // 返回操作注
 
 | 方法 | 可见性 | 说明 |
 | --- | --- | --- |
-| `recordOperation(EntityOperation)` | `protected` | 记录一次操作，更新多值集合与因果指针 |
-| `hasOperation / hasAllOperations / hasAnyOperation` | `public` | 判断已触发操作是否包含指定项 |
+| `recordOperation(EntityOperation)` | `protected` | 记录本次工作单元的因果操作（单值），委托 `TriggeredOperations.record` |
+| `hasOperation / hasAnyOperation / hasExceptOperation` | `public` | 判断当前因果操作（分别：等于 / 属于集合 / 存在且不属于集合） |
 
 **工作单元清理**：
 
 | 方法 | 说明 |
 | --- | --- |
-| `clearWorkUnitState()` | 清空领域事件、已触发操作与因果指针；应用层在事件分发完成后调用 |
+| `clearWorkUnitState()` | 清空领域事件、外部需求与因果操作；应用层在事件分发完成后调用 |
 
 #### 关键约束
 
@@ -338,12 +338,13 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
 | `ValueObject` | `equalityComponents()` 内容 + **精确类相同** | 子类间即使成分相同也不等 |
 | `MessageCode` | `localCode` | `description` 不影响相等与去重 |
 
-### 3.2 事件成因与操作指针
+### 3.2 事件成因与单值因果
 
 - 每次业务变更：**先 `recordOperation`，后 `collectEvent`**。
-- `collectEvent(BaseDomainEvent)` 的 `operationCode` 取自 `lastRecordedOperation`（单值因果指针）。
+- `collectEvent(BaseDomainEvent)` 的 `operationCode` 取自本次工作单元记录的因果操作（`TriggeredOperations.current`，单值）。
+- 一次工作单元只记录一个操作：重复记录同 `code` 幂等，记录第二个不同 `code` 抛 `MultipleOperationsException`；`hasAllOperations(...)` 已移除。
 - 延迟事件 `collectEvent(Supplier)` 在**发布时**捕获成因并回填 `operationCode` / `version`，适用于 ID 构造期未知（自增/回填）的场景。
-- 显式 `collectEvent(event, operation)` 可解耦事件成因与"最近操作"。
+- 显式 `collectEvent(event, operation)` 可解耦事件成因与"当前操作"。
 
 ### 3.3 版本号与乐观锁
 

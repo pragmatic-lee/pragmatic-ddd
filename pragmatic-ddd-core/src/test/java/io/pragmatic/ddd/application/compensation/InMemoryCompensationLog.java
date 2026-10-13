@@ -64,6 +64,10 @@ public final class InMemoryCompensationLog implements ICompensationLog {
     @Override
     public synchronized void markFailed(String actionKey, String reason) {
         journal.add("markFailed:" + actionKey);
+        CompensationRecord current = records.get(actionKey);
+        if (current == null || !failable(current.status())) {
+            return;
+        }
         claimedAt.remove(actionKey);
         replaceStatus(actionKey, CompensationStatus.FAILED, 1);
     }
@@ -142,6 +146,12 @@ public final class InMemoryCompensationLog implements ICompensationLog {
 
     private boolean confirmable(CompensationStatus status) {
         return status == CompensationStatus.EXECUTED || status == CompensationStatus.COMPENSATING;
+    }
+
+    private boolean failable(CompensationStatus status) {
+        return status == CompensationStatus.PENDING
+                || status == CompensationStatus.EXECUTED
+                || status == CompensationStatus.COMPENSATING;
     }
 
     private List<CompensationRecord> findByStatus(CompensationStatus status, int limit) {

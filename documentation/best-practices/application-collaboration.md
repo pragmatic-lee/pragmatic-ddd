@@ -333,7 +333,7 @@ public void payWithDeduction(Long orderId, Long inventoryId, PayOrderInput input
 
 ## 5. 关键机制与避坑
 
-- **业务方法内"先 `recordOperation` 后 `collectEvent`"**：事件 `operationCode` 自动取最近一次操作；顺序颠倒抛 `OperationException`。详见 [操作注册表设计](./operation-registry-design.md)。
+- **业务方法内"先 `recordOperation` 后 `collectEvent`"**：事件 `operationCode` 自动取本次记录的因果操作（单值）；顺序颠倒抛 `OperationException`。详见 [操作注册表设计](./operation-registry-design.md)。
 - **延迟事件（ID 后生成必用）**：构造期 `entityId` 为 `null`，用 `() -> XxxEvent.buildEvent(this)`，发布时才读真实 ID。详见 [事件建模指南](./event-modeling.md)。
 - **事务边界**：`@Transactional` 由调用方（WriteService 方法 / 执行器）负责，仓储不管理事务。
 - **异常响应映射**：`BrokenRuleException`（单条）/ `BrokenRuleAggregateException`（全量）/ `PragmaticException`（兜底），用 `@RestControllerAdvice` 统一映射：

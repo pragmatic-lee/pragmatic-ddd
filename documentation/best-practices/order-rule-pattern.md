@@ -180,7 +180,7 @@ IActiveRuleCondition.of((order, old) -> old != null
 
 #### 4.4.3 基于操作（Operation）激活 ⭐
 
-当聚合启用了领域操作体系（`operationRegistry()` 返回非 null 注册表），校验上下文由「本次工作单元触发了哪个 `Operation`」决定。规则激活条件直接读取聚合根的已触发操作，让**同一条不变量只在特定操作发生时参与校验**。
+当聚合启用了领域操作体系（`operationRegistry()` 返回非 null 注册表），校验上下文由「本次工作单元记录了哪个 `Operation`」决定。规则激活条件直接读取聚合根本次记录的因果操作，让**同一条不变量只在特定操作发生时参与校验**。
 
 前置：聚合根实现 `operationRegistry()` 并返回 `OrderOperationRegistry.INSTANCE`（含 `CREATE / PAY / CANCEL / SHIP` 等操作码），业务方法内 `recordOperation(...)`。规则容器持有的是 `AggregateRoot`，因此 `IActiveRuleCondition.status(order, ...)` 中 `order` 可直接调用 `hasOperation*`：
 
@@ -205,10 +205,10 @@ this.addRule(
                         ? ActiveStatus.ACTIVE
                         : ActiveStatus.INACTIVE));
 
-// 仅当本次同时触发支付与发货（罕见，演示 hasAllOperations）时校验
+// 除加/减订单项外的操作都激活（黑名单 gate）
 IActiveRuleCondition.of(order ->
-        order.hasAllOperations(OrderOperationRegistry.PAY,
-                OrderOperationRegistry.SHIP)
+        order.hasExceptOperation(OrderOperationRegistry.ADD_ITEM,
+                OrderOperationRegistry.REMOVE_ITEM)
                 ? ActiveStatus.ACTIVE
                 : ActiveStatus.INACTIVE);
 ```
@@ -217,11 +217,15 @@ IActiveRuleCondition.of(order ->
 
 | 方法 | 含义 | 激活表达式骨架 |
 |------|------|---------------|
-| `hasOperation(op)` | 已触发指定操作 | 单操作专属校验 |
-| `hasAnyOperation(op...)` | 已触发任一操作 | 多个操作共享同一校验 |
-| `hasAllOperations(op...)` | 已触发全部操作 | 多操作同时满足才校验 |
+| `hasOperation(op)` | 当前因果操作 == `op` | 单操作专属校验 |
+| `hasAnyOperation(op...)` | 当前因果操作 ∈ 集合 | 多个操作共享同一校验 |
+| `hasExceptOperation(op...)` | 当前因果操作存在且 ∉ 集合 | 除指定操作外都要激活（黑名单 gate） |
 
-> ⚠️ **重要约束**：基于 Operation 的激活依赖聚合根已调用 `recordOperation(...)`。`satisfiesRule` 在业务方法执行后即触发校验，而 `recordOperation` 发生在业务方法内——因此 `hasOperation` 读取到的正是本次工作单元已触发的操作。若聚合根未启用操作体系（`operationRegistry()` 返回 `null`），调用 `hasOperation` 会抛 `OperationException`，切勿在规则内对未启用操作的聚合使用此激活方式。
+> ⚠️ **重要约束**：一次工作单元只允许记录一个操作——重复记录同一 `code` 幂等，记录第二个不同 `code` 抛 `MultipleOperationsException`；`hasAllOperations(...)` 已移除（单值下"全部指定操作"恒不成立）。
+
+> ⚠️ **重要约束**：`hasExceptOperation(...)` 是黑名单 gate，对**所有操作生效（含将来新增的操作码）**；未记录操作时返回 `false`（保守方向：没有操作就不激活）。若操作集合小且稳定，用 `hasAnyOperation(...)` 列全（白名单）更安全。
+
+> ⚠️ **重要约束**：基于 Operation 的激活依赖聚合根已调用 `recordOperation(...)`。`satisfiesRule` 在业务方法执行后即触发校验，而 `recordOperation` 发生在业务方法内——因此 `hasOperation` 读取到的正是本次工作单元记录的因果操作。若聚合根未启用操作体系（`operationRegistry()` 返回 `null`），调用 `hasOperation` 会抛 `OperationException`，切勿在规则内对未启用操作的聚合使用此激活方式。
 
 > 💡 **范式对比**：`hasOperation` 判定的是「本次工作单元执行了什么操作」，属**过程维度**；4.4.1 的状态判定是「聚合当前处在什么状态」，属**结果维度**。两者可叠加：例如「仅当本次触发 `CANCEL` 且当前状态为 `CANCELLED` 时校验取消原因」。
 

@@ -18,7 +18,8 @@
                  typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
             <arg column="handler" javaType="java.lang.String"/>
             <arg column="payload" javaType="java.lang.String"/>
-            <arg column="attempts" javaType="int"/>
+            <!-- 基本类型须用 _int 别名：MyBatis 的 "int" 别名解析为 java.lang.Integer，与 record 的 int 形参不匹配 -->
+            <arg column="attempts" javaType="_int"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
@@ -75,6 +76,7 @@
             last_error = #{reason},
             updated_at = CURRENT_TIMESTAMP(3)
         WHERE action_key = #{actionKey}
+          AND status IN ('PENDING', 'EXECUTED', 'COMPENSATING')
     </update>
 
     <update id="markConfirmed">
