@@ -1,0 +1,8 @@
+io.pragmatic.ddd.springboot.configuration.DddConfigurationAutoConfiguration
+io.pragmatic.ddd.springboot.transaction.DddTransactionAutoConfiguration
+io.pragmatic.ddd.springboot.rocketmq.DddRocketMqAutoConfiguration
+io.pragmatic.ddd.springboot.kafka.DddKafkaAutoConfiguration
+io.pragmatic.ddd.springboot.outbox.DddOutboxAutoConfiguration
+io.pragmatic.ddd.springboot.id.DddIdGeneratorAutoConfiguration
+io.pragmatic.ddd.springboot.compensation.DddCompensationAutoConfiguration
+io.pragmatic.ddd.springboot.lifecycle.DddLifecycleAutoConfiguration

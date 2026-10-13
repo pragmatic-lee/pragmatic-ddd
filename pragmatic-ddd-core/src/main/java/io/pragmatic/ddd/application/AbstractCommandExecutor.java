@@ -11,7 +11,10 @@ import java.util.function.Consumer;
  * 子类仅实现 persistAndDispatch 钩子决定如何落库与分发事件。
  *
  * <p>模板不感知事务：事务边界完全由子类的 persistAndDispatch 自行决定。
- * 事件清空置于 finally 中，保证落库失败、事务回滚或事件发布失败时聚合根上不残留脏事件。
+ * 事件清空置于 finally 中，保证落库失败、事务回滚、规则拒绝或事件发布失败时聚合根上不残留脏事件。</p>
+ *
+ * <p>不做入口清场：聚合构造 / 加载后即处于本次工作单元的起点，
+ * 入口清场会误清构造器中已收集的操作、领域事件与外部需求。</p>
  *
  * @author wizard-lee
  */
@@ -24,23 +27,21 @@ public abstract class AbstractCommandExecutor implements ICommandExecutor {
             IRepository<ID, T> repository,
             Consumer<T> domainLogic) {
 
-        // 0. 入口清场：保证本次执行起点无残留操作/事件，避免上次异常路径的脏状态触发误判
-        aggregateRoot.clearWorkUnitState();
-
-        // 1. 执行领域逻辑
-        domainLogic.accept(aggregateRoot);
-
-        // 2. 规则校验：未通过则直接短路，事务不开、一个库都不碰
-        if (rule != null && !aggregateRoot.satisfiesRule(rule)) {
-            aggregateRoot.throwBrokenRuleException();
-        }
-
         try {
+            // 1. 执行领域逻辑（构造器里已收集的操作 / 事件 / 外部需求一并保留，不做事前清场）
+            domainLogic.accept(aggregateRoot);
+
+            // 2. 规则校验：未通过则直接短路，事务不开、一个库都不碰。
+            //    置于 try 内，保证规则拒绝时 finally 仍能清理本次工作单元状态
+            if (rule != null && !aggregateRoot.satisfiesRule(rule)) {
+                aggregateRoot.throwBrokenRuleException();
+            }
+
             // 3+4. 落库 + 事件分发（由子类决定事务边界与分发出路）
             persistAndDispatch(aggregateRoot, repository);
         } finally {
-            // 5. 事件清空：落库成功、事务回滚、事件发布失败时都必须执行，
-            //    否则聚合根上会残留脏事件，被后续重试一并带入
+            // 5. 事件清空：落库成功、事务回滚、规则拒绝、事件发布失败时都必须执行，
+            //    否则聚合根上会残留脏事件与操作，被后续命令一并带入（含复用同一实例的场景）
             aggregateRoot.clearWorkUnitState();
         }
 

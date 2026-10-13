@@ -121,9 +121,9 @@ class CommandExecutorTest {
         assertThat(txOps.executeCount()).isZero();
         assertThat(repository.saveCount()).isZero();
         assertThat(eventManager.publishedCount()).isZero();
-        // 已知边界：规则校验在进入 try 之前短路，聚合根上仍保留领域逻辑已收集的事件。
-        // 该场景下聚合根不会被提交（命令已被拒绝），事件不会被分发，由调用方整体丢弃该实例。
-        assertThat(aggregate.getDomainEvents()).isNotEmpty();
+        // 规则校验置于 try 内：拒绝时 finally 仍清理由领域逻辑收集的事件。
+        // 命令已被拒绝，不会提交也不会分发，聚合根状态保持干净（可安全丢弃或复用）
+        assertThat(aggregate.getDomainEvents()).isEmpty();
     }
 
     @Test

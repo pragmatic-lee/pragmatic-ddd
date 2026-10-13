@@ -16,7 +16,105 @@
     <packaging>jar</packaging>
 
     <name>Pragmatic DDD Spring Boot Starter</name>
-    <description>Spring Boot auto-configuration starter for Pragmatic DDD (planned)</description>
+    <description>Spring Boot auto-configuration starter for Pragmatic DDD: bridges the framework's
+        Spring-agnostic ports (TransactionOperations, statement executors, configuration source) and
+        auto-assembles the transaction / outbox / event-bus / id / compensation chains.</description>
 
-    <!-- This module is planned for future implementation -->
+    <properties>
+        <spring-boot.version>3.2.4</spring-boot.version>
+        <mybatis-spring.version>3.0.4</mybatis-spring.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- 仅管理 Spring Boot 生态版本，向下兼容使用方，不锁死高版本 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- 框架内核（必选） -->
+        <dependency>
+            <groupId>io.pragmatic.ddd</groupId>
+            <artifactId>pragmatic-ddd-core</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+        <!-- Spring Boot 自动装配底座（引入 spring-context / spring-core 等） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- 事务桥接所需：PlatformTransactionManager / TransactionTemplate（使用方自带 JDBC 时已在容器） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- MyBatis 持久化桥接（可选：无此依赖时 outbox / id 自动装配整块跳过） -->
+        <dependency>
+            <groupId>io.pragmatic.ddd</groupId>
+            <artifactId>pragmatic-ddd-mybatis</artifactId>
+            <version>2.0.0</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>${mybatis-spring.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 事件总线实现（可选：按 event.bus 择一生效） -->
+        <dependency>
+            <groupId>io.pragmatic.ddd</groupId>
+            <artifactId>pragmatic-ddd-rocketmq</artifactId>
+            <version>2.0.0</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.pragmatic.ddd</groupId>
+            <artifactId>pragmatic-ddd-kafka</artifactId>
+            <version>2.0.0</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 配置元数据处理器：为 pragmatic-ddd.* 属性提供 IDE 补全 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Lombok（实体 / 配置类简化） -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>

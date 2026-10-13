@@ -134,8 +134,8 @@ class CompensableCommandExecutorStageThreeTest {
                 "execute:reserve-inventory",
                 "apply:reserve-inventory",
                 "save");
-        // 段二并入 delegate 的领域逻辑后，入口清场落在段一之前：段一收集的领域事件不再被清空，
-        // 随落库一并分发给订阅者（此前该事件会被 delegate 入口 clearWorkUnitState() 丢弃）
+        // 构造器与领域逻辑收集的事件均保留：随落库一并分发给订阅者
+        // （此前 delegate 入口的 clearWorkUnitState() 会把它们清空，现已移除入口清场）
         assertThat(eventManager.publishedCount()).isEqualTo(1);
         // 分发完成后 delegate 的 finally 清空工作单元状态，聚合上不残留事件
         assertThat(aggregate.getDomainEvents()).isEmpty();

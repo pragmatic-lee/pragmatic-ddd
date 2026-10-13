@@ -2,6 +2,7 @@ package io.pragmatic.ddd.mybatis.compensation;
 
 import io.pragmatic.ddd.application.ICommandExecutor;
 import io.pragmatic.ddd.application.compensation.CompensableCommandExecutor;
+import io.pragmatic.ddd.application.compensation.CompensationActionRegistry;
 import io.pragmatic.ddd.application.compensation.CompensationOptions;
 import io.pragmatic.ddd.application.compensation.ICompensableAction;
 import io.pragmatic.ddd.application.compensation.relay.CompensationRelay;
@@ -176,7 +177,7 @@ class CompensationL3EndToEndMysqlTest {
                 new NoOpDelegate(),
                 log,
                 CompensationOptions.durableMode(),
-                List.of(actions));
+                new CompensationActionRegistry(List.of(actions)));
     }
 
     private String key(String code) {
