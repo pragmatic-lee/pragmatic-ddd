@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.pragmatic.ddd</groupId>
         <artifactId>pragmatic-ddd-parent</artifactId>
-        <version>1.0.0</version>
+        <version>2.0.0</version>
         <relativePath>../pragmatic-ddd-parent</relativePath>
     </parent>
 
@@ -22,7 +22,7 @@
         <dependency>
             <groupId>io.pragmatic.ddd</groupId>
             <artifactId>pragmatic-ddd-core</artifactId>
-            <version>2.0.0</version>
+            <version>${pragmatic-ddd.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.rocketmq</groupId>
@@ -69,14 +69,6 @@
                     <!-- 默认只跑纯单元（unit），集成测试(integration)需显式 -Dgroups=integration 开启 -->
                     <excludedGroups>integration</excludedGroups>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

@@ -6,7 +6,7 @@
 
     <groupId>io.pragmatic.ddd</groupId>
     <artifactId>pragmatic-ddd-parent</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <name>Pragmatic DDD Parent</name>
@@ -26,7 +26,7 @@
             <id>wizard</id>
             <name>Wizard Lee</name>
             <email>lee.bmw@foxmail.com</email>
-            <url>https://gitee.com/wizard-lee/pragmatic-ddd</url>
+            <url>https://github.com/pragmatic-lee</url>
             <organization>Pragmatic DDD</organization>
             <roles>
                 <role>architect</role>
@@ -38,7 +38,8 @@
     <scm>
         <url>https://github.com/pragmatic-lee/pragmatic-ddd</url>
         <connection>scm:git:https://github.com/pragmatic-lee/pragmatic-ddd.git</connection>
-        <developerConnection>scm:git:https://github.com/pragmatic-lee/pragmatic-ddd.git</developerConnection>
+        <developerConnection>scm:git:git@github.com:pragmatic-lee/pragmatic-ddd.git</developerConnection>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
@@ -47,6 +48,9 @@
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+
+        <!-- 发布列车版本：BOM 中的模块版本与模块间依赖版本统一引用此属性，单一来源 -->
+        <pragmatic-ddd.version>2.0.0</pragmatic-ddd.version>
 
         <!-- Dependency versions (third-party only; internal module versions live in pragmatic-ddd-bom) -->
         <fastjson2.version>2.0.53</fastjson2.version>
@@ -159,6 +163,47 @@
     </dependencyManagement>
 
     <build>
+        <!--
+            源码包与 Javadoc 包：Maven Central 要求随主制品一并发布，故在父 POM 统一声明，
+            由全部子模块继承并绑定，子模块无需重复声明。
+            pom 打包的模块（parent / bom / examples）由插件自身安全跳过。
+        -->
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven-source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <encoding>UTF-8</encoding>
+                    <charset>UTF-8</charset>
+                    <docencoding>UTF-8</docencoding>
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -185,32 +230,6 @@
                     <configuration>
                         <argLine>-Dfile.encoding=UTF-8</argLine>
                     </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-source-plugin</artifactId>
-                    <version>${maven-source-plugin.version}</version>
-                    <executions>
-                        <execution>
-                            <id>attach-sources</id>
-                            <goals>
-                                <goal>jar-no-fork</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>${maven-javadoc-plugin.version}</version>
-                    <executions>
-                        <execution>
-                            <id>attach-javadocs</id>
-                            <goals>
-                                <goal>jar</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

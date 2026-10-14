@@ -27,7 +27,7 @@
             <dependency>
                 <groupId>io.pragmatic.ddd</groupId>
                 <artifactId>pragmatic-ddd-bom</artifactId>
-                <version>2.0.0</version>
+                <version>${pragmatic-ddd.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

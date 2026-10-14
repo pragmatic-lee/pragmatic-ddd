@@ -11,7 +11,16 @@
 
     <name>Pragmatic DDD</name>
     <description>Pragmatic Domain-Driven Design Framework — aggregator root (build only, not published to Central).</description>
-    <url>https://github.com/lixiaojing/pragmatic-ddd</url>
+    <url>https://github.com/pragmatic-lee/pragmatic-ddd</url>
+
+    <properties>
+        <!--
+            聚合器仅用于本地/CI 构建，不作为制品发布。
+            本 POM 无 <parent>，拿不到 pragmatic-ddd-parent 中的发布配置与 distributionManagement，
+            若不跳过，deploy 阶段会因缺少仓库定义而中断。
+        -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
 
     <modules>
         <module>pragmatic-ddd-parent</module>
