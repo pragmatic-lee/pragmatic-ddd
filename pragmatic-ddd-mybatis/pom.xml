@@ -16,9 +16,7 @@
     <packaging>jar</packaging>
 
     <name>Pragmatic DDD MyBatis</name>
-    <description>MyBatis integration helper for Pragmatic DDD entities and repositories (planned)</description>
-
-    <!-- This module is planned for future implementation -->
+    <description>MyBatis integration helper for Pragmatic DDD entities and repositories</description>
 
     <dependencies>
         <dependency>

@@ -12,7 +12,7 @@
 #   ./install-local.sh --run-tests     # 安装时执行单元测试（默认 -DskipTests 跳过测试执行）
 #
 # 说明：
-#   - 各业务模块 <parent> 指向最小化父 POM pragmatic-ddd-parent:1.0.0，
+#   - 各业务模块 <parent> 指向最小化父 POM pragmatic-ddd-parent（版本见其 <version>），
 #     在 reactor 内由 Maven 统一解析，无需预先单独安装父 POM。
 #   - 使用 `-pl <模块> -am` 时，Maven 会先构建并安装被依赖的模块（如 core），顺序无需手动维护。
 #   - 默认不构建 examples（根 POM 将其置于 -Pexamples profile），仅安装框架 7 个模块。
@@ -26,9 +26,9 @@ MODULES=(
     "pragmatic-ddd-bom"        # 版本清单（仅管理内部模块版本），依赖 parent
     "pragmatic-ddd-core"       # 核心库，依赖 parent
     "pragmatic-ddd-rocketmq"   # RocketMQ 集成，依赖 parent + core
-    "pragmatic-ddd-kafka"      # Kafka 集成（planned），依赖 parent + core
-    "pragmatic-ddd-mybatis"    # MyBatis 集成（planned），依赖 parent + core
-    "pragmatic-ddd-spring-boot" # Spring Boot starter（planned），依赖 parent
+    "pragmatic-ddd-kafka"      # Kafka 集成，依赖 parent + core
+    "pragmatic-ddd-mybatis"    # MyBatis 集成，依赖 parent + core
+    "pragmatic-ddd-spring-boot" # Spring Boot starter，依赖 parent
 )
 
 WITH_EXAMPLES="false"

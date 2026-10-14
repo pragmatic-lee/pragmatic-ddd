@@ -21,8 +21,8 @@
 - 若本机无 `~/.m2` 之外的特别配置，安装完成后可用 `mvn -v` 确认环境，再验证本地仓库：
 
 ```bash
-# 验证是否已安装成功（应能看到 io/pragmatic/ddd 相关坐标）
-ls ~/.m2/repository/io/pragmatic/ddd/pragmatic-ddd-core/2.0.0/
+# 验证是否已安装成功（应能看到 com/pragmatic-ddd 相关坐标）
+ls ~/.m2/repository/com/pragmatic-ddd/pragmatic-ddd-core/2.0.0/
 ```
 
 > 该脚本还支持选择性安装与连带示例构建，详见仓库根目录 `install-local.sh` 头部注释，或查看 [仓库安装到本地仓库说明](../../README.md#安装到本地仓库)。
