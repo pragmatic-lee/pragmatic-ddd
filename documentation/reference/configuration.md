@@ -96,14 +96,20 @@ TypeHandler 通过 `TypeHandlerContext`（record）装配，非配置文件：
 
 | 键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `enabled` | boolean | `true` | 关掉后不装配 `CompensableCommandExecutor` |
-| `mode` | String | `in-memory` | `durable` 且容器中存在 `ICompensationLog` Bean 时才走持久化模式，否则静默回落内存模式 |
+| `enabled` | boolean | `true` | 由自动配置类上的条件注解独占（不进 `DddCompensationProperties`）；关掉后不装配 `CompensableCommandExecutor` |
+| `mode` | String | `in-memory` | 由 `DddCompensationProperties` 绑定；`durable` 时嵌套子块自动装配 `ICompensationStatementExecutor`、`ICompensationLog`、`CompensationRelay` 与轮询调度，前提是 classpath 有 `pragmatic-ddd-mybatis` 且容器有 `SqlSessionTemplate` |
+| `relay-poll-interval` | Duration | `10s` | durable 中继轮询间隔；必须为正，否则启动即失败 |
+
+::: warning 边界与回落
+- 中继的批量上限（100）、重试次数（5）与认领租约（5min）是 core `CompensationRelay` 的内部常量，**不可外部化**。
+- `mode=durable` 但底座缺失时回落 `in-memory` 并打一次 WARN；有日志但无 `ICompensationHandler` 时不挂中继并 WARN。两类缺失均不再静默降级。
+:::
 
 ### 6.4 键名前缀与绑定规则
 
 | 前缀 | 绑定机制 | relaxed binding |
 | --- | --- | --- |
-| `pragmatic-ddd.outbox.*` | Spring 官方 `@ConfigurationProperties` | 支持（`poll-interval` / `pollInterval` 等效） |
+| `pragmatic-ddd.outbox.*`、`pragmatic-ddd.compensation.*` | Spring 官方 `@ConfigurationProperties` | 支持（`poll-interval` / `pollInterval` 等效） |
 | `event.bus`、`rocketmq.*`、`kafka.*` | 框架 `ConfigurationBinder`（读 `IConfigurationSource`） | **不支持**，仅 kebab-case 精确匹配 |
 
 ::: danger 易错点

@@ -12,9 +12,9 @@
 
 | 类别 | 内容 | 上提前（使用方手写） | 上提后 |
 | --- | --- | --- | --- |
-| 桥接适配 | `TransactionOperations` ↔ Spring 事务、`IConfigurationSource` ↔ `Environment`、Outbox / 号段语句执行器 ↔ `SqlSessionTemplate` | 3 个 `Spring*` 类 + 逐键搬运的配置源 | 由 starter 提供（补偿语句执行器未上提，见 §9.4） |
-| 装配流程 | 配置源、事务、事件总线、Outbox 七个 Bean、号段 ID、补偿装饰器 | 100+ 行 `@Bean` 方法 | 8 个 AutoConfiguration |
-| 启动时机 | 应用就绪后再拉起事件收发与兜底轮询 | 多个 `ApplicationRunner` | 1 个 `DddStartupLifecycle` |
+| 桥接适配 | `TransactionOperations` ↔ Spring 事务、`IConfigurationSource` ↔ `Environment`、Outbox / 号段 / 补偿语句执行器 ↔ `SqlSessionTemplate` | 3 个 `Spring*` 类 + 逐键搬运的配置源 | 4 个 `Spring*` 类 + 1 个配置源，共 5 个 bridge 适配器 |
+| 装配流程 | 配置源、事务、事件总线、Outbox 七个 Bean、号段 ID、补偿装饰器（durable 时含 WAL 日志、中继与调度） | 100+ 行 `@Bean` 方法 | 8 个 AutoConfiguration |
+| 启动时机 | 应用就绪后再拉起事件收发与兜底轮询 | 多个 `ApplicationRunner` | 2 个 `SmartLifecycle`：`DddStartupLifecycle` 与 durable 专用的 `CompensationRelayLifecycle` |
 
 ### 1.2 模块依赖与 optional 矩阵
 
@@ -25,7 +25,7 @@ starter 对集成模块全部使用 `<optional>true</optional>`，靠 classpath 
 | `pragmatic-ddd-core` | compile（必选） | — |
 | `spring-boot-autoconfigure` | compile | — |
 | `org.springframework:spring-tx` | optional | 无 `PlatformTransactionManager` 则事务链不装配（通常由 `spring-boot-starter-jdbc` 带入） |
-| `pragmatic-ddd-mybatis` / `mybatis-spring` | optional | Outbox、号段 ID 两块装配整块跳过 |
+| `pragmatic-ddd-mybatis` / `mybatis-spring` | optional | Outbox、号段 ID 两块装配整块跳过；durable 补偿子块也不装配（补偿主链回落内存模式并告警） |
 | `pragmatic-ddd-rocketmq` | optional | `event.bus=rocketmq` 时事件总线不装配 |
 | `pragmatic-ddd-kafka` | optional | `event.bus=kafka` 时事件总线不装配 |
 
@@ -104,11 +104,14 @@ DddIdGeneratorAutoConfiguration          号段执行器 / 分配器 / 注册中
         ▼
 DddCompensationAutoConfiguration         把 OutboxCommandExecutor 装饰为可补偿执行器
         │
+        └─ DurableCompensationConfiguration（嵌套子块，mode=durable 才装配）
+                                         补偿语句执行器 / WAL 日志 / 中继 / 轮询调度器 / 生命周期
+        │
         ▼
 DddLifecycleAutoConfiguration            容器就绪后按序 start()
 ```
 
-其中 `DddOutboxAutoConfiguration` 与 `DddIdGeneratorAutoConfiguration` 显式声明 `after = DddTransactionAutoConfiguration`。
+显式的顺序约束只有三处：`DddOutboxAutoConfiguration` 与 `DddIdGeneratorAutoConfiguration` 声明 `after = DddTransactionAutoConfiguration`，`DddCompensationAutoConfiguration` 声明 `after = DddOutboxAutoConfiguration`（它需要装饰 Outbox 的成品，见 §9.7）。
 
 ## 4. 生效条件矩阵（排查首选）
 
@@ -120,7 +123,8 @@ DddLifecycleAutoConfiguration            容器就绪后按序 start()
 | `DddKafkaAutoConfiguration` | `KafkaEventManager`、`IEventManager` | 存在 `ITopicResolver` | `event.bus=kafka`（**必须显式**） | `KafkaProperties`、`IEventSerializer`、`IEventManager` |
 | `DddOutboxAutoConfiguration` | `MybatisOutboxStore`、`SqlSessionTemplate` | 同时存在 `SqlSessionTemplate`、`TransactionOperations`、`IEventSerializer`、`IEventManager` | `pragmatic-ddd.outbox.enabled`，缺省生效 | `IOutboxStatementExecutor`、`IOutboxStore`、两个线程池、`EagerOutboxPublisher`、`OutboxRelay`、`OutboxCommandExecutor`、`Supplier<IUnitOfWork>` |
 | `DddIdGeneratorAutoConfiguration` | `DbSegmentAllocator`、`SqlSessionTemplate` | 存在 `SqlSessionTemplate`、`TransactionOperations` | 无（**没有开关**） | `IIdSegmentStatementExecutor`、`IIdSegmentAllocator`、`IdGeneratorRegistry` |
-| `DddCompensationAutoConfiguration` | 无 | 存在 `OutboxCommandExecutor` 且至少一个 `ICompensableAction` | `pragmatic-ddd.compensation.enabled`，缺省生效 | `CompensationActionRegistry`、`CompensableCommandExecutor` |
+| `DddCompensationAutoConfiguration` | 无 | 存在 `OutboxCommandExecutor` 且至少一个 `ICompensableAction` | `pragmatic-ddd.compensation.enabled`，缺省生效；排在 Outbox 之后 | `CompensationActionRegistry`、`CompensableCommandExecutor` |
+| └ `DurableCompensationConfiguration`（嵌套） | `MybatisCompensationLog` | `SqlSessionTemplate`（中继与调度另需 `ICompensationHandler`） | `pragmatic-ddd.compensation.mode=durable`（**必须显式**） | `ICompensationStatementExecutor`、`ICompensationLog`、`CompensationRelay`、`dddCompensationRelayScheduler`、`CompensationRelayLifecycle` |
 | `DddLifecycleAutoConfiguration` | 无 | 无（两类协作者均可缺位） | 无 | `DddStartupLifecycle` |
 
 ::: tip 条件缺一会怎样
@@ -164,6 +168,8 @@ public IdGeneratorDefinition orderIdGeneratorDefinition() {
 
 动作本身（如库存预占的逆操作）由业务提供并声明为 Bean，装配点收敛在 starter，领域层与应用服务不感知补偿。
 
+启用 durable 时还需为每个需崩溃后兜底的动作各提供一个 `ICompensationHandler`（按 `handler` 编码路由，全局唯一）；缺失时 WAL 照写但不挂中继（见 §9.4）。
+
 ### 5.4 持久化底座
 
 `PlatformTransactionManager` 与 `SqlSessionTemplate` 由官方自动配置或自建配置提供（见 §9.3），并按 §9.1 把框架 Mapper XML 纳入扫描。
@@ -190,7 +196,7 @@ public IEventSerializer eventSerializer() {
 | `event.bus=kafka` / `rocketmq` | 缺省 rocketmq | 两条总线装配互斥，容器内永远只有一个 `IEventManager` |
 
 ::: warning 没有开关的两处
-`DddIdGeneratorAutoConfiguration` 无 `enabled` 属性；outbox 的两个线程池（`dddOutboxPublisherExecutor`、`dddOutboxRelayScheduler`）与 `Supplier<IUnitOfWork>` 工厂（`outboxUnitOfWorkFactory`）**未标 `@ConditionalOnMissingBean`**，无法单点替换，只能通过 `pragmatic-ddd.outbox.enabled=false` 关掉整块后自行装配。
+`DddIdGeneratorAutoConfiguration` 无 `enabled` 属性；线程池类 Bean（outbox 的 `dddOutboxPublisherExecutor`、`dddOutboxRelayScheduler` 与 durable 的 `dddCompensationRelayScheduler`）与 `Supplier<IUnitOfWork>` 工厂（`outboxUnitOfWorkFactory`）**未标 `@ConditionalOnMissingBean`**，无法单点替换；outbox 部分只能通过 `pragmatic-ddd.outbox.enabled=false` 关掉整块后自行装配。
 :::
 
 ### 6.3 排除整类：`spring.autoconfigure.exclude`
@@ -210,7 +216,8 @@ spring.autoconfigure.exclude=io.pragmatic.ddd.springboot.outbox.DddOutboxAutoCon
 | `event.bus` | `@ConditionalOnProperty` | 取值 `rocketmq`（缺省生效）/ `kafka`（需显式）；**无 `pragmatic-ddd.` 前缀** |
 | `pragmatic-ddd.outbox.*` | 官方 `@ConfigurationProperties` | `enabled`、`publisher-pool-size`（4）、`poll-interval`（5m）、`grace`（30s）、`batch-size`（200）、`max-attempts`（10）；Duration 支持 ISO-8601 与简单写法（`30s` / `5m`） |
 | `pragmatic-ddd.compensation.enabled` | `@ConditionalOnProperty` | 缺省 true |
-| `pragmatic-ddd.compensation.mode` | `@Value`，默认 `in-memory` | `durable` 且容器中存在 `ICompensationLog` Bean 时才走持久化模式 |
+| `pragmatic-ddd.compensation.mode` | `DddCompensationProperties`，默认 `in-memory` | `durable` 时嵌套子块自动装配 WAL 日志与中继；底座缺失时告警回落 `in-memory`（见 §9.4） |
+| `pragmatic-ddd.compensation.relay-poll-interval` | `DddCompensationProperties`，默认 `10s` | durable 中继轮询间隔，Duration 支持简单写法；必须为正，否则启动即失败 |
 | `rocketmq.*` | 框架 `ConfigurationBinder` | `name-server`、`proxy-addr`、`producer-group`、`consumer-group`、`retry-times-when-send-failed`、`send-msg-timeout`、`compress-msg-body-over-howmuch`、`default-delay-level`、`max-reconsume-times`；**无 `pragmatic-ddd.` 前缀** |
 | `kafka.*` | 框架 `ConfigurationBinder` | 缺省回退 `bootstrap-servers=127.0.0.1:9092`、`group=pragmatic_ddd_consumer`；**无 `pragmatic-ddd.` 前缀** |
 
@@ -220,15 +227,15 @@ spring.autoconfigure.exclude=io.pragmatic.ddd.springboot.outbox.DddOutboxAutoCon
 
 ## 8. 生命周期：就绪后启动
 
-`DddStartupLifecycle` 实现 `SmartLifecycle`，`getPhase()` 取 `Integer.MAX_VALUE - 1024`，保证在所有普通单例初始化完成后才启动：
+`DddStartupLifecycle` 实现 `SmartLifecycle`，`getPhase()` 取 `Integer.MAX_VALUE - 1024`，保证在所有普通单例初始化完成后才启动；durable 的 `CompensationRelayLifecycle` 取 `-512`，`SmartLifecycle` 按 phase 升序启动、**降序停止**，于是补偿回抢最后挂上、最先摘掉：
 
 ```text
-start(): IEventManager.start()  →  OutboxRelay.start()   （先具备收发能力，再开兜底轮询）
-stop():  仅置 running=false
-关闭：    交由各 Bean 的 destroyMethod（IEventManager#shutdown、线程池#shutdown）
+启动：phase -1024（IEventManager.start() → OutboxRelay.start()） → phase -512（补偿中继轮询挂载）
+停止：phase -512 的 stop()（不再提交新轮询） → phase -1024 的 stop()
+关闭：    交由各 Bean 的 destroyMethod（IEventManager#shutdown、三个线程池#shutdown）
 ```
 
-两类协作者用 `ObjectProvider` 注入，缺一也能正常工作（只用本地事件管理器、或完全不启用 Outbox 的场景）。若需要更早启动或自定义停止顺序，声明自己的 `DddStartupLifecycle` Bean 覆盖即可（见 §6.1）。
+两类协作者用 `ObjectProvider` 注入，缺一也能正常工作（只用本地事件管理器、或完全不启用 Outbox 的场景）。`CompensationRelayLifecycle` 的 `stop()` 只置运行标记，不重复关调度器——回收统一由 `dddCompensationRelayScheduler` 的 `destroyMethod = "shutdown"` 完成。若需要更早启动或自定义停止顺序，声明自己的 `DddStartupLifecycle` / `CompensationRelayLifecycle` Bean 覆盖即可（见 §6.1）。
 
 ## 9. 关键机制与避坑指南
 
@@ -242,7 +249,7 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 
 走自建 `SqlSessionFactory` 路线（见 [MySQL 配置设计原则 §2.3](/best-practices/mysql-config)）时，同样要用 `setMapperLocations` 或 `mybatis-config.xml` 把框架 XML 显式列入。
 
-框架现有三份 XML：`outbox/OutboxMapper.xml`、`id/IdSegmentMapper.xml`、`compensation/CompensationMapper.xml`（仅持久化补偿需要，见 §9.4）。
+框架现有三份 XML：`outbox/OutboxMapper.xml`、`id/IdSegmentMapper.xml`、`compensation/CompensationMapper.xml`（仅 durable 补偿需要，见 §9.4）。durable 时别漏掉第三份：子块会正常产出 `ICompensationLog`，但首次写 WAL 就会报找不到语句。
 
 ### 9.2 没有 `ITopicResolver` 就没有事件总线
 
@@ -252,9 +259,20 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 
 `DddTransactionAutoConfiguration` 只要求容器里有 `PlatformTransactionManager`。自建 `DataSourceTransactionManager`（如为掌控 Hikari / `SqlSessionFactory` 而显式装配数据源）同样能挂接，此时它 `after` 的是官方 `DataSourceTransactionManagerAutoConfiguration`，不影响自建配置的生效。
 
-### 9.4 durable 补偿需要自己装配 `ICompensationLog`
+### 9.4 durable 补偿自动装配，但三个前提缺一不可
 
-starter 的 bridge 层只上提了事务、配置源、Outbox 与号段三个执行器，**没有**补偿语句执行器。要启用持久化补偿，需自行装配 `MybatisCompensationLog`（依赖 `ICompensationStatementExecutor` 与 `TransactionOperations`）并声明为 Bean，同时把 `pragmatic-ddd.compensation.mode` 设为 `durable`。缺一，模式静默回落到 `in-memory`。
+把 `pragmatic-ddd.compensation.mode` 设为 `durable` 后，starter 会自动装配 `ICompensationStatementExecutor`（bridge 的 `SpringCompensationStatementExecutor`）、`ICompensationLog`（`MybatisCompensationLog`）、`CompensationRelay`、轮询调度器与生命周期组件，**不再需要业务侧手抄这三个 `@Bean`**。三个前提：
+
+1. classpath 有 `pragmatic-ddd-mybatis`（optional，需显式引入）；
+2. 容器里有 `SqlSessionTemplate`；
+3. 按 §9.1 把 `compensation/CompensationMapper.xml` 纳入扫描，并建好 `compensation_log` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/compensation/schema/compensation-log-schema-mysql.sql`）。
+
+::: warning 两类缺失不再是静默回落
+- **缺前两个前提**（无 MyBatis 或无会话模板）：子块不装配，补偿主链回落 `in-memory`，并打印一次 WARN 提示原因。不再静默降级，但**模式确实回落了**，上线前需确认该 WARN 未出现。
+- **有日志但无 `ICompensationHandler`**（业务未提供崩溃后兜底执行器）：WAL 照常写，但不注册中继与调度，并 WARN「崩溃后落入 WAL 的记录不会被回抢」。因为无执行器时每条记录都会被判 `no handler` 并刷 FAILED，宁可不挂轮询。
+:::
+
+中继的批量上限（100）、重试次数（5）与认领租约（5min）是 core `CompensationRelay` 的内部常量，**未外部化**；要调需改 core 契约。
 
 ### 9.5 只用本地事件管理器时 Outbox 不装配
 
@@ -269,9 +287,9 @@ starter 的 bridge 层只上提了事务、配置源、Outbox 与号段三个执
 
 引 starter 后，[Outbox 链路装配](/best-practices/outbox-config)、[事件管理器装配与选择](/best-practices/event-manager-config)、[RocketMQ](/best-practices/rocketmq-config) / [Kafka 配置设计原则](/best-practices/kafka-config) 转为原理说明与排查参考。
 
-### 9.7 补偿装配存在求值顺序耦合
+### 9.7 补偿块已显式固定在 Outbox 之后
 
-`DddCompensationAutoConfiguration` 依赖 `@ConditionalOnBean(OutboxCommandExecutor.class)`，但未声明 `after = DddOutboxAutoConfiguration`。自动配置按类名排序时 `compensation` 早于 `outbox`（而 `outbox` 又被 `after` 推到 `transaction` 之后），条件可能在 Outbox 的 Bean 定义注册之前求值，导致补偿装配不生效。在该顺序问题于框架侧收口之前，稳妥做法是**自己声明 `CompensableCommandExecutor` Bean**（同示例的 `OrderCompensationConfig`）：此时补偿块即使被跳过也不影响使用。
+`DddCompensationAutoConfiguration` 已声明 `@AutoConfiguration(after = DddOutboxAutoConfiguration.class)`。没有这条声明时，自动配置排序会先按 before/after 约束、再按类全名字典序，`compensation` 会排到 `outbox` 之前（而 `outbox` 因 `after = transaction` 被推后），于是 `@ConditionalOnBean(OutboxCommandExecutor.class)` 在被装饰 Bean 注册前就求值，整块静默跳过。该顺序现由 `DddCompensationAutoConfigurationTests` 乱序传入三个自动配置类的用例锁死，**使用方无需再自己声明 `CompensableCommandExecutor`**；真要接管时，声明同类型 Bean 仍会精确退避（§6.1）。
 
 ## 10. 接入前后对比
 
@@ -285,17 +303,19 @@ starter 的 bridge 层只上提了事务、配置源、Outbox 与号段三个执
 | `OutboxConfig` 中 7 个 `@Bean` | Outbox 装配 | 删除，由 `DddOutboxAutoConfiguration` 产出 |
 | `RocketMQConfig` / `KafkaConfig` | 总线装配 | 删除，属性写 `rocketmq.*` / `kafka.*`，用 `event.bus` 切换 |
 | `IdGeneratorConfig` 的 registry + allocator 装配 | ID 装配 | 删除，只保留 `IdGeneratorDefinition` Bean |
-| 三个 `ApplicationRunner`（就绪后 start） | 生命周期 | 删除，由 `DddStartupLifecycle` 统一接管 |
+| 三个 `ApplicationRunner`（就绪后 start） | 生命周期 | 删除，由 `DddStartupLifecycle` 统一接管（durable 中继轮询另由 `CompensationRelayLifecycle` 接管） |
+| `SpringCompensationStatementExecutor`、durable 的三个 `@Bean`（日志 / 中继 / 轮询） | 补偿持久化装配 | 删除，由 durable 子块产出，间隔改用 `pragmatic-ddd.compensation.relay-poll-interval` |
+| `OrderCompensationConfig`（registry + 两种模式的装饰器） | 补偿装配 | 删除，模式改由 `pragmatic-ddd.compensation.mode` 决定 |
 | `MySqlConfig` / `RedisConfig` / ES 配置 / 聚合 TypeHandler / 主题路由 / 补偿动作 | 环境与领域专属 | **保留不动** |
 
 ## 11. 总结速查
 
 | 问题 | 结论 |
 | --- | --- |
-| starter 里有什么 | 4 个 bridge 适配器 + 8 个 AutoConfiguration + 1 个 `DddOutboxProperties` |
+| starter 里有什么 | 5 个 bridge 适配器 + 8 个 AutoConfiguration + 2 个 Properties + 2 个 SmartLifecycle |
 | 怎么确认某一环没装上 | 查 §4 生效条件矩阵，缺条件即整块静默跳过（无告警） |
 | 怎么关掉某一环 | 声明同类型 Bean（单点）／ `pragmatic-ddd.*.enabled`（整块）／ `spring.autoconfigure.exclude`（整类） |
-| 必须自己给的 Bean | `ITopicResolver`、`IdGeneratorDefinition`、`ICompensableAction`、`TypeHandlerContext`、订阅者注册 |
+| 必须自己给的 Bean | `ITopicResolver`、`IdGeneratorDefinition`、`ICompensableAction`、durable 时的 `ICompensationHandler`、`TypeHandlerContext`、订阅者注册 |
 | 最容易踩的坑 | 框架 Mapper XML 未纳入 `mybatis.mapper-locations`（§9.1）；缺 `ITopicResolver`（§9.2） |
-| 补偿执行器注不进来 | 求值顺序耦合，先自己声明 `CompensableCommandExecutor`（§9.7） |
+| 补偿执行器注不进来 | 已修复：`after = DddOutboxAutoConfiguration` 固定顺序，且有测试锁死（§9.7） |
 | 配置前缀口径 | `pragmatic-ddd.outbox` / `pragmatic-ddd.compensation` 带前缀；`event.bus` / `rocketmq` / `kafka` 不带 |
