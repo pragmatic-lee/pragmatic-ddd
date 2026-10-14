@@ -14,11 +14,11 @@ class RocketMqConfigurationBindTest {
     @Test
     void shouldBindRocketMqConfigFromSource() {
         MapConfigurationSource source = new MapConfigurationSource(Map.of(
-                "rocketmq.name-server", "127.0.0.1:9876",
-                "rocketmq.proxy-addr", "127.0.0.1:8081",
-                "rocketmq.retry-times-when-send-failed", "5",
-                "rocketmq.send-msg-timeout", "5000",
-                "rocketmq.max-reconsume-times", "20"));
+                "pragmatic-ddd.event.rocketmq.name-server", "127.0.0.1:9876",
+                "pragmatic-ddd.event.rocketmq.proxy-addr", "127.0.0.1:8081",
+                "pragmatic-ddd.event.rocketmq.retry-times-when-send-failed", "5",
+                "pragmatic-ddd.event.rocketmq.send-msg-timeout", "5000",
+                "pragmatic-ddd.event.rocketmq.max-reconsume-times", "20"));
         IConfigurationContext context = new DefaultConfigurationContext(source);
         RocketMqConfiguration configuration = new RocketMqConfiguration(context);
 
@@ -35,7 +35,7 @@ class RocketMqConfigurationBindTest {
     @Test
     void shouldExposeAggregatedAccessors() {
         MapConfigurationSource source = new MapConfigurationSource(Map.of(
-                "rocketmq.name-server", "localhost:9876"));
+                "pragmatic-ddd.event.rocketmq.name-server", "localhost:9876"));
         RocketMqConfiguration configuration = new RocketMqConfiguration(new DefaultConfigurationContext(source));
 
         assertThat(configuration.nameServer()).isEqualTo("localhost:9876");

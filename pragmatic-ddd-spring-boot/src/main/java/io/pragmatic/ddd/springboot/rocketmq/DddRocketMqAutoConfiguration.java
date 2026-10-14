@@ -15,8 +15,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
- * RocketMQ 事件基础设施自动装配（与 Kafka 装配通过 {@code event.bus} 互斥，缺省即生效）。
- * 从 {@link IConfigurationSource}（Spring Environment）绑定 {@code rocketmq.*} 配置，
+ * RocketMQ 事件基础设施自动装配（与 Kafka 装配通过 {@code pragmatic-ddd.event.bus} 互斥，缺省即生效）。
+ * 从 {@link IConfigurationSource}（Spring Environment）绑定 {@code pragmatic-ddd.event.rocketmq.*} 配置，
  * 装配 {@link RocketMqEventManager}（{@link IEventManager} 的 Remoting 实现）。
  *
  * <p>{@link ITopicResolver} 是领域知识，本装配不代劳：容器无此 Bean 时整块跳过。
@@ -26,12 +26,12 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnClass({RocketMqEventManager.class, IEventManager.class})
-@ConditionalOnProperty(name = "event.bus", havingValue = "rocketmq", matchIfMissing = true)
+@ConditionalOnProperty(name = "pragmatic-ddd.event.bus", havingValue = "rocketmq", matchIfMissing = true)
 @ConditionalOnBean(ITopicResolver.class)
 public class DddRocketMqAutoConfiguration {
 
     /**
-     * 依据 {@code rocketmq.*} 配置绑定统一配置对象。
+     * 依据 {@code pragmatic-ddd.event.rocketmq.*} 配置绑定统一配置对象。
      *
      * @param source 框架配置源
      * @return RocketMQ 统一配置

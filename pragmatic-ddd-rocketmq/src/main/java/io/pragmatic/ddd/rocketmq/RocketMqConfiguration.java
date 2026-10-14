@@ -21,12 +21,12 @@ public final class RocketMqConfiguration extends AbstractConfiguration {
     }
 
     /**
-     * 返回 RocketMQ 统一配置（前缀 {@code rocketmq}）。
+     * 返回 RocketMQ 统一配置（前缀 {@code pragmatic-ddd.event.rocketmq}）。
      *
      * @return 绑定后的 RocketMqProperties
      */
     public RocketMqProperties config() {
-        return bind("rocketmq", RocketMqProperties.class);
+        return bind("pragmatic-ddd.event.rocketmq", RocketMqProperties.class);
     }
 
     /**
@@ -35,7 +35,7 @@ public final class RocketMqConfiguration extends AbstractConfiguration {
      * @return NameServer 地址
      */
     public String nameServer() {
-        return value("rocketmq.name-server", (String) null);
+        return value("pragmatic-ddd.event.rocketmq.name-server", (String) null);
     }
 
     /**
@@ -44,6 +44,6 @@ public final class RocketMqConfiguration extends AbstractConfiguration {
      * @return Proxy 地址
      */
     public String proxyAddr() {
-        return value("rocketmq.proxy-addr", (String) null);
+        return value("pragmatic-ddd.event.rocketmq.proxy-addr", (String) null);
     }
 }

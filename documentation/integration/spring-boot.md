@@ -26,8 +26,8 @@ starter 对集成模块全部使用 `<optional>true</optional>`，靠 classpath 
 | `spring-boot-autoconfigure` | compile | — |
 | `org.springframework:spring-tx` | optional | 无 `PlatformTransactionManager` 则事务链不装配（通常由 `spring-boot-starter-jdbc` 带入） |
 | `pragmatic-ddd-mybatis` / `mybatis-spring` | optional | Outbox、号段 ID 两块装配整块跳过；durable 补偿子块也不装配（补偿主链回落内存模式并告警） |
-| `pragmatic-ddd-rocketmq` | optional | `event.bus=rocketmq` 时事件总线不装配 |
-| `pragmatic-ddd-kafka` | optional | `event.bus=kafka` 时事件总线不装配 |
+| `pragmatic-ddd-rocketmq` | optional | `pragmatic-ddd.event.bus=rocketmq` 时事件总线不装配 |
+| `pragmatic-ddd-kafka` | optional | `pragmatic-ddd.event.bus=kafka` 时事件总线不装配 |
 
 ::: warning optional 不传递
 optional 依赖不会随 starter 传递给使用方。要用 Outbox / 号段 ID，必须**自己显式引入** `pragmatic-ddd-mybatis`（以及 `mybatis-spring` 或 `mybatis-spring-boot-starter`）；要用某种 MQ，必须显式引入 `pragmatic-ddd-rocketmq` 或 `pragmatic-ddd-kafka`。
@@ -64,7 +64,7 @@ optional 依赖不会随 starter 传递给使用方。要用 Outbox / 号段 ID�
         <artifactId>pragmatic-ddd-spring-boot</artifactId>
     </dependency>
 
-    <!-- 按需二选一（或都引入后用 event.bus 切换） -->
+    <!-- 按需二选一（或都引入后用 pragmatic-ddd.event.bus 切换） -->
     <dependency>
         <groupId>io.pragmatic.ddd</groupId>
         <artifactId>pragmatic-ddd-rocketmq</artifactId>
@@ -95,7 +95,7 @@ DddConfigurationAutoConfiguration        IConfigurationSource（读 Spring Envir
 DddTransactionAutoConfiguration          TransactionOperations（桥接 PlatformTransactionManager）
         │            ┌───────────────────┘
         ▼            ▼
-DddRocketMq / DddKafkaAutoConfiguration  IEventSerializer + IEventManager（event.bus 二选一）
+DddRocketMq / DddKafkaAutoConfiguration  IEventSerializer + IEventManager（pragmatic-ddd.event.bus 二选一）
         │
         ▼
 DddOutboxAutoConfiguration               执行器 / 存储 / 线程池 / 推送器 / 轮询器 / 命令执行器 / 工作单元工厂
@@ -119,8 +119,8 @@ DddLifecycleAutoConfiguration            容器就绪后按序 start()
 | --- | --- | --- | --- | --- |
 | `DddConfigurationAutoConfiguration` | 无 | 无 | 无 | `IConfigurationSource` |
 | `DddTransactionAutoConfiguration` | `TransactionOperations`、`PlatformTransactionManager` | 存在 `PlatformTransactionManager` | 无 | `TransactionOperations` |
-| `DddRocketMqAutoConfiguration` | `RocketMqEventManager`、`IEventManager` | 存在 `ITopicResolver` | `event.bus=rocketmq`，**缺省即生效** | `RocketMqProperties`、`IEventSerializer`、`IEventManager` |
-| `DddKafkaAutoConfiguration` | `KafkaEventManager`、`IEventManager` | 存在 `ITopicResolver` | `event.bus=kafka`（**必须显式**） | `KafkaProperties`、`IEventSerializer`、`IEventManager` |
+| `DddRocketMqAutoConfiguration` | `RocketMqEventManager`、`IEventManager` | 存在 `ITopicResolver` | `pragmatic-ddd.event.bus=rocketmq`，**缺省即生效** | `RocketMqProperties`、`IEventSerializer`、`IEventManager` |
+| `DddKafkaAutoConfiguration` | `KafkaEventManager`、`IEventManager` | 存在 `ITopicResolver` | `pragmatic-ddd.event.bus=kafka`（**必须显式**） | `KafkaProperties`、`IEventSerializer`、`IEventManager` |
 | `DddOutboxAutoConfiguration` | `MybatisOutboxStore`、`SqlSessionTemplate` | 同时存在 `SqlSessionTemplate`、`TransactionOperations`、`IEventSerializer`、`IEventManager` | `pragmatic-ddd.outbox.enabled`，缺省生效 | `IOutboxStatementExecutor`、`IOutboxStore`、两个线程池、`EagerOutboxPublisher`、`OutboxRelay`、`OutboxCommandExecutor`、`Supplier<IUnitOfWork>` |
 | `DddIdGeneratorAutoConfiguration` | `DbSegmentAllocator`、`SqlSessionTemplate` | 存在 `SqlSessionTemplate`、`TransactionOperations` | 无（**没有开关**） | `IIdSegmentStatementExecutor`、`IIdSegmentAllocator`、`IdGeneratorRegistry` |
 | `DddCompensationAutoConfiguration` | 无 | 存在 `OutboxCommandExecutor` 且至少一个 `ICompensableAction` | `pragmatic-ddd.compensation.enabled`，缺省生效；排在 Outbox 之后 | `CompensationActionRegistry`、`CompensableCommandExecutor` |
@@ -193,7 +193,7 @@ public IEventSerializer eventSerializer() {
 | --- | --- | --- |
 | `pragmatic-ddd.outbox.enabled=false` | true | Outbox 整块不装配，补偿链路因缺 `OutboxCommandExecutor` 一并不装配 |
 | `pragmatic-ddd.compensation.enabled=false` | true | 补偿装饰器不装配，应用侧需改为注入 `OutboxCommandExecutor` |
-| `event.bus=kafka` / `rocketmq` | 缺省 rocketmq | 两条总线装配互斥，容器内永远只有一个 `IEventManager` |
+| `pragmatic-ddd.event.bus=kafka` / `rocketmq` | 缺省 rocketmq | 两条总线装配互斥，容器内永远只有一个 `IEventManager` |
 
 ::: warning 没有开关的两处
 `DddIdGeneratorAutoConfiguration` 无 `enabled` 属性；线程池类 Bean（outbox 的 `dddOutboxPublisherExecutor`、`dddOutboxRelayScheduler` 与 durable 的 `dddCompensationRelayScheduler`）与 `Supplier<IUnitOfWork>` 工厂（`outboxUnitOfWorkFactory`）**未标 `@ConditionalOnMissingBean`**，无法单点替换；outbox 部分只能通过 `pragmatic-ddd.outbox.enabled=false` 关掉整块后自行装配。
@@ -213,16 +213,16 @@ spring.autoconfigure.exclude=io.pragmatic.ddd.springboot.outbox.DddOutboxAutoCon
 
 | 键 / 前缀 | 绑定方式 | 备注 |
 | --- | --- | --- |
-| `event.bus` | `@ConditionalOnProperty` | 取值 `rocketmq`（缺省生效）/ `kafka`（需显式）；**无 `pragmatic-ddd.` 前缀** |
+| `pragmatic-ddd.event.bus` | `@ConditionalOnProperty` | 取值 `rocketmq`（缺省生效）/ `kafka`（需显式） |
 | `pragmatic-ddd.outbox.*` | 官方 `@ConfigurationProperties` | `enabled`、`publisher-pool-size`（4）、`poll-interval`（5m）、`grace`（30s）、`batch-size`（200）、`max-attempts`（10）；Duration 支持 ISO-8601 与简单写法（`30s` / `5m`） |
 | `pragmatic-ddd.compensation.enabled` | `@ConditionalOnProperty` | 缺省 true |
 | `pragmatic-ddd.compensation.mode` | `DddCompensationProperties`，默认 `in-memory` | `durable` 时嵌套子块自动装配 WAL 日志与中继；底座缺失时告警回落 `in-memory`（见 §9.4） |
 | `pragmatic-ddd.compensation.relay-poll-interval` | `DddCompensationProperties`，默认 `10s` | durable 中继轮询间隔，Duration 支持简单写法；必须为正，否则启动即失败 |
-| `rocketmq.*` | 框架 `ConfigurationBinder` | `name-server`、`proxy-addr`、`producer-group`、`consumer-group`、`retry-times-when-send-failed`、`send-msg-timeout`、`compress-msg-body-over-howmuch`、`default-delay-level`、`max-reconsume-times`；**无 `pragmatic-ddd.` 前缀** |
-| `kafka.*` | 框架 `ConfigurationBinder` | 缺省回退 `bootstrap-servers=127.0.0.1:9092`、`group=pragmatic_ddd_consumer`；**无 `pragmatic-ddd.` 前缀** |
+| `pragmatic-ddd.event.rocketmq.*` | 框架 `ConfigurationBinder` | `name-server`、`proxy-addr`、`producer-group`、`consumer-group`、`retry-times-when-send-failed`、`send-msg-timeout`、`compress-msg-body-over-howmuch`、`default-delay-level`、`max-reconsume-times` |
+| `pragmatic-ddd.event.kafka.*` | 框架 `ConfigurationBinder` | 缺省回退 `bootstrap-servers=127.0.0.1:9092`、`group=pragmatic_ddd_consumer` |
 
 ::: danger 两套绑定规则并存
-`pragmatic-ddd.outbox.*` 走 Spring 官方绑定，支持 relaxed binding；`rocketmq.*` / `kafka.*` 走框架的 `ConfigurationBinder`，**只做 kebab-case 精确匹配**——必须写 `rocketmq.name-server`，写成 `rocketmq.nameServer` 读不到。
+`pragmatic-ddd.outbox.*` 走 Spring 官方绑定，支持 relaxed binding；`pragmatic-ddd.event.rocketmq.*` / `pragmatic-ddd.event.kafka.*` 走框架的 `ConfigurationBinder`，**只做 kebab-case 精确匹配**——必须写 `pragmatic-ddd.event.rocketmq.name-server`，写成 `pragmatic-ddd.event.rocketmq.nameServer` 读不到。
 :::
 
 ## 8. 生命周期：就绪后启动
@@ -301,7 +301,7 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 | `SpringOutboxStatementExecutor` / `SpringIdSegmentStatementExecutor` | 本地桥接类 | 同上 |
 | `MapConfigurationSource` 逐键搬运配置 | 配置装配 | 删除，改由 `EnvironmentConfigurationSource` 直读 |
 | `OutboxConfig` 中 7 个 `@Bean` | Outbox 装配 | 删除，由 `DddOutboxAutoConfiguration` 产出 |
-| `RocketMQConfig` / `KafkaConfig` | 总线装配 | 删除，属性写 `rocketmq.*` / `kafka.*`，用 `event.bus` 切换 |
+| `RocketMQConfig` / `KafkaConfig` | 总线装配 | 删除，属性写 `pragmatic-ddd.event.rocketmq.*` / `pragmatic-ddd.event.kafka.*`，用 `pragmatic-ddd.event.bus` 切换 |
 | `IdGeneratorConfig` 的 registry + allocator 装配 | ID 装配 | 删除，只保留 `IdGeneratorDefinition` Bean |
 | 三个 `ApplicationRunner`（就绪后 start） | 生命周期 | 删除，由 `DddStartupLifecycle` 统一接管（durable 中继轮询另由 `CompensationRelayLifecycle` 接管） |
 | `SpringCompensationStatementExecutor`、durable 的三个 `@Bean`（日志 / 中继 / 轮询） | 补偿持久化装配 | 删除，由 durable 子块产出，间隔改用 `pragmatic-ddd.compensation.relay-poll-interval` |
@@ -318,4 +318,4 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 | 必须自己给的 Bean | `ITopicResolver`、`IdGeneratorDefinition`、`ICompensableAction`、durable 时的 `ICompensationHandler`、`TypeHandlerContext`、订阅者注册 |
 | 最容易踩的坑 | 框架 Mapper XML 未纳入 `mybatis.mapper-locations`（§9.1）；缺 `ITopicResolver`（§9.2） |
 | 补偿执行器注不进来 | 已修复：`after = DddOutboxAutoConfiguration` 固定顺序，且有测试锁死（§9.7） |
-| 配置前缀口径 | `pragmatic-ddd.outbox` / `pragmatic-ddd.compensation` 带前缀；`event.bus` / `rocketmq` / `kafka` 不带 |
+| 配置前缀口径 | 全部统一带 `pragmatic-ddd.` 前缀：`pragmatic-ddd.outbox` / `pragmatic-ddd.compensation` / `pragmatic-ddd.event.*` |

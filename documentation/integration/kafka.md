@@ -11,24 +11,24 @@
 | 类型 | 说明 |
 | --- | --- |
 | `KafkaEventManager` | 实现 core 的 `IEventManager`，负责订阅（拉取消费）与发布 |
-| `KafkaConfig` | 统一配置，绑定 `kafka.*` 前缀 |
-| `KafkaConfiguration` | 配置门面（`context.bind("kafka", KafkaConfig.class)`） |
+| `KafkaConfig` | 统一配置，绑定 `pragmatic-ddd.event.kafka.*` 前缀 |
+| `KafkaConfiguration` | 配置门面（`context.bind("pragmatic-ddd.event.kafka", KafkaConfig.class)`） |
 | `KafkaRedeliverRelay` | 包级私有的回投器，承接延时 topic 与重试 topic 的到期回投 |
 
 与 RocketMQ 实现的差异（选型时关注）：
 
 | 维度 | RocketMQ 实现 | Kafka 实现 |
 | --- | --- | --- |
-| 延时消息 | broker 原生延时级别 | 无原生支持，按 `kafka.delayed-policy` 三档分发（见 §2.4） |
-| 重试机制 | broker 按延时级别重投，`maxReconsumeTimes` 默认 16 | 消费线程内联重试 + 重试 topic 退避回投，`kafka.max-reconsume` 默认 16 |
-| 死信 topic | `{topic}%DLQ%` | `{topic}{kafka.dlq-suffix}`，默认 `-dlq` |
+| 延时消息 | broker 原生延时级别 | 无原生支持，按 `pragmatic-ddd.event.kafka.delayed-policy` 三档分发（见 §2.4） |
+| 重试机制 | broker 按延时级别重投，`maxReconsumeTimes` 默认 16 | 消费线程内联重试 + 重试 topic 退避回投，`pragmatic-ddd.event.kafka.max-reconsume` 默认 16 |
+| 死信 topic | `{topic}%DLQ%` | `{topic}{pragmatic-ddd.event.kafka.dlq-suffix}`，默认 `-dlq` |
 | topic 预建 | broker 自动创建 | 建议显式预建（见 §3.1） |
 
 ### 1.2 消费失败处理链路（三级递进）
 
 ```text
 消费失败
-  └─ 内联重试：本线程内按 kafka.inline-retry-intervals-ms 立即重试（默认 100ms、500ms 各一次）
+  └─ 内联重试：本线程内按 pragmatic-ddd.event.kafka.inline-retry-intervals-ms 立即重试（默认 100ms、500ms 各一次）
        └─ 仍未成功 → 转存 {topic}-retry（携带 x-deliver-at / x-reconsume / x-retry-hop）
             └─ 回投器按退避表到期回投 {topic}，消息重新进入本链路（计数续算）
                  └─ 累计失败次数达到 max-reconsume + 1 → 转 {topic}-dlq（终端队列）
@@ -55,53 +55,53 @@
 
 ### 2.1 统一配置 KafkaConfig
 
-`KafkaConfig` 为 record，绑定 `kafka.*` 前缀，kebab-case 键名；未显式配置的项由 `KafkaConfig.withDefaults(bootstrapServers, group)` 兜底。
+`KafkaConfig` 为 record，绑定 `pragmatic-ddd.event.kafka.*` 前缀，kebab-case 键名；未显式配置的项由 `KafkaConfig.withDefaults(bootstrapServers, group)` 兜底。
 
 **消费与重试**
 
 | 配置键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `kafka.max-reconsume` | `16` | 最大重试次数（不含首投）；业务处理总次数 = 该值 + 1 |
-| `kafka.inline-retry-intervals-ms` | `100,500` | 内联重试间隔表（毫秒，逗号分隔）；档位数 = 每轮内联重试次数 |
-| `kafka.retry-topic-suffix` | `-retry` | 重试 topic 后缀；**置空 = 关闭重试通道**，内联耗尽即进死信 |
-| `kafka.retry-hop-backoff-ms` | `1000,5000,10000,30000,60000,120000,180000,240000` | retry topic 每轮往返的退避表（8 档），超出末档复用末档 |
-| `kafka.batch-budget-ms` | `30000` | 单批处理时间预算（毫秒），超预算的剩余消息留待下轮 |
-| `kafka.dlq-suffix` | `-dlq` | 死信 topic 后缀 |
-| `kafka.concurrency` | `1` | 单进程内并发 consumer 线程数（多个独立 consumer 同 group） |
-| `kafka.max-poll-records` | `500` | 单次 poll 最大拉取条数 |
-| `kafka.poll-timeout-ms` | `1000` | `poll` 超时（毫秒） |
+| `pragmatic-ddd.event.kafka.max-reconsume` | `16` | 最大重试次数（不含首投）；业务处理总次数 = 该值 + 1 |
+| `pragmatic-ddd.event.kafka.inline-retry-intervals-ms` | `100,500` | 内联重试间隔表（毫秒，逗号分隔）；档位数 = 每轮内联重试次数 |
+| `pragmatic-ddd.event.kafka.retry-topic-suffix` | `-retry` | 重试 topic 后缀；**置空 = 关闭重试通道**，内联耗尽即进死信 |
+| `pragmatic-ddd.event.kafka.retry-hop-backoff-ms` | `1000,5000,10000,30000,60000,120000,180000,240000` | retry topic 每轮往返的退避表（8 档），超出末档复用末档 |
+| `pragmatic-ddd.event.kafka.batch-budget-ms` | `30000` | 单批处理时间预算（毫秒），超预算的剩余消息留待下轮 |
+| `pragmatic-ddd.event.kafka.dlq-suffix` | `-dlq` | 死信 topic 后缀 |
+| `pragmatic-ddd.event.kafka.concurrency` | `1` | 单进程内并发 consumer 线程数（多个独立 consumer 同 group） |
+| `pragmatic-ddd.event.kafka.max-poll-records` | `500` | 单次 poll 最大拉取条数 |
+| `pragmatic-ddd.event.kafka.poll-timeout-ms` | `1000` | `poll` 超时（毫秒） |
 
 **连接与发送**
 
 | 配置键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `kafka.bootstrap-servers` | 无（必填） | broker 地址 |
-| `kafka.group` | 无（必填） | 消费者组 `group.id` |
-| `kafka.client-id` | 空 | 可选 `client.id` |
-| `kafka.auto-offset-reset` | `latest` | 无初始位移时的重置策略（`latest` / `earliest`） |
-| `kafka.ack` | `all` | 生产者 `acks` |
-| `kafka.compression-type` | 空 | 生产者压缩类型（空则不设置） |
-| `kafka.enable-idempotence` | `true` | 生产者幂等 |
-| `kafka.send-timeout-ms` | `10000` | 发布 / 转存 / 转发死信的有界等待（毫秒） |
+| `pragmatic-ddd.event.kafka.bootstrap-servers` | 无（必填） | broker 地址 |
+| `pragmatic-ddd.event.kafka.group` | 无（必填） | 消费者组 `group.id` |
+| `pragmatic-ddd.event.kafka.client-id` | 空 | 可选 `client.id` |
+| `pragmatic-ddd.event.kafka.auto-offset-reset` | `latest` | 无初始位移时的重置策略（`latest` / `earliest`） |
+| `pragmatic-ddd.event.kafka.ack` | `all` | 生产者 `acks` |
+| `pragmatic-ddd.event.kafka.compression-type` | 空 | 生产者压缩类型（空则不设置） |
+| `pragmatic-ddd.event.kafka.enable-idempotence` | `true` | 生产者幂等 |
+| `pragmatic-ddd.event.kafka.send-timeout-ms` | `10000` | 发布 / 转存 / 转发死信的有界等待（毫秒） |
 
 **延时通道**
 
 | 配置键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `kafka.delayed-policy` | `immediate` | DELAYED 策略：`immediate` 降级即时发送 / `reject` 拒绝发送 / `relay` 延时 topic 转存 + 到期回投 |
-| `kafka.default-delay-seconds` | `10` | `relay` 模式下的延时时长（秒） |
-| `kafka.delay-topic-suffix` | `-delay` | `relay` 模式下延时 topic 后缀 |
+| `pragmatic-ddd.event.kafka.delayed-policy` | `immediate` | DELAYED 策略：`immediate` 降级即时发送 / `reject` 拒绝发送 / `relay` 延时 topic 转存 + 到期回投 |
+| `pragmatic-ddd.event.kafka.default-delay-seconds` | `10` | `relay` 模式下的延时时长（秒） |
+| `pragmatic-ddd.event.kafka.delay-topic-suffix` | `-delay` | `relay` 模式下延时 topic 后缀 |
 
 配置示例：
 
 ```properties
-kafka.bootstrap-servers=127.0.0.1:9092
-kafka.group=order_example_consumer
-kafka.max-reconsume=16
-kafka.inline-retry-intervals-ms=100,500
-kafka.retry-topic-suffix=-retry
-kafka.retry-hop-backoff-ms=1000,5000,10000,30000,60000,120000,180000,240000
-kafka.batch-budget-ms=30000
+pragmatic-ddd.event.kafka.bootstrap-servers=127.0.0.1:9092
+pragmatic-ddd.event.kafka.group=order_example_consumer
+pragmatic-ddd.event.kafka.max-reconsume=16
+pragmatic-ddd.event.kafka.inline-retry-intervals-ms=100,500
+pragmatic-ddd.event.kafka.retry-topic-suffix=-retry
+pragmatic-ddd.event.kafka.retry-hop-backoff-ms=1000,5000,10000,30000,60000,120000,180000,240000
+pragmatic-ddd.event.kafka.batch-budget-ms=30000
 ```
 
 ### 2.2 装配与启停
@@ -128,7 +128,7 @@ manager.registerSubscriber("order-projection", OrderCreatedEvent.class, event ->
     projectionService.apply(event);
 });
 
-// 延时投递（配合 kafka.delayed-policy=relay 生效）
+// 延时投递（配合 pragmatic-ddd.event.kafka.delayed-policy=relay 生效）
 manager.registerSubscriber("order-reconcile", OrderChangedEvent.class, handler, DeliveryPolicy.DELAYED);
 ```
 
@@ -136,7 +136,7 @@ manager.registerSubscriber("order-reconcile", OrderChangedEvent.class, handler, 
 
 ### 2.4 DELAYED 策略三档
 
-| `kafka.delayed-policy` | 行为 | 适用场景 |
+| `pragmatic-ddd.event.kafka.delayed-policy` | 行为 | 适用场景 |
 | --- | --- | --- |
 | `immediate`（默认） | 降级为即时发送并打 WARN | 不关心延时精度，只要求送达 |
 | `reject` | 抛 `UnsupportedDeliveryException`，由 outbox 重推 | 延时是业务硬要求，宁可失败也不降级 |
@@ -173,8 +173,8 @@ kafka-topics.sh --bootstrap-server localhost:9092 --create --topic order-event-d
 
 | 回投器 | 启停条件 | 订阅 topic |
 | --- | --- | --- |
-| 延时回投 | `kafka.delayed-policy=relay` 且业务 topic 非空 | `{业务topic}-delay` |
-| 重试回投 | `kafka.retry-topic-suffix` 非空（**与 `delayed-policy` 无关**） | `{业务topic}-retry` |
+| 延时回投 | `pragmatic-ddd.event.kafka.delayed-policy=relay` 且业务 topic 非空 | `{业务topic}-delay` |
+| 重试回投 | `pragmatic-ddd.event.kafka.retry-topic-suffix` 非空（**与 `delayed-policy` 无关**） | `{业务topic}-retry` |
 
 两者均与主消费者**同 `group.id`**、订阅集合互不相交，因此多实例部署时回投分区自动分摊，一条消息只被一个实例回投；代价是成员变动会触发同组整体 rebalance。
 
@@ -184,15 +184,15 @@ kafka-topics.sh --bootstrap-server localhost:9092 --create --topic order-event-d
 
 内联重试会让消费线程在 `poll` 之外停留：默认配置下一条失败消息最多占用 `100ms + 500ms = 600ms`，一批 500 条全部失败即 300s，恰好等于 Kafka 默认 `max.poll.interval.ms`（300s）——超时后消费者会被判定为失效成员并触发 rebalance。
 
-`kafka.batch-budget-ms`（默认 30000）即为此设置的安全阀：超预算时把同分区未处理消息 `seek` 回退、不提交位移，立即回到 `poll` 重置计时器。
+`pragmatic-ddd.event.kafka.batch-budget-ms`（默认 30000）即为此设置的安全阀：超预算时把同分区未处理消息 `seek` 回退、不提交位移，立即回到 `poll` 重置计时器。
 
 | 调优方向 | 做法 |
 | --- | --- |
-| 减少单批内联重试总量 | 调小 `kafka.max-poll-records` |
+| 减少单批内联重试总量 | 调小 `pragmatic-ddd.event.kafka.max-poll-records` |
 | 放宽 poll 间隔上限 | 调大 broker/客户端 `max.poll.interval.ms`（框架未暴露该键，走 Kafka 默认 300s） |
-| 缩短单条阻塞 | 调小 `kafka.inline-retry-intervals-ms` 的档位值或档数（档数减到 0 = 失败即转存） |
+| 缩短单条阻塞 | 调小 `pragmatic-ddd.event.kafka.inline-retry-intervals-ms` 的档位值或档数（档数减到 0 = 失败即转存） |
 
-⚠️ 预算只在「记录之间」检查，单条记录最坏可过冲 `内联间隔 + kafka.send-timeout-ms`（默认约 10.6s）。若调大 `batch-budget-ms` 或 `max-poll-records`，需同步核算与 `max.poll.interval.ms` 的余量（默认 30s vs 300s 为 10 倍）。
+⚠️ 预算只在「记录之间」检查，单条记录最坏可过冲 `内联间隔 + pragmatic-ddd.event.kafka.send-timeout-ms`（默认约 10.6s）。若调大 `batch-budget-ms` 或 `max-poll-records`，需同步核算与 `max.poll.interval.ms` 的余量（默认 30s vs 300s 为 10 倍）。
 
 ### 3.4 消息头部契约
 
@@ -208,7 +208,7 @@ kafka-topics.sh --bootstrap-server localhost:9092 --create --topic order-event-d
 
 ### 3.5 关闭重试通道
 
-将 `kafka.retry-topic-suffix` 置空即可退化为「内联重试耗尽 → 直接死信」，适用于不需要重试通道的部署：
+将 `pragmatic-ddd.event.kafka.retry-topic-suffix` 置空即可退化为「内联重试耗尽 → 直接死信」，适用于不需要重试通道的部署：
 
 | 配置 | 行为 |
 | --- | --- |
@@ -254,12 +254,12 @@ kafka-topics.sh --bootstrap-server localhost:9092 --create --topic order-event-d
 
 | 我要做的事 | 配置 / 做法 |
 | --- | --- |
-| 调整最大重试次数 | `kafka.max-reconsume`（默认 16，业务处理总次数 = 值 + 1） |
-| 调整内联重试节奏 | `kafka.inline-retry-intervals-ms`（档位数 = 每轮内联重试次数） |
-| 调整重试 topic 退避 | `kafka.retry-hop-backoff-ms`（超出末档复用末档） |
-| 关闭重试通道 | `kafka.retry-topic-suffix=`（置空） |
-| 避免批次超时被踢出组 | `kafka.batch-budget-ms`（默认 30000）+ 必要时调小 `kafka.max-poll-records` |
-| 延时事件落地 | `kafka.delayed-policy=relay` + 预建 `{topic}-delay` + 订阅者声明 `DeliveryPolicy.DELAYED` |
+| 调整最大重试次数 | `pragmatic-ddd.event.kafka.max-reconsume`（默认 16，业务处理总次数 = 值 + 1） |
+| 调整内联重试节奏 | `pragmatic-ddd.event.kafka.inline-retry-intervals-ms`（档位数 = 每轮内联重试次数） |
+| 调整重试 topic 退避 | `pragmatic-ddd.event.kafka.retry-hop-backoff-ms`（超出末档复用末档） |
+| 关闭重试通道 | `pragmatic-ddd.event.kafka.retry-topic-suffix=`（置空） |
+| 避免批次超时被踢出组 | `pragmatic-ddd.event.kafka.batch-budget-ms`（默认 30000）+ 必要时调小 `pragmatic-ddd.event.kafka.max-poll-records` |
+| 延时事件落地 | `pragmatic-ddd.event.kafka.delayed-policy=relay` + 预建 `{topic}-delay` + 订阅者声明 `DeliveryPolicy.DELAYED` |
 | 上线前检查 | 预建 `{topic}` / `{topic}-retry` / `{topic}-dlq`（relay 模式再加 `{topic}-delay`） |
 | 订阅者要求 | **必须幂等**（最多 17 次处理 + 可能乱序） |
 | 死信处理 | `{topic}-dlq` 无消费者，需人工/离线补偿与告警 |

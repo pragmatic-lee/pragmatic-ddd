@@ -61,12 +61,12 @@ TypeHandler 通过 `TypeHandlerContext`（record）装配，非配置文件：
 
 ## 5. Kafka 配置
 
-前缀：`kafka`（通过 `ConfigurationBinder.bind(IConfigurationSource, "kafka", KafkaProperties.class)` 绑定）
+前缀：`pragmatic-ddd.event.kafka`（通过 `ConfigurationBinder.bind(IConfigurationSource, "pragmatic-ddd.event.kafka", KafkaProperties.class)` 绑定）
 
 完整键清单与默认值见 [Kafka 集成 §2.1 统一配置](/integration/kafka)。
 
 ::: tip 在 Spring Boot Starter 下的差异
-模块层把 `kafka.bootstrap-servers` / `kafka.group` 视为必填；`DddKafkaAutoConfiguration` 绑定时会传入兜底默认值（`127.0.0.1:9092` / `pragmatic_ddd_consumer`），因此这两项不写也不会报错。使用 starter 时建议显式配置，避免默默连到本机。
+模块层把 `pragmatic-ddd.event.kafka.bootstrap-servers` / `pragmatic-ddd.event.kafka.group` 视为必填；`DddKafkaAutoConfiguration` 绑定时会传入兜底默认值（`127.0.0.1:9092` / `pragmatic_ddd_consumer`），因此这两项不写也不会报错。使用 starter 时建议显式配置，避免默默连到本机。
 :::
 
 ## 6. Spring Boot Starter 配置项
@@ -75,7 +75,7 @@ TypeHandler 通过 `TypeHandlerContext`（record）装配，非配置文件：
 
 | 键 | 取值 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `event.bus` | `rocketmq` / `kafka` | `rocketmq` | 两条总线装配互斥；缺省即生效 RocketMQ，选 Kafka 必须显式写 `kafka`；写其他值则两个总线装配均不生效 |
+| `pragmatic-ddd.event.bus` | `rocketmq` / `kafka` | `rocketmq` | 两条总线装配互斥；缺省即生效 RocketMQ，选 Kafka 必须显式写 `kafka`；写其他值则两个总线装配均不生效 |
 
 ### 6.2 Outbox 链路（前缀 `pragmatic-ddd.outbox`）
 
@@ -110,8 +110,8 @@ TypeHandler 通过 `TypeHandlerContext`（record）装配，非配置文件：
 | 前缀 | 绑定机制 | relaxed binding |
 | --- | --- | --- |
 | `pragmatic-ddd.outbox.*`、`pragmatic-ddd.compensation.*` | Spring 官方 `@ConfigurationProperties` | 支持（`poll-interval` / `pollInterval` 等效） |
-| `event.bus`、`rocketmq.*`、`kafka.*` | 框架 `ConfigurationBinder`（读 `IConfigurationSource`） | **不支持**，仅 kebab-case 精确匹配 |
+| `pragmatic-ddd.event.bus`、`pragmatic-ddd.event.rocketmq.*`、`pragmatic-ddd.event.kafka.*` | 框架 `ConfigurationBinder`（读 `IConfigurationSource`） | **不支持**，仅 kebab-case 精确匹配 |
 
 ::: danger 易错点
-`rocketmq.name-server` 写成 `rocketmq.nameServer` 读不到；`event.bus` 系列键**没有** `pragmatic-ddd.` 前缀（历史遗留口径，以当前代码为准）。完整装配链路与生效条件见 [Spring Boot Starter 集成](/integration/spring-boot)。
+`pragmatic-ddd.event.rocketmq.name-server` 写成 `pragmatic-ddd.event.rocketmq.nameServer` 读不到；事件类键（`pragmatic-ddd.event.bus`、`pragmatic-ddd.event.rocketmq.*`、`pragmatic-ddd.event.kafka.*`）均已统一带 `pragmatic-ddd.` 前缀。完整装配链路与生效条件见 [Spring Boot Starter 集成](/integration/spring-boot)。
 :::

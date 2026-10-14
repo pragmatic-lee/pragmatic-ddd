@@ -3,7 +3,7 @@
 > 把领域事件可靠地对接到 RocketMQ 4.x（Remoting）。RocketMQ 技术配置（连接、生产者、事件管理器、Topic 路由）是**应用级**的：一个应用装配一份，全部聚合共用；聚合只负责定义事件与注册订阅。
 
 ::: info 使用 `pragmatic-ddd-spring-boot` 时
-本文 §2 的 `RocketMQConfig`、§5 的事件管理器注册与就绪后启动，由 `DddRocketMqAutoConfiguration` 代劳：`RocketMqProperties` 从 Spring `Environment` 按 `rocketmq.*` 绑定，默认序列化器与 `RocketMqEventManager` 自动产出，Producer 由管理器自建并随容器关闭回收（无需自己声明）。**仍然需要你自己提供的**：§3 的主题路由 `ITopicResolver`（领域知识，缺位则总线整块不装配）与 §4 的聚合订阅注册。详见 [Spring Boot Starter 集成](./../integration/spring-boot.md)。
+本文 §2 的 `RocketMQConfig`、§5 的事件管理器注册与就绪后启动，由 `DddRocketMqAutoConfiguration` 代劳：`RocketMqProperties` 从 Spring `Environment` 按 `pragmatic-ddd.event.rocketmq.*` 绑定，默认序列化器与 `RocketMqEventManager` 自动产出，Producer 由管理器自建并随容器关闭回收（无需自己声明）。**仍然需要你自己提供的**：§3 的主题路由 `ITopicResolver`（领域知识，缺位则总线整块不装配）与 §4 的聚合订阅注册。详见 [Spring Boot Starter 集成](./../integration/spring-boot.md)。
 :::
 
 ## 1. 本质与定位
@@ -37,12 +37,12 @@ public class RocketMQConfig {
     @Bean
     public RocketMqConfig rocketMqConfig(Environment environment) {
         MapConfigurationSource source = new MapConfigurationSource();
-        source.put("rocketmq.name-server", environment.getProperty("rocketmq.name-server", "127.0.0.1:9876"));
-        source.put("rocketmq.producer-group", environment.getProperty("rocketmq.producer-group", "{app}_producer"));
-        source.put("rocketmq.consumer-group", environment.getProperty("rocketmq.consumer-group", "{app}_consumer"));
-        source.put("rocketmq.retry-times-when-send-failed", environment.getProperty("rocketmq.retry-times-when-send-failed", "3"));
-        source.put("rocketmq.send-msg-timeout", environment.getProperty("rocketmq.send-msg-timeout", "3000"));
-        source.put("rocketmq.max-reconsume-times", environment.getProperty("rocketmq.max-reconsume-times", "16"));
+        source.put("pragmatic-ddd.event.rocketmq.name-server", environment.getProperty("pragmatic-ddd.event.rocketmq.name-server", "127.0.0.1:9876"));
+        source.put("pragmatic-ddd.event.rocketmq.producer-group", environment.getProperty("pragmatic-ddd.event.rocketmq.producer-group", "{app}_producer"));
+        source.put("pragmatic-ddd.event.rocketmq.consumer-group", environment.getProperty("pragmatic-ddd.event.rocketmq.consumer-group", "{app}_consumer"));
+        source.put("pragmatic-ddd.event.rocketmq.retry-times-when-send-failed", environment.getProperty("pragmatic-ddd.event.rocketmq.retry-times-when-send-failed", "3"));
+        source.put("pragmatic-ddd.event.rocketmq.send-msg-timeout", environment.getProperty("pragmatic-ddd.event.rocketmq.send-msg-timeout", "3000"));
+        source.put("pragmatic-ddd.event.rocketmq.max-reconsume-times", environment.getProperty("pragmatic-ddd.event.rocketmq.max-reconsume-times", "16"));
         return RocketMqConfig.bind(source);
     }
 
@@ -89,7 +89,7 @@ public class RocketMQConfig {
 
 ### 2.3 关键设计点
 
-- **`rocketMqConfig` 是入口**：`RocketMqConfig.bind(source)` 按 `rocketmq` 前缀把配置源映射成强类型对象；上线只需在 `application.yml` 覆盖 `rocketmq.name-server` 等即可。
+- **`rocketMqConfig` 是入口**：`RocketMqConfig.bind(source)` 按 `pragmatic-ddd.event.rocketmq` 前缀把配置源映射成强类型对象；上线只需在 `application.yml` 覆盖 `pragmatic-ddd.event.rocketmq.name-server` 等即可。
 - **生产者生命周期自管、与事件管理器解耦**：`@Bean(destroyMethod = "shutdown")` 由 Spring 回收；注入 `RocketMqEventManager` 后，管理器识别为 externalProducer，其 `shutdown` 不会重复关闭。
 - **事件管理器受控启停**：构造 Bean 只 `build` 不 start，启动延后到 `ApplicationRunner`（所有 Bean 就绪、`start()` 才真正拉起 Producer/Consumer 收发）；若漏掉 start，Consumer 不会订阅、无消费。`RocketMqEventManager.builder()` 必填 `config` 与 `topicResolver`，`serializer` / `producer` / `orderManager` / `metrics` 可选。
 
@@ -142,12 +142,12 @@ public class OrderEventSubscriberRegistry {
 
 | 配置键 | 来源 | 建议 | 说明 |
 | --- | --- | --- | --- |
-| `rocketmq.name-server` | `RocketMqConfig.bind` | 外部化配置 | NameServer 地址（Remoting），外部注入 Producer 时也要配 |
-| `rocketmq.producer-group` | 同上 | `{app}_producer` | 生产者组，**应用级**，不要按聚合拆 |
-| `rocketmq.consumer-group` | 同上 | `{app}_consumer` | 消费者组，全局唯一、禁止与 topic 同名 |
-| `rocketmq.retry-times-when-send-failed` | 同上 | `3` | 发送失败重试次数 |
-| `rocketmq.send-msg-timeout` | 同上 | `3000` | 发送超时（ms） |
-| `rocketmq.max-reconsume-times` | 同上 | `16` | 消费最大重试次数，到顶进死信 |
+| `pragmatic-ddd.event.rocketmq.name-server` | `RocketMqConfig.bind` | 外部化配置 | NameServer 地址（Remoting），外部注入 Producer 时也要配 |
+| `pragmatic-ddd.event.rocketmq.producer-group` | 同上 | `{app}_producer` | 生产者组，**应用级**，不要按聚合拆 |
+| `pragmatic-ddd.event.rocketmq.consumer-group` | 同上 | `{app}_consumer` | 消费者组，全局唯一、禁止与 topic 同名 |
+| `pragmatic-ddd.event.rocketmq.retry-times-when-send-failed` | 同上 | `3` | 发送失败重试次数 |
+| `pragmatic-ddd.event.rocketmq.send-msg-timeout` | 同上 | `3000` | 发送超时（ms） |
+| `pragmatic-ddd.event.rocketmq.max-reconsume-times` | 同上 | `16` | 消费最大重试次数，到顶进死信 |
 
 topic 由应用级 `ConfigurableTopicResolver` 解析（默认 `data_sync_event`），不在此表。
 

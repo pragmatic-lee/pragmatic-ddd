@@ -3,7 +3,7 @@
 > 事件管理器（`IEventManager`）是**可插拔端口**，框架提供 RocketMQ 与本地线程池两种实现，装配时**二选一**。本文档讲装配原则、两种实现的取舍，以及本地实现的数据丢失风险。
 
 ::: info 使用 `pragmatic-ddd-spring-boot` 时
-`RocketMqEventManager` / `KafkaEventManager` 由 `DddRocketMqAutoConfiguration` / `DddKafkaAutoConfiguration` 自动装配，并用 `event.bus` 完成互斥切换（需 classpath 上有对应模块，且容器中存在 `ITopicResolver` Bean）；默认序列化器也一并产出。**本地线程池实现不在自动装配范围内**：选它时需自己声明 `IEventManager` Bean（声明后总线装配自动退位，见 [Spring Boot Starter 集成](./../integration/spring-boot.md)）。事件管理器的 `start()` 由 `DddStartupLifecycle` 在容器就绪后统一触发。
+`RocketMqEventManager` / `KafkaEventManager` 由 `DddRocketMqAutoConfiguration` / `DddKafkaAutoConfiguration` 自动装配，并用 `pragmatic-ddd.event.bus` 完成互斥切换（需 classpath 上有对应模块，且容器中存在 `ITopicResolver` Bean）；默认序列化器也一并产出。**本地线程池实现不在自动装配范围内**：选它时需自己声明 `IEventManager` Bean（声明后总线装配自动退位，见 [Spring Boot Starter 集成](./../integration/spring-boot.md)）。事件管理器的 `start()` 由 `DddStartupLifecycle` 在容器就绪后统一触发。
 :::
 
 ## 1. 本质与定位

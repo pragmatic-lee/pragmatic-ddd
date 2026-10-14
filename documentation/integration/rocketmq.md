@@ -80,8 +80,8 @@ RocketMqConfig config = RocketMqConfig.bind(configurationSource);
 ```java
 RocketMqConfiguration rmqCfg = new RocketMqConfiguration(configurationContext);
 RocketMqConfig config = rmqCfg.config();          // 等价于 RocketMqConfig.bind(...)
-String nameServer = rmqCfg.nameServer();          // rocketmq.name-server
-String proxyAddr = rmqCfg.proxyAddr();            // rocketmq.proxy-addr
+String nameServer = rmqCfg.nameServer();          // pragmatic-ddd.event.rocketmq.name-server
+String proxyAddr = rmqCfg.proxyAddr();            // pragmatic-ddd.event.rocketmq.proxy-addr
 ```
 
 | 参数 | 默认值 | 适用协议 | 说明 |

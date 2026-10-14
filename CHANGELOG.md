@@ -12,6 +12,16 @@
 
 ### 变更
 
+#### 事件基础设施与 Spring 集成（pragmatic-ddd-kafka / -rocketmq / -spring-boot）
+
+- **配置前缀统一至框架命名空间 `pragmatic-ddd.*`**（Breaking）：此前散落在根命名空间的事件类配置项全部收口到
+  `pragmatic-ddd.event.*` 子树，与已带前缀的 `pragmatic-ddd.outbox.*`、`pragmatic-ddd.compensation.*` 对齐。
+  - `event.bus` → `pragmatic-ddd.event.bus`
+  - `kafka.*` → `pragmatic-ddd.event.kafka.*`（含 `KafkaConfiguration` / `DddKafkaAutoConfiguration` 的绑定前缀）
+  - `rocketmq.*` → `pragmatic-ddd.event.rocketmq.*`（含 `RocketMqProperties.bind` 的绑定前缀）
+  - **不提供旧键兼容回退**：旧键（`event.bus` / `kafka.*` / `rocketmq.*`）不再被识别，走默认（缺省即 RocketMQ 装配）。
+  - 迁移方式：将上述键整体加上 `pragmatic-ddd.` 前缀（事件类再加 `event.` 中间层）即可；总线取值 `kafka` / `rocketmq` 不变。
+
 #### 核心模块 pragmatic-ddd-core
 
 - **移除轮询式对账（定时扫描）**（Breaking）：对账触发收敛为事件驱动的单条自愈，框架不再提供常驻周期扫描与候选 ID 来源。

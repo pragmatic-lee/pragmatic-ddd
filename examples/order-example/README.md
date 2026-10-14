@@ -38,18 +38,18 @@
 | 能力 | 落地位置 |
 | --- | --- |
 | 聚合根 / 实体 / 值对象 | `Order` 聚合根、`OrderItem` 实体、`Money`/`Address` 等值对象 |
-| 领域事件 | `OrderDataSyncEvent` 等，经 RocketMQ 或 Kafka 异步投递（`event.bus` 切换） |
+| 领域事件 | `OrderDataSyncEvent` 等，经 RocketMQ 或 Kafka 异步投递（`pragmatic-ddd.event.bus` 切换） |
 | 事务发件箱（Outbox） | 下单事务内写 `outbox_message`，保证事件不丢 |
 | 号段 ID 生成 | `id_segment` 表 + 号段分配器（step=1000） |
 | ES 投影（CQRS 读模型） | 事件消费后投影 `OrderEsProjection` 写入 ES `order_index` |
-| 事件总线可替换 | `event.bus=kafka` 走 `KafkaEventManager`，`rocketmq` 走 `RocketMqEventManager`，其余业务代码零改动 |
+| 事件总线可替换 | `pragmatic-ddd.event.bus=kafka` 走 `KafkaEventManager`，`rocketmq` 走 `RocketMqEventManager`，其余业务代码零改动 |
 | 对账与补偿 | `ReconciliationRegistry` 登记仓储/版本解析器/补偿器 |
 
 **数据流**：
 
 ```
 HTTP 下单 → Order 聚合根 → MySQL（t_order + outbox_message 同事务）
-                              │ 发件箱投递（目标中间件由 event.bus 决定）
+                              │ 发件箱投递（目标中间件由 pragmatic-ddd.event.bus 决定）
                               ▼
                 RocketMQ（data_sync_event）
                     或 Kafka（data_sync_event / data_sync_event-retry / data_sync_event-dlq）
@@ -73,31 +73,31 @@ HTTP 下单 → Order 聚合根 → MySQL（t_order + outbox_message 同事务�
 | redis | `redis:7.2` | 6379 | 缓存副本（事件驱动的写缓存/对账兜底） |
 | qdrant | `qdrant/qdrant` | 6333 / 6334 | 预留向量库（示例暂未使用） |
 
-> RocketMQ 与 Kafka 两套中间件同时编排在 compose 中，按 `event.bus` 选用其一作为事件总线；不用的一侧可以保持运行但不会产生流量。
+> RocketMQ 与 Kafka 两套中间件同时编排在 compose 中，按 `pragmatic-ddd.event.bus` 选用其一作为事件总线；不用的一侧可以保持运行但不会产生流量。
 
 ## 3. 事件总线：RocketMQ / Kafka 二选一
 
 ### 3.1 切换方式
 
-`IEventManager` 有两套实现，示例通过 `event.bus` 单开关切换，业务代码（聚合根、投影、订阅者登记）完全一致：
+`IEventManager` 有两套实现，示例通过 `pragmatic-ddd.event.bus` 单开关切换，业务代码（聚合根、投影、订阅者登记）完全一致：
 
-| `event.bus` | 装配类 | 实现模块 | 配置前缀 |
+| `pragmatic-ddd.event.bus` | 装配类 | 实现模块 | 配置前缀 |
 | --- | --- | --- | --- |
-| `kafka`（示例默认） | `KafkaConfig` | `pragmatic-ddd-kafka` | `kafka.*` |
-| `rocketmq` | `RocketMQConfig` | `pragmatic-ddd-rocketmq` | `rocketmq.*` |
+| `kafka`（示例默认） | `KafkaConfig` | `pragmatic-ddd-kafka` | `pragmatic-ddd.event.kafka.*` |
+| `rocketmq` | `RocketMQConfig` | `pragmatic-ddd-rocketmq` | `pragmatic-ddd.event.rocketmq.*` |
 
 - 两个配置类都用 `@ConditionalOnProperty` 互斥（Kafka 侧 `havingValue = "kafka"`，RocketMQ 侧 `havingValue = "rocketmq", matchIfMissing = true`），保证容器内只有一个 `IEventManager` Bean；
 - 切换只需改一个配置项，无需改代码：
 
 ```properties
 # src/main/resources/application.properties 或 docker 挂载的 application-dev.properties
-event.bus=kafka      # 走 Kafka
-event.bus=rocketmq   # 走 RocketMQ
+pragmatic-ddd.event.bus=kafka      # 走 Kafka
+pragmatic-ddd.event.bus=rocketmq   # 走 RocketMQ
 ```
 
 - topic 由 `OrderEventTopicConfig` 的 `ConfigurableTopicResolver` 统一提供，主 topic 固定为 `data_sync_event`；Kafka 侧在此基础上按后缀派生 `-retry`（重试）与 `-dlq`（死信）。
 
-> `KafkaConfig` 只负责装配：`kafkaProperties(...)` 把 `kafka.*` 绑定成 `KafkaProperties`，`orderEventManager(...)` 构建 `KafkaEventManager`（producer/consumer 内部自建），`startKafkaOnReady(...)` 在应用就绪后（`ApplicationRunner`）调用 `start()` 订阅 topic。
+> `KafkaConfig` 只负责装配：`kafkaProperties(...)` 把 `pragmatic-ddd.event.kafka.*` 绑定成 `KafkaProperties`，`orderEventManager(...)` 构建 `KafkaEventManager`（producer/consumer 内部自建），`startKafkaOnReady(...)` 在应用就绪后（`ApplicationRunner`）调用 `start()` 订阅 topic。
 
 ### 3.2 Kafka 关键配置项
 
@@ -105,23 +105,23 @@ event.bus=rocketmq   # 走 RocketMQ
 
 | 配置项 | dev 容器值 | 说明 |
 | --- | --- | --- |
-| `kafka.bootstrap-servers` | `kafka:9092` | broker 地址列表，容器内用服务名，本机 JVM 直跑用 `127.0.0.1:9092` |
-| `kafka.group` | `order_example_consumer` | 消费组 |
-| `kafka.auto-offset-reset` | `latest` | 无已提交位点时的起始位点 |
-| `kafka.ack` | `all` | 生产者 `acks`，配合幂等开启最强持久性 |
-| `kafka.enable-idempotence` | `true` | 幂等生产者，去重重试导致的重复写入 |
-| `kafka.send-timeout-ms` | `10000` | 生产者发送超时 |
-| `kafka.max-poll-records` | `500` | 单次 `poll` 消息上限 |
-| `kafka.poll-timeout-ms` | `1000` | `poll` 阻塞超时 |
-| `kafka.concurrency` | `1` | 消费者并发度 |
-| `kafka.batch-budget-ms` | `30000` | 单批处理时间预算，超预算的剩余消息留待下轮，避免长时间不 `poll` 被判为失效成员 |
-| `kafka.inline-retry-intervals-ms` | `100,500` | 消费失败先内联重试的间隔表（毫秒） |
-| `kafka.retry-topic-suffix` | `-retry` | 重试 topic 后缀，置空则关闭重试通道 |
-| `kafka.retry-hop-backoff-ms` | `1000,5000,10000,30000,60000,120000,180000,240000` | 重试 topic 每轮往返退避表（8 档，超末档复用末档） |
-| `kafka.dlq-suffix` | `-dlq` | 死信 topic 后缀 |
-| `kafka.max-reconsume` | `16` | 重试预算耗尽后转死信 |
-| `kafka.delayed-policy` | `immediate` | DELAYED 策略降级为即时发送（不使用 `-delay` topic） |
-| `kafka.compression-type` / `kafka.client-id` | 空 | 可选，按需开启 |
+| `pragmatic-ddd.event.kafka.bootstrap-servers` | `kafka:9092` | broker 地址列表，容器内用服务名，本机 JVM 直跑用 `127.0.0.1:9092` |
+| `pragmatic-ddd.event.kafka.group` | `order_example_consumer` | 消费组 |
+| `pragmatic-ddd.event.kafka.auto-offset-reset` | `latest` | 无已提交位点时的起始位点 |
+| `pragmatic-ddd.event.kafka.ack` | `all` | 生产者 `acks`，配合幂等开启最强持久性 |
+| `pragmatic-ddd.event.kafka.enable-idempotence` | `true` | 幂等生产者，去重重试导致的重复写入 |
+| `pragmatic-ddd.event.kafka.send-timeout-ms` | `10000` | 生产者发送超时 |
+| `pragmatic-ddd.event.kafka.max-poll-records` | `500` | 单次 `poll` 消息上限 |
+| `pragmatic-ddd.event.kafka.poll-timeout-ms` | `1000` | `poll` 阻塞超时 |
+| `pragmatic-ddd.event.kafka.concurrency` | `1` | 消费者并发度 |
+| `pragmatic-ddd.event.kafka.batch-budget-ms` | `30000` | 单批处理时间预算，超预算的剩余消息留待下轮，避免长时间不 `poll` 被判为失效成员 |
+| `pragmatic-ddd.event.kafka.inline-retry-intervals-ms` | `100,500` | 消费失败先内联重试的间隔表（毫秒） |
+| `pragmatic-ddd.event.kafka.retry-topic-suffix` | `-retry` | 重试 topic 后缀，置空则关闭重试通道 |
+| `pragmatic-ddd.event.kafka.retry-hop-backoff-ms` | `1000,5000,10000,30000,60000,120000,180000,240000` | 重试 topic 每轮往返退避表（8 档，超末档复用末档） |
+| `pragmatic-ddd.event.kafka.dlq-suffix` | `-dlq` | 死信 topic 后缀 |
+| `pragmatic-ddd.event.kafka.max-reconsume` | `16` | 重试预算耗尽后转死信 |
+| `pragmatic-ddd.event.kafka.delayed-policy` | `immediate` | DELAYED 策略降级为即时发送（不使用 `-delay` topic） |
+| `pragmatic-ddd.event.kafka.compression-type` / `pragmatic-ddd.event.kafka.client-id` | 空 | 可选，按需开启 |
 
 Kafka 模式下实际落地的 topic（`data_sync_event` 为主 topic）：
 
@@ -129,7 +129,7 @@ Kafka 模式下实际落地的 topic（`data_sync_event` 为主 topic）：
 | --- | --- |
 | `data_sync_event` | 发件箱投递的业务事件 |
 | `data_sync_event-retry` | 内联重试耗尽后转投，等待退避到期回投 |
-| `data_sync_event-dlq` | 重试次数超 `kafka.max-reconsume` 后的死信 |
+| `data_sync_event-dlq` | 重试次数超 `pragmatic-ddd.event.kafka.max-reconsume` 后的死信 |
 
 ### 3.3 Kafka 消费失败重试链路
 
@@ -146,7 +146,7 @@ Kafka 模式下实际落地的 topic（`data_sync_event` 为主 topic）：
 
 > 适用：全新环境（本机无 MySQL / ES / RocketMQ / Kafka 或可接受独占端口）。
 >
-> ⚠️ 示例默认 `event.bus=kafka`，但 `setup.sh` 目前**没有拉起 Kafka**，跑完脚本后请务必补 [4.4](#44-启动-kafka脚本未覆盖需手动一次) 这一步，否则事件会滞留在 `outbox_message`。
+> ⚠️ 示例默认 `pragmatic-ddd.event.bus=kafka`，但 `setup.sh` 目前**没有拉起 Kafka**，跑完脚本后请务必补 [4.4](#44-启动-kafka脚本未覆盖需手动一次) 这一步，否则事件会滞留在 `outbox_message`。
 
 ### 4.1 前置要求
 
@@ -185,7 +185,7 @@ bash setup.sh
 
 ### 4.4 启动 Kafka（脚本未覆盖，需手动一次）
 
-> ⚠️ 当前 `setup.sh` 的第 1 步**没有拉起 `kafka` / `kafkaui`**，也没有等待 Kafka 就绪；而 `docker/order-example/config/application-dev.properties` 里 `event.bus=kafka`、`kafka.bootstrap-servers=kafka:9092`。因此走 Kafka 事件总线时，`setup.sh` 跑完后还需补一条命令（幂等，可重复执行）：
+> ⚠️ 当前 `setup.sh` 的第 1 步**没有拉起 `kafka` / `kafkaui`**，也没有等待 Kafka 就绪；而 `docker/order-example/config/application-dev.properties` 里 `pragmatic-ddd.event.bus=kafka`、`pragmatic-ddd.event.kafka.bootstrap-servers=kafka:9092`。因此走 Kafka 事件总线时，`setup.sh` 跑完后还需补一条命令（幂等，可重复执行）：
 
 ```bash
 cd examples/order-example/docker
@@ -210,7 +210,7 @@ docker exec my-kafka kafka-topics --bootstrap-server localhost:9092 --list
 
 - topic **不需要手动创建**：broker 默认开启自动建 topic，框架首次 `send()` 时 broker 自动创建（`data_sync_event`；发生消费失败后才会派生 `-retry` / `-dlq`）；
 - 建议**先启动 Kafka、再下单**：若 Kafka 未就绪，事件仍会安全落在 `outbox_message`（PENDING），业务请求不受影响，但投影不会更新；`OutboxRelay` 兜底轮询（默认 5 分钟一轮、最多 10 次）会在 Kafka 恢复后自动重投，也可以直接重启应用立即触发推送；
-- 用 RocketMQ 事件总线时可跳过本节：把配置改为 `event.bus=rocketmq`，或直接用 `setup.sh` 已拉起的 RocketMQ。
+- 用 RocketMQ 事件总线时可跳过本节：把配置改为 `pragmatic-ddd.event.bus=rocketmq`，或直接用 `setup.sh` 已拉起的 RocketMQ。
 
 ### 4.5 验证全链路
 
@@ -231,9 +231,9 @@ curl "http://localhost:9200/_cat/indices/order_index?v"
 curl -s "http://localhost:9200/order/_search?pretty" -H 'Content-Type: application/json' \
   -d '{"query":{"match_all":{}},"sort":[{"orderId":"desc"}],"size":1}'
 
-# 5. 消息轨迹可视化（二选一，按 event.bus 打开对应面板）
-open http://localhost:8082   # Kafka UI（event.bus=kafka，按 topic=data_sync_event 查看）
-open http://localhost:8080   # RocketMQ Dashboard（event.bus=rocketmq）
+# 5. 消息轨迹可视化（二选一，按 pragmatic-ddd.event.bus 打开对应面板）
+open http://localhost:8082   # Kafka UI（pragmatic-ddd.event.bus=kafka，按 topic=data_sync_event 查看）
+open http://localhost:8080   # RocketMQ Dashboard（pragmatic-ddd.event.bus=rocketmq）
 ```
 
 可选：修改地址触发更新链路（`version` 递增 + ES 同步更新）：
@@ -303,14 +303,14 @@ ES_URL=http://<你的ES地址>:9200 bash docker/es/init/order-es-create-index.sh
 | `spring.datasource.url` | `jdbc:mysql://mysql:3306/order_example` | 你的 MySQL 地址 |
 | `spring.datasource.password` | `MySqlXXL123` | 你的密码 |
 | `elasticsearch.hosts` | `http://elasticsearch:9200` | 你的 ES 地址 |
-| `event.bus` | `kafka` | 你的事件总线（`kafka` / `rocketmq`） |
-| `kafka.bootstrap-servers` | `kafka:9092` | 你的 Kafka broker 地址 |
-| `kafka.group` | `order_example_consumer` | 你的消费组（避免与他人共用） |
-| `rocketmq.name-server` | `rmqnamesrv:9876` | 你的 NameServer 地址（`event.bus=rocketmq` 时生效） |
+| `pragmatic-ddd.event.bus` | `kafka` | 你的事件总线（`kafka` / `rocketmq`） |
+| `pragmatic-ddd.event.kafka.bootstrap-servers` | `kafka:9092` | 你的 Kafka broker 地址 |
+| `pragmatic-ddd.event.kafka.group` | `order_example_consumer` | 你的消费组（避免与他人共用） |
+| `pragmatic-ddd.event.rocketmq.name-server` | `rmqnamesrv:9876` | 你的 NameServer 地址（`pragmatic-ddd.event.bus=rocketmq` 时生效） |
 
 其余配置（连接池、超时、重试、批量预算）为框架推荐值，一般无需改动。
 
-> **密码安全建议**：`rocketmq.name-server` 支持环境变量注入（`ROCKETMQ_NAMESRV`）；MySQL 密码目前示例为明文，接入生产环境前请修改并考虑用环境变量替换。
+> **密码安全建议**：`pragmatic-ddd.event.rocketmq.name-server` 支持环境变量注入（`ROCKETMQ_NAMESRV`）；MySQL 密码目前示例为明文，接入生产环境前请修改并考虑用环境变量替换。
 
 ### 5.6 运行应用
 
@@ -320,9 +320,9 @@ ES_URL=http://<你的ES地址>:9200 bash docker/es/init/order-es-create-index.sh
 mvn -pl examples/order-example -am spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-- 使用 `src/main/resources/application.properties`（默认 `localhost` 地址、`event.bus=kafka`、`kafka.bootstrap-servers=127.0.0.1:9092`）；若中间件不在本机，按 [5.5](#55-连接配置) 改配置
+- 使用 `src/main/resources/application.properties`（默认 `localhost` 地址、`pragmatic-ddd.event.bus=kafka`、`pragmatic-ddd.event.kafka.bootstrap-servers=127.0.0.1:9092`）；若中间件不在本机，按 [5.5](#55-连接配置) 改配置
 - **注意（RocketMQ）**：本机 JVM 直连 RocketMQ 时，broker 注册地址（`broker.conf` 的 `brokerIP1`）必须是本机可达的地址——compose 里的 `rmqbroker` 服务名仅在容器网络内有效，本机直连需改为宿主机 IP 或 `127.0.0.1`
-- **注意（Kafka）**：compose 里 `kafka` 的 `KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092` 只声明了容器网络内的地址，本机 JVM 用 `127.0.0.1:9092` 连接时元数据会返回不可达的 `kafka:9092`，消费者无法工作；本机直连需为 broker 增加一个宿主机 listener（如 `PLAINTEXT_HOST://localhost:9092`）并把 `kafka.bootstrap-servers` 指向它
+- **注意（Kafka）**：compose 里 `kafka` 的 `KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092` 只声明了容器网络内的地址，本机 JVM 用 `127.0.0.1:9092` 连接时元数据会返回不可达的 `kafka:9092`，消费者无法工作；本机直连需为 broker 增加一个宿主机 listener（如 `PLAINTEXT_HOST://localhost:9092`）并把 `pragmatic-ddd.event.kafka.bootstrap-servers` 指向它
 
 **方式 B：构建镜像跑**（与一键启动相同的镜像，但不依赖 compose 中间件）
 
@@ -370,7 +370,7 @@ docker/
 
 **Q2：想从 Kafka 换回 RocketMQ（或反过来）？**
 
-只改一个配置项 `event.bus`（`kafka` / `rocketmq`）并重启应用；两套中间件可以同时保持运行。topic 名字（`data_sync_event`）与订阅者登记代码不变。
+只改一个配置项 `pragmatic-ddd.event.bus`（`kafka` / `rocketmq`）并重启应用；两套中间件可以同时保持运行。topic 名字（`data_sync_event`）与订阅者登记代码不变。
 
 **Q3：Kafka 下事件消费失败会怎么处理？**
 
@@ -392,7 +392,7 @@ docker/
 
 **Q7：本地 JVM 运行连不上 Kafka（连得上 bootstrap 但收不到消息）？**
 
-多为 `advertised.listeners` 问题：broker 只向客户端返回容器内地址 `kafka:9092`，本机不可达。给 broker 补一个宿主机 listener 并同步 `kafka.bootstrap-servers`，详见 [5.6 方式 A](#56-运行应用) 的注意事项。
+多为 `advertised.listeners` 问题：broker 只向客户端返回容器内地址 `kafka:9092`，本机不可达。给 broker 补一个宿主机 listener 并同步 `pragmatic-ddd.event.kafka.bootstrap-servers`，详见 [5.6 方式 A](#56-运行应用) 的注意事项。
 
 **Q8：端口被占用导致容器起不来？**
 
@@ -453,6 +453,6 @@ new CompensableCommandExecutor(
 ## 9. 下一步
 
 - **跑通后看代码**：`KafkaConfig`（事件总线装配）→ `OrderEventTopicConfig`（topic 解析）→ `OrderEventSubscriberRegistry`（订阅者登记）→ 从 `Order` 聚合根（`domain/order/model`）→ 应用服务（`application/order/service`）→ 投影链路（`infrastructure/persistent/order/projection`）逐层阅读
-- **换回 RocketMQ**：把 `event.bus` 改为 `rocketmq`，对比 `RocketMQConfig` 与 `KafkaConfig` 的差异，理解同一套领域事件如何适配两种中间件
+- **换回 RocketMQ**：把 `pragmatic-ddd.event.bus` 改为 `rocketmq`，对比 `RocketMQConfig` 与 `KafkaConfig` 的差异，理解同一套领域事件如何适配两种中间件
 - **接入你自己的项目**：复用本仓库的中间件 compose 与 `Dockerfile` / `build.sh` / `setup.sh` 模板（见 [docker 目录结构](#6-docker-目录结构) 与 [5.5 连接配置](#55-连接配置)），业务代码改为引用 `pragmatic-ddd-bom` 依赖
 - **查阅框架文档**：VitePress 文档站（`documentation/`），入口 `documentation/index.md`

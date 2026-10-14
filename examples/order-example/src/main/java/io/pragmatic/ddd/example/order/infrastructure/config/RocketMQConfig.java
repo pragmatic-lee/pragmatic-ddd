@@ -21,17 +21,20 @@ import org.springframework.core.env.Environment;
  * 订阅登记由订单域订阅者注册表（EventSubscriberRegistry 实现）承担，本类不负责订阅绑定。
  * 订单域主题路由由 {@link OrderEventTopicConfig} 统一提供（与 Kafka 共用）。
  *
- * <p>与 {@code KafkaConfig} 互斥：仅当 {@code event.bus} 缺省或为 {@code rocketmq} 时生效，
+ * <p>与 {@code KafkaConfig} 互斥：仅当 {@code pragmatic-ddd.event.bus} 缺省或为 {@code rocketmq} 时生效，
  * 保证容器中始终只有一个 {@link IEventManager} Bean。</p>
  *
  * @author wizard-lee
  */
 @Configuration
-@ConditionalOnProperty(name = "event.bus", havingValue = "rocketmq", matchIfMissing = true)
+@ConditionalOnProperty(name = "pragmatic-ddd.event.bus", havingValue = "rocketmq", matchIfMissing = true)
 public class RocketMQConfig {
 
+    /** RocketMQ 配置前缀（与 {@link RocketMqProperties#bind} 约定一致）。 */
+    private static final String ROCKETMQ_PREFIX = "pragmatic-ddd.event.rocketmq";
+
     /**
-     * 装配 RocketMQ 统一配置，从 Spring Environment 按 {@code rocketmq} 前缀绑定。
+     * 装配 RocketMQ 统一配置，从 Spring Environment 按 {@code pragmatic-ddd.event.rocketmq} 前缀绑定。
      *
      * @param environment Spring 环境（承载外部化配置）
      * @return RocketMQ 统一配置
@@ -39,12 +42,12 @@ public class RocketMQConfig {
     @Bean
     public RocketMqProperties rocketMqConfig(Environment environment) {
         MapConfigurationSource source = new MapConfigurationSource();
-        source.put("rocketmq.name-server", environment.getProperty("rocketmq.name-server", "127.0.0.1:9876"));
-        source.put("rocketmq.producer-group", environment.getProperty("rocketmq.producer-group", "order_example_producer"));
-        source.put("rocketmq.consumer-group", environment.getProperty("rocketmq.consumer-group", "order_example_consumer"));
-        source.put("rocketmq.retry-times-when-send-failed", environment.getProperty("rocketmq.retry-times-when-send-failed", "3"));
-        source.put("rocketmq.send-msg-timeout", environment.getProperty("rocketmq.send-msg-timeout", "3000"));
-        source.put("rocketmq.max-reconsume-times", environment.getProperty("rocketmq.max-reconsume-times", "16"));
+        source.put(ROCKETMQ_PREFIX + ".name-server", environment.getProperty(ROCKETMQ_PREFIX + ".name-server", "127.0.0.1:9876"));
+        source.put(ROCKETMQ_PREFIX + ".producer-group", environment.getProperty(ROCKETMQ_PREFIX + ".producer-group", "order_example_producer"));
+        source.put(ROCKETMQ_PREFIX + ".consumer-group", environment.getProperty(ROCKETMQ_PREFIX + ".consumer-group", "order_example_consumer"));
+        source.put(ROCKETMQ_PREFIX + ".retry-times-when-send-failed", environment.getProperty(ROCKETMQ_PREFIX + ".retry-times-when-send-failed", "3"));
+        source.put(ROCKETMQ_PREFIX + ".send-msg-timeout", environment.getProperty(ROCKETMQ_PREFIX + ".send-msg-timeout", "3000"));
+        source.put(ROCKETMQ_PREFIX + ".max-reconsume-times", environment.getProperty(ROCKETMQ_PREFIX + ".max-reconsume-times", "16"));
         return RocketMqProperties.bind(source);
     }
 

@@ -16,8 +16,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Kafka 事件基础设施自动装配（与 RocketMQ 装配通过 {@code event.bus} 互斥，需显式设为 {@code kafka}）。
- * 从 {@link IConfigurationSource}（Spring Environment）按 {@code kafka} 前缀绑定配置，
+ * Kafka 事件基础设施自动装配（与 RocketMQ 装配通过 {@code pragmatic-ddd.event.bus} 互斥，需显式设为 {@code kafka}）。
+ * 从 {@link IConfigurationSource}（Spring Environment）按 {@code pragmatic-ddd.event.kafka} 前缀绑定配置，
  * 装配 {@link KafkaEventManager}（{@link IEventManager} 的 Kafka 实现）。
  *
  * <p>{@link ITopicResolver} 是领域知识，容器无此 Bean 时整块跳过；生产者由管理器内部自建并回收。</p>
@@ -26,7 +26,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnClass({KafkaEventManager.class, IEventManager.class})
-@ConditionalOnProperty(name = "event.bus", havingValue = "kafka")
+@ConditionalOnProperty(name = "pragmatic-ddd.event.bus", havingValue = "kafka")
 @ConditionalOnBean(ITopicResolver.class)
 public class DddKafkaAutoConfiguration {
 
@@ -37,7 +37,7 @@ public class DddKafkaAutoConfiguration {
     private static final String DEFAULT_GROUP = "pragmatic_ddd_consumer";
 
     /**
-     * 依据 {@code kafka.*} 配置绑定统一配置，缺失项回退到框架默认值。
+     * 依据 {@code pragmatic-ddd.event.kafka.*} 配置绑定统一配置，缺失项回退到框架默认值。
      *
      * @param source 框架配置源
      * @return Kafka 统一配置
@@ -45,10 +45,10 @@ public class DddKafkaAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(KafkaProperties.class)
     public KafkaProperties kafkaProperties(IConfigurationSource source) {
-        String bootstrapServers = source.getString("kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
-        String group = source.getString("kafka.group", DEFAULT_GROUP);
+        String bootstrapServers = source.getString("pragmatic-ddd.event.kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS);
+        String group = source.getString("pragmatic-ddd.event.kafka.group", DEFAULT_GROUP);
         KafkaProperties defaults = KafkaProperties.withDefaults(bootstrapServers, group);
-        return ConfigurationBinder.bind(source, "kafka", KafkaProperties.class, defaults);
+        return ConfigurationBinder.bind(source, "pragmatic-ddd.event.kafka", KafkaProperties.class, defaults);
     }
 
     /**

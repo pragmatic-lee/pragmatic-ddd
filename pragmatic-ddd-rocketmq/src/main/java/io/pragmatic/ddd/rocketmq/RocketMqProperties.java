@@ -57,15 +57,15 @@ public class RocketMqProperties {
     public RocketMqProperties setConsumerGroup(String consumerGroup) { this.consumerGroup = consumerGroup; return this; }
 
     /**
-     * 从配置源按 {@code rocketmq} 前缀绑定统一配置（兼容并收敛既有配置）。
-     * 键约定：rocketmq.name-server / rocketmq.proxy-addr / rocketmq.retry-times-when-send-failed
-     * / rocketmq.send-msg-timeout / rocketmq.compress-msg-body-over-howmuch / rocketmq.producer-group
-     * / rocketmq.default-delay-level / rocketmq.max-reconsume-times。
+     * 从配置源按 {@code pragmatic-ddd.event.rocketmq} 前缀绑定统一配置（兼容并收敛既有配置）。
+     * 键约定：pragmatic-ddd.event.rocketmq.name-server / .proxy-addr / .retry-times-when-send-failed
+     * / .send-msg-timeout / .compress-msg-body-over-howmuch / .producer-group
+     * / .default-delay-level / .max-reconsume-times。
      *
      * @param source 配置源
      * @return 绑定后的配置
      */
     public static RocketMqProperties bind(IConfigurationSource source) {
-        return ConfigurationBinder.bind(source, "rocketmq", RocketMqProperties.class);
+        return ConfigurationBinder.bind(source, "pragmatic-ddd.event.rocketmq", RocketMqProperties.class);
     }
 }
