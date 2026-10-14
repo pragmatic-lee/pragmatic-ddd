@@ -137,6 +137,20 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!--
+                            本模块的自动装配测试使用 Mockito 内联 mock；当运行 JDK 高于所用
+                            ByteBuddy 的正式支持版本（如本机 JDK 26）时，mock 会因类文件版本过新而失败。
+                            开启实验性支持即可，不改变任何被测行为；与父 POM 的 argLine 互不冲突。
+                        -->
+                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

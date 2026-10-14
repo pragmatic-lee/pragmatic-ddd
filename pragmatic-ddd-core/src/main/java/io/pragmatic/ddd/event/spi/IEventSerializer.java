@@ -7,7 +7,7 @@ package io.pragmatic.ddd.event.spi;
  */
 public interface IEventSerializer {
 
-    /** 将事件序列化为字符串。 */
+    /** 将事件序列化为字符串；入参为 {@code null} 时返回 {@code null}。 */
     <T> String serialize(T event);
 
     /** 按事件类型将字符串反序列化为事件对象。 */

@@ -14,10 +14,13 @@ import io.pragmatic.ddd.event.spi.IEventSerializer;
 public class Fastjson2EventSerializer implements IEventSerializer {
 
     /**
-     * 将领域事件序列化为 JSON 字符串。
+     * 将领域事件序列化为 JSON 字符串；入参为 null 时返回 null，避免把字面量 "null" 当作消息体发出。
      */
     @Override
     public <T> String serialize(T event) {
+        if (event == null) {
+            return null;
+        }
         return JSON.toJSONString(event, JSONWriter.Feature.FieldBased);
     }
 

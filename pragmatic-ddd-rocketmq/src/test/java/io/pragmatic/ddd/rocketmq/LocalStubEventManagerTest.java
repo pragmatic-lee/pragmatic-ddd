@@ -6,6 +6,7 @@ import io.pragmatic.ddd.event.spi.ExecuteStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,27 +56,34 @@ class LocalStubEventManagerTest {
     @Test
     void publish_onlyThis_true_doesNotTriggerDependentSubscribers() {
         LocalStubEventManager manager = manager();
-        manager.registerSubscriber("root", MyDomainEvent.class, e -> { }, null, "leaf");
-        manager.registerSubscriber("leaf", MyDomainEvent.class, e -> { });
+        manager.registerSubscriber("root", MyDomainEvent.class, e -> { });
+        manager.registerSubscriber("leaf", MyDomainEvent.class, e -> { }, null, "root");
 
         manager.publish(MyDomainEvent.buildEvent("a", "a"), "root", true);
+        manager.deliverLast();
 
-        List<LocalStubEventManager.SentRecord> sent = manager.sent();
-        assertThat(sent).hasSize(1);
-        assertThat(sent.get(0).subscribeData().getName()).isEqualTo("root");
+        assertThat(subscriberNames(manager)).containsExactly("root");
     }
 
     @Test
     void publish_onlyThis_false_triggersDependentChain() {
         LocalStubEventManager manager = manager();
-        manager.registerSubscriber("root", MyDomainEvent.class, e -> { }, null, "leaf");
-        manager.registerSubscriber("leaf", MyDomainEvent.class, e -> { });
+        manager.registerSubscriber("root", MyDomainEvent.class, e -> { });
+        manager.registerSubscriber("leaf", MyDomainEvent.class, e -> { }, null, "root");
 
         manager.publish(MyDomainEvent.buildEvent("a", "a"), "root", false);
+        // 发布侧只投递 root，向后传播发生在消费侧
+        assertThat(subscriberNames(manager)).containsExactly("root");
 
-        List<LocalStubEventManager.SentRecord> sent = manager.sent();
-        assertThat(sent.stream().map(r -> r.subscribeData().getName()))
-                .containsExactlyInAnyOrder("root", "leaf");
+        manager.deliverLast();
+
+        assertThat(subscriberNames(manager)).containsExactlyInAnyOrder("root", "leaf");
+    }
+
+    private static List<String> subscriberNames(LocalStubEventManager manager) {
+        return manager.sent().stream()
+                .map(record -> record.subscribeData().getName())
+                .collect(Collectors.toList());
     }
 
     @Test

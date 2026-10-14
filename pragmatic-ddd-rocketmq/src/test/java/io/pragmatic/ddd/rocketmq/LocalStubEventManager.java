@@ -22,8 +22,11 @@ class LocalStubEventManager extends AbstractMQEventManager {
     /** 记录每次 sendMessage 的 (topic, subscribeData)。 */
     final List<SentRecord> sent = new ArrayList<>();
 
+    private final IEventSerializer serializer;
+
     LocalStubEventManager(ISubscriberOrderManager orderManager, IEventSerializer serializer, ITopicResolver topicResolver) {
         super(orderManager, serializer, topicResolver);
+        this.serializer = serializer;
     }
 
     List<SentRecord> sent() {
@@ -48,6 +51,12 @@ class LocalStubEventManager extends AbstractMQEventManager {
     /** 暴露受保护的消费入口，供测试模拟消费侧触发顺序链。 */
     void consume(String data, String mqTopic) {
         handleEvent(data, mqTopic);
+    }
+
+    /** 模拟 MQ 把最近一条已发送消息投递回消费侧，用于驱动顺序链向下游传播。 */
+    void deliverLast() {
+        SentRecord record = sent.get(sent.size() - 1);
+        consume(serializer.serialize(record.subscribeData()), record.topic());
     }
 
     /** 一次发送记录。 */

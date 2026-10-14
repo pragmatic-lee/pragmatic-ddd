@@ -13,8 +13,14 @@ import com.alibaba.fastjson2.JSON;
  */
 public class KafkaEventSerializer implements IEventSerializer {
 
+    /**
+     * 将事件序列化为 JSON 字符串；入参为 null 时返回 null，避免把字面量 "null" 当作消息体发出。
+     */
     @Override
     public <T> String serialize(T event) {
+        if (event == null) {
+            return null;
+        }
         return JSON.toJSONString(event, JSONWriter.Feature.FieldBased);
     }
 
