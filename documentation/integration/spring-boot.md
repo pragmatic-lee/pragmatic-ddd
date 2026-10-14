@@ -43,7 +43,7 @@ optional 依赖不会随 starter 传递给使用方。要用 Outbox / 号段 ID�
 
 ## 2. 引入方式
 
-版本由 BOM 统一管理（当前 `2.0.0`），框架尚未发布到中央仓库，先按[快速开始](/getting-started/quick-start) 的 §0 本地安装：
+版本由 BOM 统一管理（当前 `2.0.0`），框架已发布到 Maven 中央仓库，直接引入即可：
 
 ```xml
 <dependencyManagement>
