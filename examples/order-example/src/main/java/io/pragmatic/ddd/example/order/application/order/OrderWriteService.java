@@ -37,8 +37,8 @@ import java.util.function.Supplier;
 /**
  * 订单写服务：下单、改址、发货、支付与订单项维护命令的应用服务编排。
  * Input 接入 → 工厂建聚合 / Updater 改聚合 → 规则校验 → 仓储持久化 → 领域事件发布，置于同一事务单元。
- * 命令执行器与工作单元工厂由 OutboxConfig 以成品 Bean 注入，服务内不再手动装配。
- * 下单命令额外使用 CompensableCommandExecutor（由 CompensationConfig 装配），为库存预占叠加逆序补偿。
+ * 命令执行器与工作单元工厂由 pragmatic-ddd-spring-boot 的 Outbox 自动装配以成品 Bean 注入，服务内不再手动装配。
+ * 下单命令额外使用 CompensableCommandExecutor（由补偿自动装配），为库存预占叠加逆序补偿。
  */
 @Service
 public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
@@ -66,8 +66,8 @@ public class OrderWriteService extends AbstractApplicationService implements ICo
     private final OrderRemoveItemUpdater orderRemoveItemUpdater;
 
     /**
-     * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 OutboxConfig），不再内部 new 组装；
-     * 可补偿命令执行器成品用于下单命令（装配点收敛于 CompensationConfig）。
+     * 注入 outbox 命令执行器与工作单元工厂成品（装配点收敛于 pragmatic-ddd-spring-boot 的 Outbox 自动装配），不再内部 new 组装；
+     * 可补偿命令执行器成品用于下单命令（装配点收敛于补偿自动装配）。
      *
      * @param eventManager        事件管理器
      * @param commandExecutor     outbox 命令执行器成品

@@ -44,6 +44,11 @@
 
     <dependencies>
         <!-- ===== Pragmatic DDD 框架 ===== -->
+        <!-- Spring Boot starter：自动装配事务/Outbox/事件总线/ID/补偿/生命周期链路 -->
+        <dependency>
+            <groupId>io.pragmatic.ddd</groupId>
+            <artifactId>pragmatic-ddd-spring-boot</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.pragmatic.ddd</groupId>
             <artifactId>pragmatic-ddd-core</artifactId>

@@ -1,6 +1,7 @@
 package io.pragmatic.ddd.kafka;
 
 import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.JSONWriter;
 import io.pragmatic.ddd.event.spi.IEventSerializer;
 import com.alibaba.fastjson2.JSON;
 
@@ -14,7 +15,7 @@ public class KafkaEventSerializer implements IEventSerializer {
 
     @Override
     public <T> String serialize(T event) {
-        return JSON.toJSONString(event);
+        return JSON.toJSONString(event, JSONWriter.Feature.FieldBased);
     }
 
     @Override

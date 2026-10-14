@@ -1,0 +1,106 @@
+server:
+  port: 9500
+  # 统一接口前缀 /api：契约 API（/api/orders 等）与自检/演示接口（/api/health、/api/testOrder）均带此前缀，
+  # 与 jar 内 application.yaml 保持一致（此处显式声明，容器内可直接看到/覆盖）
+  servlet:
+    context-path: /api
+
+spring:
+  # ===== MySQL 数据源（密码通过环境变量 MYSQL_PASSWORD 注入，避免硬编码） =====
+  datasource:
+    url: jdbc:mysql://mysql:3306/order_example?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&connectTimeout=3000&socketTimeout=30000&autoReconnect=false
+    username: root
+    password: MySqlXXL123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # ===== HikariCP 连接池（生产环境） =====
+    hikari:
+      # 最大连接数：单实例保守设定，按 (DB 最大连接数 / 应用实例数) 估算，避免压垮 MySQL
+      maximum-pool-size: 20
+      # 最小空闲连接：保持少量热连接，降低突发流量建连开销
+      minimum-idle: 5
+      # 获取连接的最长等待时间：超过则抛异常，避免线程无限阻塞
+      connection-timeout: 30000
+      # 空闲连接回收时间：仅在 minimum-idle < maximum-pool-size 时生效
+      idle-timeout: 600000
+      # 连接最大存活时间：必须小于 MySQL wait_timeout（默认 28800s），防拿到已断开的死连接
+      max-lifetime: 1800000
+      # 保活探测间隔：主动探活，防止网络空闲导致连接被中间设备断开
+      keepalive-time: 300000
+      # 连接校验：借出时校验存活，结合 MySQL 的 socket 超时避免静默失效
+      validation-timeout: 5000
+
+# ===== Elasticsearch 8.17（用户名/密码通过环境变量注入，避免硬编码） =====
+elasticsearch:
+  # 集群节点，多个节点以英文逗号分隔，例如 http://es1:9200,http://es2:9200
+  hosts: http://elasticsearch:9200
+  username:
+  # 密码优先读取环境变量 ES_PASSWORD，占位符回退到空串（由 ElasticSearchConfig 决定是否启用认证）
+  password:
+  # 建连超时（毫秒）：与 MySQL connectTimeout 对齐，防止线程无限阻塞
+  connect-timeout: 3000
+  # 数据传输超时（毫秒）
+  socket-timeout: 30000
+
+# ===== Redis（Lettuce 原生客户端，密码通过环境变量 REDIS_PASSWORD 注入，避免硬编码） =====
+redis:
+  # 单节点地址与端口；如需哨兵/集群可后续扩展 RedisURI
+  host: my-redis
+  port: 6379
+  database: 0
+  # 连接超时（秒）：与 MySQL/ES 建连超时对齐，防止线程无限阻塞
+  timeout-seconds: 3
+  # 密码优先读取环境变量 REDIS_PASSWORD，占位符回退到空串（由 RedisConfig 决定是否启用认证）
+  password: ${REDIS_PASSWORD:}
+
+order:
+  cache:
+    redis:
+      # 缓存副本兜底 TTL（秒）：0 = 关闭（永久留存，由写事件/对账维护生命周期）；>0 时启用长 TTL 兜底
+      ttl: 0
+  reconcile:
+    dedup:
+      # 去重窗口：事件 at-least-once，同一 (副本, 订单) 在窗口内只补救一次
+      window-seconds: 60
+
+# ===== pragmatic-ddd starter 自动装配所需配置 =====
+pragmatic-ddd:
+  event:
+    # 事件总线切换：rocketmq（默认） / kafka
+    bus: kafka
+    # RocketMQ 4.x（Remoting，地址通过环境变量 ROCKETMQ_NAMESRV 注入，避免硬编码）
+    rocketmq:
+      name-server: ${ROCKETMQ_NAMESRV:rmqnamesrv:9876}
+      producer-group: ${ROCKETMQ_PRODUCER_GROUP:order_example_producer}
+      consumer-group: ${ROCKETMQ_CONSUMER_GROUP:order_example_consumer}
+      retry-times-when-send-failed: 3
+      send-msg-timeout: 3000
+      max-reconsume-times: 16
+    # Kafka 事件基础设施（pragmatic-ddd.event.bus=kafka 时生效）
+    kafka:
+      bootstrap-servers: kafka:9092
+      group: order_example_consumer
+      client-id:
+      max-poll-records: 500
+      poll-timeout-ms: 1000
+      auto-offset-reset: latest
+      ack: all
+      compression-type:
+      enable-idempotence: true
+      dlq-suffix: -dlq
+      max-reconsume: 16
+      concurrency: 1
+      send-timeout-ms: 10000
+      delayed-policy: immediate
+      default-delay-seconds: 10
+      delay-topic-suffix: -delay
+      # 消费失败先内联重试（间隔表 100ms、500ms），预算耗尽后转 {topic}-retry，由回投器按退避表到期回投
+      inline-retry-intervals-ms: 100,500
+      # 重试 topic 后缀；置空表示关闭重试通道（内联耗尽即进死信）
+      retry-topic-suffix: -retry
+      # retry topic 每轮往返退避表（毫秒，8 档），超出末档复用末档
+      retry-hop-backoff-ms: 1000,5000,10000,30000,60000,120000,180000,240000
+      # 单批处理时间预算（毫秒）：超预算的剩余消息留待下轮，避免消费线程长时间不 poll 被判为失效成员
+      batch-budget-ms: 30000
+  # 补偿模式：容器 dev 环境启用 durable（WAL + 中继兜底）；可选值 in-memory / durable
+  compensation:
+    mode: durable

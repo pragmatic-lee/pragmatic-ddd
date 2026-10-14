@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Configuration;
  * order-example 内领域事件到 topic 的路由配置。
  *
  * <p>该路由与传输层（RocketMQ / Kafka）无关，故抽为常驻配置，
- * 由 {@code RocketMQConfig} 与 {@code KafkaConfig} 共享同一来源。</p>
+ * 作为 {@code pragmatic-ddd-spring-boot} 事件总线自动装配（{@code DddRocketMqAutoConfiguration} /
+ * {@code DddKafkaAutoConfiguration}）的共同前置 {@code ITopicResolver} Bean。</p>
  */
 @Configuration
 public class OrderEventTopicConfig {
