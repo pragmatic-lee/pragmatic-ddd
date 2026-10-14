@@ -33,7 +33,7 @@ ls ~/.m2/repository/io/pragmatic/ddd/pragmatic-ddd-core/2.0.0/
 <dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-bom</artifactId>
             <version>2.0.0</version>
             <type>pom</type>
@@ -44,14 +44,14 @@ ls ~/.m2/repository/io/pragmatic/ddd/pragmatic-ddd-core/2.0.0/
 
 <dependencies>
     <dependency>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-core</artifactId>
     </dependency>
 </dependencies>
 ```
 
 ::: tip Spring Boot 项目：把胶水交给 Starter
-若你的项目是 Spring Boot 3.2.x+，可额外引入 `io.pragmatic.ddd:pragmatic-ddd-spring-boot`，事务抽象、配置源、事件总线、Outbox 链路、号段 ID 与「就绪后启动」将由自动装配就位，本文后续的 Bean 装配可整体省去；但聚合与领域侧的 Bean 仍需自己提供（主题路由 `ITopicResolver`、聚合 `TypeHandlerContext`、订阅者注册）。详见 [Spring Boot Starter 集成](/integration/spring-boot)。
+若你的项目是 Spring Boot 3.2.x+，可额外引入 `com.pragmatic-ddd:pragmatic-ddd-spring-boot`，事务抽象、配置源、事件总线、Outbox 链路、号段 ID 与「就绪后启动」将由自动装配就位，本文后续的 Bean 装配可整体省去；但聚合与领域侧的 Bean 仍需自己提供（主题路由 `ITopicResolver`、聚合 `TypeHandlerContext`、订阅者注册）。详见 [Spring Boot Starter 集成](/integration/spring-boot)。
 :::
 
 ## 2. 定义聚合根

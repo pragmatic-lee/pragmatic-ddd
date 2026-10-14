@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-examples</artifactId>
         <version>2.0.0</version>
     </parent>
@@ -25,7 +25,7 @@
         <dependencies>
             <!-- 内部模块版本集中管理 -->
             <dependency>
-                <groupId>io.pragmatic.ddd</groupId>
+                <groupId>com.pragmatic-ddd</groupId>
                 <artifactId>pragmatic-ddd-bom</artifactId>
                 <version>${pragmatic-ddd.version}</version>
                 <type>pom</type>
@@ -46,19 +46,19 @@
         <!-- ===== Pragmatic DDD 框架 ===== -->
         <!-- Spring Boot starter：自动装配事务/Outbox/事件总线/ID/补偿/生命周期链路 -->
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-spring-boot</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-mybatis</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-rocketmq</artifactId>
             <exclusions>
                 <!-- 排除 RocketMQ 传递的 commons-logging，统一由 spring-jcl 提供 org.apache.commons.logging API，避免双实现冲突警告 -->
@@ -69,7 +69,7 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-kafka</artifactId>
         </dependency>
 

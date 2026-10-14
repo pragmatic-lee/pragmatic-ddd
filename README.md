@@ -11,7 +11,7 @@
 <div align="center">
 
 [![Java](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://openjdk.org/)
-[![Maven Central](https://img.shields.io/badge/Maven%20Central-pragmatic--ddd--core-blue.svg)](https://central.sonatype.com/artifact/io.pragmatic.ddd/pragmatic-ddd-core)
+[![Maven Central](https://img.shields.io/badge/Maven%20Central-pragmatic--ddd--core-blue.svg)](https://central.sonatype.com/artifact/com.pragmatic-ddd/pragmatic-ddd-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Website](https://img.shields.io/badge/Website-pragmatic--ddd.com-blue?logo=google-chrome&logoColor=white)](https://www.pragmatic-ddd.com/)
 
@@ -150,7 +150,7 @@ chmod +x install-local.sh
 
 ```xml
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-core</artifactId>
     <version>2.0.0</version>
 </dependency>
@@ -160,13 +160,13 @@ chmod +x install-local.sh
 
 ```xml
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-rocketmq</artifactId>
     <version>2.0.0</version>
 </dependency>
 
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-mybatis</artifactId>
     <version>2.0.0</version>
 </dependency>

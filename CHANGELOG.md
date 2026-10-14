@@ -7,7 +7,7 @@
 
 ## [2.0.0] — 未发布
 
-> 全新一代版本：以 `io.pragmatic.ddd` 命名空间从零构建，视为无历史包袱的全新初始版本。
+> 全新一代版本：以 `com.pragmatic-ddd` 命名空间从零构建，视为无历史包袱的全新初始版本。
 > 下述能力均为 2.0.0 首发内容，不承载任何旧版 API 的兼容义务。
 
 ### 变更
@@ -156,7 +156,7 @@
 
 #### 工程配套
 
-- 新的 Maven 坐标 `io.pragmatic.ddd`，多模块结构（parent / bom / core / rocketmq / kafka / mybatis / spring-boot / examples）。
+- 新的 Maven 坐标 `com.pragmatic-ddd`，多模块结构（parent / bom / core / rocketmq / kafka / mybatis / spring-boot / examples）。
 - Java 17 最低版本要求。
 - 核心依赖：fastjson2 2.0.53、commons-lang3 3.17.0、slf4j 2.0.16、JUnit Jupiter 5 + AssertJ 3.27.3、RocketMQ 客户端 5.x。
 - 许可协议：Apache License 2.0。

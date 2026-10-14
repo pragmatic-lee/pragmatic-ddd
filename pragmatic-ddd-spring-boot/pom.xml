@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-parent</artifactId>
         <version>2.0.0</version>
         <relativePath>../pragmatic-ddd-parent</relativePath>
@@ -41,7 +41,7 @@
     <dependencies>
         <!-- 框架内核（必选） -->
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-core</artifactId>
             <version>${pragmatic-ddd.version}</version>
         </dependency>
@@ -61,7 +61,7 @@
 
         <!-- MyBatis 持久化桥接（可选：无此依赖时 outbox / id 自动装配整块跳过） -->
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-mybatis</artifactId>
             <version>${pragmatic-ddd.version}</version>
             <optional>true</optional>
@@ -75,13 +75,13 @@
 
         <!-- 事件总线实现（可选：按 event.bus 择一生效） -->
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-rocketmq</artifactId>
             <version>${pragmatic-ddd.version}</version>
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-kafka</artifactId>
             <version>${pragmatic-ddd.version}</version>
             <optional>true</optional>

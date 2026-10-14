@@ -91,7 +91,7 @@ AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 <dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-bom</artifactId>
             <version>2.0.0</version>
             <type>pom</type>
@@ -106,19 +106,19 @@ AggregateMessageEnvelope<P>   广播信封（元数据 + payload）
 ```xml
 <!-- 核心库（必选） -->
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-core</artifactId>
 </dependency>
 
 <!-- MyBatis 集成（可选） -->
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-mybatis</artifactId>
 </dependency>
 
 <!-- RocketMQ 集成（可选） -->
 <dependency>
-    <groupId>io.pragmatic.ddd</groupId>
+    <groupId>com.pragmatic-ddd</groupId>
     <artifactId>pragmatic-ddd-rocketmq</artifactId>
 </dependency>
 ```

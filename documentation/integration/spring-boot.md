@@ -49,7 +49,7 @@ optional 依赖不会随 starter 传递给使用方。要用 Outbox / 号段 ID�
 <dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-bom</artifactId>
             <version>2.0.0</version>
             <type>pom</type>
@@ -60,19 +60,19 @@ optional 依赖不会随 starter 传递给使用方。要用 Outbox / 号段 ID�
 
 <dependencies>
     <dependency>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-spring-boot</artifactId>
     </dependency>
 
     <!-- 按需二选一（或都引入后用 pragmatic-ddd.event.bus 切换） -->
     <dependency>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-rocketmq</artifactId>
     </dependency>
 
     <!-- 需要 Outbox / 号段 ID 时引入 -->
     <dependency>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-mybatis</artifactId>
     </dependency>
 </dependencies>

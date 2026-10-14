@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.pragmatic.ddd</groupId>
+        <groupId>com.pragmatic-ddd</groupId>
         <artifactId>pragmatic-ddd-parent</artifactId>
         <version>2.0.0</version>
         <relativePath>../pragmatic-ddd-parent</relativePath>
@@ -20,7 +20,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.pragmatic.ddd</groupId>
+            <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-core</artifactId>
             <version>${pragmatic-ddd.version}</version>
         </dependency>
