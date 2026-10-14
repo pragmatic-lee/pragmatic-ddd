@@ -102,16 +102,59 @@ pragmatic-ddd/
     └── order-example           ← 电商订单完整示例（见下方「完整示例」）
 ```
 
-> **模块状态说明**：`pragmatic-ddd-kafka` 与 `pragmatic-ddd-spring-boot` 当前为占位模块（仅有 `pom.xml`）。
+> **模块状态说明**：7 个框架模块（`parent` / `bom` / `core` / `rocketmq` / `kafka` / `mybatis` / `spring-boot`）均已完整实现，并随 `2.0.0` 一起发布到 Maven 中央仓库。
 > 示例模块默认不参与构建，如需连同示例一起编译请使用 `mvn install -Pexamples`。
 
 ---
 
 ## 快速开始
 
-### 安装到本地仓库
+### 引入依赖
 
-> 当前版本尚未推送到 Maven 中央仓库，需先克隆仓库并执行 `install-local.sh`，把框架各模块安装到本地 `~/.m2/repository` 后再引入依赖。
+框架已发布到 Maven 中央仓库，直接引入坐标即可。推荐用 BOM 统一管理版本：
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.pragmatic-ddd</groupId>
+            <artifactId>pragmatic-ddd-bom</artifactId>
+            <version>2.0.0</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+核心库（必选）：
+
+```xml
+<dependency>
+    <groupId>com.pragmatic-ddd</groupId>
+    <artifactId>pragmatic-ddd-core</artifactId>
+</dependency>
+```
+
+如需 RocketMQ / MyBatis 集成，额外引入对应模块（版本由上面的 BOM 管理）：
+
+```xml
+<dependency>
+    <groupId>com.pragmatic-ddd</groupId>
+    <artifactId>pragmatic-ddd-rocketmq</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>com.pragmatic-ddd</groupId>
+    <artifactId>pragmatic-ddd-mybatis</artifactId>
+</dependency>
+```
+
+> 不想用 BOM，也可逐个写 `<version>2.0.0</version>`。当前版本见 [Maven Central](https://central.sonatype.com/artifact/com.pragmatic-ddd/pragmatic-ddd-core)。
+
+### 从源码安装（可选）
+
+> **通常不需要本节** —— 上面从中央仓库引入即可。仅当你要基于源码二次开发、或使用尚未发布的版本时，才需要把框架装进本地 `~/.m2` 仓库。
 
 ```bash
 # 1. 克隆仓库
@@ -141,36 +184,6 @@ chmod +x install-local.sh
 ```
 
 > 若不想使用脚本，等价命令为：`mvn -f pom.xml install -DskipTests`。
-
-### 引入依赖
-
-> 版本号需与本地安装的仓库版本保持一致（当前为 `2.0.0`，见根 `pom.xml` 的 `<version>`）。
-
-核心库：
-
-```xml
-<dependency>
-    <groupId>com.pragmatic-ddd</groupId>
-    <artifactId>pragmatic-ddd-core</artifactId>
-    <version>2.0.0</version>
-</dependency>
-```
-
-如需 RocketMQ / MyBatis 集成，额外引入对应模块：
-
-```xml
-<dependency>
-    <groupId>com.pragmatic-ddd</groupId>
-    <artifactId>pragmatic-ddd-rocketmq</artifactId>
-    <version>2.0.0</version>
-</dependency>
-
-<dependency>
-    <groupId>com.pragmatic-ddd</groupId>
-    <artifactId>pragmatic-ddd-mybatis</artifactId>
-    <version>2.0.0</version>
-</dependency>
-```
 
 ### 定义聚合根
 
@@ -505,9 +518,9 @@ eventManager.shutdown();
 | 基础设施 | MySQL / Redis / Elasticsearch / RocketMQ 配置类 |
 
 ```bash
-# 启动示例前需先安装框架到本地仓库
-./install-local.sh
-# 按 examples/order-example/README.md 中的说明准备依赖中间件并启动
+# 从仓库根目录构建示例（-am 会连带构建框架模块，无需先做本地安装）
+mvn -pl examples/order-example -am clean package -DskipTests
+# 再按 examples/order-example/README.md 中的说明准备依赖中间件并启动
 ```
 
 ---

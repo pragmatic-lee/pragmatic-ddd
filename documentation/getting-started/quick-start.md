@@ -24,7 +24,7 @@
 ls ~/.m2/repository/com/pragmatic-ddd/pragmatic-ddd-core/2.0.0/
 ```
 
-> 该脚本还支持选择性安装与连带示例构建，详见仓库根目录 `install-local.sh` 头部注释，或查看 [仓库安装到本地仓库说明](../../README.md#安装到本地仓库)。
+> 该脚本还支持选择性安装与连带示例构建，详见仓库根目录 `install-local.sh` 头部注释，或查看 [从源码安装说明](../../README.md#从源码安装可选)。
 
 ## 1. 引入依赖
 
