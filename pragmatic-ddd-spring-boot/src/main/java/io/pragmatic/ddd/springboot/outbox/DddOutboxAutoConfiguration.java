@@ -34,11 +34,18 @@ import java.util.function.Supplier;
  *
  * <p>仅当 classpath 存在 MyBatis 集成、容器中有 {@link SqlSessionTemplate}/{@link TransactionOperations}/
  * {@link IEventSerializer}/{@link IEventManager} 且 {@code pragmatic-ddd.outbox.enabled} 未关闭时生效。
+ * 其中 {@code IEventSerializer}/{@code IEventManager} 由 Kafka/RocketMQ 事件总线装配产出，故以
+ * {@code afterName} 显式排在两者之后，保证 {@code @ConditionalOnBean} 评估时其 Bean 定义已注册。
  * 每个 Bean 均可由使用方声明同类型 Bean 覆盖。</p>
  *
  * @author wizard-lee
  */
-@AutoConfiguration(after = DddTransactionAutoConfiguration.class)
+@AutoConfiguration(
+        after = DddTransactionAutoConfiguration.class,
+        afterName = {
+                "io.pragmatic.ddd.springboot.kafka.DddKafkaAutoConfiguration",
+                "io.pragmatic.ddd.springboot.rocketmq.DddRocketMqAutoConfiguration"
+        })
 @ConditionalOnClass({MybatisOutboxStore.class, SqlSessionTemplate.class})
 @ConditionalOnBean({SqlSessionTemplate.class, TransactionOperations.class, IEventSerializer.class, IEventManager.class})
 @ConditionalOnProperty(prefix = "pragmatic-ddd.outbox", name = "enabled", havingValue = "true", matchIfMissing = true)
