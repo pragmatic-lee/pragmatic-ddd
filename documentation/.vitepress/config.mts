@@ -143,9 +143,11 @@ export default defineConfig({
               ]
             },
             {
-              text: '⑦ 设计文档规范',
+              text: '⑦ 设计文档（识别 → 演进 → 文档标准）',
               collapsed: true,
               items: [
+                { text: '聚合识别设计原则', link: '/best-practices/aggregate-identification' },
+                { text: '聚合演进设计原则', link: '/best-practices/aggregate-evolution-design' },
                 { text: '设计文档编写规范', link: '/best-practices/design-doc-template' }
               ]
             }

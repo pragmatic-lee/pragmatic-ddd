@@ -109,7 +109,7 @@
 | 标识符 | ID 类型（如 `OrderId`） |
 | 枚举 | 出入参与投影中的枚举值处理（见下方约束） |
 
-约束（框架约定）：出入参 / 查询条件 / 应用层 Input 中的枚举值统一用 `Integer` / 字符串等基础类型承载；投影读模型中的枚举同样转为基础类型，不再使用枚举类型本身。详见《枚举值处理约定》。
+约束（框架约定）：出入参 / 查询条件 / 应用层 Input 中的枚举值统一用 `Integer` / 字符串等基础类型承载；投影读模型中的枚举同样转为基础类型，不再使用枚举类型本身。详见[《枚举值处理约定》](/best-practices/enum-value)。
 
 ### 3.5 状态与行为设计（含允许矩阵）
 
@@ -131,7 +131,7 @@
 | 字段值不变量（金额为正、客户非空） | 当前态 | 与执行顺序无关 |
 | 状态前置条件（仅待发货可发货） | **旧快照** `old` | 框架 `execute` 先跑领域逻辑后校验，当前态已被改 |
 
-必须写出规则的激活条件（如基于 `hasOperation`）与新旧读法的对应关系。详见《聚合业务规则（OrderRule 范式）》。
+必须写出规则的激活条件（如基于 `hasOperation`）与新旧读法的对应关系。详见[《聚合业务规则（OrderRule 范式）》](/best-practices/order-rule-pattern)。
 
 ### 3.7 领域事件设计
 
@@ -292,10 +292,10 @@
 
 设计文档只引用、不重复框架机制。相关能力详见：
 
-- 聚合业务规则（OrderRule 范式）：规则容器、激活条件与旧快照判定
-- 应用层落地模式：`execute` 模板与「先领域逻辑后校验」执行顺序
-- 操作注册表设计：新增操作时操作码的声明方式
-- 事件建模指南：新增领域事件的写法
-- 枚举值处理约定：出入参与投影中枚举值的基础类型承载
-- 仓储设计 / 投影设计：持久化与读模型的实现要点
-- 核心：业务规则引擎：`EntityRule` / `RuleCheckResult` 底层契约
+- [聚合业务规则（OrderRule 范式）](/best-practices/order-rule-pattern)：规则容器、激活条件与旧快照判定
+- [应用层落地模式](/best-practices/application-collaboration)：`execute` 模板与「先领域逻辑后校验」执行顺序
+- [操作注册表设计](/best-practices/operation-registry-design)：新增操作时操作码的声明方式
+- [事件建模指南](/best-practices/event-modeling)：新增领域事件的写法
+- [枚举值处理约定](/best-practices/enum-value)：出入参与投影中枚举值的基础类型承载
+- [仓储设计](/best-practices/repository-design) / [投影设计](/best-practices/projection-design)：持久化与读模型的实现要点
+- [核心：业务规则引擎](/core/business-rules)：`EntityRule` / `RuleCheckResult` 底层契约
