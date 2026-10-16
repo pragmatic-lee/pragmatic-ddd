@@ -44,7 +44,7 @@ agent-skills/kb/                ← 蒸馏卡（单物理副本，只读引用�
   - 加聚合 → 聚合识别（识别新增）→ 设计文档 `v1`（新聚合）。
   - 改聚合 → 聚合演进（根因 + 改动）→ 设计文档 `vN`（含 §1.3 根因、§11 改动清单）。
 
-文档统一遵循《[聚合设计文档标准](./best-practices/design-doc-template)》的 13 节固定骨架，并带版本元信息（`{聚合名}-aggregate-design-v{N}.md`），实现跨迭代可比对、可评审。
+文档统一遵循《[聚合设计文档标准](../best-practices/design-doc-template.md)》的 13 节固定骨架，并带版本元信息（`{聚合名}-aggregate-design-v{N}.md`），实现跨迭代可比对、可评审。
 
 ## KB 使用纪律
 
@@ -55,7 +55,7 @@ agent-skills/kb/                ← 蒸馏卡（单物理副本，只读引用�
 
 ## 相关文档
 
-- [聚合识别设计原则](./best-practices/aggregate-identification)
-- [聚合演进设计原则](./best-practices/aggregate-evolution-design)
-- [聚合设计文档标准](./best-practices/design-doc-template)
-- [最佳实践总览](./best-practices/)
+- [聚合识别设计原则](../best-practices/aggregate-identification.md)
+- [聚合演进设计原则](../best-practices/aggregate-evolution-design.md)
+- [聚合设计文档标准](../best-practices/design-doc-template.md)
+- [最佳实践总览](../best-practices/)

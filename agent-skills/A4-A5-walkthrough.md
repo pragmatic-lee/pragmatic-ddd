@@ -52,7 +52,6 @@
 | `agent-skills/README.md` §6 | A4/A5 的索引入口，本文是其操作细化 |
 | `agent-skills/ddd-aggregate-create/SKILL.md` | A4 / A5 的核心执行体（S4） |
 | `agent-skills/ddd-code-review/SKILL.md` + `agents/ddd-reviewer.md` | A4 / A5 的守门体（S7 / 角色） |
-| `agent-skills/kb/examples/order/EXAMPLES_MANIFEST.md` | A4 的 verbatim sha 比对依据 |
 
 ---
 
@@ -109,10 +108,9 @@
 | `OrderWriteService` | `application/order` | `…/application/order/OrderWriteService.java` |
 | `AbstractOrderRepository` / `OrderRepository` | `infrastructure/order/repository` | `…/infrastructure/order/repository/*Repository.java` |
 
-**diff 方式（二选一）**：
+**diff 方式**：
 
-1. **逐字节 verbatim 比对**（推荐对 `Order.java`）：用 `kb/examples/order/EXAMPLES_MANIFEST.md` 中登记的真实 sha256 比对生成文件，sha 一致即证明零偏差；
-2. **结构性 diff**：对其余文件做语义/结构 diff，重点核对：
+- **结构性 diff**：对生成文件做语义/结构 diff，重点核对：
    - 继承关系（`extends AggregateRoot<ID>` / `OperationRegistry` / `BrokenRuleRegistry` / `EntityRule` / `BaseDomainEvent` / `AbstractApplicationService`）；
    - Lombok 用法（聚合根/事件只用 `@Getter`+`@Setter(PROTECTED)`+`@NoArgsConstructor(PROTECTED)`，禁用 `@Data`/`@Builder`）；
    - 充血方法内顺序（赋值 → `markModified` → `recordOperation` → `collectEvent`）；
@@ -142,7 +140,7 @@
 
 - 独立工程 `mvn compile` 通过；
 - S7 / `ddd-reviewer` 角色报告「通过 / 阻断项 0」；
-- 全程零「拿不准凭记忆续写」——任何签名不确定都回查 KB（api-contract / examples/order verbatim）。
+- 全程零「拿不准凭记忆续写」——任何签名不确定都回查 KB（`api-contract.md` / `bp/*.md`）。
 
 ### 4.2 前置准备（本地安装框架）
 
@@ -183,7 +181,7 @@ A5 不依赖仓库内 install，需先把框架装到本地 Maven 仓库：
 - [ ] 独立工程 `pom.xml` 仅依赖 pragmatic-ddd，无仓库内源码引用；
 - [ ] S1→S3→S4→S6 五步产物齐全，`mvn compile` 通过（A2 实证）；
 - [ ] S7 / `ddd-reviewer` 报告「阻断项 0」；
-- [ ] 全程无「臆造签名」——任何不确定均已 Read `kb/api-contract.md` 或 `kb/examples/order/` verbatim；
+- [ ] 全程无「臆造签名」——任何不确定均已 Read `kb/api-contract.md` 或 `bp/*.md`；
 - [ ] 角色评审产物目录零写入（`git status` / 工程目录无改动），仅回传报告；
 - [ ] 偏差（如有）记入 §6 结论模板。
 

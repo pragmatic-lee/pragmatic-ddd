@@ -27,7 +27,7 @@
 ### 3.1 加操作 / 命令
 
 - 操作码在[操作注册表设计](./operation-registry-design.md)声明。
-- 前置类规则（如「仅待发货可发货」）必须读**旧快照** `old`：框架 `execute` 先跑领域逻辑后校验，当前态已被改动（详见[聚合业务规则（OrderRule 范式）](./order-rule-pattern.md) 与[硬约束](./hard-constraints.md)）。
+- 前置类规则（如「仅待发货可发货」）必须读**旧快照** `old`：框架 `execute` 先跑领域逻辑后校验，当前态已被改动（详见[聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)）。
 
 ### 3.2 加子实体 / 值对象
 
