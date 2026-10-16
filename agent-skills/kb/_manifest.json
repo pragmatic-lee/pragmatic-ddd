@@ -1,0 +1,224 @@
+{
+  "package": "pragmatic-ddd-skills",
+  "kb_version": "1.4-draft",
+  "framework_version": "2.0.0",
+  "generated_at": "2026-10-14",
+  "note": "v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "derivation": {
+    "source_root": "documentation/best-practices/",
+    "product_root": "agent-skills/kb/",
+    "method": "源文档 -> 剥离叙述 -> 保留命名/位置/骨架/关键规则/反模式 -> 加溯源头"
+  },
+  "cards": [
+    {
+      "id": "bp.aggregate-design",
+      "path": "bp/aggregate-design.md",
+      "source": "documentation/best-practices/aggregate-design.md",
+      "source_sha": "d89b10b69a0491f9599c7c86222980d407bd2abe63ed24d856471882d24cf26e",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.aggregate-structure",
+      "path": "bp/aggregate-structure.md",
+      "source": "documentation/best-practices/aggregate-structure.md",
+      "source_sha": "bd87f7f5546f63f7184f2d1039fc4d5858511ed13046f4330398dffec58d45b5",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.entity-design",
+      "path": "bp/entity-design.md",
+      "source": "documentation/best-practices/entity-design.md",
+      "source_sha": "d4f49143ac371279d3d212d371ff87bcb2148bc0ec82d22b65708d6f8fd5c414",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.value-object",
+      "path": "bp/value-object.md",
+      "source": "documentation/best-practices/value-object.md",
+      "source_sha": "595fa8a641cd0710afa86db1a465dfd9b80a42353d8dd2a1c23a2559f2ef48d7",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.enum-value",
+      "path": "bp/enum-value.md",
+      "source": "documentation/best-practices/enum-value.md",
+      "source_sha": "c6282be4f5aecf77d94a53a68051e4d59016e535a1254197058590602046794d",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.operation-registry-design",
+      "path": "bp/operation-registry-design.md",
+      "source": "documentation/best-practices/operation-registry-design.md",
+      "source_sha": "751726fd97528699857b4c4609b7ee014d0ab069ac467ed77ad1053950e12d43",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.registry-design",
+      "path": "bp/registry-design.md",
+      "source": "documentation/best-practices/registry-design.md",
+      "source_sha": "0fd99652d48287ff1b77862def44a5ea656e272eb79ef8dfc005e40688698529",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.order-rule-pattern",
+      "path": "bp/order-rule-pattern.md",
+      "source": "documentation/best-practices/order-rule-pattern.md",
+      "source_sha": "40bc082e1118d371611fb48281fbcef56186cfc7b73d831abaac113b1bf9abe9",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.event-modeling",
+      "path": "bp/event-modeling.md",
+      "source": "documentation/best-practices/event-modeling.md",
+      "source_sha": "9ec560c2b6174914875bdf71406cafff8905a7b30102ae175d5b52a51961e0b2",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.event-subscriber-pattern",
+      "path": "bp/event-subscriber-pattern.md",
+      "source": "documentation/best-practices/event-subscriber-pattern.md",
+      "source_sha": "4fb2adf589316ae08501df6430232cbe0262c1850ac9f952d8f0792e59a6dbec",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.domain-service",
+      "path": "bp/domain-service.md",
+      "source": "documentation/best-practices/domain-service.md",
+      "source_sha": "19a01feba0bbf0c77fba80d50314913d0bf24ac67777c0492a1283c69b4213f4",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.application-collaboration",
+      "path": "bp/application-collaboration.md",
+      "source": "documentation/best-practices/application-collaboration.md",
+      "source_sha": "29c7c27a3d83e7a62bea7604898bbd69d72bf0e3ef17b383c19be3211ccf85c6",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.repository-design",
+      "path": "bp/repository-design.md",
+      "source": "documentation/best-practices/repository-design.md",
+      "source_sha": "d4de43b88e391b761310240a5f3989f2b80cb1cc0391b3b46720e4271564ff42",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.aggregate-database-design",
+      "path": "bp/aggregate-database-design.md",
+      "source": "documentation/best-practices/aggregate-database-design.md",
+      "source_sha": "ef8ed26bee2c57aa91a7e441fb34715d931b1658130411e55868226a77750a32",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.projection-design",
+      "path": "bp/projection-design.md",
+      "source": "documentation/best-practices/projection-design.md",
+      "source_sha": "59d94cd0af82e8e7d275e029bb6f893e00660eb92c198e12daef05a964cafb40",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.broadcast",
+      "path": "bp/broadcast.md",
+      "source": "documentation/best-practices/broadcast.md",
+      "source_sha": "f85cbd5a60682e2afbf5058af9e1ed380f244f1b452846eacc519219dcfdd9ea",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.dependency-declaration",
+      "path": "bp/dependency-declaration.md",
+      "source": "documentation/best-practices/dependency-declaration.md",
+      "source_sha": "d1299d3d144b8514be65fe9d31fad525f2268aa4a5673677d37febb5d2400eef",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.design-doc-template",
+      "path": "bp/design-doc-template.md",
+      "source": "documentation/best-practices/design-doc-template.md",
+      "source_sha": "b4096002e13db10a78c216a5a0b2d85d6c7ad73fae39f1d72eed5c3e85dd8e5e",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.elasticsearch-config",
+      "path": "bp/elasticsearch-config.md",
+      "source": "documentation/best-practices/elasticsearch-config.md",
+      "source_sha": "be4894c6842c441a71ae535b9b7322ed13f846cfec7d1f39b14734708e99f15e",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.event-manager-config",
+      "path": "bp/event-manager-config.md",
+      "source": "documentation/best-practices/event-manager-config.md",
+      "source_sha": "6b1aab19f0ad2a1e0e04f004b2961e610c37ee53b594ebd72518bba3ffe632dd",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.mysql-config",
+      "path": "bp/mysql-config.md",
+      "source": "documentation/best-practices/mysql-config.md",
+      "source_sha": "7931e01bf6dd694f7bd021becf54ed3b466fe1290064c363975aa19ab26e1f02",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.outbox-config",
+      "path": "bp/outbox-config.md",
+      "source": "documentation/best-practices/outbox-config.md",
+      "source_sha": "360079e179d191f7fb80d4f6bb147af0d29e21fe13c0dcc9b764ddf81f502ba5",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.rocketmq-config",
+      "path": "bp/rocketmq-config.md",
+      "source": "documentation/best-practices/rocketmq-config.md",
+      "source_sha": "3fff64753ef7d4ff89a65930bb93d42c6aaa7c60716f9f6acec93000441236ae",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.kafka-config",
+      "path": "bp/kafka-config.md",
+      "source": "documentation/best-practices/kafka-config.md",
+      "source_sha": "62d84ea69fee6f8705d1fbdcaf17a02a5a29d56c26a47c71b4fdfe1a9f9b848e",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "kb.hard-constraints",
+      "path": "hard-constraints.md",
+      "source": "docs/design/ai/aggregate-generator-landing-design.md#5",
+      "source_sha": "TODO",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "kb.api-contract",
+      "path": "api-contract.md",
+      "source": "pragmatic-ddd-core (io.pragmatic.ddd.*)",
+      "source_sha": "TODO",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.projection-api",
+      "path": "bp/projection-api.md",
+      "source": "pragmatic-ddd-core (io.pragmatic.ddd.repository.query.projection.*)",
+      "source_sha": "TODO",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.aggregate-identification",
+      "path": "bp/aggregate-identification.md",
+      "source": "documentation/best-practices/aggregate-identification.md",
+      "source_sha": "43a3b2139401e06c0b9ea4f62b44f97803866bef0e92656058df9ae6fccc6ad4",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.aggregate-evolution-design",
+      "path": "bp/aggregate-evolution-design.md",
+      "source": "documentation/best-practices/aggregate-evolution-design.md",
+      "source_sha": "e44127af59654922605d1247be2e55ddd33654f7608488b7a8fa8b5b2d4d8358",
+      "product_sha": "TODO"
+    }
+  ],
+  "removed_scopes": [
+    {
+      "id": "examples.order",
+      "removed_in": "1.3-draft",
+      "reason": "examples/order-example 不属 KB 发布范围，第三方环境不存在该工程；回归比对见 agent-skills/A4-A5-walkthrough.md"
+    }
+  ]
+}

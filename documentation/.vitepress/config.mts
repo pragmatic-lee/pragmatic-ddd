@@ -22,6 +22,7 @@ export default defineConfig({
       { text: '最佳实践', link: '/best-practices/' },
       { text: '文章', link: '/articles/' },
       { text: '参考', link: '/reference/api-index' },
+      { text: 'AI 辅助', link: '/ai-skills/' },
       {
         text: '2.0.0',
         items: [
@@ -166,6 +167,14 @@ export default defineConfig({
           items: [
             { text: 'API 速查索引', link: '/reference/api-index' },
             { text: '配置项参考', link: '/reference/configuration' }
+          ]
+        }
+      ],
+      '/ai-skills/': [
+        {
+          text: 'AI 辅助',
+          items: [
+            { text: '能力总览与架构', link: '/ai-skills/' }
           ]
         }
       ]

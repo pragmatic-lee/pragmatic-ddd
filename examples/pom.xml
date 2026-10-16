@@ -12,7 +12,6 @@
     </parent>
 
     <artifactId>pragmatic-ddd-examples</artifactId>
-    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <name>Pragmatic DDD Examples</name>

@@ -1,0 +1,66 @@
+---
+name: ddd-code-review
+description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐条核对硬约束（注册表 public、禁用 @Data、先 recordOperation 后 collectEvent、Lombok 注解、domain 零基础设施依赖、枚举出入参类型等）与框架 API 契约。当用户说「检查一下这段 DDD 代码合不合规」「评审聚合代码」「ddd-reviewer 跑一遍」时触发。不做业务正确性判断，只做框架约定合规评审；发现违规输出阻断项清单。
+---
+
+# ddd-code-review（类合规评审，S7）
+
+> 类型：S7（评审类）
+> 版本：v1.0-draft · 适用框架：2.0.0
+> 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
+> 升级路线：本期作为 Skill；可选升级为隔离角色 `ddd-reviewer`（见路线图 §7.4），评审产物**零写入**业务目录。
+
+## 触发
+
+用户意图 = 评审生成代码是否合规：代码片段、单文件、或整个聚合包。
+
+## 输入
+
+- 待评审代码（文件路径或粘贴片段）。
+- 可选：用户关注的合规维度（默认全量核对）。
+
+## 执行步骤
+
+### 步骤 1：加载评审基准
+
+- Read `kb/hard-constraints.md`（14 条 + E1~E3）— 唯一评审基准。
+- 不确定签名 → Read `kb/api-contract.md`（权威符号表）。
+
+### 步骤 2：逐条核对（结构化输出）
+
+对每条硬约束给出：✅ 满足 / ❌ 违反（附文件:行号 + 修复建议）。
+
+| 维度 | 核对项（来自硬约束表） |
+| --- | --- |
+| 注册表 | 1 子类 public + 单例；2 localCode/code 唯一且与字段名一致；操作常量类型 `EntityOperation`、声明最终子类 |
+| 规则容器 | 3 无状态仅注入契约 |
+| 充血方法 | 4 无 if+throw 守卫；5 先 recordOperation 后 collectEvent |
+| 事件 | 6 延迟事件写法；7 过去式 + buildEvent + 无快照 |
+| Lombok | 8 聚合根/事件禁用 @Data/@Builder，仅 Getter+Setter(PROTECTED)+NoArgsConstructor(PROTECTED) |
+| 依赖 | 9 domain 层零 Spring/MyBatis/MQ |
+| 出入参 | 10 每操作独立 Input；E1~E3 枚举出入参/投影用 Integer/String 基础类型 |
+| 应用层 | 11 Updater/Factory 不校验不持久化不发事件；12 satisfiesRule 必抛异常 |
+| 边界 | 13 跨聚合只持 ID |
+| 父类能力 | 14 不自定义 ID/审计/版本/软删 |
+
+### 步骤 3：输出评审报告
+
+- **阻断项（Blocking）**：违反硬约束，必须修复后重新评审。
+- **建议项（Advisory）**：可改进但不阻断（如命名风格）。
+- 零阻断 → 输出「合规通过」。
+
+### 步骤 4：边界声明（重要）
+
+- 本 Skill **只做框架约定合规评审**，不做业务逻辑正确性、性能、安全评审。
+- 不修改用户代码；修复建议交回用户或 S4 重生成。
+- 隔离角色模式下：评审产物写入临时区，**零写入**业务源码目录（路线图 §7.4）。
+
+## 防幻觉
+
+- 评审依据仅是 `kb/hard-constraints.md` + `kb/api-contract.md`；不引用框架不存在的约定。
+- 拿不准某条约束是否适用 → 标记「待人工确认」，不臆断违规。
+
+## 验收（对照路线图 §8）
+
+- A3 逐条核对 14 条 + E1~E3，零遗漏、零误判、零幻觉符号。
+- 已知违规代码对照「角色评审 vs Skill 评审」阻断项召回率（阶段 3 可选）。
