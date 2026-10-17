@@ -68,9 +68,9 @@
 | `application/{agg}/factory` + `updater` + `resolver` | 聚合装配 / 修改 / 适配 | [领域服务落地模式](./domain-service.md) · [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/service` | 领域服务实现 | [领域服务落地模式](./domain-service.md) |
 | `application/{agg}/subscriber` | 事件订阅登记 | [投影读模型代码落地指南](./projection-design.md) · [RocketMQ 配置设计原则](./rocketmq-config.md) |
-| `infrastructure/persistent/{agg}/repository` | 仓储实现 | [仓储设计原则](./repository-design.md) · [MySQL 配置设计原则](./mysql-config.md) |
+| `infrastructure/persistent/{agg}/repository` | 仓储实现 | [仓储设计原则](./repository-design.md) · [MyBatis 配置设计原则](./mybatis-config.md) |
 | `infrastructure/persistent/{agg}/projection` | 投影器 / 物化器 | [投影读模型代码落地指南](./projection-design.md) · [Elasticsearch 配置设计原则](./elasticsearch-config.md) |
-| `infrastructure/config`（通用）+ `config/{agg}/` | Bean 装配 | [MySQL](./mysql-config.md) · [Elasticsearch](./elasticsearch-config.md) · [RocketMQ](./rocketmq-config.md) · [Outbox](./outbox-config.md) |
+| `infrastructure/config`（通用）+ `config/{agg}/` | Bean 装配 | [MySQL](./mysql-config.md) · [MyBatis](./mybatis-config.md) · [Elasticsearch](./elasticsearch-config.md) · [RocketMQ](./rocketmq-config.md) · [Outbox](./outbox-config.md) |
 | `infrastructure/dependency/{agg}`（+ `shared/`） | 外部依赖实现 | [核心：依赖体系](../core/dependency.md) · [ACL 防腐层](./../getting-started/project-structure.md#32-防腐层acl怎么放) |
 
 ## 4. 四层职责速记

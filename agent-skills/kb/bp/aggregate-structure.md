@@ -38,8 +38,8 @@
 | `application/input` | application-collaboration |
 | `application/factory`+`updater`+`resolver` | domain-service / application-collaboration |
 | `subscriber` | projection-design / rocketmq-config |
-| `infrastructure/persistent/{agg}` | repository-design / projection-design / mysql-config / elasticsearch-config |
-| `infrastructure/config` | mysql/elasticsearch/rocketmq/outbox-config |
+| `infrastructure/persistent/{agg}` | repository-design / projection-design / mysql-config / mybatis-config / elasticsearch-config |
+| `infrastructure/config` | mysql/mybatis/elasticsearch/rocketmq/outbox-config |
 
 ## 5. 四层职责速记
 

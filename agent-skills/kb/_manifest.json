@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.4-draft",
+  "kb_version": "1.5-draft",
   "framework_version": "2.0.0",
-  "generated_at": "2026-10-14",
-  "note": "v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "generated_at": "2026-10-17",
+  "note": "v1.5：拆分配置知识——bp.mysql-config 瘦身为 JDBC 层（DataSource / 事务），新增 bp.mybatis-config 承载 ORM 层（SqlSessionFactory / TypeHandlerContext / 三组框架固定 Mapper 与建表脚本）；outbox-config 补前置条件（Mapper XML + outbox_message）；aggregate-structure / ddd-infra-config / ddd-kb-consult 路由同步。v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -21,7 +21,7 @@
       "id": "bp.aggregate-structure",
       "path": "bp/aggregate-structure.md",
       "source": "documentation/best-practices/aggregate-structure.md",
-      "source_sha": "bd87f7f5546f63f7184f2d1039fc4d5858511ed13046f4330398dffec58d45b5",
+      "source_sha": "63381295df16d635ce762670d6e475cd81792f0f57d182b9aff552516008bc9f",
       "product_sha": "TODO"
     },
     {
@@ -91,7 +91,7 @@
       "id": "bp.application-collaboration",
       "path": "bp/application-collaboration.md",
       "source": "documentation/best-practices/application-collaboration.md",
-      "source_sha": "29c7c27a3d83e7a62bea7604898bbd69d72bf0e3ef17b383c19be3211ccf85c6",
+      "source_sha": "5b7ed2cbc1b0a43ebabc53c556d1447da2fbb47a8a8855351b27b912b59084da",
       "product_sha": "TODO"
     },
     {
@@ -105,7 +105,7 @@
       "id": "bp.aggregate-database-design",
       "path": "bp/aggregate-database-design.md",
       "source": "documentation/best-practices/aggregate-database-design.md",
-      "source_sha": "ef8ed26bee2c57aa91a7e441fb34715d931b1658130411e55868226a77750a32",
+      "source_sha": "00f202bef41ebbd1ecf89f3c80e773659bd36144fbf5d38f6dd59eacfae0bcf3",
       "product_sha": "TODO"
     },
     {
@@ -133,7 +133,7 @@
       "id": "bp.design-doc-template",
       "path": "bp/design-doc-template.md",
       "source": "documentation/best-practices/design-doc-template.md",
-      "source_sha": "b4096002e13db10a78c216a5a0b2d85d6c7ad73fae39f1d72eed5c3e85dd8e5e",
+      "source_sha": "1acf9462718ad027e01aac63c039ffbba194ac322a7de53ed88ad7e8012ec50e",
       "product_sha": "TODO"
     },
     {
@@ -154,14 +154,21 @@
       "id": "bp.mysql-config",
       "path": "bp/mysql-config.md",
       "source": "documentation/best-practices/mysql-config.md",
-      "source_sha": "7931e01bf6dd694f7bd021becf54ed3b466fe1290064c363975aa19ab26e1f02",
+      "source_sha": "fcc79107de8f5049a056ab3b2d92fd2abafa3f1a990962ff110ba46ad85b461a",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.mybatis-config",
+      "path": "bp/mybatis-config.md",
+      "source": "documentation/best-practices/mybatis-config.md",
+      "source_sha": "c1d4db10551cc97062f073d5b63640abb58d8440dfd7b02362139dae571c38fc",
       "product_sha": "TODO"
     },
     {
       "id": "bp.outbox-config",
       "path": "bp/outbox-config.md",
       "source": "documentation/best-practices/outbox-config.md",
-      "source_sha": "360079e179d191f7fb80d4f6bb147af0d29e21fe13c0dcc9b764ddf81f502ba5",
+      "source_sha": "67e4ede66422f5b34c00406cfc938e57d2f1d835e084ecc97b3f24449f4d0c80",
       "product_sha": "TODO"
     },
     {

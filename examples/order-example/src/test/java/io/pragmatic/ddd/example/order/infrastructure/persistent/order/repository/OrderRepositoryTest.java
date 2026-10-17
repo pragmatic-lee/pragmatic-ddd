@@ -8,6 +8,7 @@ import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Address;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Customer;
 import io.pragmatic.ddd.example.order.domain.order.model.valueobject.Money;
 import io.pragmatic.ddd.example.order.domain.order.param.OrderInitData;
+import io.pragmatic.ddd.example.order.infrastructure.config.MyBatisConfig;
 import io.pragmatic.ddd.example.order.infrastructure.config.MySqlConfig;
 import io.pragmatic.ddd.example.order.infrastructure.config.order.OrderMybatisTypeHandlerConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -36,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>连接本地 MySQL（order_example 库），真实执行 MyBatis 映射，验证主表 CRUD、
  * JSON 值对象序列化往返、枚举 CODE 持久化、TrackedList 懒加载与结构差量同步、乐观锁 CAS。</p>
  *
- * <p>运行方式：仅装配 MySQL 链路（MySqlConfig + OrderRepository），不加载 ES/Redis/RocketMQ；
+ * <p>运行方式：仅装配 MySQL 链路（MySqlConfig + MyBatisConfig + OrderRepository），不加载 ES/Redis/RocketMQ；
  * 每个用例事务真实提交（@Rollback(false)），@AfterEach 后置删除本次写入数据，便于测试后查看落库结果。</p>
  *
  * @author wizard-lee
@@ -46,9 +47,9 @@ class OrderRepositoryTest {
 
     @SpringBootConfiguration
     @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
-    @Import({MySqlConfig.class, OrderMybatisTypeHandlerConfig.class, OrderRepository.class})
+    @Import({MySqlConfig.class, MyBatisConfig.class, OrderMybatisTypeHandlerConfig.class, OrderRepository.class})
     static class TestConfig {
-        // 仅装配 MyBatis + 数据源 + 事务管理器 + 订单 TypeHandler + OrderRepository，不加载 ES/Redis/RocketMQ
+        // 仅装配数据源 + 事务管理器 + MyBatis 会话 + 订单 TypeHandler + OrderRepository，不加载 ES/Redis/RocketMQ
     }
 
     @Autowired

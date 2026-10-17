@@ -247,7 +247,7 @@ spring.autoconfigure.exclude=io.pragmatic.ddd.springboot.outbox.DddOutboxAutoCon
 mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml,classpath*:io/pragmatic/ddd/mybatis/id/*.xml
 ```
 
-走自建 `SqlSessionFactory` 路线（见 [MySQL 配置设计原则 §2.3](/best-practices/mysql-config)）时，同样要用 `setMapperLocations` 或 `mybatis-config.xml` 把框架 XML 显式列入。
+走自建 `SqlSessionFactory` 路线（见 [MyBatis 配置设计原则 §3](/best-practices/mybatis-config)）时，同样要用 `setMapperLocations` 把框架 XML 显式列入，且必须用 `classpath*:` 前缀才能扫到 jar 内资源。
 
 框架现有三份 XML：`outbox/OutboxMapper.xml`、`id/IdSegmentMapper.xml`、`compensation/CompensationMapper.xml`（仅 durable 补偿需要，见 §9.4）。durable 时别漏掉第三份：子块会正常产出 `ICompensationLog`，但首次写 WAL 就会报找不到语句。
 
@@ -280,7 +280,7 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 
 ### 9.6 与「显式声明、不依赖自动配置」路线的关系
 
-[MySQL 配置设计原则](/best-practices/mysql-config) 中「不依赖 `DataSourceAutoConfiguration`，显式声明数据源」的结论**仍然成立**，它约束的是 DataSource / SqlSessionFactory / TypeHandler 这一层。两条路线的分界是：
+[MySQL 配置设计原则](/best-practices/mysql-config) 与 [MyBatis 配置设计原则](/best-practices/mybatis-config) 中「不依赖自动配置，显式声明数据源与会话工厂」的结论**仍然成立**，它约束的是 DataSource / SqlSessionFactory / TypeHandler 这一层。两条路线的分界是：
 
 - **数据源与聚合 TypeHandler**：显式装配（业务专属，starter 不接管）；
 - **框架桥接与通用装配链**：交给 starter（抄不出差异，无需重复）。
@@ -306,7 +306,7 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 | 三个 `ApplicationRunner`（就绪后 start） | 生命周期 | 删除，由 `DddStartupLifecycle` 统一接管（durable 中继轮询另由 `CompensationRelayLifecycle` 接管） |
 | `SpringCompensationStatementExecutor`、durable 的三个 `@Bean`（日志 / 中继 / 轮询） | 补偿持久化装配 | 删除，由 durable 子块产出，间隔改用 `pragmatic-ddd.compensation.relay-poll-interval` |
 | `OrderCompensationConfig`（registry + 两种模式的装饰器） | 补偿装配 | 删除，模式改由 `pragmatic-ddd.compensation.mode` 决定 |
-| `MySqlConfig` / `RedisConfig` / ES 配置 / 聚合 TypeHandler / 主题路由 / 补偿动作 | 环境与领域专属 | **保留不动** |
+| `MySqlConfig` / `MyBatisConfig` / `RedisConfig` / ES 配置 / 聚合 TypeHandler / 主题路由 / 补偿动作 | 环境与领域专属 | **保留不动** |
 
 ## 11. 总结速查
 

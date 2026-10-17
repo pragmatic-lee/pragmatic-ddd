@@ -96,7 +96,7 @@ agent-skills/
 | 项 | 交付 |
 | --- | --- |
 | **KB 自足（v1.3）** | 已移除 `kb/examples/order/`（verbatim + sha 清单）与全部 example 引用；5 个 Skill + 1 个角色的防幻觉段改指向 `api-contract.md` / `bp/*.md` |
-| `_manifest.json` 真实 sha | 24 篇 bp 卡 `source_sha` 已回填真实值；`removed_scopes` 记录已下线的 example 范围 |
+| `_manifest.json` 真实 sha | 25 篇 bp 卡 `source_sha` 已回填真实值；`removed_scopes` 记录已下线的 example 范围 |
 | CI 卡口 | `scripts/verify-kb.sh`（源 hash 变化标 STALE 并退出 1） |
 | 派生脚本 | `scripts/derive-kb.sh`（半自动回填 source_sha；卡内容蒸馏需 AI+人审） |
 | 隔离评审角色 | `agents/ddd-reviewer.md`（只读工具、零写入、同 S7 基准） |

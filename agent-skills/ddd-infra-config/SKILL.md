@@ -23,7 +23,11 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 
 ### 3.1 数据源与 MyBatis
 
-- `infrastructure/config/MySqlConfig`：`DataSource` + `SqlSessionTemplate`（读 `application.properties` 的 `${ENV}` 占位）。
+职责分两层，两个配置类单向依赖（`MyBatisConfig → MySqlConfig`）：
+
+- `infrastructure/config/MySqlConfig`：只产 `DataSource`（Hikari）与 `PlatformTransactionManager`，开 `@EnableTransactionManagement`；不 import 任何 MyBatis 类型。连接参数读 `application.properties` 的 `${ENV}` 占位。
+- `infrastructure/config/MyBatisConfig`：产 `SqlSessionFactory` 与 `SqlSessionTemplate`；用原生 `Configuration` 注入各聚合 `TypeHandlerContext`（入参必须 `List<TypeHandlerContext>`）， **不用 `setConfigLocation` / `mybatis-config.xml`**。
+- Mapper XML 必须用 `classpath*:` 扫四路：框架三组（`io/pragmatic/ddd/mybatis/{outbox,id,compensation}/*.xml`）+ 业务 `mapper/**/*.xml`；用单 `classpath:` 扫不到 jar 内框架 XML。
 - 通用配置放 `infrastructure/config/`（单一来源），聚合级配置放 `infrastructure/config/{agg}/`。
 - 不注解 `@MapperScan` 扫描 Java 接口（本框架 Mapper 为纯 XML，`SqlSessionTemplate` 用 `namespace` 查）。
 
@@ -40,6 +44,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 ### 3.4 建表 SQL
 
 - 按 `kb/bp/aggregate-database-design.md` §4 生成：主表（`entityId` 主键 + `version` + 审计列）、子实体表（`id` 自增 + 逻辑外键 `order_id` 普通索引）、值对象 JSON 列、投影副本表（`REPLICA_ID` 唯一、副本列）。
+- 用到框架能力时还需建框架表（脚本随 `pragmatic-ddd-mybatis` jar 发布，直接取出执行）：Outbox → `outbox_message`；补偿 durable → `compensation_log`；DB 号段 ID → `id_segment`。
 - SQL 落在 `infrastructure/.../schema/*.sql`（或 `resource/`），与仓储 XML 同模块。
 
 ### 3.5 自检 + 交付
@@ -61,14 +66,15 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 
 ## 6. 检查清单
 
-- [ ] 数据源/SqlSessionTemplate 装配完成
+- [ ] 数据源/SqlSessionTemplate 装配完成（`MySqlConfig` + `MyBatisConfig` 分开）
+- [ ] 框架固定 Mapper XML 已扫入（outbox / id / compensation，`classpath*:`）
 - [ ] 事件管理器/注册中心注入
 - [ ] Outbox 或 RocketMQ 二选一，未混用
 - [ ] ES/Redis 源 Bean 就位（若需）
-- [ ] 建表 SQL 含 version + 审计列 + 逻辑外键索引
+- [ ] 建表 SQL 含 version + 审计列 + 逻辑外键索引；所用框架能力的表已建
 - [ ] 所有秘密 `${ENV}` 占位
 - [ ] domain 层零基础设施依赖（硬约束 9）
 
 ## 7. 防幻觉
 
-- 配置类/Bean 名以 `kb/bp/mysql-config.md` / `kb/bp/outbox-config.md` / `kb/bp/rocketmq-config.md` / `kb/bp/elasticsearch-config.md` / `kb/bp/event-manager-config.md` 为准；不确定先 Read 对应卡，或向用户确认其自备实现。KB 自足，不依赖外部示例工程。
+- 配置类/Bean 名以 `kb/bp/mysql-config.md` / `kb/bp/mybatis-config.md` / `kb/bp/outbox-config.md` / `kb/bp/rocketmq-config.md` / `kb/bp/elasticsearch-config.md` / `kb/bp/event-manager-config.md` 为准；不确定先 Read 对应卡，或向用户确认其自备实现。KB 自足，不依赖外部示例工程。

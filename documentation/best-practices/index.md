@@ -60,7 +60,8 @@
 
 | 文档 | 落地问题 | 举一反三（示例 → 泛化） |
 | --- | --- | --- |
-| [MySQL 配置设计原则](./mysql-config.md) | SqlSessionFactory / TypeHandler / 事务管理器装配 | MySQL → 任何数据访问基础设施 |
+| [MySQL 配置设计原则](./mysql-config.md) | 数据源、连接池与事务管理器装配 | MySQL → 任何关系型数据库接入 |
+| [MyBatis 配置设计原则](./mybatis-config.md) | SqlSessionFactory / TypeHandler 多聚合装配 / Mapper XML 加载（含框架固定 Mapper） | MyBatis → 任何 ORM 会话装配 |
 | [Elasticsearch 配置设计原则](./elasticsearch-config.md) | RestClient → Transport → Client 三层构建、认证超时 | ES → 任何外部存储客户端 |
 | [事件管理器装配与选择](./event-manager-config.md) | `IEventManager` 二选一装配原则、本地线程池实现与数据丢失风险 | 事件管理器 → 任何应用 |
 | [RocketMQ 配置设计原则](./rocketmq-config.md) | 应用级 MQ 装配、主题路由、订阅落地 | Order → MQ → 任何聚合事件 |

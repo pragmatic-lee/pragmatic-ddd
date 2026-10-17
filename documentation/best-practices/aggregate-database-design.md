@@ -184,7 +184,7 @@ CREATE TABLE t_order_item (
 
 - [聚合设计原则](./aggregate-design.md)：聚合根边界、`TrackedList` 子集合、版本号与乐观锁
 - [仓储设计原则](./repository-design.md)：仓储如何整存整取聚合、子集合差量同步
-- [MySQL 配置设计原则](./mysql-config.md)：TypeHandler 三通道装配、全局开关
+- [MyBatis 配置设计原则](./mybatis-config.md)：TypeHandler 三通道装配、全局开关与框架固定 Mapper
 - [值对象最佳实践](./value-object.md)：值对象 JSON 序列化往返
 - [枚举值](./enum-value.md)：枚举按 CODE 持久化
 - [Outbox 链路装配](./outbox-config.md)：`OutboxMapper` 与异构事件投递

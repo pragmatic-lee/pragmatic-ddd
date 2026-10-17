@@ -1,6 +1,12 @@
 # BP 卡：Outbox 链路装配（outbox-config）
 
-> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-14 · 框架版本：2.0.0
+> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-17 · 框架版本：2.0.0
+
+## 0. 前置条件（缺一不可）
+
+- **Mapper XML 已扫入**：SQL 全在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，必须把 `classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml` 纳入 `SqlSessionFactory` 扫描；starter **不代劳**。
+- **表已建**：`outbox_message`（脚本 `io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。
+- 缺任一项都是启动正常、首次发事件时才报 `Mapped Statements collection does not contain value for ...OutboxMapper.insertBatch`。详细触发矩阵见 `bp/mybatis-config.md`。
 
 ## 1. 关键约定
 
@@ -80,4 +86,4 @@ IEventManager(RocketMQ) ──────────────────�
 
 ## 6. 被读于
 
-S3 `ddd-infra-config`、S7 `ddd-code-review`。
+S3 `ddd-infra-config`、S7 `ddd-code-review`；Mapper XML / 建表前置见 `bp/mybatis-config.md`。

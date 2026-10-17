@@ -49,7 +49,8 @@ public class Order extends AggregateRoot<Long> {
         this.name = data.getName();
         this.age = data.getAge();
         this.recordOperation(OrderOperationRegistry.CREATE);
-        this.markCreated();
+        this.markCreated();  // 审计时间戳：createdAt/updatedAt = now（继承自 AbstractEntity）
+        this.markNew();      // 持久化路由标志：isNew=true，仓储 save 据此走 INSERT（与 markCreated 职责不同，两者都要调）
         this.collectEvent(() -> OrderCreatedEvent.buildEvent(this)); // 延迟事件（构造期 ID 可能未定）
     }
 

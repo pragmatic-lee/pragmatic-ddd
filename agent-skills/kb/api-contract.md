@@ -22,7 +22,7 @@
 
 | 类 / 接口 | 全限定 import | 关键成员 | 注意 |
 | --- | --- | --- | --- |
-| `AggregateRoot<T>` | `io.pragmatic.ddd.base.AggregateRoot` | `recordOperation(EntityOperation)`、`markCreated()`、`markModified()`、`collectEvent(BaseDomainEvent)` / `collectEvent(Supplier<IDomainEvent>)`（延迟）、`hasOperation` / `hasAnyOperation` / `hasExceptOperation`、`satisfiesRule(IRule)`、`throwBrokenRuleException()` / `throwBrokenRuleAggregateException()`、`getEntityId()` / `getOldVersion()` / `getNewVersion()`、`isNew()`、`triggerDataSyncHook()` | 两个 `protected abstract`：`brokenRuleRegistry()`（**不可返回 null**）、`operationRegistry()`（返回 null = 不启用操作体系） |
+| `AggregateRoot<T>` | `io.pragmatic.ddd.base.AggregateRoot` | `recordOperation(EntityOperation)`、`markCreated()`/`markModified()`（审计时间戳 `createdAt`/`updatedAt`，继承自 `AbstractEntity`）、`markNew()`（`public`，置 `isNew=true`，仓储 `save` 据此路由 INSERT/UPDATE，**新建业务构造须与 `markCreated()` 一并调用**）、`collectEvent(BaseDomainEvent)` / `collectEvent(Supplier<IDomainEvent>)`（延迟）、`hasOperation` / `hasAnyOperation` / `hasExceptOperation`、`satisfiesRule(IRule)`、`throwBrokenRuleException()` / `throwBrokenRuleAggregateException()`、`getEntityId()` / `getOldVersion()` / `getNewVersion()`、`isNew()`、`triggerDataSyncHook()` | 两个 `protected abstract`：`brokenRuleRegistry()`（**不可返回 null**）、`operationRegistry()`（返回 null = 不启用操作体系） |
 | `AbstractEntity<T>` | `io.pragmatic.ddd.base.AbstractEntity` | `entityId` / 审计 / 软删 / `equals`+`hashCode`（基于 entityId，勿覆盖） | 父类已托管 |
 | `IEntity<T>` | `io.pragmatic.ddd.base.IEntity` | `getEntityId()` | 标识契约 |
 
@@ -39,7 +39,7 @@
 
 | 类 / 接口 | 全限定 import | 关键成员 | 注意 |
 | --- | --- | --- | --- |
-| `EntityRule<T>` | `io.pragmatic.ddd.rules.EntityRule` | `addRule(ICheckRule<T>, MessageCode)`、`addRule(ICheckRule<T>, MessageCode, IActiveRuleCondition<T>)`、`EntityRule.of(fn)`、`RuleCheckResult.of(bool)` / `RuleCheckResult.fail(Object[])` | `failFast` 默认 true；构造 `new EntityRule<>(false)` 收集全部违反；**`ICheckRule.check(newModel, oldModel)` 返回 `RuleCheckResult`，不是 boolean**——校验函数体必须 `return RuleCheckResult.of(true)` 或 `RuleCheckResult.fail(params)` |
+| `EntityRule<T>` | `io.pragmatic.ddd.rules.EntityRule` | `addRule(ICheckRule<T>, MessageCode)`、`addRule(ICheckRule<T>, MessageCode, IActiveRuleCondition<T>)`、`EntityRule.of(Function<T, RuleCheckResult>)`（**仅单参**：把不关心旧实体的单参校验适配为 `ICheckRule<T>`，供不需新旧对比的规则用；**需新旧对比时别用 `of`，直接写双参裸 lambda `(newModel, oldModel) -> ...`**）、`RuleCheckResult.of(bool)` / `RuleCheckResult.fail(Object[])` | `failFast` 默认 true；构造 `new EntityRule<>(false)` 收集全部违反；**`ICheckRule.check(newModel, oldModel)` 返回 `RuleCheckResult`，不是 boolean**——校验函数体必须 `return RuleCheckResult.of(true)` 或 `RuleCheckResult.fail(params)` |
 | `IActiveRuleCondition<T>` | `io.pragmatic.ddd.rules.IActiveRuleCondition` | `@FunctionalInterface`：`ActiveStatus status(T newModel, T oldModel)`；工厂 `IActiveRuleCondition.of(fn)`（`fn` 形如 `newModel -> ... ? ACTIVE : INACTIVE`，或 `(newModel, oldModel) -> ...`） | 激活条件类型；**`addRule` 第三参传 `IActiveRuleCondition<T>` 实例**；`status(...)` 返回 `ActiveStatus` 供规则据此决定是否激活，不要直接把 `ActiveStatus` 枚举当第三参 |
 | `ActiveStatus` | `io.pragmatic.ddd.rules.ActiveStatus` | `ACTIVE` / `INACTIVE` | 状态枚举，用于 `IActiveRuleCondition.status(T, T)` 的返回值判等 |
 | `RuleCheckResult` | `io.pragmatic.ddd.rules.RuleCheckResult` | `of(boolean)`、`fail(Object[])`、`isSatisfy()`、`getParams()`、`hasParams()` | `ICheckRule.check` 的返回类型；校验函数用 `RuleCheckResult.of(true)` 通过、`RuleCheckResult.fail(params)` 违反 |
@@ -90,7 +90,7 @@
 | --- | --- | --- | --- |
 | `IRepository<ID, T>` | `io.pragmatic.ddd.repository.IRepository` | `insert` / `update` / `save`（按 `isNew()` 路由）/ `findById`（未命中返回 null）/ `remove`（**无默认实现，必须提供**）/ `existsById` / `currentVersion` | T extends AggregateRoot |
 | `AbstractRepository<ID, T>` | `io.pragmatic.ddd.repository.AbstractRepository` | `insert`/`update`/`remove`（先 `triggerDataSyncHook` 再 `doXxx`，**非 final**）；子类覆写 `doInsert`/`doUpdate`/`doRemove`，`findById` 由子类**直接实现**（基类**无 `doFindById` 钩子**） | 勿直接实现 IRepository 的抽象方法；覆写 insert/update/remove 本身框架不鼓励 |
-| `TrackedList<T extends ITrackable<ID>, ID>` | `io.pragmatic.ddd.track.TrackedList` | `getAppendedItems()` / `getRemovedItems()` / `getAllItems()` | 子集合差量同步三桶；元素类型 **必须实现 `ITrackable<ID>`**（提供 `id()`） |
+| `TrackedList<T extends ITrackable<ID>, ID>` | `io.pragmatic.ddd.track.TrackedList` | 构造：`TrackedList()` / `TrackedList(List<T> init)`（直接赋引用不触发懒加载子查询）；**写**：`append(T)`、`append(List<T>)`、`update(T oldItem, T newItem)`（=remove+append，`oldItem.id()` 未命中基线抛 `IllegalArgumentException`）、`List<T> removeItems(Predicate<? super T>)`、`removeAll()`、`clearAndAppend(List<T>)`；**读**：`getAppendedItems()`（待 INSERT）、`getRemovedItems()`（待 DELETE）、`getAllItems()`（init+append 逻辑视图）、`getInitItems()`（基线） | 子集合**结构差量**三桶（基线/新增/删除），只做增删差量、不引入原地 UPDATE 第四态；元素泛型上界 **`T extends ITrackable<ID>`**（编译期约束，提供 `id()`），第二泛型 `ID` 为行标识类型；仅用于有独立 DB 行的对象，不用于基本类型/内嵌值对象 |
 | `ITrackable<ID>` | `io.pragmatic.ddd.track.ITrackable` | `ID id()` | `TrackedList` 元素的行标识契约（实体返回其 ID，独立表值对象返回行键） |
 | `TrackedMap<K, V>` | `io.pragmatic.ddd.track.TrackedMap` | 写：`put`/`putAll`/`remove`/`removeEntry`/`clear`；读：`getInitEntries()`/`getPutEntries()`/`getRemoveKeys()`/`getInsertedEntries()`/`getUpdatedEntries()`/`getRemovedEntries()`/`getAllEntries()`/`getRetainedEntries()` | 键值差量容器，与 `TrackedList` 对称（子集合为 Map 形态时做增量持久化） |
 

@@ -22,6 +22,8 @@
 
 边界：装配类**只声明 Bean 与依赖注入**，不写 SQL、不写事务注解、不持有 Mapper 接口。SQL 在 XML，事务由 `TransactionOperations` 抽象，推送由 `CommandExecutor` 触发。
 
+> ⚠️ **前置条件**：Outbox 的 SQL 全在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，而 starter 不会自动加载它。必须把 `classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml` 纳入 `SqlSessionFactory` 的 Mapper 扫描路径，并建好 `outbox_message` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。缺任一项都会在运行期报 `Mapped Statements collection does not contain value for ...`。详见 [MyBatis 配置设计原则 §3](./mybatis-config.md)。
+
 ## 2. 命名与包结构
 
 Outbox 链路为跨聚合**通用**装配（五个 Bean 均为框架组件、不绑定任何聚合类型），放在类型优先的通用配置层 `infrastructure/config/`；仅各聚合专属配置才进 `config/{agg}/`：
@@ -31,7 +33,8 @@ infrastructure/config/             # 通用技术配置（不绑定聚合）
 ├── OutboxConfig.java              ✅ 集中装配五个 Bean
 ├── SpringTransactionOperations.java   ✅ TransactionOperations 的 Spring 实现
 ├── SpringOutboxStatementExecutor.java ✅ IOutboxStatementExecutor 的 Spring 实现
-└── MySqlConfig.java               ✅（或等价）暴露 PlatformTransactionManager / SqlSessionTemplate
+├── MySqlConfig.java               ✅ 暴露 PlatformTransactionManager
+└── MyBatisConfig.java             ✅ 暴露 SqlSessionTemplate，并扫入框架固定 Mapper
 ```
 
 ✅ 推荐：`OutboxConfig` 与 `Spring*` 适配类放在同一通用 `config` 包，贴近基础设施、可跨聚合复用。

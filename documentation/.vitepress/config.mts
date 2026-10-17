@@ -126,6 +126,7 @@ export default defineConfig({
               collapsed: true,
               items: [
                 { text: 'MySQL 配置设计原则', link: '/best-practices/mysql-config' },
+                { text: 'MyBatis 配置设计原则', link: '/best-practices/mybatis-config' },
                 { text: 'Elasticsearch 配置设计原则', link: '/best-practices/elasticsearch-config' },
                 { text: '事件管理器装配与选择', link: '/best-practices/event-manager-config' },
                 { text: 'RocketMQ 配置设计原则', link: '/best-practices/rocketmq-config' },

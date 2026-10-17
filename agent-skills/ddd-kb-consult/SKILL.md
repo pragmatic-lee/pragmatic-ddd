@@ -46,7 +46,8 @@ description: 咨询 Pragmatic DDD 框架的设计规范与最佳实践（只读 
 | 设计文档模板（含大纲跳转） | `bp/design-doc-template` |
 | ES 配置 | `bp/elasticsearch-config` |
 | 事件管理器选型（Kafka/RocketMQ/ThreadPool） | `bp/event-manager-config` |
-| MySQL 配置 | `bp/mysql-config` |
+| MySQL 配置（数据源 / 事务） | `bp/mysql-config` |
+| MyBatis 配置（会话工厂 / TypeHandler / 框架固定 Mapper） | `bp/mybatis-config` |
 | Outbox 配置 | `bp/outbox-config` |
 | RocketMQ 配置 | `bp/rocketmq-config` |
 | Kafka 配置 | `bp/kafka-config` |

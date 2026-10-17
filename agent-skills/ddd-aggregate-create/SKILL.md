@@ -28,7 +28,7 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 - 聚合根 `{Agg} extends AggregateRoot<ID>`，Lombok 仅 `@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`（硬约束 8）。
 - 状态用枚举（领域内部 `int` code），见 `kb/bp/enum-value.md`；**出入参层字段按 `kb/hard-constraints.md` E1~E3 用 `Integer`/`String`**。
-- `initData` 模式：`new {Agg}({Agg}InitData, id)`，构造只赋值 + `markNew()` + 延迟创建事件（硬约束 6）。
+- `initData` 模式：`new {Agg}({Agg}InitData, id)`，构造只赋值 + `markCreated()`（审计时间戳 createdAt/updatedAt）+ `markNew()`（新建路由标志 isNew，仓储据此 INSERT）+ 延迟创建事件（硬约束 6）；两个标记职责不同，新建构造都要调。
 - 一对多用 `TrackedList<{Sub}, ID>`。
 - 充血方法：纯赋值、先做对外校验再赋值、无 `if+throw` 守卫（硬约束 4）；**先 `recordOperation` 后 `collectEvent`**（硬约束 5）。
 - 两个 `protected` 方法：`brokenRuleRegistry()`（不可返回 null）、`operationRegistry()`。

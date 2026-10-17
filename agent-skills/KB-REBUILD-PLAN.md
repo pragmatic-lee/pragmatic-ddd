@@ -18,7 +18,7 @@ KB 的核心价值是**防幻觉**：零上下文 AI 靠它一次写对可编译
 
 | 卡 | 权威源 | 漂移严重度 | 问题摘要 |
 | --- | --- | --- | --- |
-| `bp.aggregate-design` | aggregate-design.md | 严重 | 用已废弃 `markNew()`（现为 `markCreated()`）；`@Setter(AROTECTED)` 笔误；旧式内部静态类骨架；未覆盖 §3.3 充血方法（无守卫/无组装）、§3.4 `IParamObject`、§3.5 Lombok 约定 |
+| `bp.aggregate-design` | aggregate-design.md | 严重 | 骨架未区分 `markNew()`（新建路由标志，置 `isNew`，供仓储 `save` 走 insert/update）与 `markCreated()`（审计时间戳 createdAt/updatedAt），两者并存、新建构造都要调；`@Setter(AROTECTED)` 笔误；旧式内部静态类骨架；未覆盖 §3.3 充血方法（无守卫/无组装）、§3.4 `IParamObject`、§3.5 Lombok 约定 |
 | `bp.order-rule-pattern` | order-rule-pattern.md | 严重+错误 | 仍用旧 `boolean` 返回 + `MessageCode.switchStatus(...)` + `ActiveStatus.ACTIVE` 作第三参；当前源用 `RuleCheckResult.of(...)` / `IActiveRuleCondition.of(...)` / `hasOperation*` / `requireOldEntity()`，且样式已更新 |
 | `bp.rocketmq-config` | rocketmq-config.md | 中等+错误 | 配置前缀写成 `rocketmq.*`，正确为 `pragmatic-ddd.event.rocketmq.*`；会直接导致用户 `application.yml` 配置漂移 |
 | `bp.operation-registry-design` | operation-registry-design.md | 中等 | 缺 §5 关键机制：`public` 反射注册、`operationRegistry()` 返回 `null`=禁用、`MultipleOperationsException`、`hasOperation*` |
@@ -47,7 +47,7 @@ KB 的核心价值是**防幻觉**：零上下文 AI 靠它一次写对可编译
 
 ## 4. 执行步骤
 
-1. 重写 `kb/bp/aggregate-design.md`（对齐 `markCreated()`、`IParamObject`、§3.3/§3.5）。
+1. 重写 `kb/bp/aggregate-design.md`（骨架构造并列 `markCreated()`（审计）与 `markNew()`（新建路由），对齐 `IParamObject`、§3.3/§3.5）。
 2. 重写 `kb/bp/order-rule-pattern.md`（对齐 `RuleCheckResult` / `IActiveRuleCondition.of` / `hasOperation*` / `@DomainService`）。
 3. 重写 `kb/bp/rocketmq-config.md`（前缀修正为 `pragmatic-ddd.event.rocketmq.*`）。
 4. 补全 `kb/bp/operation-registry-design.md`、`kb/bp/repository-design.md`。
@@ -62,7 +62,7 @@ KB 的核心价值是**防幻觉**：零上下文 AI 靠它一次写对可编译
 - [ ] `verify-kb.sh` 退出 0（`KB OK`），无 STALE 卡。
 - [ ] `kb/bp/` 含 24 张 bp 卡（原 23 + 新增 kafka-config）。
 - [ ] `_manifest.json` 的 `cards` 含 `bp.kafka-config`，全部 `source_sha` 已刷新。
-- [ ] 3 张严重卡不再含废弃写法（`markNew` / `boolean` 返回 / `rocketmq.*` 前缀）。
+- [ ] 3 张严重卡不再含错误写法（`boolean` 返回 / `rocketmq.*` 前缀）；aggregate-design 骨架构造已并列 `markCreated()`（审计）与 `markNew()`（新建路由，非废弃）。
 - [ ] `api-contract.md` Tier-1/Tier-2 与当前 `pragmatic-ddd-core` 源码一致。
 - [ ] `kb/README.md` 与顶层 `README.md` 版本号与目录一致。
 
