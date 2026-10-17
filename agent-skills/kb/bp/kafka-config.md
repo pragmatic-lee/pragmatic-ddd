@@ -50,11 +50,11 @@ public class KafkaConfig {
 public class OrderEventTopicConfig {
     private static final String DEFAULT_TOPIC = "data_sync_event";
     @Bean public ITopicResolver orderTopicResolver() {
-        return ConfigurableTopicResolver.builder().globalDefaultTopic(DEFAULT_TOPIC).build();
+        return io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver.builder().globalDefaultTopic(DEFAULT_TOPIC).build();
     }
 }
 ```
-所有聚合事件共用这一个 resolver；新增聚合只扩展其事件/订阅者 topic 映射，不改基础设施配置。
+所有聚合事件共用这一个 resolver（`ConfigurableTopicResolver` 全限定包路径 `io.pragmatic.ddd.event.internal.defaults`，非 `event.spi`）；新增聚合只扩展其事件/订阅者 topic 映射，不改基础设施配置。
 
 ## 4. 聚合侧接入：只注册订阅
 

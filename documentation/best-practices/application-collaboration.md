@@ -24,8 +24,12 @@ application/{agg}/
 ├── resolver/                   # Command → 领域输入适配
 ├── rule/                       # 规则装配（如 OrderRuleConfig）
 ├── service/                    # 领域服务实现
+├── action/                     # 可补偿动作（ICompensableAction：正向 / 回写 / 补偿三元组）
+├── compensation/               # 崩溃兜底执行器（ICompensationHandler，durable 模式用）
 └── subscriber/                 # 事件订阅登记
 ```
+
+> 框架侧的可补偿命令执行器、注册表、补偿状态机与兜底中继统一放在 `io.pragmatic.ddd.application.compensation`（含 `relay/` 与 `spi/`），应用层只消费成品 Bean，不感知其内部状态机。
 
 ### 2.2 命名规范
 
@@ -191,8 +195,11 @@ public class OrderRuleConfig {
 | --- | --- | --- |
 | `CommandExecutor` | 同事务落库，提交后直发事件 | 事件丢失可接受、不需要 Outbox 兜底 |
 | `OutboxCommandExecutor` | 聚合写 + outbox 行同事务，异步投递 | 跨模块可靠投递 / 崩溃兜底（见 [Outbox 链路装配](./outbox-config.md)） |
+| `CompensableCommandExecutor`（装饰器） | 装饰上述任一执行器，为声明外部需求的命令叠加逆序补偿 | 用例涉及跨本地事务的外部副作用（预占 / 扣减 / 发券）且失败需回滚（见 [§4.10](#410-可补偿命令分布式事务补偿落地)） |
 
 > `AbstractApplicationService` 不再提供默认构造器，执行器与工作单元工厂必须由继承者**显式注入**（通常以组合根 `@Bean` 提供成品），且二者语义须一致：默认场景用 `CommandExecutor` + `UnitOfWork`，outbox 场景用 `OutboxCommandExecutor` + `OutboxUnitOfWork`，禁止混用。工作单元的装配（原型工厂）与多聚合根直接编排写法见 [§4.9](#49-工作单元unitofwork--outboxunitofwork落地写法)。
+>
+> `CompensableCommandExecutor` 是**装饰器而非第二套语义**：它包裹既有的 `CommandExecutor` / `OutboxCommandExecutor`，共享被装饰者的同一事务边界，仅对该用例里聚合通过 `requireExternal` 声明的外部需求做正向执行 + 逆向补偿。需要补偿的用例单独注入它，其余用例继续走基类 `execute`。
 
 ### 4.8 读侧 ReadService：不进 `execute()` 模板
 
@@ -331,6 +338,138 @@ public void payWithDeduction(Long orderId, Long inventoryId, PayOrderInput input
 
 > 工作单元底层机制、Outbox 状态机与兜底轮询的完整说明见 [核心：应用服务](../core/application-service.md#_2-2-跨聚合根工作单元iunitofwork--unitofwork)。
 
+### 4.10 可补偿命令（分布式事务补偿）落地
+
+当一次用例除了「落库 + 发事件」之外，还要调用**本地事务之外的外部系统**（库存预占、积分发放、第三方扣款），且外部动作失败时要把已做的外部副作用**回滚**时，用 `CompensableCommandExecutor` 替代基类 `execute`。它是 `ICommandExecutor` 的装饰器，把「正向执行外部动作 → 失败逆序补偿」固化到应用层编排里，复用既有事务语义（推荐装饰 `OutboxCommandExecutor`）。
+
+落地三要素：**领域声明需求 → 应用实现动作 → 用例注入补偿执行器**。
+
+#### 4.10.1 领域层：聚合声明外部需求
+
+聚合在领域方法内通过 `requireExternal(requirement)` 声明「需要外部世界配合完成的一件事」（`IExternalRequirement` 实现为不可变 record，`code()` 是跨进程稳定的路由键，不得由类名推导）：
+
+```java
+package io.pragmatic.ddd.example.order.domain.order.requirement;
+
+public record ReserveInventoryRequirement() implements IExternalRequirement {
+    public static final ReserveInventoryRequirement INSTANCE = new ReserveInventoryRequirement();
+
+    @Override
+    public String code() {
+        return "reserve-inventory";   // = compensation_log.handler 列，全局唯一稳定
+    }
+}
+```
+
+```java
+// 聚合领域方法内声明需求（与 collectEvent 同构，只描述要什么）
+public void place() {
+    // ... 领域逻辑 ...
+    requireExternal(ReserveInventoryRequirement.INSTANCE);
+}
+```
+
+#### 4.10.2 应用层：实现可补偿动作
+
+`ICompensableAction<A, REQ, T>` 是「正向调用外部 + 逆向回滚外部」的配对单元，绑定聚合类型与需求类型；必须无状态（作单例由容器管理）。正向 / 回写 / 补偿一律从聚合读取业务事实，不得从入参读取；`apply` 只调聚合充血方法、禁 setter 直改；`compensate` 必须幂等；`payload` 返回供 durable 崩溃兜底还原的依据（非空才能开 durable）：
+
+```java
+@Component
+public class ReserveInventoryAction implements ICompensableAction<Order, ReserveInventoryRequirement, String> {
+
+    private final IInventoryDependency inventoryDependency;   // 防腐适配器端口（@ExternalDependency）
+    private final IEventSerializer serializer;
+
+    @Override
+    public Class<ReserveInventoryRequirement> requirementType() {
+        return ReserveInventoryRequirement.class;
+    }
+
+    @Override
+    public Class<Order> aggregateType() {
+        return Order.class;
+    }
+
+    @Override
+    public String execute(Order order, ReserveInventoryRequirement requirement) {
+        return inventoryDependency.reserve(order.getEntityId(), order.getOrderItems().getAllItems());
+    }
+
+    @Override
+    public void apply(Order order, String reserveNo) {
+        order.bindReserveNo(reserveNo);   // 只调充血方法
+    }
+
+    @Override
+    public void compensate(Order order, String reserveNo) {
+        inventoryDependency.release(reserveNo);   // 幂等释放
+    }
+
+    @Override
+    public String payload(Order order, ReserveInventoryRequirement requirement) {
+        return serializer.serialize(new ReservePayload(order.getEntityId(), /* 明细 */));
+    }
+}
+```
+
+> ⚠️ **动作依赖外部调用请走防腐适配器端口**：`ReserveInventoryAction` 注入的是领域层 `IInventoryDependency` 端口（见 [外部依赖声明落地模式](./dependency-declaration.md)），不直接写 HTTP / RPC——保持领域 / 应用层不耦合远程细节。
+
+#### 4.10.3 应用服务：仅补偿用例注入补偿执行器
+
+补偿执行器由 `pragmatic-ddd-spring-boot` 的补偿自动装配以成品 Bean 注入（装饰 Outbox 执行器），服务内不再手动 new；**只在需要补偿的用例使用它**，其余用例继续走基类 `execute`：
+
+```java
+@Service
+public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
+
+    private final CompensableCommandExecutor compensableExecutor;
+    // ... 其余依赖
+
+    public OrderWriteService(IEventManager eventManager,
+                             OutboxCommandExecutor commandExecutor,
+                             Supplier<IUnitOfWork> unitOfWorkFactory,
+                             CompensableCommandExecutor compensableExecutor,
+                             /* ... */) {
+        super(eventManager, commandExecutor, unitOfWorkFactory);
+        this.compensableExecutor = compensableExecutor;
+    }
+
+    /** 下单：建聚合（聚合声明库存预占需求）→ 框架执行外部动作并兜底补偿 → 校验落库发事件。 */
+    public Order placeOrder(CreateOrderInput input) {
+        Order order = orderFactory.create(input);
+        return compensableExecutor.execute(order, orderRule, orderRepository, t -> {});
+    }
+}
+```
+
+#### 4.10.4 durable 模式：补崩溃兜底执行器
+
+内存模式（默认）进程崩溃即中断补偿；需崩溃后仍可回抢时，把 `pragmatic-ddd.compensation.mode` 设为 `durable`，并**为每个需兜底的动作各提供一个 `ICompensationHandler`**（按 `actionName()` 路由，必须等于需求 `code`）。中继 `CompensationRelay` 由 starter 自动挂载轮询：
+
+```java
+@Component
+public class ReserveInventoryCompensationHandler implements ICompensationHandler {
+    @Override
+    public String actionName() {
+        return "reserve-inventory";   // 必须等于 ReserveInventoryRequirement.code()
+    }
+
+    @Override
+    public void compensate(String payload) {
+        ReservePayload p = serializer.deserialize(payload, ReservePayload.class);
+        inventoryDependency.releaseByOrder(p.orderId());   // 按业务标识幂等释放
+    }
+}
+```
+
+#### 4.10.5 关键约束与选型
+
+- **段序固定**：段一领域逻辑（纯内存收集需求）→ 段二逐项正向 + 回写 → 段三校验落库发事件；段三失败触发已执行动作**逆序、不中断**补偿（单个失败不影响其余），整体由 `CompensationTemplate` 固化。
+- **事务边界复用被装饰者**：装饰 `OutboxCommandExecutor` 即同时获得「事件同事务 + 外部副作用可补偿」；装饰 `CommandExecutor` 则无 Outbox 兜底。不得错配两套语义。
+- **补偿不替代 Outbox**：补偿管「外部副作用回滚」，Outbox 管「事件可靠投递」，二者叠加使用。
+- **幂等是硬约束**：`compensate` 在回滚路径与崩溃恢复路径都会触发，外部系统须支持按业务单号幂等撤销。
+- **内存 / durable 二选一**：内存零 DB 依赖；durable 需 `pragmatic-ddd-mybatis` + `SqlSessionTemplate` + 建 `compensation_log` 表 + 业务提供 `ICompensationHandler`，底座缺失时 starter 告警回落内存（详见 [Spring Boot Starter 集成 §9.4](../integration/spring-boot.md) 与 [配置项参考](../reference/configuration.md)）。
+
 ## 5. 关键机制与避坑
 
 - **业务方法内"先 `recordOperation` 后 `collectEvent`"**：事件 `operationCode` 自动取本次记录的因果操作（单值）；顺序颠倒抛 `OperationException`。详见 [操作注册表设计](./operation-registry-design.md)。
@@ -358,12 +497,19 @@ public ResponseEntity<ErrorResponse> handleBrokenRule(BrokenRuleException e) {
 | 把 `UnitOfWork` 当单例 Bean 直接注入 | 有状态、单次消费的工作单元跨请求复用，事件 / 状态串味 | 注入 `Supplier<IUnitOfWork>` 工厂，用 `beginUnitOfWork()` 取新实例 |
 | 工作单元不用 try-with-resources | 未提交时暂存事件未清理，内存泄漏 / 跨请求误发 | 一律 `try (IUnitOfWork uow = beginUnitOfWork())` |
 | 执行器与工作单元语义混用 | 同一服务内两套一致性语义，Outbox 行与事件不同步 | 成对匹配：`CommandExecutor`+`UnitOfWork`、`OutboxCommandExecutor`+`OutboxUnitOfWork` |
+| 跨本地事务的外部动作不设补偿 | 外部预占 / 扣减成功后本地校验失败，外部副作用残留 | 声明 `IExternalRequirement` + 实现 `ICompensableAction`，用 `CompensableCommandExecutor`（见 §4.10） |
+| 可补偿动作 `compensate` 不幂等 | 回滚路径与崩溃恢复路径重复触发，外部被重复撤销 | 外部系统须支持按业务单号幂等撤销（如按预占单号释放） |
+| 可补偿动作里直改聚合字段 / 从入参读事实 | 绕过充血方法、补偿与正向读到不一致的业务事实 | `apply` 只调聚合充血方法；正向 / 回写 / 补偿一律从聚合读取 |
+| 补偿与 Outbox 二选一 | 既要可靠事件又要回滚外部副作用时只做其一，另一风险裸露 | `CompensableCommandExecutor` 装饰 `OutboxCommandExecutor`，二者叠加 |
+| durable 模式漏配 `ICompensationHandler` | WAL 照写但无中继回抢，崩溃后补偿记录堆积 | 为每个需兜底的动作提供 `ICompensationHandler`，`actionName()` 等于需求 `code` |
+| 把补偿执行器当通用执行器注入基类 | 无需补偿的用例也被套上补偿范围，徒增开销 | 仅在声明外部需求的用例注入 `CompensableCommandExecutor`，其余走基类 `execute` |
 
 ## 7. 下一步
 
 - [聚合目录落地骨架](./aggregate-structure.md)：应用层目录的落位
 - [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)：规则容器的构造与触发
 - [领域服务落地模式](./domain-service.md)：应用层实现领域服务
+- [外部依赖声明落地模式](./dependency-declaration.md)：`ICompensableAction` 调用的防腐适配器端口从哪来
 - [Outbox 链路装配](./outbox-config.md)：`OutboxCommandExecutor` 装配
-- [核心：应用服务](../core/application-service.md)：`CommandExecutor` / `UnitOfWork` / Outbox 详解
+- [核心：应用服务](../core/application-service.md)：`CommandExecutor` / `UnitOfWork` / Outbox / 可补偿执行器详解
 - [投影读模型代码落地指南](./projection-design.md)：`ReadService` 的完整落地（三跳取数 + Redis→ES 多源编排）

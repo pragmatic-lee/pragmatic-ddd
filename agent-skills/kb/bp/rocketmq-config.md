@@ -27,7 +27,7 @@ public class RocketMQConfig {
         return RocketMqConfig.bind(src);   // 前缀 pragmatic-ddd.event.rocketmq
     }
     @Bean public ITopicResolver topicResolver()
-        { return ConfigurableTopicResolver.builder().globalDefaultTopic(DEFAULT_TOPIC).build(); }
+        { return io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver.builder().globalDefaultTopic(DEFAULT_TOPIC).build(); }
     @Bean(destroyMethod = "shutdown") public DefaultMQProducer rocketMqProducer(RocketMqConfig c) {
         DefaultMQProducer p = new DefaultMQProducer(c.getProducerGroup());
         p.setNamesrvAddr(c.getNameServer()); p.setRetryTimesWhenSendFailed(c.getRetryTimesWhenSendFailed());
@@ -50,7 +50,7 @@ public class RocketMQConfig {
 - `RocketMqConfig.bind(source)` 按 `pragmatic-ddd.event.rocketmq` 前缀映射强类型对象。
 - Producer 生命周期自管（`@Bean(destroyMethod="shutdown")`），注入管理器后由 `externalProducer` 守卫跳过重复关闭。
 - 事件管理器受控启停：构造只 `build` 不 `start`，延后到 `ApplicationRunner`（`start()` 才拉起 Producer/Consumer）；漏掉 start 则 Consumer 不订阅、无消费。`builder()` 必填 `config`+`topicResolver`，`serializer`/`producer`/`orderManager`/`metrics` 可选。
-- 主题路由：`ConfigurableTopicResolver.builder().globalDefaultTopic(...)` + `.eventTopic(Class,topic)` / `.subscriberTopic(name,topic)`，应用级一处声明，新增聚合只扩展映射不改基础设施。
+- 主题路由：`ConfigurableTopicResolver.builder().globalDefaultTopic(...)` + `.eventTopic(className, topic)` / `.subscriberTopic(className, subscriber, topic)`（首参均为**类名字面量**，如 `"OrderPaidEvent"`，非 `Class` 对象；全限定包路径见 `api-contract.md`），应用级一处声明，新增聚合只扩展映射不改基础设施。
 - 聚合侧接入：提供 `{Agg}EventSubscriberRegistry` 用 `eventManager.registerSubscriber(code, EventClass, handler)` 绑定订阅，不触碰 MQ 配置。
 - 消费：`RocketMqEventManager` 内部按 `topicResolver` 解析出的 topic 自动创建 Consumer 并 `subscribe(topic,"*")`；异常返回 `RECONSUME_LATER`，耗尽进 `%DLQ%`。**不要自建 Consumer**。
 
@@ -68,7 +68,7 @@ public class RocketMQConfig {
 | --- | --- |
 | 按聚合复制 RocketMQConfig | 应用级一次装配，全聚合共用 |
 | producer/consumer group 按聚合命名 | 应用级 `{app}_producer`/`{app}_consumer` |
-| 手写 `ITopicResolver` 实现 | `ConfigurableTopicResolver.builder().globalDefaultTopic(...)` |
+| 手写 `ITopicResolver` 实现 | `io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver.builder().globalDefaultTopic(...)`（注意包在 `event.internal.defaults`，非 `event.spi`） |
 | 漏掉 `start()` | `@Bean` 构造 + `ApplicationRunner` 调 `start()` |
 | 自己 new `Fastjson2EventSerializer` | 复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer` |
 | `consumer-group` 与 topic 同名 | 区分命名 |

@@ -138,7 +138,8 @@
 | `IEventLifecycle` | `io.pragmatic.ddd.event.spi.IEventLifecycle` | `init()` / `start()` / `shutdown()` | `rocketmq-config` / `kafka-config` 要求就绪后调 `start()` |
 | `AbstractEventSubscriber<T>` | `io.pragmatic.ddd.event.internal.subscriber.AbstractEventSubscriber` | 领域事件订阅者基类（即假设名 `AbstractDomainEventSubscriber`）；当前空壳，写 `handleEvent(T)`（来自 `IEventListener`） | implements `IEventListener<T>` |
 | `IEventListener<T>` | `io.pragmatic.ddd.event.spi.IEventListener` | `void handleEvent(T)` + `Class<? extends IDomainEvent> subscribedToEventType()`（继承自 `ISubscriber`） | 事件订阅者契约 |
-| `ITopicResolver` | `io.pragmatic.ddd.event.spi.ITopicResolver` | `Set<String> getAllTopics()`、`<T> String resolveForType(Class<T>)`、`default <T> String resolveForEvent(T, String)` | 主题路由端口 |
+| `ITopicResolver` | `io.pragmatic.ddd.event.spi.ITopicResolver` | `Set<String> getAllTopics()`、`<T extends IDomainEvent> String resolveForType(Class<T>)`、`default <T extends IDomainEvent> String resolveForEvent(T, String)` | 主题路由端口；默认实现见 `ConfigurableTopicResolver`（下行） |
+| `ConfigurableTopicResolver` | `io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver` | `static Builder builder()`（`.globalDefaultTopic(String)` / `.eventTopic(String className, String topic)` / `.subscriberTopic(String className, String subscriber, String topic)` → `.build()`）、`static fromSource(IConfigurationSource)` | `ITopicResolver` 的框架默认实现，**注意包在 `event.internal.defaults` 而非 `event.spi` / `event`**；`eventTopic`/`subscriberTopic` 首参是**类名字面量**（如 `"OrderPaidEvent"`），不是 `Class` 对象；三级路由优先级：订阅者级 → 事件级 → 全局默认 |
 
 ## Outbox / 配置 / 依赖声明（A7 已核实 Tier-1）
 

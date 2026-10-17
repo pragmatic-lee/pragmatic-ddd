@@ -33,6 +33,15 @@ application.outbox
  ├─ EagerOutboxPublisher                       提交后主动推送
  ├─ OutboxRelay + OutboxRelayConfig            兜底轮询补偿
  └─ OutboxStatus / OutboxMessage / OutboxEntry 状态机与载体
+
+application.compensation（分布式事务补偿，叠加于 Outbox / 默认执行器之上）
+ ├─ CompensableCommandExecutor          装饰任意 ICommandExecutor，为声明外部需求的命令叠加逆序补偿
+ ├─ CompensationActionRegistry          按需求类型（Class）索引可补偿动作
+ ├─ LocalCompensationScope / CompensationScopes  补偿状态机（内存 / WAL 两态）
+ ├─ CompensationTemplate                固化「成功提交 / 异常逆序补偿并重抛」
+ ├─ CompensationOptions / CompensationPolicy     模式开关与重试策略
+ ├─ ICompensableAction                  正向执行 / 回写聚合 / 逆向补偿契约
+ └─ relay/CompensationRelay + spi/*     兜底中继（WAL 回收与死信）与持久化日志 / 崩溃执行器 SPI
 ```
 
 | 类型 | 包路径 | 用途 |
@@ -46,6 +55,14 @@ application.outbox
 | `OutboxCommandExecutor` / `OutboxUnitOfWork` | `io.pragmatic.ddd.application.outbox` | 事务性发件箱执行器 |
 | `EagerOutboxPublisher` / `OutboxRelay` / `OutboxRelayConfig` | `io.pragmatic.ddd.application.outbox` | 主动推送 / 兜底轮询 / 运行配置 |
 | `OutboxStatus` / `OutboxMessage` / `OutboxEntry` | `io.pragmatic.ddd.application.outbox` | 发件箱状态机与载体 |
+| `CompensableCommandExecutor` | `io.pragmatic.ddd.application.compensation` | 可补偿命令执行器（装饰器，为声明外部需求的命令叠加逆序补偿） |
+| `CompensationActionRegistry` | `io.pragmatic.ddd.application.compensation` | 可补偿动作注册表（按需求类型建索引，注册期查重） |
+| `CompensationOptions` / `CompensationPolicy` | `io.pragmatic.ddd.application.compensation` | 补偿模式（inMemory / durableMode）与单动作重试策略 |
+| `ICompensableAction` | `io.pragmatic.ddd.application.compensation` | 正向执行 / 回写聚合 / 逆向补偿动作契约 |
+| `IExternalRequirement` | `io.pragmatic.ddd.base` | 外部需求契约：聚合声明、触发补偿的运行时凭证（L3 路由键 = `code()`） |
+| `ICompensationLog` | `io.pragmatic.ddd.application.compensation.spi` | 持久化补偿日志 SPI（WAL，REQUIRES_NEW 短事务） |
+| `ICompensationHandler` | `io.pragmatic.ddd.application.compensation.spi` | 崩溃兜底补偿执行器（按 `actionName()` 编码路由） |
+| `CompensationRelay` | `io.pragmatic.ddd.application.compensation.relay` | 补偿兜底中继（回收超时认领 / 重试 / 死信） |
 
 ## 2. 核心概念详解
 
@@ -244,6 +261,144 @@ public class OrderCommandService extends AbstractApplicationService
 public class OrderQueryService implements IQueryApplicationService { /* 读操作 */ }
 ```
 
+### 2.6 可补偿命令执行器（分布式事务补偿）
+
+`CompensableCommandExecutor` 是 `ICommandExecutor` 的**装饰器**：包装任意真实执行器（默认 / Outbox），为其中**声明了外部需求**的命令叠加「正向执行外部动作 → 失败逆序补偿」的能力。它把「跨本地事务边界的分布式补偿」收敛到应用层编排内，使一次用例既能落库发事件、又能对外部副作用做回滚，且不引入第二套事务语义。
+
+```text
+CompensableCommandExecutor ──装饰──→ ICommandExecutor（默认 / Outbox）
+   │  段一 领域逻辑（纯内存，收集外部需求）
+   │  段二 逐项需求解析 + 补偿范围内正向执行 + 回写聚合
+   │  段三 规则校验 → 持久化 → 事件分发（由 delegate 完成）
+   └─ 整体由 CompensationTemplate 包裹：成功提交；任一环节失败按正向逆序补偿已执行动作并重抛
+```
+
+#### 2.6.1 三段式执行顺序（事实依据）
+
+`CompensableCommandExecutor.execute` 在 `CompensationScopes.begin` 打开的补偿范围内运行（`CompensableCommandExecutor.java:53`），模板（`CompensationTemplate.call`）固定「成功即提交、异常即逆序补偿并重抛原异常」：
+
+```text
+段一（delegate 内，纯内存）domainLogic.accept(aggregateRoot)
+   收集领域事件与外部需求（requireExternal），不触碰外部系统
+段二（补偿范围内）for each requirement：registry.resolve → scope.execute（正向 + 回写聚合）
+   正向执行失败直接冒泡，未登记、不补偿（所见即所偿）
+段三（delegate 紧随）规则校验 → repository.save → 事件发布
+   段三失败触发 rollback：已登记的已执行动作逆序、不中断地补偿
+```
+
+> ⚠️ **事务边界由被装饰的 `ICommandExecutor` 决定**：`CompensableCommandExecutor` 不持有事务抽象，不引入第二套一致性语义。装饰 `OutboxCommandExecutor` 即获得「外部动作可补偿 + 事件与聚合同事务原子落库」；装饰 `CommandExecutor` 则走默认。装配时二者语义须一致（见 §2.3）。
+>
+> ⚠️ **补偿动作必须幂等**：`compensate` 在崩溃恢复路径与正常回滚路径都会触发，外部系统须支持按业务单号幂等撤销（如按预占单号释放）。
+
+#### 2.6.2 契约：`ICompensableAction` 与 `IExternalRequirement`
+
+补偿以「需求 → 动作」配对，二者均为领域 / 应用层的强类型契约：
+
+- `IExternalRequirement`（`io.pragmatic.ddd.base`）：聚合在领域方法内通过 `requireExternal(requirement)` 声明「需要外部世界配合完成的一件事」，只描述要什么、不描述怎么做；`code()` 是跨进程稳定的 L3 路由键（持久化 `compensation_log.handler` 列）。
+- `ICompensableAction<A, REQ, T>`：一个「正向调用外部 + 逆向回滚外部」的配对单元，绑定所属聚合类型与需求类型——正向、回写、补偿一律从聚合读取业务事实。必须无状态（作为单例由容器管理）。
+
+```java
+public interface ICompensableAction<A extends AggregateRoot<?>, REQ extends IExternalRequirement, T> {
+    Class<REQ> requirementType();        // 与 IExternalRequirement 同款 Class 路由，注册表按此建索引
+    Class<A> aggregateType();            // 解析期做聚合类型校验
+    T execute(A aggregateRoot, REQ requirement);   // 正向：调用外部系统，返回供本地聚合使用的产出
+    void apply(A aggregateRoot, T result);         // 回写：只调聚合充血方法（bindReserveNo），禁 setter
+    void compensate(A aggregateRoot, T result);    // 逆向：调用外部回滚，必须幂等
+    default String payload(A, REQ) { return ""; }  // durable 兜底依据；非空才能开 durable
+    default Optional<CompensationPolicy> policy() { return Optional.empty(); } // 单动作重试策略
+}
+```
+
+聚合在领域方法内声明需求（与 `collectEvent` 同构）：
+
+```java
+public void place() {
+    // ... 领域逻辑 ...
+    requireExternal(ReserveInventoryRequirement.INSTANCE);  // 声明：下单需预占库存
+}
+```
+
+#### 2.6.3 注册表与补偿范围
+
+- `CompensationActionRegistry`：以全部 `ICompensableAction` 构造、按 `requirementType()`（Class）建索引，需求类型重复时构造即失败（fail-fast）；解析期对动作缺失、`aggregateType` 不匹配显式失败，不静默跳过。
+- `LocalCompensationScope` / `CompensationScopes`：补偿状态机。登记已成功执行的命令；失败（段三或段二中途）时**逆序、不中断**地补偿（单个失败不影响其余）；重试采用短退避（默认 3 次 / 200ms，L2 阻塞在请求线程）。`CompensationOptions.durable()` 为真时，全程以 WAL 落 `ICompensationLog`，`rollback` 先原子认领避免重复补偿。
+- `CompensationTemplate`：固化「成功提交 / 异常逆序补偿并重抛原异常」，关闭范围的异常一律忽略并记录，避免覆盖补偿结果与原始业务异常。
+
+#### 2.6.4 两种模式：内存 vs 持久化（WAL + 中继）
+
+`CompensationOptions` 决定补偿日志是否落库：
+
+| 模式 | 构造 | 持久化补偿日志 | 崩溃兜底 | 适用 |
+| --- | --- | --- | --- | --- |
+| 内存（默认） | `CompensationOptions.inMemory()` | 不落库，DB 零依赖 | 无（进程崩溃则补偿中断） | 外部动作可逆且进程内即可完成回滚 |
+| 持久化 | `CompensationOptions.durableMode()` | 落 `ICompensationLog`（WAL，REQUIRES_NEW 短事务） | `CompensationRelay` 回收超时认领 + 重试 + 死信 | 跨进程 / 需崩溃后仍可回抢补偿 |
+
+持久化模式依赖两个 SPI 与一台中继：
+
+- `ICompensationLog`（SPI）：WAL 状态机（PENDING → EXECUTED → COMPENSATING → COMPENSATED / CONFIRMED / FAILED），全部写方法须 `REQUIRES_NEW` 独立短事务，保证主事务回滚时 WAL 仍在。
+- `ICompensationHandler`（SPI）：业务为每个需「崩溃后兜底」的外部动作各提供一个，按 `actionName()`（= 需求 `code`）路由，`compensate(payload)` 用持久化的业务标识还原补偿，必须幂等。
+- `CompensationRelay`（原语）：`pollOnce()` 执行一次「回收超时认领 → 补偿 EXECUTED → 重试 FAILED」，超 `MAX_RELAY_ATTEMPTS`（5）转死信交人工；本类不内建调度器，触发时机由使用方决定（`@Scheduled` / xxl-job / K8s CronJob）。
+
+```java
+// 持久化模式示例：业务提供崩溃兜底执行器，actionName 必须等于需求 code
+@Component
+public class ReserveInventoryCompensationHandler implements ICompensationHandler {
+    @Override
+    public String actionName() {
+        return "reserve-inventory";   // = ReserveInventoryRequirement.code()
+    }
+
+    @Override
+    public void compensate(String payload) {
+        ReservePayload p = serializer.deserialize(payload, ReservePayload.class);
+        inventoryDependency.releaseByOrder(p.orderId());   // 按订单标识幂等释放
+    }
+}
+```
+
+#### 2.6.5 应用层落地：`OrderWriteService` 写法
+
+补偿执行器由 `pragmatic-ddd-spring-boot` 的补偿自动装配以成品 Bean 注入（装饰 Outbox 执行器），服务内**不再手动 new**；仅在需要补偿的用例（如下单）使用它，其余用例继续走基类 `execute`：
+
+```java
+@Service
+public class OrderWriteService extends AbstractApplicationService implements ICommandApplicationService {
+
+    private final CompensableCommandExecutor compensableExecutor;
+    // ... 其余依赖
+
+    public OrderWriteService(IEventManager eventManager,
+                             OutboxCommandExecutor commandExecutor,
+                             Supplier<IUnitOfWork> unitOfWorkFactory,
+                             CompensableCommandExecutor compensableExecutor,
+                             /* ... */) {
+        super(eventManager, commandExecutor, unitOfWorkFactory);
+        this.compensableExecutor = compensableExecutor;
+    }
+
+    /** 下单：建聚合（聚合声明库存预占需求）→ 框架执行外部动作并兜底补偿 → 校验落库发事件。 */
+    public Order placeOrder(CreateOrderInput input) {
+        Order order = orderFactory.create(input);
+        return compensableExecutor.execute(order, orderRule, orderRepository, t -> {});
+    }
+}
+```
+
+#### 2.6.6 何时用可补偿执行器（与 Outbox 区分）
+
+`CompensableCommandExecutor` 与 `OutboxCommandExecutor` 解决不同问题，可叠加使用（补偿装饰 Outbox）：
+
+| 维度 | OutboxCommandExecutor | CompensableCommandExecutor |
+| --- | --- | --- |
+| 解决的问题 | 本地事件与聚合同事务原子落库、不丢事件 | 本地事务之外的外部副作用（预占 / 扣减 / 发券）失败可回滚 |
+| 关注边界 | 库内：事件 vs 聚合 | 库外：本聚合 vs 外部系统 |
+| 是否引入第二套语义 | 是（Outbox 一致性） | 否（仅装饰既有执行器） |
+| 典型组合 | 单独用即可 | 叠加在 `OutboxCommandExecutor` 上（推荐） |
+
+> ⚠️ **补偿不替代 Outbox**：补偿解决「外部副作用回滚」，Outbox 解决「事件可靠投递」。下单既要可靠发事件又要回滚库存预占时，用 `CompensableCommandExecutor` 装饰 `OutboxCommandExecutor`。
+>
+> ⚠️ **只装饰、不得错配**：被装饰的执行器与补偿执行器共享同一事务边界；不可把 `CompensableCommandExecutor` 装饰到两套不一致的执行器上（同 §2.3 语义一致约束）。
+
 ## 3. 关键机制与避坑指南
 
 ### 3.1 Outbox 事务性发件箱
@@ -330,6 +485,10 @@ relay.start();   // 启动周期性轮询（scheduleAtFixedRate）
 | 分层标记 | `ICommandApplicationService` / `IQueryApplicationService` | 配合 `IRepository`/`IAggregateProjection` 读写分离 |
 | Outbox 执行器 | `OutboxCommandExecutor` / `OutboxUnitOfWork` | 同事务落库；post-commit 推送 |
 | Outbox 兜底 | `OutboxRelay.start()` + `OutboxRelayConfig` | 默认 5min/30s/200/10；四态状态机 |
+| 可补偿命令 | `CompensableCommandExecutor`（装饰器，仅用于声明外部需求的用例） | 段一逻辑 → 段二正向+回写 → 段三校验落库；异常逆序补偿 |
+| 补偿动作 | `ICompensableAction<A,REQ,T>`（无状态单例）+ 需求 `IExternalRequirement` | 正向/回写/补偿三元组；`payload` 供 durable 兜底 |
+| 补偿模式 | `CompensationOptions.inMemory()` / `durableMode()` | 内存零依赖；durable 落 WAL + `CompensationRelay` 兜底 |
+| 补偿兜底 | `ICompensationHandler`（按 `actionName` 路由）+ `CompensationRelay.pollOnce()` | 崩溃后回抢；超 5 次转死信 |
 
 ## 6. 命名规范速查
 
@@ -347,12 +506,17 @@ relay.start();   // 启动周期性轮询（scheduleAtFixedRate）
 | 实体更新器 | `{聚合}Updater implements EntityUpdater<T,C>`（方法 `apply`） | `OrderUpdater` |
 | 属性解析器 | `{语义}Resolver implements IEntityPropertyResolver<C,E,R>` | `DiscountResolver` |
 | Outbox 类 | `Outbox{角色}` | `OutboxCommandExecutor`、`OutboxRelay`、`OutboxRelayConfig`、`EagerOutboxPublisher` |
+| 补偿执行器 | `Compensable{角色}` | `CompensableCommandExecutor`、`CompensationActionRegistry`、`CompensationRelay` |
+| 补偿动作 | `{语义}Action implements ICompensableAction<A,REQ,T>` | `ReserveInventoryAction` |
+| 崩溃兜底执行器 | `{语义}CompensationHandler implements ICompensationHandler` | `ReserveInventoryCompensationHandler` |
+| 外部需求 | `{语义}Requirement implements IExternalRequirement`（record，`code()` 稳定） | `ReserveInventoryRequirement` |
 | 试跑结果 | `DryRunResult`（`pass()` / `reject(...)`） | `DryRunResult` |
 
-> ⚠️ **重要约束**：`EntityUpdater` 的方法名为 `apply`（非 `update`）；`IEntityPropertyResolver` 的创建场景便捷方法为 `resolve(C)`。命名误用将导致编译失败。Outbox 配置键统一以 `outbox` 为前缀（`outbox.poll-interval` / `outbox.grace` / `outbox.batch-size` / `outbox.max-attempts`），由 `OutboxRelayConfig.bind` 绑定。
+> ⚠️ **重要约束**：`EntityUpdater` 的方法名为 `apply`（非 `update`）；`IEntityPropertyResolver` 的创建场景便捷方法为 `resolve(C)`。命名误用将导致编译失败。Outbox 配置键统一以 `outbox` 为前缀（`outbox.poll-interval` / `outbox.grace` / `outbox.batch-size` / `outbox.max-attempts`），由 `OutboxRelayConfig.bind` 绑定。`ICompensationHandler.actionName()` 必须等于对应 `IExternalRequirement.code()`，二者靠该字符串跨进程路由，不得由类名推导。
 
 **下一步阅读**
 
 - [仓储总览](./repository.md)：聚合根的持久化与版本对账
+- [外部依赖声明](./dependency.md)：`@ExternalDependency` 元数据声明与 `IExternalRequirement` 运行时需求的区分
 - [Outbox 链路装配](../best-practices/outbox-config.md)
 - [MyBatis 集成](../integration/mybatis.md)：`MybatisOutboxStore` 的使用
