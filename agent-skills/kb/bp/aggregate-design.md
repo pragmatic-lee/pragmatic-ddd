@@ -92,6 +92,12 @@ public class OrderInitData implements IParamObject {
 ### 3.3 Lombok 约定（硬约束 8）
 聚合根：`@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`；**禁用 `@Data`/`@EqualsAndHashCode`/`@Builder`**（等同性由父类托管）。值对象见 [值对象最佳实践](./value-object.md)。
 
+### 3.4 注释要求
+
+- 聚合根字段命中金额 / 时间 / 编码 / 派生 / 外部回填 / 非直观命名任一类 → 必写业务口径（单位、币种、来源、派生关系）。
+- 公有业务方法写「意图 + 影响哪些状态 + 是否 `recordOperation` / `collectEvent`」；相邻状态易误判时写出「不改什么」。
+- 注释不写守卫条件、字段组装、格式转换（这些职责不在业务方法内）。完整标准见 `code-comment-specification.md`。
+
 ## 4. 常见反模式
 
 | 反模式 | 正确做法 |

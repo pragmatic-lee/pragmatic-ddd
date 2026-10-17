@@ -114,6 +114,34 @@ public void changeQuantity(int quantity) {
 
 普通实体只能被**聚合根组合持有**（如 `TrackedList<OrderItem, Long>`），不直接暴露给应用层 / 接口层；外部访问一律经聚合根。
 
+### 4.6 字段与业务方法注释
+
+实体字段是最容易被读错的一层：派生字段（`subtotal`）、金额字段（`price`）必须写清口径。规则：
+
+- 字段命中「金额 / 时间 / 编码 / 派生 / 外部回填 / 非直观命名」任一类时，必须写业务口径注释；名称已完整表达口径的可省。
+- 公有业务方法写清「意图 + 影响哪些状态 + 是否 `markModified`」；相邻状态易误判时写出「不改什么」。
+- 同一实体类内注释风格保持一致，不出现一半字段有一半无。
+
+```java
+/**
+ * 订单项小计，由 price 与 quantity 相乘派生，随数量或单价变更同步刷新。
+ */
+private Money subtotal;
+
+/**
+ * 调整购买数量，并按新数量重算小计。
+ *
+ * @param quantity 调整后的购买数量
+ */
+public void changeQuantity(int quantity) {
+    this.quantity = quantity;
+    this.subtotal = price.multiply(quantity);
+    this.markModified();
+}
+```
+
+完整标准（含 Input 类与字段）见[代码注释规范](./code-comment-specification.md)。
+
 ## 5. 常见反模式
 
 | 反模式 | 问题 | 正确做法 |

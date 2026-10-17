@@ -42,6 +42,28 @@ application/{agg}/
 | 修改器 | `{Agg}{Action}Updater` | `OrderPayUpdater` |
 | 规则装配 | `{Agg}RuleConfig` | `OrderRuleConfig` |
 
+### 2.3 Input 类与字段注释
+
+每个 `{Action}Input` 的类注释写三要素：业务语义、与协议 / 领域值对象的边界、由哪个 Factory / Updater 转换。字段注释只写调用方必须知道的口径（金额币种、时间语义、编码来源、组合字段关系），不复述类型。
+
+```java
+/**
+ * 订单支付入参：业务语义、与协议无关、自有扁平结构。
+ * 不引用领域值对象 PaymentInfo / Money，由 OrderPayUpdater 转换为领域 PaymentInfo。
+ * 金额使用 BigDecimal，币种唯一（currency），平台优惠与实付金额共用同一币种。
+ */
+@Data
+public class PayOrderInput {
+
+    /**
+     * 实付金额（优惠后，由调用方算好传入）。
+     */
+    private BigDecimal amount;
+}
+```
+
+完整标准（含领域模型字段与业务方法）见[代码注释规范](./code-comment-specification.md)。
+
 ## 3. 数据 / 职责承载
 
 | 承载 | 不承载 |

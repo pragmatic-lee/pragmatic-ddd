@@ -30,7 +30,7 @@ agent-skills/
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
 │   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
-│   ├── bp/                         ← 26 篇 best-practice 派生卡（含 projection-api / aggregate-identification / aggregate-evolution-design）
+│   ├── bp/                         ← 29 篇 best-practice 派生卡（含 projection-api / aggregate-identification / aggregate-evolution-design / code-comment-specification）
 │   └── （无外部示例依赖，KB 自足）
 ├── ddd-project-init/               ← S1 项目初始化
 ├── ddd-aggregate-scaffold/         ← S2 聚合骨架
@@ -96,7 +96,7 @@ agent-skills/
 | 项 | 交付 |
 | --- | --- |
 | **KB 自足（v1.3）** | 已移除 `kb/examples/order/`（verbatim + sha 清单）与全部 example 引用；5 个 Skill + 1 个角色的防幻觉段改指向 `api-contract.md` / `bp/*.md` |
-| `_manifest.json` 真实 sha | 25 篇 bp 卡 `source_sha` 已回填真实值；`removed_scopes` 记录已下线的 example 范围 |
+| `_manifest.json` 真实 sha | bp 卡 `source_sha` 已回填真实值；`removed_scopes` 记录已下线的 example 范围 |
 | CI 卡口 | `scripts/verify-kb.sh`（源 hash 变化标 STALE 并退出 1） |
 | 派生脚本 | `scripts/derive-kb.sh`（半自动回填 source_sha；卡内容蒸馏需 AI+人审） |
 | 隔离评审角色 | `agents/ddd-reviewer.md`（只读工具、零写入、同 S7 基准） |

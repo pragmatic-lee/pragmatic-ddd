@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.5-draft",
+  "kb_version": "1.6-draft",
   "framework_version": "2.0.0",
   "generated_at": "2026-10-17",
-  "note": "v1.5：拆分配置知识——bp.mysql-config 瘦身为 JDBC 层（DataSource / 事务），新增 bp.mybatis-config 承载 ORM 层（SqlSessionFactory / TypeHandlerContext / 三组框架固定 Mapper 与建表脚本）；outbox-config 补前置条件（Mapper XML + outbox_message）；aggregate-structure / ddd-infra-config / ddd-kb-consult 路由同步。v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "note": "v1.6：新增 bp.code-comment-specification 卡（领域模型字段 / 业务方法 / Input 类与字段的注释规范）。v1.5：拆分配置知识——bp.mysql-config 瘦身为 JDBC 层（DataSource / 事务），新增 bp.mybatis-config 承载 ORM 层（SqlSessionFactory / TypeHandlerContext / 三组框架固定 Mapper 与建表脚本）；outbox-config 补前置条件（Mapper XML + outbox_message）；aggregate-structure / ddd-infra-config / ddd-kb-consult 路由同步。v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -14,7 +14,7 @@
       "id": "bp.aggregate-design",
       "path": "bp/aggregate-design.md",
       "source": "documentation/best-practices/aggregate-design.md",
-      "source_sha": "d89b10b69a0491f9599c7c86222980d407bd2abe63ed24d856471882d24cf26e",
+      "source_sha": "10a1604fe37e906f37d489dabc7a76489dad5962c2aa39f0eb0c970afa60e31a",
       "product_sha": "TODO"
     },
     {
@@ -28,7 +28,7 @@
       "id": "bp.entity-design",
       "path": "bp/entity-design.md",
       "source": "documentation/best-practices/entity-design.md",
-      "source_sha": "d4f49143ac371279d3d212d371ff87bcb2148bc0ec82d22b65708d6f8fd5c414",
+      "source_sha": "4d30d54f42a220d21b76b1f86a29c75de38820662c7be6c595213fd67f1fc325",
       "product_sha": "TODO"
     },
     {
@@ -91,7 +91,7 @@
       "id": "bp.application-collaboration",
       "path": "bp/application-collaboration.md",
       "source": "documentation/best-practices/application-collaboration.md",
-      "source_sha": "5b7ed2cbc1b0a43ebabc53c556d1447da2fbb47a8a8855351b27b912b59084da",
+      "source_sha": "6c4cd264aa1c5e868f6ba5cba5d0e86ab94f83ae645ac975a7db54aaa818293c",
       "product_sha": "TODO"
     },
     {
@@ -218,6 +218,13 @@
       "path": "bp/aggregate-evolution-design.md",
       "source": "documentation/best-practices/aggregate-evolution-design.md",
       "source_sha": "503146d53c9904082aee78c1943eeb1c8f6399e3d1722520354ce4351971ebfa",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.code-comment-specification",
+      "path": "bp/code-comment-specification.md",
+      "source": "documentation/best-practices/code-comment-specification.md",
+      "source_sha": "5f22150be096a1198e15df48639c523ecc0bff2ae63c63ff5f69b99c0cb8ced2",
       "product_sha": "TODO"
     }
   ],

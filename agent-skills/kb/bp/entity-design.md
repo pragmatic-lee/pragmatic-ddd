@@ -23,6 +23,7 @@
 - **不要覆盖 `equals` / `hashCode`**：父类已基于 entityId 托管；覆盖会破坏标识语义。
 - 状态变更方法直接改字段（可配 `@Setter`）。
 - 改写实体 ID 须用 `id` 字段反射（勿直接 setter）。
+- **字段与业务方法注释**：字段命中金额 / 时间 / 编码 / 派生 / 外部回填 / 非直观命名任一类时必写业务口径（如 `subtotal` 由 `price × quantity` 派生）；公有业务方法写「意图 + 影响哪些状态 + 是否 `markModified`」；同一类内风格一致。详见 `code-comment-specification.md`。
 
 ## 4. 与聚合根的协作
 

@@ -12,10 +12,10 @@
 本目录是 Pragmatic DDD 全部 AI Skill 的**唯一共享知识源（单物理副本，只读引用）**。Skill 只写「流程 + 知识索引」，具体命名、骨架、约束全部指向本目录，不内联重复。
 
 - 卡从 `documentation/best-practices/`（VitePress 文档，git 内）派生。
-- 本版为**全量草稿**：25 篇 bp 卡 + 硬约束 + API 契约 + projection-api。
+- 本版为**全量草稿**：29 篇 bp 卡 + 硬约束 + API 契约。
 - **KB 自足**：本目录是完整知识体，**不依赖仓库内任何示例工程**，第三方可独立使用（见 [§6](#6-自足性与发布范围)）。
 
-## 2. 目录（25 篇 bp 卡）
+## 2. 目录（29 篇 bp 卡）
 
 | 路径 | 内容 | 被哪些 Skill 读 |
 | --- | --- | --- |
@@ -33,6 +33,7 @@
 | `bp/event-subscriber-pattern.md` | 事件订阅领域服务（显式注册） | S5 / S6 / S7 |
 | `bp/domain-service.md` | 领域服务四分类与落地 | S4 / S5 / S7 |
 | `bp/application-collaboration.md` | 应用层 WriteService 编排 | S4 / S7 |
+| `bp/code-comment-specification.md` | 代码注释规范（实体字段 / 业务方法 / Input 类与字段） | S4 / S5 / S7 |
 | `bp/repository-design.md` | 仓储设计（AbstractRepository / TrackedList / 乐观锁） | S4 / S3 / S7 |
 | `bp/aggregate-database-design.md` | 聚合数据库设计（表边界=聚合边界） | S3 / S4 / S7 |
 | `bp/projection-design.md` | 投影读模型四角色与硬约束 | S6 / S7 |
@@ -56,7 +57,7 @@
 - **S4 聚合创建** → 全量 bp + `hard-constraints` + `api-contract`。
 - **S5 聚合扩展** → 对应 bp（操作→operation-registry/order-rule/event-modeling；校验→domain-service；订阅→event-subscriber-pattern；子实体→entity-design/value-object；投影源→projection-design）+ `hard-constraints`。
 - **S6 投影创建** → `projection-design`(全量) + `projection-api`(全量) + `event-subscriber-pattern` + `enum-value`(E3) + `hard-constraints`。
-- **S7 合规评审** → `hard-constraints` 全量 + 相关 bp + `api-contract`。
+- **S7 合规评审** → `hard-constraints` 全量 + 相关 bp（含 `code-comment-specification` 的注释核对） + `api-contract`。
 - **KB 咨询（ddd-kb-consult）** → 按用户问题路由到对应 `bp/*.md` + `hard-constraints` + `api-contract`；只读卡作答，不产代码。
 - 任何卡内出现框架符号拿不准 → 先 Read `api-contract.md`（权威符号表，含全限定 import 与精确方法签名），禁止臆造。
 
@@ -92,6 +93,6 @@
 
 ---
 
-> **版本**：v1.4-draft（重建自 documentation/best-practices/ 当前源）
-> **变更**：新增 `bp/kafka-config.md`；重蒸馏 10 张 STALE 卡（修正 aggregate-design/order-rule-pattern/rocketmq-config 的错误签名）；`api-contract.md` Tier-2 复核修正（hasExceptOperation / IActiveRuleCondition.status / ProjectionReducerNotFoundException 构造）；KB 仍自足、不引用示例工程
+> **版本**：v1.6-draft
+> **变更**：新增 `bp/code-comment-specification.md`（领域模型字段 / 业务方法 / Input 注释规范）；v1.5 配置卡拆分与 v1.4 的 10 张 STALE 卡重蒸馏记录见 `_manifest.json` 的 note
 > **适用框架版本**：2.0.0

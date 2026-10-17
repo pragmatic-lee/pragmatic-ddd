@@ -151,6 +151,13 @@ export default defineConfig({
                 { text: '聚合演进设计原则', link: '/best-practices/aggregate-evolution-design' },
                 { text: '设计文档编写规范', link: '/best-practices/design-doc-template' }
               ]
+            },
+            {
+              text: '⑧ 编码规范（横切）',
+              collapsed: true,
+              items: [
+                { text: '代码注释规范', link: '/best-practices/code-comment-specification' }
+              ]
             }
           ]
         }

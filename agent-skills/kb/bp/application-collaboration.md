@@ -28,6 +28,8 @@ application/{agg}/
 | 修改器 | `{Agg}{Action}Updater` | `OrderPayUpdater` |
 | 规则装配 | `{Agg}RuleConfig` | `OrderRuleConfig` |
 
+**Input 注释**：类注释写三要素（业务语义 / 与协议及领域值对象的边界 / 由哪个 Factory 或 Updater 转换）；字段注释写金额币种、时间语义、编码来源、组合字段关系，不复述类型。详见 `code-comment-specification.md`。
+
 ## 3. WriteService 骨架
 
 ```java
