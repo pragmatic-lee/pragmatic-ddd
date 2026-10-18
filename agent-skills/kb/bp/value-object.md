@@ -17,26 +17,26 @@
 
 ## 3. 标记与结构
 
-- 标记接口 `IValueObject`：提供 `equalityComponents()` 供字段判等（不使用 `Object.equals` 默认实现）。
-- 结构：`private final` 字段 + 全参构造内校验 + `equalityComponents()`。
-- **禁用 Lombok `@Data`**：会生成可变 setter 与默认 `equals`（基于引用），破坏不可变与值判等语义。手写到字段。
+- 继承 `ValueObject` 基类（已实现 `IValueObject` 标记接口）：覆写 `equalityComponents()` 供字段判等，由基类的 `final` `equals`/`hashCode`/`toString` 调用，不覆盖 `Object.equals`。
+- 结构：`@Getter` + `@Setter(AccessLevel.PROTECTED)`（仅供 MyBatis JSON 重建）+ `@NoArgsConstructor(access = AccessLevel.PROTECTED)` + 全参业务构造 + `equalityComponents()`。
+- **禁用 Lombok `@Data` / `@EqualsAndHashCode` / `@Builder`**：会生成可变 setter 与默认 `equals`（基于引用），破坏不可变与值判等语义。
 
 ## 4. 字段设计
 
 - 用不可变类型：`BigDecimal` / `String` / 值对象嵌套；禁用 `Date` / `Calendar`（可变），用 `LocalDateTime` / `Instant`。
 - 枚举字段存 `code`（见 `enum-value.md`）。
 - 集合字段用不可变集合（`List.of` / `Collections.unmodifiableList`）。
-- 业务不变量在构造器内校验（如金额非负、经纬度范围），不变量不满足抛 `IllegalArgumentException`。
+- 值对象**不在内部做字段校验**（构造期、方法内都不做）：字段合法性由校验规则类统一执行（见 [§5](#5-校验职责值对象不做校验)）。
 
 ## 5. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
-| `@Data` 值对象 | `private final` + 全参构造 + `equalityComponents()` |
+| `@Data` 值对象 | `@Getter` + `@Setter(PROTECTED)` + `@NoArgsConstructor(PROTECTED)` + 全参业务构造 + `equalityComponents()` |
 | 暴露 setter / 可变字段 | 不可变，改值返回新实例 |
 | `equals` 用 Object 默认 | 实现 `equalityComponents()` |
 | 用 `Date` | `LocalDateTime` / `Instant` |
-| 不变量的校验散落在业务方法 | 收口在构造器 |
+| 值对象在构造器/方法内做字段校验 | 收口在校验规则类（`EntityRule` / `IDomainService`） |
 
 ## 6. 被读于
 
