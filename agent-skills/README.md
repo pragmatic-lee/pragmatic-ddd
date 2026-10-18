@@ -113,7 +113,7 @@ agent-skills/
 
 ---
 
-> **版本**：v1.4-draft（KB 重建：派生自 documentation/best-practices/ 当前源）
+> **版本**：v1.7-draft（KB 全量语义重蒸馏，派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
 > **适用框架版本**：2.0.0
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)

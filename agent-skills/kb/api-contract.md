@@ -1,6 +1,6 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-14 · 框架版本：2.0.0（Tier-2 签名于 2026-10-14 复核修正；**2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移**：`ValueObject`/`IValueObject` 归属、 `TrackedList` 泛型边界、 `AbstractRepository` 非 final、 `BaseDomainEvent` public 字段）
+> 派生时间：2026-10-18 · 框架版本：2.0.0（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；**2026-10-18 v1.7 全量语义重蒸馏，依源码核验无新增漂移**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。

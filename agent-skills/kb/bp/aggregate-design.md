@@ -1,6 +1,6 @@
 # BP 卡：聚合设计原则（aggregate-design）
 
-> 源：`documentation/best-practices/aggregate-design.md` · 派生时间：2026-10-14 · 框架版本：2.0.0
+> 源：`documentation/best-practices/aggregate-design.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
 ## 1. 命名与包结构
 
@@ -94,9 +94,9 @@ public class OrderInitData implements IParamObject {
 
 ### 3.4 注释要求
 
-- 聚合根字段命中金额 / 时间 / 编码 / 派生 / 外部回填 / 非直观命名任一类 → 必写业务口径（单位、币种、来源、派生关系）。
-- 公有业务方法写「意图 + 影响哪些状态 + 是否 `recordOperation` / `collectEvent`」；相邻状态易误判时写出「不改什么」。
-- 注释不写守卫条件、字段组装、格式转换（这些职责不在业务方法内）。完整标准见 `code-comment-specification.md`。
+- 聚合根字段命中金额/时间/编码/派生/外部回填/非直观命名任一类 → 必写业务口径（单位、币种、来源、派生关系）。
+- 公有业务方法写「意图 + 影响哪些状态 + 是否 `recordOperation`/`collectEvent`」；相邻状态易误判时写出「不改什么」。
+- 注释不写守卫条件、字段组装、格式转换。完整标准见 `code-comment-specification.md`。
 
 ## 4. 常见反模式
 

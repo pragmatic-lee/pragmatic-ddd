@@ -1,89 +1,96 @@
 # BP 卡：Outbox 链路装配（outbox-config）
 
-> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-17 · 框架版本：2.0.0
+> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
-## 0. 前置条件（缺一不可）
+## 1. 本质与边界
 
-- **Mapper XML 已扫入**：SQL 全在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，必须把 `classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml` 纳入 `SqlSessionFactory` 扫描；starter **不代劳**。
-- **表已建**：`outbox_message`（脚本 `io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。
-- 缺任一项都是启动正常、首次发事件时才报 `Mapped Statements collection does not contain value for ...OutboxMapper.insertBatch`。详细触发矩阵见 `bp/mybatis-config.md`。
-
-## 1. 关键约定
-
-`OutboxConfig` 是**纯装配类**，把框架协作者组装成 Spring Bean（不写 SQL、不写事务注解、不持 Mapper 接口）。`infrastructure/config/`，不绑定聚合类型。
-
-⚠️ **框架类 vs 用户自备 Spring 适配（A7 已验证）**：
-- **框架提供**（直接注入）：`TransactionOperations`(`io.pragmatic.ddd.application.spi`)、`IEventSerializer`(`io.pragmatic.ddd.event.spi`)、`IOutboxStore`(`io.pragmatic.ddd.application.outbox.spi`)、`EagerOutboxPublisher`/`OutboxRelay`(`io.pragmatic.ddd.application.outbox`)、`MybatisOutboxStore`/`IOutboxStatementExecutor`(`io.pragmatic.ddd.mybatis.outbox`)、`Fastjson2EventSerializer`(`io.pragmatic.ddd.rocketmq`)。
-- **用户从示例复制的参考实现（非框架类，core 不含 Spring 绑定）**：`SpringTransactionOperations`（实现 `TransactionOperations`）、`SpringOutboxStatementExecutor`（实现 `IOutboxStatementExecutor`），二者放进自己的 `infrastructure/config/`，不要当框架类去 import。
+`OutboxConfig` 是**纯装配类**，把框架提供的五个协作者组装成 Spring Bean；不写 SQL、不写 `@Transactional`、不持有 Mapper 接口。
 
 | Bean | 类型 | 作用 |
 | --- | --- | --- |
-| `TransactionOperations` | `io.pragmatic.ddd.application.spi.TransactionOperations` | 聚合写+outbox 写绑同一 DB 事务（🔧 自身需用户自备 `SpringTransactionOperations`） |
-| `IEventSerializer` | `io.pragmatic.ddd.event.spi.IEventSerializer` | 事件序列化（Relay 重发需反序列化） |
+| `TransactionOperations` | `io.pragmatic.ddd.application.spi.TransactionOperations` | 聚合写 + outbox 写绑同一 DB 事务 |
+| `IEventSerializer` | `io.pragmatic.ddd.event.spi.IEventSerializer` | 事件序列化（Relay 反序列化重发共用） |
 | `IOutboxStore` | `io.pragmatic.ddd.application.outbox.spi.IOutboxStore` | outbox 行落库与认领 |
 | `EagerOutboxPublisher` | `io.pragmatic.ddd.application.outbox.EagerOutboxPublisher` | 提交后主动推送（快路径） |
-| `OutboxRelay` | `io.pragmatic.ddd.application.outbox.OutboxRelay` | 周期兜底轮询（慢路径/崩溃补偿） |
-| `IOutboxStatementExecutor`（用户实现） | `io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor` | `MybatisOutboxStore` 的语句执行端口 🔧 用户自备 `SpringOutboxStatementExecutor` |
+| `OutboxRelay` | `io.pragmatic.ddd.application.outbox.OutboxRelay` | 周期兜底轮询（慢路径） |
 
-## 2. 落地顺序（依赖箭头）
+> ⚠️ **前置条件**：Outbox 的 SQL 在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，starter 不自动加载；必须纳入 `SqlSessionFactory` 扫描并建 `outbox_message` 表（脚本 `io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。缺任一项运行期报 `Mapped Statements collection does not contain value for ...`。
+
+## 2. 命名与包结构
+
+五个 Bean 为跨聚合**通用**装配，放 `infrastructure/config/`（不绑定聚合）；`SpringTransactionOperations` / `SpringOutboxStatementExecutor` 同层。
+
+## 3. 落地顺序（五个 Bean）
 
 ```text
 PlatformTransactionManager ─┐
                             ├─► TransactionOperations
 SqlSessionTemplate ─────────┘
-        │ ├─► SpringOutboxStatementExecutor ─► IOutboxStore
-IEventSerializer(rocketmq) ─┐
-                            ├─► EagerOutboxPublisher ─┐
-IOutboxStore ───────────────┘                        ├─► OutboxRelay
-IEventManager(RocketMQ) ─────────────────────────────┘
+        │
+        ├─► SpringOutboxStatementExecutor ─► IOutboxStore
+        │
+IEventSerializer (rocketmq 自带) ─┐
+                                ├─► EagerOutboxPublisher ─┐
+IOutboxStore ────────────────────┘                        ├─► OutboxRelay
+IEventManager (RocketMQ) ─────────────────────────────────┘
 ```
+
+### 3.1~3.5 关键约束
 
 ```java
-// framework: io.pragmatic.ddd.application.spi / .outbox / .mybatis.outbox ; rocketmq: io.pragmatic.ddd.rocketmq
-// 🔧 SpringTransactionOperations / SpringOutboxStatementExecutor 为用户自备（实现 TransactionOperations / IOutboxStatementExecutor），非框架类
-@Bean public TransactionOperations transactionOperations(PlatformTransactionManager tm)
-    { return new SpringTransactionOperations(tm); }
-@Bean public IEventSerializer eventSerializer() { return new Fastjson2EventSerializer(); }  // rocketmq 自带
-@Bean public IOutboxStore outboxStore(SqlSessionTemplate tpl, TransactionOperations tx) {
-    // MybatisOutboxStore 在 io.pragmatic.ddd.mybatis.outbox；入参是实现 IOutboxStatementExecutor 的用户自备类
+@Bean
+public TransactionOperations transactionOperations(PlatformTransactionManager tm) {
+    return new SpringTransactionOperations(tm);   // 用户自备薄适配，core 不含 Spring 绑定
+}
+
+@Bean
+public IEventSerializer eventSerializer() {
+    return new Fastjson2EventSerializer();   // ⚠️ 必须 io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer，勿自行 new
+}
+
+@Bean
+public IOutboxStore outboxStore(SqlSessionTemplate tpl, TransactionOperations txOps) {
     IOutboxStatementExecutor executor = new SpringOutboxStatementExecutor(tpl);
-    return new MybatisOutboxStore(executor, tx);
+    return new MybatisOutboxStore(executor, txOps);
 }
-@Bean public EagerOutboxPublisher eagerOutboxPublisher(IOutboxStore s, IEventManager m) {
-    return new EagerOutboxPublisher(s, m, Executors.newFixedThreadPool(4));   // 有界池
+
+@Bean
+public EagerOutboxPublisher eagerOutboxPublisher(IOutboxStore store, IEventManager mgr) {
+    ExecutorService pool = Executors.newFixedThreadPool(4);   // ⚠️ 必须有界线程池
+    return new EagerOutboxPublisher(store, mgr, pool);
 }
-@Bean public OutboxRelay outboxRelay(IOutboxStore s, IEventManager m, IEventSerializer ser) {
-    return new OutboxRelay(s, m, ser, Executors.newSingleThreadScheduledExecutor(),
-                           OutboxRelayConfig.defaultConfig());   // poll=5min,grace=30s,batch=200,maxAttempts=10
+
+@Bean
+public OutboxRelay outboxRelay(IOutboxStore store, IEventManager mgr, IEventSerializer ser) {
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();  // ⚠️ 必须单线程
+    return new OutboxRelay(store, mgr, ser, scheduler, OutboxRelayConfig.defaultConfig());
 }
-@Bean public ApplicationRunner startOutboxRelayOnReady(OutboxRelay r)
-    { return args -> r.start(); }   // 应用就绪后再 start
+
+@Bean
+public ApplicationRunner startOutboxRelayOnReady(OutboxRelay relay) {
+    return args -> relay.start();   // ⚠️ 应用就绪后再 start，不在 initMethod 启动
+}
 ```
 
-## 3. 硬约束
-
-- **序列化器必须复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer`**：Outbox Relay 与 `RocketMqEventManager` 共用同一 `IEventSerializer` 端口；各用一套会导致 Relay 重发 `deserialize` 失败。
-- **`EagerOutboxPublisher` 线程池必须有界**（`newFixedThreadPool`）：无界队列+洪峰会线程爆炸；溢出任务保持 PENDING 转 Relay 兜底。
-- **`OutboxRelay` 必须单线程调度**（`newSingleThreadScheduledExecutor`）：`claimPending` 靠 `claim_token` 原子认领，多实例各持唯一 token，单实例内单线程避免并发重复认领。
-- **`grace` 必须 > eager 推送典型耗时**：Relay 只认领 `age > grace` 的 PENDING；grace 太短会与 eager 抢同批重复发送。
-- `OutboxRelay` 不在 `initMethod` 启动，延后到 `ApplicationRunner`（所有 Bean 就绪、Web 已监听）再 `start()`。
+- `OutboxRelayConfig.defaultConfig()`：`pollInterval=5min`、`grace=30s`、`batchSize=200`、`maxAttempts=10`；亦 `OutboxRelayConfig.bind(source)`（键 `outbox.poll-interval` 等）。
+- `grace` 必须 > eager 推送典型耗时，否则 Relay 与 eager 抢同批导致重复发送。
 
 ## 4. 关键机制
 
-- 快/慢路径互补：均调同一 `IEventManager.publish`；Relay 靠 `serializer.deserialize` 还原事件。
-- `IOutboxStore.markSent` 带 status 守卫（PENDING/PROCESSING→SENT）幂等；下游仍需自行幂等（消息可能重复投递）。
-- SQL 与执行器解耦：`SpringOutboxStatementExecutor` 只转发 `statementKey`，SQL 在 MyBatis XML 按 `OutboxStatements` 的 key 实现。
+- 两条路径互补：eager 快路径（低延迟）+ Relay 慢路径（崩溃/抖动补偿）；都调用同一 `IEventManager.publish`，Relay 靠 `IEventSerializer.deserialize` 还原。
+- `markSent` 幂等（`PENDING/PROCESSING → SENT`），重复推送安全；下游仍需自行幂等。
+- SQL 与执行器解耦：`SpringOutboxStatementExecutor` 只转发 `statementKey`，SQL 在 XML 按 `OutboxStatements` 实现。
 
-## 5. 避坑
+## 5. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
-| Outbox 自己 new `Fastjson2EventSerializer` | 复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer` |
-| eager 用无界线程池 | `newFixedThreadPool(n)` 有界 |
-| Relay 用多线程调度器 | `newSingleThreadScheduledExecutor` |
-| grace 短于 eager 推送耗时 | grace > eager P95 推送耗时 |
+| 自行 new `Fastjson2EventSerializer` | 复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer` |
+| `EagerOutboxPublisher` 无界线程池 | `newFixedThreadPool(n)` 有界池 |
+| `OutboxRelay` 多线程调度 | `newSingleThreadScheduledExecutor` |
+| `grace` 短于 eager 耗时 | grace > eager P95 耗时 |
 | SQL/`@Transactional` 写进 `OutboxConfig` | SQL 放 XML，事务走 `TransactionOperations` |
 
 ## 6. 被读于
 
-S3 `ddd-infra-config`、S7 `ddd-code-review`；Mapper XML / 建表前置见 `bp/mybatis-config.md`。
+S3 `ddd-infra-config`、S5 `ddd-aggregate-extend`、S7 `ddd-code-review`。

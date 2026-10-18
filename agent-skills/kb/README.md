@@ -93,6 +93,6 @@
 
 ---
 
-> **版本**：v1.6-draft
-> **变更**：新增 `bp/code-comment-specification.md`（领域模型字段 / 业务方法 / Input 注释规范）；v1.5 配置卡拆分与 v1.4 的 10 张 STALE 卡重蒸馏记录见 `_manifest.json` 的 note
+> **版本**：v1.7-draft
+> **变更**：全量语义重蒸馏（2026-10-18）——29 篇 bp 卡头部派生时间统一刷新为 2026-10-18；`api-contract.md` 经 `pragmatic-ddd-core` 源码全量核验（无新增漂移）；`hard-constraints.md` / `projection-api.md` 同步刷新基线。v1.6 及更早变更见 `_manifest.json` 的 note
 > **适用框架版本**：2.0.0

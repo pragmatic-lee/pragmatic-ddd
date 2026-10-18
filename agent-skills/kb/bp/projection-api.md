@@ -3,6 +3,7 @@
 > 派生自 `pragmatic-ddd-core` 投影基类源码（`io.pragmatic.ddd.repository.query.projection`），
 > 供 S6（`ddd-projection-create`）零上下文生成投影代码时照搬。所有签名与 2.0.0 一致；
 > 包路径见 `../api-contract.md` 投影段。**KB-only 生成时必须按本卡签名写，不要臆测方法覆盖。**
+> 派生时间：2026-10-18 · 框架版本：2.0.0
 
 ## IAggregateProjection（标记接口）
 

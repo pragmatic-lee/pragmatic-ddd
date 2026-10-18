@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.6-draft",
+  "kb_version": "1.7-draft",
   "framework_version": "2.0.0",
-  "generated_at": "2026-10-17",
-  "note": "v1.6：新增 bp.code-comment-specification 卡（领域模型字段 / 业务方法 / Input 类与字段的注释规范）。v1.5：拆分配置知识——bp.mysql-config 瘦身为 JDBC 层（DataSource / 事务），新增 bp.mybatis-config 承载 ORM 层（SqlSessionFactory / TypeHandlerContext / 三组框架固定 Mapper 与建表脚本）；outbox-config 补前置条件（Mapper XML + outbox_message）；aggregate-structure / ddd-infra-config / ddd-kb-consult 路由同步。v1.4：重建自 documentation/best-practices/ 当前源（2026-10-14）。新增 bp.kafka-config 卡（原缺）；重蒸馏 10 张 STALE 卡（aggregate-design/order-rule-pattern/rocketmq-config 修正废弃与错误签名；operation-registry-design/repository-design 补全关键节；其余小幅同步）；api-contract.md 经 Tier-1/Tier-2 抽查与 core 源码一致。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "generated_at": "2026-10-18",
+  "note": "v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：28 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 31 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",

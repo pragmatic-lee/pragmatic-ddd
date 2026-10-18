@@ -1,23 +1,31 @@
 # BP 卡：应用层落地模式（application-collaboration）
 
-> 源：`documentation/best-practices/application-collaboration.md` · 派生时间：2026-10-14 · 框架版本：2.0.0
+> 源：`documentation/best-practices/application-collaboration.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
-## 1. 包结构
+## 1. 本质与定位
+
+应用服务层（Application）**编排**领域逻辑：收 Input → 建聚合（`EntityFactory`）/ 改聚合（`EntityUpdater`）→ 规则校验 → 仓储持久化 → 事件发布，全部由 `execute()` 模板统一编排，置于同一事务边界。
+
+- 职责：编排（Factory/Updater/Rule/Repository/EventManager 串起来）。
+- 不做：业务规则（聚合根/规则容器）、持久化细节（仓储）、协议转换（UI 层）。
+- 两类服务：写 `{Agg}WriteService`（`extends AbstractApplicationService`）走 `execute()`；读 `{Agg}ReadService`（**无基类**，只读 `implements IQueryApplicationService`）。
+
+## 2. 命名与包结构
 
 ```text
 application/{agg}/
-├── {Agg}WriteService.java      # extends AbstractApplicationService implements ICommandApplicationService
-├── {Agg}ReadService.java       # implements IQueryApplicationService（无基类）
-├── input/{Action}Input.java
-├── factory/{Agg}Factory.java
-├── updater/{Agg}{Action}Updater.java
-├── resolver/Command → 领域输入适配
-├── rule/{Agg}RuleConfig.java
-├── service/领域服务实现
-└── subscriber/事件订阅登记
+├── {Agg}WriteService.java   # 命令应用服务（外层）
+├── {Agg}ReadService.java    # 查询应用服务（外层）
+├── input/                   # {Action}Input 业务语义入参
+├── factory/                 # EntityFactory（创建场景）
+├── updater/                 # EntityUpdater（修改场景）
+├── resolver/                # Command → 领域输入适配
+├── rule/                    # 规则装配（OrderRuleConfig）
+├── service/                 # 领域服务实现
+├── action/                  # ICompensableAction（正向/回写/补偿三元组）
+├── compensation/            # ICompensationHandler（durable 兜底）
+└── subscriber/              # 事件订阅登记
 ```
-
-## 2. 命名规范
 
 | 类型 | 命名 | 示例 |
 | --- | --- | --- |
@@ -28,110 +36,100 @@ application/{agg}/
 | 修改器 | `{Agg}{Action}Updater` | `OrderPayUpdater` |
 | 规则装配 | `{Agg}RuleConfig` | `OrderRuleConfig` |
 
-**Input 注释**：类注释写三要素（业务语义 / 与协议及领域值对象的边界 / 由哪个 Factory 或 Updater 转换）；字段注释写金额币种、时间语义、编码来源、组合字段关系，不复述类型。详见 `code-comment-specification.md`。
+## 3. 落地方式（核心）
 
-## 3. WriteService 骨架
+### 3.1 WriteService 骨架
 
-```java
-@Service
-public class OrderWriteService extends AbstractApplicationService
-        implements ICommandApplicationService {
-    private final OrderFactory orderFactory;
-    private final OrderRule orderRule;
-    private final OrderRepository orderRepository;
-    private final OrderPayUpdater orderPayUpdater;
+继承 `AbstractApplicationService`，**必须显式注入命令执行器与工作单元工厂**（无默认构造器）；`execute(聚合, 规则, 仓储, Consumer<T>)` 四参；每个用例一个公开方法。
 
-    public OrderWriteService(IEventManager eventManager,
-                             OutboxCommandExecutor commandExecutor,
-                             Supplier<IUnitOfWork> unitOfWorkFactory,
-                             OrderFactory orderFactory, OrderRule orderRule,
-                             OrderRepository orderRepository, OrderPayUpdater orderPayUpdater) {
-        super(eventManager, commandExecutor, unitOfWorkFactory);
-        this.orderFactory = orderFactory;
-        this.orderRule = orderRule;
-        this.orderRepository = orderRepository;
-        this.orderPayUpdater = orderPayUpdater;
-    }
+### 3.2 execute() 模板五步（固定）
 
-    public Order payOrder(Long orderId, PayOrderInput input) {
-        Order order = orderRepository.findById(orderId);
-        if (order == null) {
-            return null;
-        }
-        return super.execute(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input));
-    }
-}
+```text
+1. domainLogic.accept(aggregateRoot)   执行领域逻辑（Factory 建 / Updater 改）
+2. satisfiesRule(rule)                 规则校验，失败抛 BrokenRuleException
+3. persistAndDispatch                  事务内 repository.save（覆盖聚合全部表）
+4. 事务提交后 publish                   事件发布严格晚于提交
+5. clearWorkUnitState()                事件/操作清空（finally，模板内置）
 ```
 
-## 4. 关键约定
+> 第 3、4 步事务边界完全由子类 `persistAndDispatch` 钩子决定，模板不感知事务。仓储不管理事务（§1.5）。
 
-- 职责：编排（串 Factory / Updater / Rule / Repository / EventManager）；不做业务逻辑、不做持久化细节、不做协议转换。
-- 必须显式注入执行器（`CommandExecutor`/`OutboxCommandExecutor`）+ `Supplier<IUnitOfWork>`，无默认构造器。
-- `execute(agg, rule, repo, Consumer<T>)` 固定顺序：domainLogic → satisfiesRule → persistAndDispatch → clearWorkUnitState。
-- 每个用例一个公开方法；`execute` 四参：聚合、规则容器、仓储、领域逻辑。
-- `tryExecute(...)` 返回 `DryRunResult`（`passed()`/`brokenRules()`），不落库不发事件（预校验）。
-- 业务方法内"先 `recordOperation` 后 `collectEvent`"：事件 `operationCode` 自动取最近一次操作；顺序颠倒抛 `OperationException`。
-- 延迟事件：`entityId` 为 `null` 时用 `() -> XxxEvent.buildEvent(this)`，发布时才读真实 ID。
-- 事务边界：`@Transactional` 由调用方（WriteService 方法 / 执行器）负责，仓储不管理事务。
+### 3.3 创建：EntityFactory（先算后赋）
 
-## 5. 执行器与单元工厂配对
+`EntityFactory<T, C>`：`T create(C command)`；派生属性先经 `IEntityPropertyCalculator` 算出再装配进聚合构造。
 
-| 执行器 | 工作单元工厂 | 场景 |
+### 3.4 修改：加载聚合 + EntityUpdater
+
+`EntityUpdater<T, C>`：`void apply(T, C)` = Input→领域对象转换 + 调充血方法；**不做校验、不持久化、不发事件**（由模板统一）。
+
+### 3.5 预校验：tryExecute → DryRunResult
+
+`tryExecute(...)` 返回 `DryRunResult`（`passed()`/`brokenRules()`），不落库、不发事件。
+
+### 3.6 规则装配：OrderRuleConfig
+
+规则容器构造依赖（领域服务契约/仓储）由 `@Configuration` 显式声明，领域层零 Spring 依赖。
+
+### 3.7 执行器选择
+
+| 执行器 | 语义 | 场景 |
 | --- | --- | --- |
-| `CommandExecutor` | `UnitOfWork` 工厂 | 不需 Outbox 事务一致性 |
-| `OutboxCommandExecutor` | `OutboxUnitOfWork` 工厂 | 跨模块可靠投递 / 崩溃兜底 |
+| `CommandExecutor` | 同事务落库，提交后直发 | 事件丢失可接受 |
+| `OutboxCommandExecutor` | 聚合写 + outbox 同事务，异步 | 跨模块可靠投递/崩溃兜底 |
+| `CompensableCommandExecutor`（装饰器） | 装饰上述任一，叠加逆序补偿 | 跨本地事务外部副作用需回滚 |
 
-⚠️ 禁止混用：同一服务内不得出现 `CommandExecutor` + `OutboxUnitOfWork` 或反之。
+> 执行器与工作单元工厂**成对匹配**（`CommandExecutor`+`UnitOfWork`、`OutboxCommandExecutor`+`OutboxUnitOfWork`），禁止混用。
 
-## 6. Factory / Updater
+### 3.8 读侧 ReadService：不进 execute() 模板
 
-- `EntityFactory<T,C>`：`T create(C command)`，先算后赋。
-- `EntityUpdater<T,C>`：`void apply(T, C)`；Input→领域对象转换 + 调充血方法，**不校验/不持久化/不发事件**（硬约束 11）。
+无基类，只 `implements IQueryApplicationService`；注入领域源端口（`IOrderRedisSource`/`IOrderESSource`），选源写死在方法体内（不把 `ProjectionSource` 当入参），完成「查全量 → 裁剪」两跳；**不发布领域事件、不持有写仓储**。
 
-## 7. 读侧
+### 3.9 工作单元（多聚合根同事务）
 
-- 读服务 `implements IQueryApplicationService`，**不继承** `AbstractApplicationService`（框架已无 `AbstractProjectionQuery` 查询基类）。
-- 注入领域层源端口（`IOrderRedisSource`/`IOrderESSource`），选源写死方法体内，不外泄给调用方（无 `ProjectorRegistry` 可按 id 反查源）。
-- 两跳编排：查全量（`getById`/`search`）→ `reduceWith(getReducer(projectionType), full, projectionType)` 裁剪为目标投影。
-- 读侧不发布领域事件、不持有写仓储。
+单聚合根用 `execute()`；多聚合根同一事务用 `beginUnitOfWork()`（`AbstractApplicationService` 暴露，底层 `unitOfWorkFactory.get()`）：
 
-## 8. 多聚合根：工作单元写法
-
-单聚合根用 `execute()`；一次用例操作多个聚合根且需同一事务时，用 `beginUnitOfWork()`（基类提供，底层 `unitOfWorkFactory.get()`，`IUnitOfWork` 实现 `AutoCloseable`）：
-
-```java
-public void payWithDeduction(Long orderId, Long inventoryId, PayOrderInput input) {
-    Order order = orderRepository.findById(orderId);
-    Inventory inventory = inventoryRepository.findById(inventoryId);
-    if (order == null || inventory == null) {
-        return;
-    }
-    try (IUnitOfWork uow = beginUnitOfWork()) {
-        uow.register(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input))
-           .register(inventory, inventoryRule, inventoryRepository, Inventory::deduct)
-           .commit();
-    }
-}
+```text
+阶段一（事务外）validateAndCollect   领域逻辑+校验+汇总事件，任一违反即终止
+阶段二（事务内）persistAndCollect    纯 DB 写（save / 落 outbox）
+阶段三（事务外）dispatchEvents       统一发布事件
 ```
 
-- `register(agg, rule, repo, Consumer<T>)` 链式，四元组与 `execute()` 一一对应；换 `OutboxUnitOfWork` 工厂业务代码零改动。
-- **一律 try-with-resources**：未提交时 `close()` 自动 `clearWorkUnitState`，防事件泄漏 / 串味。
-- 工作单元有状态、单次消费，注入 `Supplier<IUnitOfWork>` 原型工厂，不得直接暴露单例。
+- `IUnitOfWork` 实现 `AutoCloseable`，**一律 try-with-resources**（未提交 `close()` 自动清事件防串味）。
+- 组合根以 `Supplier<IUnitOfWork>` 承载每次 `get()` 产新实例的原型语义；**不得**直接暴露单例 Bean。
+- 避坑：重复 `commit()` 抛 `UnitOfWorkStateException`；参与聚合须带版本，`doUpdate` 校验 `affected rows=0` 抛乐观锁冲突。
 
-## 9. 常见反模式
+### 3.10 可补偿命令（分布式事务补偿）
+
+三要素：①领域层聚合 `requireExternal(requirement)` 声明需求（`IExternalRequirement` record，`code()` 是稳定路由键）②应用层 `ICompensableAction<A, REQ, T>` 实现正向/回写/补偿（无状态单例；从聚合读事实、幂等；`payload` 非空才能开 durable）③仅补偿用例注入 `CompensableCommandExecutor`（装饰 `OutboxCommandExecutor`）。
+durable 模式：`pragmatic-ddd.compensation.mode=durable`，每个动作各提供 `ICompensationHandler`，`actionName()` 必须等于需求 `code`；`CompensationRelay` 由 starter 自动挂载。
+约束：段序固定（领域收集→正向+回写→校验落库发事件，段三失败逆序不中断补偿）；事务边界复用被装饰者；补偿不替代 Outbox（叠加）；幂等硬约束；内存/durable 二选一。
+
+## 4. 关键机制与避坑
+
+- 业务方法内"先 `recordOperation` 后 `collectEvent`"，顺序颠倒抛 `OperationException`。
+- 延迟事件（ID 后生成必用）：`() -> XxxEvent.buildEvent(this)`。
+- 事务边界：`@Transactional` 由调用方/执行器负责，仓储不管理事务。
+- 异常响应：`BrokenRuleException`/`BrokenRuleAggregateException`/`PragmaticException` 经 `@RestControllerAdvice` 统一映射。
+
+## 5. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
-| 应用层写业务规则 | 业务逻辑内聚聚合根 |
-| 绕过 `execute` 手动编排 | 统一走 `execute`/`tryExecute` |
-| Updater 内校验/持久化 | Updater 只转换 + 调充血方法 |
-| 每个方法 new 执行器 | 构造器注入一次复用 |
-| 复杂查询塞进写仓储 | 交查询侧 |
-| 多聚合根逐个 `execute()` | 用 `beginUnitOfWork()` 注册多条目统一 `commit` |
-| `UnitOfWork` 当单例 Bean 注入 | 注入 `Supplier<IUnitOfWork>` 工厂 |
-| 工作单元不用 try-with-resources | 一律 `try (IUnitOfWork uow = beginUnitOfWork())` |
-| 执行器与工作单元语义混用 | 成对匹配：`CommandExecutor`+`UnitOfWork`、`OutboxCommandExecutor`+`OutboxUnitOfWork` |
+| 应用服务写业务规则/状态判断 | 业务逻辑内聚聚合根，校验走规则容器 |
+| 绕过 `execute()` 手动编排 | 统一走 `execute()`/`tryExecute()` |
+| Updater/Factory 里做校验或持久化 | Updater 只转换+调充血方法 |
+| 每方法 new 执行器/事件管理器 | 构造器注入一次复用 |
+| 多聚合根仍逐个 `execute()` 提交 | `beginUnitOfWork()` 注册多条目统一 `commit` |
+| `UnitOfWork` 当单例 Bean 注入 | 注入 `Supplier<IUnitOfWork>`，`beginUnitOfWork()` 取新实例 |
+| 工作单元不用 try-with-resources | 一律 `try (IUnitOfWork uow = ...)` |
+| 执行器与工厂语义混用 | 成对匹配，禁止跨语义组合 |
+| 外部动作不设补偿 | 声明 `IExternalRequirement`+实现 `ICompensableAction` |
+| 可补偿 `compensate` 不幂等 | 外部按业务单号幂等撤销 |
+| 可补偿动作直改字段/从入参读事实 | `apply` 只调充血方法，一律从聚合读 |
+| 补偿与 Outbox 二选一 | 装饰叠加使用 |
+| durable 漏配 `ICompensationHandler` | 每动作提供，`actionName()` 等于需求 `code` |
+| 补偿执行器当通用执行器注入基类 | 仅补偿用例注入 |
 
-## 10. 被读于
+## 6. 被读于
 
-S4 `ddd-aggregate-create`（步骤 4 应用层）、S7 `ddd-code-review`。
+S4 `ddd-aggregate-create`、S5 `ddd-aggregate-extend`、S7 `ddd-code-review`。

@@ -1,43 +1,87 @@
-# BP 卡：值对象（value-object）
+# BP 卡：值对象最佳实践（value-object）
 
-> 源：`documentation/best-practices/value-object.md` · 派生时间：2026-09-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/value-object.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
-## 1. 本质
+## 1. 什么是值对象
 
-值对象是无独立身份、靠属性值判等的不可变数据片段（地址、金额、区间、坐标）。不可变性是其核心契约：不可变对象才能在跨线程/事件流中安全传递，才能直接 JSON 序列化；任何改变都应返回新实例。
+由属性组合判等的可嵌入数据结构（地址、金额、区间），**不可变**。核心特征是**结构相等**：属性相同即相等，没有独立于属性的身份。
 
-## 2. 与实体的区别
-
-| 维度 | 值对象 | 实体 |
+| 类型 | 特征 | 例子 |
 | --- | --- | --- |
-| 身份 | 无独立 id，靠属性值判等 | 有实体 id |
-| 生命周期 | 随父聚合存在 | 独立存在 |
-| 判等 | `equals` 比全部业务字段 | `equals` 比 id |
-| 修改 | 返回新实例（不可变） | 原地改状态 |
+| 值对象（继承 `ValueObject`/实现 `IValueObject`） | 多字段组合、按结构判等 | 地址、金额、区间 |
+| 枚举（实现 `IEnumValue<T,自身>`） | 固定离散常量集合 | 订单状态、支付方式 |
 
-## 3. 标记与结构
+经验法则：有限常量分类用枚举；多字段组合且按结构判等的数据用值对象。
 
-- 继承 `ValueObject` 基类（已实现 `IValueObject` 标记接口）：覆写 `equalityComponents()` 供字段判等，由基类的 `final` `equals`/`hashCode`/`toString` 调用，不覆盖 `Object.equals`。
-- 结构：`@Getter` + `@Setter(AccessLevel.PROTECTED)`（仅供 MyBatis JSON 重建）+ `@NoArgsConstructor(access = AccessLevel.PROTECTED)` + 全参业务构造 + `equalityComponents()`。
-- **禁用 Lombok `@Data` / `@EqualsAndHashCode` / `@Builder`**：会生成可变 setter 与默认 `equals`（基于引用），破坏不可变与值判等语义。
+## 2. 值对象 vs 参数对象
 
-## 4. 字段设计
+| 类型 | 定位 | 特征 |
+| --- | --- | --- |
+| 值对象 | 领域内可嵌入数据结构 | 判等是领域行为；可持久化（MyBatis JSON 列） |
+| 参数对象（`IParamObject`） | 入参载体 | 纯数据容器、`@Data` 即可；不参与持久化、无值语义 |
 
-- 用不可变类型：`BigDecimal` / `String` / 值对象嵌套；禁用 `Date` / `Calendar`（可变），用 `LocalDateTime` / `Instant`。
-- 枚举字段存 `code`（见 `enum-value.md`）。
-- 集合字段用不可变集合（`List.of` / `Collections.unmodifiableList`）。
-- 值对象**不在内部做字段校验**（构造期、方法内都不做）：字段合法性由校验规则类统一执行（见 [§5](#5-校验职责值对象不做校验)）。
+## 3. 编写规范
+
+### 3.1 继承 `ValueObject` 基类
+
+覆写 `equalityComponents()` 返回参与判等的成分（**顺序敏感**）；`equals`/`hashCode`/`toString` 由基类 `final` 提供，子类不可覆盖；相等判定要求**精确类匹配**（子类间成分相同也不相等）。
+
+```java
+@Override
+protected Object[] equalityComponents() {
+    return new Object[]{province, city, detail};
+}
+```
+
+### 3.2 实现 `IValueObject` 标记
+
+经 MyBatis JSON TypeHandler 整体读写 DB JSON 列——**必须实现 `IValueObject`** 才会被自动登记。`ValueObject` 基类已实现 `IValueObject`，继承即满足。
+
+### 3.3 不可变
+
+- 字段不提供公开 setter；判等由基类托管。
+- 全参业务构造完成初始化；**构造期不做字段校验**。
+- 不可变性由 Lombok 保证：`@Getter`+`@Setter(AccessLevel.PROTECTED)`（仅持久化重建）+`@NoArgsConstructor(PROTECTED)`；**禁用 `@Data`/`@EqualsAndHashCode`/`@Builder`**。
+
+```java
+@Getter
+@Setter(AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Address extends ValueObject {
+    private String province;
+    private String city;
+    private String detail;
+
+    public Address(String province, String city, String detail) {
+        this.province = province;
+        this.city = city;
+        this.detail = detail;
+    }
+
+    @Override
+    protected Object[] equalityComponents() {
+        return new Object[]{province, city, detail};
+    }
+}
+```
+
+## 4. 校验职责：值对象不做校验
+
+值对象是**纯粹数据载体**，不在内部校验字段（构造期、方法内都不做）。字段合法性统一由**校验规则类**在应用层执行：内部不变量在 `EntityRule` 子类 `init()` 里 `addRule`；外部依赖校验定义校验规则领域服务（`extends IDomainService`）注入 `EntityRule` 执行。详见 `order-rule-pattern.md`。
+
+> 原因：同一值对象在不同上下文中合法性不同（订单金额 `>0`、退款金额 `>=0`），写死在值对象内会耦合固定；统一由规则类按场景校验，值对象保持纯粹。
 
 ## 5. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
-| `@Data` 值对象 | `@Getter` + `@Setter(PROTECTED)` + `@NoArgsConstructor(PROTECTED)` + 全参业务构造 + `equalityComponents()` |
-| 暴露 setter / 可变字段 | 不可变，改值返回新实例 |
-| `equals` 用 Object 默认 | 实现 `equalityComponents()` |
-| 用 `Date` | `LocalDateTime` / `Instant` |
-| 值对象在构造器/方法内做字段校验 | 收口在校验规则类（`EntityRule` / `IDomainService`） |
+| 提供公开 setter | `@Setter(PROTECTED)` 仅限重建 |
+| 覆盖 equals/hashCode | 交给基类，只覆写 `equalityComponents()` |
+| 用值对象表达固定离散常量 | 改用枚举 `IEnumValue` |
+| 用枚举承载多字段复合数据 | 改用值对象 |
+| 用 `@Data`/`@Builder` | 用 `@Getter`+`@Setter(PROTECTED)` |
+| 构造期内做字段校验 | 校验交由校验规则类统一执行 |
 
 ## 6. 被读于
 
-S4 `ddd-aggregate-create`（步骤 2 值对象）、S7 `ddd-code-review`。
+S4 `ddd-aggregate-create`、S5 `ddd-aggregate-extend`、S7 `ddd-code-review`。

@@ -1,95 +1,134 @@
 # BP 卡：Kafka 配置设计原则（kafka-config）
 
-> 源：`documentation/best-practices/kafka-config.md` · 派生时间：2026-10-14 · 框架版本：2.0.0
+> 源：`documentation/best-practices/kafka-config.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
-## 1. 关键约定
+## 1. 本质与定位
 
-- Kafka 技术配置（连接/消费者组/事件管理器/Topic 路由）是**应用级**的：一个应用装配一份 `KafkaConfig`，全聚合共用；聚合只负责定义事件 + 注册订阅。
-- **禁止按聚合复制 `orderKafkaConfig`/`productKafkaConfig`**（反模式）：bootstrap 地址、消费者组、事件管理器全局共享，Topic 由应用级路由表统一解析。
-- `KafkaEventManager` 是 `IEventManager` 的一种实现，与 `RocketMqEventManager`/`ThreadPoolEventManager` **三选一**；`KafkaConfig` 与 `RocketMQConfig` **互斥**（靠 `pragmatic-ddd.event.bus` 开关 `@ConditionalOnProperty` 切换，保证容器仅一个 `IEventManager` Bean）。
-- 应用级配置放 `infrastructure/config/`（非 `infrastructure/{agg}/config/`），Bean 名不带聚合前缀。
-- 使用 `pragmatic-ddd-spring-boot` 时：§2 的 `KafkaConfig`、§5 的事件管理器注册与就绪后启动由 `DddKafkaAutoConfiguration` 代劳（需 `pragmatic-ddd.event.bus=kafka` + 存在 `ITopicResolver` Bean）；仍需自供 §3 主题路由 `ITopicResolver` 与 §4 聚合订阅注册。
+Kafka 技术配置是**应用级一次装配**，全部聚合共用；聚合只负责定义事件与注册订阅。与 RocketMQ 平行，`IEventManager` 端口在 Kafka / RocketMQ / 本地线程池**三选一**（见 `event-manager-config.md`）。
 
-## 2. 应用级装配骨架
+- **与 RocketMQ 互斥**：`KafkaConfig` 与 `RocketMQConfig` 同容器只能启用其一，靠 `@ConditionalOnProperty(name = "pragmatic-ddd.event.bus", havingValue = "kafka")` 切换。
+- 反模式：按聚合复制 `orderKafkaConfig`/`productKafkaConfig` 各配一套。
+
+## 2. 应用级装配（KafkaConfig）
+
+放在 `infrastructure/config/`（不在聚合级 `infrastructure/{agg}/config/` 下）。
 
 ```java
 @Configuration
 @ConditionalOnProperty(name = "pragmatic-ddd.event.bus", havingValue = "kafka")
 public class KafkaConfig {
-    private static final String DEFAULT_BOOTSTRAP_SERVERS = "127.0.0.1:9092";
-    private static final String DEFAULT_GROUP = "{app}_consumer";
 
-    @Bean public KafkaProperties kafkaProperties(Environment env) {
-        io.pragmatic.ddd.config.MapConfigurationSource src = new io.pragmatic.ddd.config.MapConfigurationSource();
-        src.put("pragmatic-ddd.event.kafka.bootstrap-servers", env.getProperty("pragmatic-ddd.event.kafka.bootstrap-servers", DEFAULT_BOOTSTRAP_SERVERS));
-        src.put("pragmatic-ddd.event.kafka.group", env.getProperty("pragmatic-ddd.event.kafka.group", DEFAULT_GROUP));
-        src.put("pragmatic-ddd.event.kafka.enable-idempotence", env.getProperty("pragmatic-ddd.event.kafka.enable-idempotence", "true"));
-        src.put("pragmatic-ddd.event.kafka.dlq-suffix", env.getProperty("pragmatic-ddd.event.kafka.dlq-suffix", "-dlq"));
-        src.put("pragmatic-ddd.event.kafka.max-reconsume", env.getProperty("pragmatic-ddd.event.kafka.max-reconsume", "16"));
-        // 其余 pragmatic-ddd.event.kafka.* 键同理（见源文档 §6 配置表）
-        return ConfigurationBinder.bind(src, "pragmatic-ddd.event.kafka", KafkaProperties.class,
-                KafkaProperties.withDefaults(DEFAULT_BOOTSTRAP_SERVERS, DEFAULT_GROUP));
+    @Bean
+    public KafkaProperties kafkaProperties(Environment environment) {
+        String bootstrapServers = environment.getProperty("pragmatic-ddd.event.kafka.bootstrap-servers", "127.0.0.1:9092");
+        String group = environment.getProperty("pragmatic-ddd.event.kafka.group", "{app}_consumer");
+        MapConfigurationSource source = new MapConfigurationSource();
+        source.put("pragmatic-ddd.event.kafka.bootstrap-servers", bootstrapServers);
+        source.put("pragmatic-ddd.event.kafka.group", group);
+        // 其余 pragmatic-ddd.event.kafka.* 键（client-id / max-poll-records / send-timeout-ms /
+        // delayed-policy / default-delay-seconds / delay-topic-suffix / poll-timeout-ms /
+        // auto-offset-reset / ack / compression-type / enable-idempotence / dlq-suffix /
+        // max-reconsume / inline-retry-intervals-ms / retry-topic-suffix / retry-hop-backoff-ms /
+        // batch-budget-ms / concurrency）同此方式带默认值注入
+        return ConfigurationBinder.bind(source, "pragmatic-ddd.event.kafka",
+                KafkaProperties.class, KafkaProperties.withDefaults(bootstrapServers, group));
     }
-    @Bean(destroyMethod = "shutdown") public IEventManager eventManager(KafkaProperties c, ITopicResolver r) {
-        return KafkaEventManager.builder(c, r)
-                .serializer(new io.pragmatic.ddd.kafka.KafkaEventSerializer())
+
+    @Bean(destroyMethod = "shutdown")
+    public IEventManager eventManager(KafkaProperties config, ITopicResolver topicResolver) {
+        return KafkaEventManager.builder(config, topicResolver)
+                .serializer(new KafkaEventSerializer())   // io.pragmatic.ddd.kafka
                 .build();   // 仅构造不 start
     }
-    @Bean public ApplicationRunner startKafkaOnReady(IEventManager m)
-        { return args -> m.start(); }   // 应用就绪后再 start
+
+    @Bean
+    public ApplicationRunner startKafkaOnReady(IEventManager eventManager) {
+        return args -> eventManager.start();   // 应用就绪后再 start
+    }
 }
 ```
 
-> 前缀**必须**为 `pragmatic-ddd.event.kafka.*`；上线仅 `application.yml` 覆盖如 `pragmatic-ddd.event.kafka.bootstrap-servers`。
-> 生产者由 `KafkaEventManager` 在 `initializeTopics` 时按配置内部自建 `KafkaProducer`，无需注入外部 producer，也不要手动声明回投器——`KafkaRedeliverRelay` 由 `start()` 依配置自动创建。
+- `KafkaProperties` 是入口：`ConfigurationBinder.bind(source, "pragmatic-ddd.event.kafka", ..., defaults)` 映射强类型对象（record 不能声明默认值，用 `withDefaults` 兜底）。
+- 生产者由事件管理器内部自建（`KafkaEventManager` 在 `initializeTopics` 创建 `KafkaProducer`），**无需**单独声明 producer Bean。
+- `start()` 自动创建延时/重试回投器（`KafkaRedeliverRelay`），**无需**手动声明。
 
-## 3. 主题路由：应用级 ITopicResolver（与传输层无关）
+## 3. 主题路由（与传输层无关）
+
+主题路由是**应用级路由表，与传输层无关**，抽到常驻配置由两个事件管理器共享：
 
 ```java
 @Configuration
 public class OrderEventTopicConfig {
-    private static final String DEFAULT_TOPIC = "data_sync_event";
-    @Bean public ITopicResolver orderTopicResolver() {
-        return io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver.builder().globalDefaultTopic(DEFAULT_TOPIC).build();
+    @Bean
+    public ITopicResolver orderTopicResolver() {
+        return ConfigurableTopicResolver.builder().globalDefaultTopic("data_sync_event").build();
     }
 }
 ```
-所有聚合事件共用这一个 resolver（`ConfigurableTopicResolver` 全限定包路径 `io.pragmatic.ddd.event.internal.defaults`，非 `event.spi`）；新增聚合只扩展其事件/订阅者 topic 映射，不改基础设施配置。
 
-## 4. 聚合侧接入：只注册订阅
+按事件/订阅者分流与 RocketMQ 一致（`eventTopic`/`subscriberTopic` 首参是类名字面量）。
+
+## 4. 聚合侧接入（只注册订阅）
 
 ```java
 @Configuration
 public class OrderEventSubscriberRegistry {
-    public OrderEventSubscriberRegistry(IEventRegistry evtManager,
-                                        OrderDataSyncEsProjectionHandle orderDataSyncEsProjectionHandle) {
-        evtManager.registerSubscriber("es", OrderDataSyncEvent.class, orderDataSyncEsProjectionHandle);
+    public OrderEventSubscriberRegistry(IEventRegistry evtManager, OrderDataSyncHandle handle) {
+        evtManager.registerSubscriber("es", OrderDataSyncEvent.class, handle);
     }
 }
 ```
-事件发到哪个 topic 由应用级 `topicResolver` 决定；订阅登记由各聚合注册表承担。
 
-## 5. 约束清单
+## 5. 可靠性语义（at-least-once，与 RocketMQ 一致）
 
-- **禁止硬编码连接地址**：`bootstrap-servers` 经 `environment.getProperty`/配置源注入。
-- **`eventManager` 必须应用就绪后再 `start()`**：经 `ApplicationRunner` 触发；漏掉 start，Consumer 不订阅、事件堆积。
-- **序列化器只用 `io.pragmatic.ddd.kafka.KafkaEventSerializer`**：与 RocketMQ 的 `Fastjson2EventSerializer` 同名但**不可跨模块共享**；启用 Outbox 时 `IEventSerializer` Bean 须与 `KafkaEventManager` 使用的为同一实现，否则 Relay 反序列化重发失败。
-- **`KafkaConfig` 与 `RocketMQConfig` 互斥**：靠 `@ConditionalOnProperty(name = "pragmatic-ddd.event.bus", ...)` 切换；同生效会装配两个 `IEventManager`，事件发向两处。
-- **`enable.auto.commit` 由框架强制 `false`**：位移由消费成功后分区级 `commitSync` 提交，禁止覆盖为 true（破坏重试/死信 at-least-once）。
-- DLQ/重试 topic 由框架按后缀自动建逻辑 topic，仅需配 `dlq-suffix`/`retry-topic-suffix`/`delay-topic-suffix`。
+- 消费失败：本轮内联重试预算内（`inline-retry-intervals-ms`）立即重试；
+- 预算耗尽且未达 `max-reconsume`：转 `{topic}{retryTopicSuffix}` 重试 topic，由 `KafkaRedeliverRelay` 按 `retry-hop-backoff-ms` 退避回投；
+- 累计失败达 `maxReconsume + 1`：转发 `{topic}{dlqSuffix}` 死信；转存失败保持不提交 offset、下轮重投，不丢消息。
 
-## 6. 避坑
+## 6. 配置项与约定（前缀 `pragmatic-ddd.event.kafka`）
+
+| 配置键 | 建议 | 说明 |
+| --- | --- | --- |
+| `bootstrap-servers` | `127.0.0.1:9092` | broker 地址，禁止硬编码 |
+| `group` | `{app}_consumer` | 消费者组，同组多实例自动分区负载均衡 |
+| `max-poll-records` | `500` | 单次 poll 最大条数 |
+| `poll-timeout-ms` | `1000` | `consumer.poll` 超时 |
+| `auto-offset-reset` | `latest` | `latest`/`earliest` |
+| `ack` | `all` | 生产者 acks |
+| `enable-idempotence` | `true` | 生产者幂等 |
+| `dlq-suffix` | `-dlq` | 死信 topic 后缀 |
+| `max-reconsume` | `16` | 单条最大重试次数，超转发死信 |
+| `concurrency` | `1` | 单进程并发 consumer 线程数 |
+| `send-timeout-ms` | `10000` | 发布/转存/死信有界等待 |
+| `delayed-policy` | `immediate` | `immediate`/`reject`/`relay` |
+| `default-delay-seconds` | `10` | relay 模式延时秒数 |
+| `delay-topic-suffix` | `-delay` | relay 模式延时 topic 后缀 |
+| `inline-retry-intervals-ms` | `100,500` | 内联重试间隔表（逗号分隔） |
+| `retry-topic-suffix` | `-retry` | 置空即关闭重试通道（内联耗尽即进死信） |
+| `retry-hop-backoff-ms` | `1000,...,240000`（8 档） | retry topic 每轮退避表 |
+| `batch-budget-ms` | `30000` | 单批处理时间预算 |
+
+## 7. ⚠️ 约束清单
+
+- 禁止硬编码 `bootstrap-servers`，经 `environment.getProperty` / 配置源注入。
+- `eventManager` 必须应用就绪后 `start()`。
+- 序列化器只用 `io.pragmatic.ddd.kafka.KafkaEventSerializer`（与 RocketMQ 的 `Fastjson2EventSerializer` 同名但**不可跨模块共享**）；启用 Outbox 时 `IEventSerializer` Bean 必须与 `KafkaEventManager` 用的 `KafkaEventSerializer` 同一实现。
+- `KafkaConfig` 与 `RocketMQConfig` 互斥：靠 `@ConditionalOnProperty` 切换，否则两个 `IEventManager` Bean 事件发向两处。
+- `enable.auto.commit` 由框架强制 `false`（位移由消费成功后分区级 `commitSync` 提交，禁止覆盖为 true，破坏重试/死信语义）。
+- DLQ/重试 topic 由框架按后缀自动建逻辑 topic，只需配置后缀。
+
+## 8. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
 | 按聚合复制 KafkaConfig | 应用级一次装配，全聚合共用 |
-| KafkaConfig 与 RocketMQConfig 同时生效 | `@ConditionalOnProperty(name="pragmatic-ddd.event.bus", havingValue="kafka")` 互斥 |
-| 漏掉应用就绪后 `start()` | `@Bean(destroyMethod="shutdown")` 构造 + `ApplicationRunner` 调 `start()` |
-| 在 KafkaConfig 里 new 别的 `IEventSerializer` | 复用 `io.pragmatic.ddd.kafka.KafkaEventSerializer` |
+| KafkaConfig 与 RocketMQConfig 同时生效 | `@ConditionalOnProperty(bus=kafka)` 互斥 |
+| 漏掉就绪后 `start()` | `ApplicationRunner` 调 `start()` |
+| new 别的 `IEventSerializer`（如 RocketMQ 的） | 复用 `io.pragmatic.ddd.kafka.KafkaEventSerializer` |
 | 手动声明 `KafkaRedeliverRelay` Bean | 由 `KafkaEventManager.start()` 依配置自动创建 |
-| 把 `enable.auto.commit` 覆盖为 true | 保留框架默认 `false` 手动提交 |
-| `bootstrap-servers` 写死 | `environment.getProperty` 注入，yml 覆盖 |
+| `enable.auto.commit` 覆盖为 true | 保留框架默认 `false` |
+| `bootstrap-servers` 写死生产地址 | 经 `environment.getProperty` 注入 |
 
-## 7. 被读于
+## 9. 被读于
 
-S3 `ddd-infra-config`、S7 `ddd-code-review`。
+S3 `ddd-infra-config`、S5 `ddd-aggregate-extend`、S7 `ddd-code-review`。

@@ -1,44 +1,67 @@
-# BP 卡：普通实体设计（entity-design）
+# BP 卡：普通实体设计原则（entity-design）
 
-> 源：`documentation/best-practices/entity-design.md` · 派生时间：2026-09-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/entity-design.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
 
-## 1. 本质
+## 1. 什么是普通实体
 
-聚合内有独立身份的"零件"——如订单聚合的 `OrderItem`。与聚合根区别：实体**不承载业务规则、不校验、不发布事件**；规则/事件归聚合根，实体只承装数据与行为，是聚合根的"零部件"。
+普通实体是**聚合内部**具有独立身份的子实体（如 `OrderItem`），与聚合根一样有唯一标识，但**不构成聚合边界**——不承载规则校验、乐观锁版本、领域事件与操作追踪，只被聚合根组合持有。
 
-## 2. 判定：实体还是值对象
+| 类型 | 唯一标识 | 是否聚合边界 | 继承 |
+| --- | --- | --- | --- |
+| 聚合根 | 有 | 是 | `AggregateRoot<T>` |
+| 普通实体 | 有 | 否（隶属某聚合） | `AbstractEntity<T>` |
+| 值对象 | 无（结构判等） | — | `ValueObject`/`IValueObject` |
 
-| 特征 | 实体（Entity） | 值对象（ValueObject） |
-| --- | --- | --- |
-| 独立身份 | 有（`id`） | 无（靠属性值判等） |
-| 生命周期 | 随父聚合存在，有独立行 | 随父表 JSON |
-| 典型 | `OrderItem` | `Money` / `Address` |
-| Lombok | `@Setter` 按需（改状态） | 全 `final` + 不可变 |
+## 2. 唯一标识
 
-对应表设计：有独立行 → 子表 + `TrackedList`（见 `aggregate-database-design.md`）；无身份值对象 → 父表 JSON 列。
+- 标识由 `entityId`（`AbstractEntity` 托管）承载；等同性由框架基于 ID 实现——**ID 相同即同一实体，与业务字段无关**。
+- 标识粒度：聚合内唯一即可，不需全局唯一。
+- 变更追踪：实体放入 `TrackedList`/`TrackedMap` 做增量持久化时，实现 `ITrackable<T>` 提供持久化行标识 `id()`。
 
-## 3. 结构
+## 3. 继承体系
 
-- 继承 `AbstractEntity<ID>`：自动获得 `entityId` / 审计列 / `equals`+`hashCode`（基于 entityId）。
-- **不要覆盖 `equals` / `hashCode`**：父类已基于 entityId 托管；覆盖会破坏标识语义。
-- 状态变更方法直接改字段（可配 `@Setter`）。
-- 改写实体 ID 须用 `id` 字段反射（勿直接 setter）。
-- **字段与业务方法注释**：字段命中金额 / 时间 / 编码 / 派生 / 外部回填 / 非直观命名任一类时必写业务口径（如 `subtotal` 由 `price × quantity` 派生）；公有业务方法写「意图 + 影响哪些状态 + 是否 `markModified`」；同一类内风格一致。详见 `code-comment-specification.md`。
+继承 `AbstractEntity<T>`，**不需要**像聚合根那样实现 `brokenRuleRegistry()`/`operationRegistry()`：
 
-## 4. 与聚合根的协作
+```java
+public class OrderItem extends AbstractEntity<Long> implements ITrackable<Long> {
+    private Long productId;
+    private String productName;
+    private int quantity;
 
-- 实体集合用 `TrackedList<OrderItem, Long>`，挂在聚合根字段上；聚合根业务方法改实体集合。
-- 实体不发布事件；需要事件由聚合根 `collectEvent` 统一发。
+    public OrderItem(Long id, Long productId, String productName, int quantity) {
+        this.setEntityId(id);
+        this.productId = productId;
+        this.productName = productName;
+        this.quantity = quantity;
+    }
+
+    protected OrderItem() { /* 持久化重建专用 */ }
+
+    @Override
+    public Long id() { return this.getEntityId(); }
+}
+```
+
+`AbstractEntity<T>` 已提供：`entityId` / `entityDelete` / 审计字段 / `markCreated()`/`markModified()` / 基于 `entityId` 的 `equals`/`hashCode`/`toString`。
+
+## 4. 编写规范
+
+- **继承 `AbstractEntity<T>`（+`ITrackable`）**：需放入 `TrackedList`/`TrackedMap` 做变更追踪的实体实现 `ITrackable<T>`（`id()` 返回持久化行键）；整体 JSON 存储的子实体可省略。
+- **构造函数**：业务构造设置 `entityId`、属性赋值、按需 `markCreated()`，**不做规则校验**；无参 `protected` 仅供持久化重建。入参过多（>5 或成组）用 `IParamObject` 收敛（`@Data` 即可）。
+- **业务方法**：修改自身状态、按需 `markModified()`，同样不做规则校验。
+- **Lombok**：字段 `@Getter`+`@Setter(AccessLevel.PROTECTED)`，重建构造 `@NoArgsConstructor(PROTECTED)`；**禁用 `@Data`/`@EqualsAndHashCode`/`@Builder`**。
+- **归属**：只被聚合根组合持有（如 `TrackedList<OrderItem, Long>`），不直接暴露给应用层/接口层。
+- **注释**：字段命中金额/时间/编码/派生/外部回填/非直观命名任一类必须写业务口径；业务方法写「意图+影响状态+是否 `markModified`」。完整标准见 `code-comment-specification.md`。
 
 ## 5. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
-| 实体里写业务规则 | 规则上提到聚合根 |
-| 覆盖实体 `equals`/`hashCode` | 用 `AbstractEntity` 托管 |
-| 实体直接发事件 | 聚合根统一 `collectEvent` |
-| 把无身份值对象当实体建子表 | 值对象并入父表 JSON |
+| 覆盖 equals/hashCode | 交给 `AbstractEntity` |
+| 独立暴露给外部 | 只经聚合根访问 |
+| 在实体里做规则校验 | 由聚合根规则引擎统一校验 |
+| 用值对象表达有身份子实体 | 用 `AbstractEntity` 实体 |
 
 ## 6. 被读于
 
-S4 `ddd-aggregate-create`（步骤 2 子实体）、S7 `ddd-code-review`。
+S4 `ddd-aggregate-create`、S5 `ddd-aggregate-extend`、S7 `ddd-code-review`。

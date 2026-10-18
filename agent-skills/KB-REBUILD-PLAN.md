@@ -1,69 +1,76 @@
-# KB 重建计划（agent-skills/kb）
+# KB 全量语义重蒸馏计划（v1.7）
 
-- [1. 背景与现状](#1-背景与现状)
-- [2. 漂移检测结果](#2-漂移检测结果)
+- [1. 背景与目标](#1-背景与目标)
+- [2. 现状基线](#2-现状基线)
 - [3. 重建范围与策略](#3-重建范围与策略)
 - [4. 执行步骤](#4-执行步骤)
-- [5. 验收标准](#5-验收标准)
+- [5. 卡格式规范（蒸馏纪律）](#5-卡格式规范蒸馏纪律)
+- [6. 验收标准](#6-验收标准)
 
-## 1. 背景与现状
+## 1. 背景与目标
 
-`agent-skills/kb/` 是 pragmatic-ddd 全部 AI Skill 的**唯一共享知识源（单物理副本）**，由 `documentation/best-practices/` 派生（蒸馏）而来。当前 KB 版本 `kb_version = 1.3-draft`，`generated_at = 2026-09-18`，`framework_version = 2.0.0`。
+`agent-skills/kb/` 是 pragmatic-ddd 全部 AI Skill 的**唯一共享知识源（单物理副本）**，由其权威源派生（蒸馏）而来。KB 的核心价值是**防幻觉**：零上下文 AI 靠它一次写对可编译代码。
 
-KB 的核心价值是**防幻觉**：零上下文 AI 靠它一次写对可编译代码。一旦 KB 与其权威源（`documentation/best-practices/`）漂移，蒸馏卡就会携带过时甚至错误签名，反而制造幻觉。
+当前 KB 为 `kb_version = 1.6-draft`（2026-10-17 派生），`verify-kb.sh` 已返回 `KB OK`（所有 `source_sha` 与源一致），29 篇 bp 卡 + `hard-constraints` + `api-contract` + `projection-api` 覆盖完整。
 
-## 2. 漂移检测结果
+但 sha 一致只代表**源文档未变**，不代表**卡内容一定精准反映当前源语义**。`api-contract.md` / `projection-api.md` 的源是 `pragmatic-ddd-core` 源码（`source_sha = TODO`，verify 跳过），`hard-constraints.md` 的源是多篇 best-practices 的聚合，这两处最易静默漂移。本次目标：**忽略 sha 一致，从权威源逐卡重新语义蒸馏，彻底刷新到 v1.7 基线**。
 
-运行 `agent-skills/scripts/verify-kb.sh`，输出 **10 张卡 STALE**（记录的 `source_sha` 与当前源文档不一致）：
+## 2. 现状基线
 
-| 卡 | 权威源 | 漂移严重度 | 问题摘要 |
-| --- | --- | --- | --- |
-| `bp.aggregate-design` | aggregate-design.md | 严重 | 骨架未区分 `markNew()`（新建路由标志，置 `isNew`，供仓储 `save` 走 insert/update）与 `markCreated()`（审计时间戳 createdAt/updatedAt），两者并存、新建构造都要调；`@Setter(AROTECTED)` 笔误；旧式内部静态类骨架；未覆盖 §3.3 充血方法（无守卫/无组装）、§3.4 `IParamObject`、§3.5 Lombok 约定 |
-| `bp.order-rule-pattern` | order-rule-pattern.md | 严重+错误 | 仍用旧 `boolean` 返回 + `MessageCode.switchStatus(...)` + `ActiveStatus.ACTIVE` 作第三参；当前源用 `RuleCheckResult.of(...)` / `IActiveRuleCondition.of(...)` / `hasOperation*` / `requireOldEntity()`，且样式已更新 |
-| `bp.rocketmq-config` | rocketmq-config.md | 中等+错误 | 配置前缀写成 `rocketmq.*`，正确为 `pragmatic-ddd.event.rocketmq.*`；会直接导致用户 `application.yml` 配置漂移 |
-| `bp.operation-registry-design` | operation-registry-design.md | 中等 | 缺 §5 关键机制：`public` 反射注册、`operationRegistry()` 返回 `null`=禁用、`MultipleOperationsException`、`hasOperation*` |
-| `bp.repository-design` | repository-design.md | 中等 | 缺 §1.5 事务由 `TransactionOperations` 而非 `@Transactional`、§2.1 `IRepository` 方法语义 |
-| `bp.application-collaboration` | application-collaboration.md | 轻微 | 基本对齐（09-19 派生）；补 §4.8 读服务无 `AbstractProjectionQuery` 基类、§4.9 工作单元写法细节 |
-| `bp.dependency-declaration` | dependency-declaration.md | 轻微 | 基本对齐（09-27 派生）；补外部返回值转领域值可入聚合字段等细节 |
-| `bp.event-manager-config` | event-manager-config.md | 轻微 | 基本对齐；补 `KafkaEventManager` 三选一、spring-boot 自动装配说明 |
-| `bp.mysql-config` | mysql-config.md | 轻微 | 基本对齐；补 `TypeHandlerContext` 单点来源、集合列别名避坑 |
-| `bp.outbox-config` | outbox-config.md | 轻微 | 基本对齐；补 spring-boot 自动装配退位说明 |
-
-**额外缺口（verify-kb 不报，需人工识别）**：
-- `documentation/best-practices/kafka-config.md` **无对应 KB 卡**（未在 `_manifest.json` 登记、不在 `kb/bp/`）。需新建 `bp/kafka-config.md` 并登记。
-
-**无需重建**：其余 13 张 bp 卡、`hard-constraints.md`、`api-contract.md` 的 `source_sha` 与当前源一致（或属 `pragmatic-ddd-core` 源，不计入 STALE）。`api-contract.md` 将在执行中做一次 Tier-1/Tier-2 抽查复核（见 §4.6）。
+- `kb_version = 1.6-draft`，`generated_at = 2026-10-17`，`framework_version = 2.0.0`。
+- `verify-kb.sh` → `KB OK`（exit 0），无 STALE 卡。
+- 覆盖：28 篇 best-practices 文档全部登记为 bp 卡 + `projection-api`（core 源码）+ `hard-constraints`（多源聚合）+ `api-contract`（core 源码）= 31 张卡。
+- 旧 `KB-REBUILD-PLAN.md` 针对 v1.4，已被 v1.4→v1.6 多次重建取代，本次重写为 v1.7。
 
 ## 3. 重建范围与策略
 
-- **来源纪律**：KB 是产物不是源。改框架约定 → 先改 `documentation/best-practices/` → 再重派生对应卡；不反向改卡。
-- **单物理副本**：Skill 只声明「读哪几篇」，不内联重复；本次只动 `kb/`，不动 `documentation/` 与框架源码。
-- **重蒸馏策略**：
-  - 严重+错误 3 张（aggregate-design / order-rule-pattern / rocketmq-config）**整篇重写**，严格对齐当前源文档签名与约定。
-  - 中等 2 张（operation-registry-design / repository-design）**补全缺失关键节**。
-  - 轻微 5 张（application-collaboration / dependency-declaration / event-manager-config / mysql-config / outbox-config）**小幅同步**。
-  - 新增 1 张 `bp/kafka-config.md`（与 rocketmq-config 平行）。
-- **`api-contract.md`**：保持 Tier-1 全限定 import + Tier-2 精确签名；执行中抽查 `EntityFactory` / `IIdGenerator` / `EntityRule` / `BrokenRuleRegistry` / `IEnumValue` 与当前 `pragmatic-ddd-core` 源码一致；若一致仅更新「派生时间」，若有漂移则钉死修正。
+**来源纪律（不变）**：KB 是产物不是源。改框架约定 → 先改 `documentation/best-practices/` → 再重派生对应卡；不反向改卡。本次只动 `kb/`，不动 `documentation/` 与框架源码。
+
+**重蒸馏策略（全量）**：
+
+| 分组 | 卡 | 源 | 动作 |
+| --- | --- | --- | --- |
+| BP-A 配置 | mysql-config / mybatis-config / outbox-config / rocketmq-config / kafka-config / event-manager-config / elasticsearch-config | `documentation/best-practices/*.md` | 逐篇重蒸馏，核对前缀（`pragmatic-ddd.event.rocketmq.*` / `pragmatic-ddd.event.kafka.*`）、配置类与装配签名 |
+| BP-B 建模 | aggregate-design / aggregate-structure / entity-design / value-object / enum-value / aggregate-database-design | 同上 | 逐篇重蒸馏，核对父类托管能力、`markCreated()`+`markNew()` 并列、Lombok 约定、TrackedList 泛型边界 |
+| BP-C 规则/事件 | operation-registry-design / registry-design / order-rule-pattern / event-modeling / event-subscriber-pattern / domain-service | 同上 | 逐篇重蒸馏，核对 `RuleCheckResult` / `IActiveRuleCondition.of` / `hasOperation*` / `@DomainService` |
+| BP-D 应用/读 | application-collaboration / repository-design / projection-design / broadcast / dependency-declaration | 同上 | 逐篇重蒸馏，核对事务由 `TransactionOperations`、`IRepository` 语义、投影四角色 |
+| BP-E 文档/注释 | code-comment-specification / design-doc-template / aggregate-identification / aggregate-evolution-design | 同上 | 逐篇重蒸馏 |
+| 特殊-1 | `api-contract.md` | `pragmatic-ddd-core` 源码（`io.pragmatic.ddd.*`） | 重核全限定 import + Tier-1/Tier-2 签名，钉死 D1–D5 缺口，刷新「不存在的符号」清单 |
+| 特殊-2 | `projection-api.md` | core 投影基类源码 | 重核 `AbstractProjectionSource` 5 参构造、`IAggregateProjector`/`IReducer`/`IReadModelReplica` 可编译签名 |
+| 特殊-3 | `hard-constraints.md` | 多篇 best-practices 聚合 + 记忆 29822425 | 重蒸馏 14 条硬约束 + E1~E3 枚举规则，刷新派生时间 |
+
+**不重建**：`_manifest.json` 结构、`scripts/`、`agents/`、`ddd-*/` Skill 本体（仅 `kb/` 产物刷新后可能同步路由表微调，见 §4.7）。
 
 ## 4. 执行步骤
 
-1. 重写 `kb/bp/aggregate-design.md`（骨架构造并列 `markCreated()`（审计）与 `markNew()`（新建路由），对齐 `IParamObject`、§3.3/§3.5）。
-2. 重写 `kb/bp/order-rule-pattern.md`（对齐 `RuleCheckResult` / `IActiveRuleCondition.of` / `hasOperation*` / `@DomainService`）。
-3. 重写 `kb/bp/rocketmq-config.md`（前缀修正为 `pragmatic-ddd.event.rocketmq.*`）。
-4. 补全 `kb/bp/operation-registry-design.md`、`kb/bp/repository-design.md`。
-5. 同步 `kb/bp/application-collaboration.md`、`dependency-declaration.md`、`event-manager-config.md`、`mysql-config.md`、`outbox-config.md`。
-6. 新建 `kb/bp/kafka-config.md`，并在 `_manifest.json` 登记 `bp.kafka-config`（含 `source_sha`）。
-7. 运行 `agent-skills/scripts/derive-kb.sh` 刷新全部 `source_sha`；再跑 `verify-kb.sh` 应 `KB OK`，退出 0。
-8. 抽查 `api-contract.md` 关键签名 vs `pragmatic-ddd-core` 源码；一致则更新「派生时间」，不一致则钉死修正。
-9. 更新 `kb/README.md`（版本 + 目录表补 kafka-config）与顶层 `README.md` 的 `kb_version` 与状态。
+1. 写本计划文档（agent-skills/KB-REBUILD-PLAN.md，v1.7）。
+2. 重蒸馏 BP-A~BP-E 共 29 篇 bp 卡：逐篇 Read 对应 `documentation/best-practices/*.md`，按 [§5](#5-卡格式规范蒸馏纪律) 重写 `kb/bp/*.md`，头部 `派生时间` 改为 2026-10-18。
+3. 重蒸馏 `api-contract.md`：对照 `pragmatic-ddd-core` 源码核实全部 import 与方法签名，刷新「不存在的符号」清单。
+4. 重蒸馏 `projection-api.md`：对照 core 投影基类源码核实可编译签名。
+5. 重蒸馏 `hard-constraints.md`：聚合 14 条硬约束 + E1~E3。
+6. 运行 `agent-skills/scripts/derive-kb.sh` 刷新全部 `source_sha`；再跑 `verify-kb.sh` 应 `KB OK`，exit 0。
+7. 更新 `_manifest.json`：`kb_version` → `1.7-draft`，`generated_at` → `2026-10-18`，`note` 追加 v1.7 记录。
+8. 更新 `kb/README.md`（版本 + 目录保持一致）与顶层 `agent-skills/README.md` 的 `kb_version`、状态、适用框架版本。
+9. 输出重建报告：覆盖、各卡溯源、残留风险（core 源码类 `api-contract`/`projection-api` 的 `source_sha` 仍 TODO，verify 跳过）。
 
-## 5. 验收标准
+## 5. 卡格式规范（蒸馏纪律）
+
+每张 bp 卡遵循统一结构，保证 Skill 可机器路由、AI 可零上下文消费：
+
+1. **标题**：`# BP 卡：<中文名>（<english-slug>）`。
+2. **溯源头**（首行引用块）：`> 源：<源文档相对路径> · 派生时间：2026-10-18 · 框架版本：2.0.0`。`api-contract`/`projection-api` 用「派生自 pragmatic-ddd-core 源码」表述。
+3. **蒸馏原则**：剥离叙述性铺垫，保留**命名 / 包结构 / 骨架代码 / 关键规则 / 反模式表 / 被读于**。
+4. **代码块**：仅保留可编译骨架与最小范例（`Order` 等作范式载体，须说明替换为目标聚合名）；不堆砌完整业务实现。
+5. **防幻觉**：出现框架符号一律指向 `api-contract.md` 全限定 import；禁止臆测子包（如 `IEnumValue` 在 `base`、`rules` 在 `io.pragmatic.ddd.rules`）。
+6. **自足性**：不引用仓库内 `examples/order-example` 等示例工程；如提及 `Order` 显式标注为范式占位。
+7. **章节末**：`## 被读于` 标注被哪些 Skill（S1~S7 / P2 / D / 咨询）消费。
+
+## 6. 验收标准
 
 - [ ] `verify-kb.sh` 退出 0（`KB OK`），无 STALE 卡。
-- [ ] `kb/bp/` 含 24 张 bp 卡（原 23 + 新增 kafka-config）。
-- [ ] `_manifest.json` 的 `cards` 含 `bp.kafka-config`，全部 `source_sha` 已刷新。
-- [ ] 3 张严重卡不再含错误写法（`boolean` 返回 / `rocketmq.*` 前缀）；aggregate-design 骨架构造已并列 `markCreated()`（审计）与 `markNew()`（新建路由，非废弃）。
-- [ ] `api-contract.md` Tier-1/Tier-2 与当前 `pragmatic-ddd-core` 源码一致。
-- [ ] `kb/README.md` 与顶层 `README.md` 版本号与目录一致。
+- [ ] `kb/bp/` 含 29 张 bp 卡，全部 `派生时间` 为 2026-10-18（v1.7 基线）。
+- [ ] `api-contract.md` / `projection-api.md` / `hard-constraints.md` 内容经源码/多源复核，无 D1–D5 类漂移。
+- [ ] 3 张历史错误卡（aggregate-design 的 `markCreated()`+`markNew()` 并列、order-rule-pattern 的 `RuleCheckResult`/`IActiveRuleCondition`、rocketmq-config 的 `pragmatic-ddd.event.rocketmq.*` 前缀）保持正确。
+- [ ] `_manifest.json` 的 `kb_version = 1.7-draft`，`source_sha` 全部刷新；`kb/README.md` 与顶层 `README.md` 版本号一致。
 
 > 本计划仅重建 KB 派生物（`kb/`），不改动 `documentation/best-practices/` 权威源与框架源码；所有卡均从当前权威源重新蒸馏。
