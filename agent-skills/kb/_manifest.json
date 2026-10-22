@@ -130,10 +130,24 @@
       "product_sha": "TODO"
     },
     {
-      "id": "bp.design-doc-template",
-      "path": "bp/design-doc-template.md",
-      "source": "documentation/best-practices/design-doc-template.md",
-      "source_sha": "1acf9462718ad027e01aac63c039ffbba194ac322a7de53ed88ad7e8012ec50e",
+      "id": "bp.design-doc-write-template",
+      "path": "bp/design-doc-write-template.md",
+      "source": "documentation/best-practices/design-doc-write-template.md",
+      "source_sha": "ede03f0ed32f8d3d925997e62108ee832d6d832485ca900e7a46c8c8e2d810d7",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.design-doc-read-template",
+      "path": "bp/design-doc-read-template.md",
+      "source": "documentation/best-practices/design-doc-read-template.md",
+      "source_sha": "4f891d0d9b31cfc11ad2d7d09abe62e33949b6671d8b3732eb2104d9113b1258",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.design-doc-persistence-template",
+      "path": "bp/design-doc-persistence-template.md",
+      "source": "documentation/best-practices/design-doc-persistence-template.md",
+      "source_sha": "9eda9a55e2ee04492ffc98d733f3331d8625e409b3882e1307f350666ba35f05",
       "product_sha": "TODO"
     },
     {

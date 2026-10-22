@@ -40,7 +40,9 @@
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |
 | `bp/dependency-declaration.md` | 外部依赖声明（`@ExternalDependency` 三档分类 + 契约/网关） | S4 / S5 / S7 |
-| `bp/design-doc-template.md` | AI 生成设计文档模板（含大纲跳转） | S4 / S5 |
+| `bp/design-doc-write-template.md` | 聚合写设计文档模板（12 节，主文档统管横切） | S4 / S5 / S7 / ddd-design-doc |
+| `bp/design-doc-read-template.md` | 投影读设计文档模板（6 节） | S6 / S7 / ddd-design-doc |
+| `bp/design-doc-persistence-template.md` | 持久化设计文档模板（5 节，含 ES/Redis） | S3 / S7 / ddd-design-doc |
 | `bp/elasticsearch-config.md` | ES 配置（RestClient 单 Bean、投影写入、限流） | S3 / S7 |
 | `bp/event-manager-config.md` | 事件管理器三选一（Kafka/RocketMQ/ThreadPool）装配 | S3 / S7 |
 | `bp/mysql-config.md` | MySQL 配置（数据源、连接池、事务管理器） | S3 / S7 |
