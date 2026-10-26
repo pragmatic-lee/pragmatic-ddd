@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.7-draft",
+  "kb_version": "1.8-draft",
   "framework_version": "2.0.0",
   "generated_at": "2026-10-18",
-  "note": "v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：28 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 31 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "note": "v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -144,13 +144,6 @@
       "product_sha": "TODO"
     },
     {
-      "id": "bp.design-doc-persistence-template",
-      "path": "bp/design-doc-persistence-template.md",
-      "source": "documentation/best-practices/design-doc-persistence-template.md",
-      "source_sha": "9eda9a55e2ee04492ffc98d733f3331d8625e409b3882e1307f350666ba35f05",
-      "product_sha": "TODO"
-    },
-    {
       "id": "bp.elasticsearch-config",
       "path": "bp/elasticsearch-config.md",
       "source": "documentation/best-practices/elasticsearch-config.md",
@@ -247,6 +240,11 @@
       "id": "examples.order",
       "removed_in": "1.3-draft",
       "reason": "examples/order-example 不属 KB 发布范围，第三方环境不存在该工程；回归比对见 agent-skills/A4-A5-walkthrough.md"
+    },
+    {
+      "id": "bp.design-doc-persistence-template",
+      "removed_in": "1.8-draft",
+      "reason": "设计文档由「写 / 读 / 持久化三份」合并为「写 / 读两份」：关系表持久化归写模板 §9，ES/Redis 副本持久化归读模板 §4；源文档 documentation/best-practices/design-doc-persistence-template.md 同步删除。见 docs/design/agent-skills/ddd-design-doc-two-doc-consolidation-plan.md"
     }
   ]
 }

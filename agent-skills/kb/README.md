@@ -12,10 +12,10 @@
 本目录是 Pragmatic DDD 全部 AI Skill 的**唯一共享知识源（单物理副本，只读引用）**。Skill 只写「流程 + 知识索引」，具体命名、骨架、约束全部指向本目录，不内联重复。
 
 - 卡从 `documentation/best-practices/`（VitePress 文档，git 内）派生。
-- 本版为**全量草稿**：29 篇 bp 卡 + 硬约束 + API 契约。
+- 本版为**全量草稿**：28 篇 bp 卡 + 硬约束 + API 契约。
 - **KB 自足**：本目录是完整知识体，**不依赖仓库内任何示例工程**，第三方可独立使用（见 [§6](#6-自足性与发布范围)）。
 
-## 2. 目录（29 篇 bp 卡）
+## 2. 目录（28 篇 bp 卡）
 
 | 路径 | 内容 | 被哪些 Skill 读 |
 | --- | --- | --- |
@@ -40,9 +40,8 @@
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |
 | `bp/dependency-declaration.md` | 外部依赖声明（`@ExternalDependency` 三档分类 + 契约/网关） | S4 / S5 / S7 |
-| `bp/design-doc-write-template.md` | 聚合写设计文档模板（12 节，主文档统管横切） | S4 / S5 / S7 / ddd-design-doc |
-| `bp/design-doc-read-template.md` | 投影读设计文档模板（6 节） | S6 / S7 / ddd-design-doc |
-| `bp/design-doc-persistence-template.md` | 持久化设计文档模板（5 节，含 ES/Redis） | S3 / S7 / ddd-design-doc |
+| `bp/design-doc-write-template.md` | 聚合写设计文档模板（12 节，含关系表持久化，主文档统管横切） | S3 / S4 / S5 / S7 / ddd-design-doc |
+| `bp/design-doc-read-template.md` | 投影读设计文档模板（7 节，含 ES/Redis 投影持久化） | S6 / S7 / ddd-design-doc |
 | `bp/elasticsearch-config.md` | ES 配置（RestClient 单 Bean、投影写入、限流） | S3 / S7 |
 | `bp/event-manager-config.md` | 事件管理器三选一（Kafka/RocketMQ/ThreadPool）装配 | S3 / S7 |
 | `bp/mysql-config.md` | MySQL 配置（数据源、连接池、事务管理器） | S3 / S7 |
@@ -55,7 +54,7 @@
 
 - **S1 项目初始化** → `aggregate-structure` + `hard-constraints`。
 - **S2 聚合骨架** → `aggregate-design`(§1) + `application-collaboration`(§1) + `hard-constraints`(9)。
-- **S3 基础设施配置** → `repository-design` + `aggregate-database-design` + `projection-design` + `event-subscriber-pattern` + `hard-constraints`(9) + `mysql-config` / `mybatis-config` / `outbox-config` / `rocketmq-config` / `kafka-config` / `elasticsearch-config` / `event-manager-config`。
+- **S3 基础设施配置** → `repository-design` + `aggregate-database-design` + `design-doc-write-template`(§9 关系表) + `projection-design` + `event-subscriber-pattern` + `hard-constraints`(9) + `mysql-config` / `mybatis-config` / `outbox-config` / `rocketmq-config` / `kafka-config` / `elasticsearch-config` / `event-manager-config`。
 - **S4 聚合创建** → 全量 bp + `hard-constraints` + `api-contract`。
 - **S5 聚合扩展** → 对应 bp（操作→operation-registry/order-rule/event-modeling；校验→domain-service；订阅→event-subscriber-pattern；子实体→entity-design/value-object；投影源→projection-design）+ `hard-constraints`。
 - **S6 投影创建** → `projection-design`(全量) + `projection-api`(全量) + `event-subscriber-pattern` + `enum-value`(E3) + `hard-constraints`。
