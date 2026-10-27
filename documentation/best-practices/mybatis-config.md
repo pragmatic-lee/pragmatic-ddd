@@ -115,6 +115,24 @@ private Resource[] loadMapperLocations() throws IOException {
 
 > 注意：`pragmatic-ddd-spring-boot` 的 `DddOutboxAutoConfiguration` / `DddCompensationAutoConfiguration` / `DddIdGeneratorAutoConfiguration` **只做 Bean 装配**（以容器内 `SqlSessionTemplate` 为前置条件），**不负责加载 Mapper XML**。starter 不能替代本节配置。
 
+**PostgreSQL 方言**：三组 Mapper 均提供 PG 版 XML，目录为 `io/pragmatic/ddd/mybatis/{outbox,compensation,id}/postgres/*.xml`（namespace 与 MySQL 版相同，每条语句带 `databaseId="postgres"`，建表脚本见 §3.4）。使用 PG 时的两点差异：
+
+1. 扫描 glob 由 `outbox/*.xml` 换成 `outbox/postgres/*.xml`（compensation / id 同理），**双方言只扫一种**；即使误扫两份也不会启动冲突，但会多注册一套无用语句；
+2. 必须为 `SqlSessionFactory` 设置方言标识，否则方言语句全部不注册（静默失效，运行期首调 SQL 才报 `Mapped Statements collection does not contain value for ...`）：
+
+```java
+@Bean
+public DatabaseIdProvider databaseIdProvider() {
+    VendorDatabaseIdProvider provider = new VendorDatabaseIdProvider();
+    provider.setProperties(Map.of("PostgreSQL", "postgres", "MySQL", "mysql"));
+    return provider;
+}
+// SqlSessionFactoryBean 需同时 setDatabaseIdProvider(...)；
+// 非 Spring 场景直接 configuration.setDatabaseId("postgres")
+```
+
+PG 版方言 XML 内置了三种适配：`claimPending` 用物化 CTE + `FOR UPDATE SKIP LOCKED` 替代 MySQL 的 `UPDATE ... ORDER BY ... LIMIT`（普通子查询会被嵌套循环逐行重估导致超批次，必须 `AS MATERIALIZED`）；租约回收用 `make_interval(secs => ...)` 替代 `DATE_SUB`；可空参数全部显式 `jdbcType`（MyBatis 默认 `jdbcTypeForNull=OTHER` 在 PG 会报无法确定参数类型）。业务自写 Mapper 的 PG 适配约定（JSON 列三策略、枚举状态列不用 PG 自定义 enum 等）见仓库设计文档 `docs/design/core/mybatis/postgres-dialect-support-design.md` §8。
+
 ### 3.4 框架表建表脚本
 
 建表脚本同样在 jar 内，按所用能力取用：
@@ -123,6 +141,14 @@ private Resource[] loadMapperLocations() throws IOException {
 io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql
 io/pragmatic/ddd/mybatis/compensation/schema/compensation-log-schema-mysql.sql
 io/pragmatic/ddd/mybatis/id/schema/id-segment-schema-mysql.sql
+```
+
+PostgreSQL 版（与 MySQL 版逐表等价：`LONGTEXT→text`、`DATETIME(3)→TIMESTAMP(3)`、内联索引拆为独立 `CREATE INDEX`、幂等可重跑）：
+
+```text
+io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-postgres.sql
+io/pragmatic/ddd/mybatis/compensation/schema/compensation-log-schema-postgres.sql
+io/pragmatic/ddd/mybatis/id/schema/id-segment-schema-postgres.sql
 ```
 
 三张表的索引要点：
@@ -155,6 +181,9 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 | 枚举单列与 JSON 通道配置不一致 | 同一枚举两处解析结果不同 | 三者共用同一 resolver / serializer / enumRules |
 | 集合 TypeHandler 遇到多表同名列 | 启动期抛 `IllegalStateException` | 用 SQL `AS` 别名隔离列类型 |
 | MySQL 用错 JSON 方言 | 写 JSON 列失败 | MySQL 用 `JdbcJsonValue.MYSQL`，PG 用 `PgJdbcJsonValue` |
+| PG 场景仍扫 MySQL 版框架 XML | `claimPending` 等方言语句在 PG 直接语法报错 | 换扫 `{outbox,compensation,id}/postgres/*.xml` 并设置方言标识 |
+| PG 设置了方言 XML 却未设置 `databaseId` | 方言语句全部不注册，启动正常但运行期首调 SQL 才报绑定异常 | `VendorDatabaseIdProvider`（Spring）或 `configuration.setDatabaseId("postgres")`（原生） |
+| PG 业务 Mapper 可空参数不写 `jdbcType` | `could not determine data type of parameter $n` | 可空参数逐个显式 `jdbcType`（框架 PG XML 已内置，业务 XML 照做） |
 
 ## 下一步
 

@@ -5,6 +5,24 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本规范](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 新增
+
+#### PostgreSQL 方言支持（pragmatic-ddd-mybatis）
+
+- **框架固定 Mapper 新增 PostgreSQL 方言版**：`{outbox,compensation,id}/postgres/*.xml`，namespace 与 MySQL 版相同，每条语句 `databaseId="postgres"`，使用方扫描方言目录并为 `SqlSessionFactory` 设置 `VendorDatabaseIdProvider`（或 `setDatabaseId("postgres")`）即可；MySQL 侧零变更。关键适配：
+  - `claimPending`：MySQL 的 `UPDATE ... ORDER BY ... LIMIT` 在 PG 不支持，改为物化 CTE（`AS MATERIALIZED`）+ `FOR UPDATE SKIP LOCKED`（普通子查询会被嵌套循环逐行重估导致超批次认领，必须物化）；
+  - `releaseStaleClaims`：`DATE_SUB` 改为 `CURRENT_TIMESTAMP - make_interval(secs => ...)`；`CURRENT_TIMESTAMP(3)` 统一为无参 `CURRENT_TIMESTAMP`；
+  - 可空参数全部显式 `jdbcType`（MyBatis 默认 `jdbcTypeForNull=OTHER` 在 PG 报无法确定参数类型）。
+- **框架三张表新增 PG 建表脚本**：`outbox-schema-postgres.sql` / `compensation-log-schema-postgres.sql` / `id-segment-schema-postgres.sql`（`LONGTEXT→text`、`DATETIME(3)→TIMESTAMP(3)`、内联索引拆独立 `CREATE INDEX`，幂等可重跑）。
+- **真实 PG 集成测试**：`PostgresTestSupport` + Outbox（含并发认领不重不漏）/ 补偿 / 号段（含并发行锁）/ TypeHandler（jsonb 通道）四套用例，与 MySQL 版逐条对称；PG 与 MySQL 驱动均仅 test scope，不进框架产物。
+- **父 POM `dependencyManagement` 登记 `org.postgresql:postgresql`**。
+
+### 修复
+
+- `MybatisCompensationLog` 主键冲突判断补充标准 SQLState「23 类」：PostgreSQL 驱动抛 `PSQLException`（SQLState 23505）而非 `SQLIntegrityConstraintViolationException`，原 `instanceof` 判断在 PG 下漏判，重复登记不再被正确翻译为 `CompensationRecordConflictException`（MySQL 行为不变）。
+
 ## [2.0.0] — 2026-10-14
 
 > 全新一代版本：以 `com.pragmatic-ddd` 命名空间从零构建，视为无历史包袱的全新初始版本。

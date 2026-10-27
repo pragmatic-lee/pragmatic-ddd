@@ -179,3 +179,21 @@ services:
     networks:
       - dev-network
     restart: always
+
+  # 11. PostgreSQL (基于本地已构建的 postgres 镜像)
+  postgres:
+    image: postgres:16
+    container_name: my-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pragmatic
+      POSTGRES_PASSWORD: PgXXL123  # 请修改为你的密码
+      POSTGRES_DB: pragmatic_ddd
+      TZ: Asia/Shanghai
+    volumes:
+      - ./pgsql/data:/var/lib/postgresql/data
+      - ./pgsql/init:/docker-entrypoint-initdb.d:ro  # 首次启动自动建库建表（幂等脚本，已有数据卷不触发）
+    networks:
+      - dev-network
+    restart: always

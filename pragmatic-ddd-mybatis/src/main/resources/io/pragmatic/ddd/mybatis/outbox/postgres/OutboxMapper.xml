@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  OutboxMapper 契约接口的 PostgreSQL 方言 SQL 实现。
+  namespace 与 MySQL 版完全相同（io.pragmatic.ddd.mybatis.outbox.OutboxMapper），
+  表名 outbox_message 写死于本文件（默认用法零配置，引用方无需关心任何变量）。
+  每条语句均声明 databaseId="postgres"：仅在 Configuration.databaseId = "postgres" 时注册，
+  因此即使使用方误把 MySQL 版与 PG 版的 Mapper XML 同时扫入，也不会产生 statement 冲突。
+  装配要求：使用方扫描 classpath*:io/pragmatic/ddd/mybatis/outbox/postgres/*.xml，
+  并为 SqlSessionFactory 设置 DatabaseIdProvider（或直接 setDatabaseId("postgres")）；
+  建表脚本见 schema/outbox-schema-postgres.sql。
+  MybatisOutboxStore 等使用方代码无需任何改动。
+-->
+<mapper namespace="io.pragmatic.ddd.mybatis.outbox.OutboxMapper">
+
+    <resultMap id="OutboxMessageResult" type="io.pragmatic.ddd.application.outbox.OutboxMessage">
+        <id column="id" property="id"/>
+        <result column="aggregate_id" property="aggregateId"/>
+        <result column="aggregate_type" property="aggregateType"/>
+        <result column="event_type" property="eventType"/>
+        <result column="entity_id" property="entityId"/>
+        <result column="payload" property="payload"/>
+        <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result column="attempts" property="attempts"/>
+        <result column="queue" property="queue"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="claimed_at" property="claimedAt"/>
+        <result column="sent_at" property="sentAt"/>
+        <result column="last_error" property="lastError"/>
+    </resultMap>
+
+    <insert id="insertBatch" parameterType="map" databaseId="postgres">
+        INSERT INTO outbox_message
+            (id,
+             aggregate_id,
+             aggregate_type,
+             event_type,
+             entity_id,
+             payload,
+             status,
+             attempts,
+             queue,
+             created_at,
+             claimed_at,
+             sent_at,
+             last_error)
+        VALUES
+        <foreach collection="list" item="m" separator=",">
+            (#{m.id,jdbcType=VARCHAR},
+             #{m.aggregateId,jdbcType=VARCHAR},
+             #{m.aggregateType,jdbcType=VARCHAR},
+             #{m.eventType,jdbcType=VARCHAR},
+             #{m.entityId,jdbcType=VARCHAR},
+             #{m.payload,jdbcType=VARCHAR},
+             #{m.status,jdbcType=VARCHAR},
+             #{m.attempts,jdbcType=INTEGER},
+             #{m.queue,jdbcType=INTEGER},
+             #{m.createdAt,jdbcType=TIMESTAMP},
+             #{m.claimedAt,jdbcType=TIMESTAMP},
+             #{m.sentAt,jdbcType=TIMESTAMP},
+             #{m.lastError,jdbcType=VARCHAR})
+        </foreach>
+    </insert>
+
+    <select id="selectById" resultMap="OutboxMessageResult" databaseId="postgres">
+        SELECT * FROM outbox_message WHERE id = #{id,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectAttempts" resultType="int" databaseId="postgres">
+        SELECT attempts FROM outbox_message WHERE id = #{id,jdbcType=VARCHAR}
+    </select>
+
+    <update id="claim" databaseId="postgres">
+        UPDATE outbox_message
+        SET status = 'PROCESSING',
+            claimed_at = #{claimedAt,jdbcType=TIMESTAMP}
+        WHERE id = #{id,jdbcType=VARCHAR}
+          AND status = 'PENDING'
+    </update>
+
+    <select id="selectByClaimToken" resultMap="OutboxMessageResult" parameterType="map" databaseId="postgres">
+        SELECT * FROM outbox_message WHERE claim_token = #{token,jdbcType=VARCHAR}
+    </select>
+
+    <update id="markSent" databaseId="postgres">
+        UPDATE outbox_message
+        SET status = 'SENT',
+            sent_at = CURRENT_TIMESTAMP
+        WHERE id = #{id,jdbcType=VARCHAR} AND status IN ('PENDING', 'PROCESSING')
+    </update>
+
+    <update id="release" databaseId="postgres">
+        UPDATE outbox_message
+        SET status = 'PENDING',
+            claimed_at = NULL
+        WHERE id = #{id,jdbcType=VARCHAR} AND status = 'PROCESSING'
+    </update>
+
+    <update id="incrementAttempts" databaseId="postgres">
+        UPDATE outbox_message
+        SET attempts = attempts + 1
+        WHERE id = #{id,jdbcType=VARCHAR} AND status NOT IN ('SENT', 'FAILED')
+    </update>
+
+    <update id="markFailed" databaseId="postgres">
+        UPDATE outbox_message
+        SET status = 'FAILED'
+        WHERE id = #{id,jdbcType=VARCHAR} AND status != 'SENT'
+    </update>
+
+    <!--
+        claimPending 为「原子认领」UPDATE（PostgreSQL 语法），固化于此：
+        一条语句把 age > grace 的 PENDING 批量翻为 PROCESSING 并打上 token。
+        MySQL 的 UPDATE ... ORDER BY ... LIMIT 在 PG 不支持，改为
+        「物化 CTE 选行 + FOR UPDATE SKIP LOCKED 锁定 + UPDATE ... FROM」：
+        CTE 必须声明 MATERIALIZED 强制单次求值——UPDATE ... FROM 的普通子查询会在嵌套循环中
+        被外层每行重复执行，LIMIT 会被逐次消耗导致超批次认领（实测 UPDATE 行数 > batchSize）；
+        物化后候选行固定为一批，并发 Relay 间 SKIP LOCKED 不互相阻塞，多实例安全；
+        外层保留 AND o.status = 'PENDING' 二次防御；ORDER BY created_at, id 的 id tie-breaker
+        保证批次确定、可复现。cutoff / batchSize / token 由 MybatisOutboxStore 传入。
+    -->
+    <update id="claimPending" parameterType="map" databaseId="postgres">
+        <![CDATA[
+        WITH cand AS MATERIALIZED (
+            SELECT id FROM outbox_message
+            WHERE status = 'PENDING' AND created_at < #{cutoff,jdbcType=TIMESTAMP}
+            ORDER BY created_at ASC, id ASC
+            LIMIT #{batchSize,jdbcType=INTEGER}
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE outbox_message o
+        SET status = 'PROCESSING', claimed_at = CURRENT_TIMESTAMP, claim_token = #{token,jdbcType=VARCHAR}
+        FROM cand t
+        WHERE o.id = t.id
+          AND o.status = 'PENDING'
+        ]]>
+    </update>
+
+</mapper>

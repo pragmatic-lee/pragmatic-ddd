@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  CompensationMapper 契约接口的 PostgreSQL 方言 SQL 实现。
+  namespace 与 MySQL 版完全相同（io.pragmatic.ddd.mybatis.compensation.CompensationMapper），
+  表名 compensation_log 写死于本文件（默认用法零配置，引用方无需关心任何变量）。
+  每条语句均声明 databaseId="postgres"：仅在 Configuration.databaseId = "postgres" 时注册，
+  因此即使使用方误把 MySQL 版与 PG 版的 Mapper XML 同时扫入，也不会产生 statement 冲突。
+  装配要求：使用方扫描 classpath*:io/pragmatic/ddd/mybatis/compensation/postgres/*.xml，
+  并为 SqlSessionFactory 设置 DatabaseIdProvider（或直接 setDatabaseId("postgres")）；
+  建表脚本见 schema/compensation-log-schema-postgres.sql。
+  与 MySQL 版的两处方言差异：CURRENT_TIMESTAMP(3) 统一为无参 CURRENT_TIMESTAMP（精度由 DDL 决定）；
+  releaseStaleClaims 的 DATE_SUB(...) 改为 CURRENT_TIMESTAMP - make_interval(secs => ...)。
+  MybatisCompensationLog 等使用方代码无需任何改动。
+-->
+<mapper namespace="io.pragmatic.ddd.mybatis.compensation.CompensationMapper">
+
+    <resultMap id="CompensationRecordResult" type="io.pragmatic.ddd.application.compensation.spi.CompensationRecord">
+        <constructor>
+            <idArg column="action_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.spi.CompensationStatus"
+                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="handler" javaType="java.lang.String"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <!-- 基本类型须用 _int 别名：MyBatis 的 "int" 别名解析为 java.lang.Integer，与 record 的 int 形参不匹配 -->
+            <arg column="attempts" javaType="_int"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert" databaseId="postgres">
+        INSERT INTO compensation_log
+            (action_key,
+             handler,
+             payload,
+             status,
+             attempts,
+             created_at,
+             updated_at)
+        VALUES
+            (#{record.actionKey,jdbcType=VARCHAR},
+             #{record.handler,jdbcType=VARCHAR},
+             #{record.payload,jdbcType=VARCHAR},
+             #{record.status,jdbcType=VARCHAR},
+             #{record.attempts,jdbcType=INTEGER},
+             #{record.updatedAt,jdbcType=TIMESTAMP},
+             #{record.updatedAt,jdbcType=TIMESTAMP})
+    </insert>
+
+    <update id="markExecuted" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'EXECUTED',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE action_key = #{actionKey,jdbcType=VARCHAR}
+          AND status = 'PENDING'
+    </update>
+
+    <update id="markCompensating" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'COMPENSATING',
+            claim_token = #{claimToken,jdbcType=VARCHAR},
+            claimed_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE action_key = #{actionKey,jdbcType=VARCHAR}
+          AND status IN ('EXECUTED', 'FAILED')
+    </update>
+
+    <update id="markCompensated" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'COMPENSATED',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE action_key = #{actionKey,jdbcType=VARCHAR}
+          AND status IN ('EXECUTED', 'COMPENSATING')
+    </update>
+
+    <update id="markFailed" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'FAILED',
+            attempts = attempts + 1,
+            last_error = #{reason,jdbcType=VARCHAR},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE action_key = #{actionKey,jdbcType=VARCHAR}
+          AND status IN ('PENDING', 'EXECUTED', 'COMPENSATING')
+    </update>
+
+    <update id="markConfirmed" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'CONFIRMED',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE action_key = #{actionKey,jdbcType=VARCHAR}
+          AND status IN ('EXECUTED', 'COMPENSATING')
+    </update>
+
+    <!--
+        租约超时释放：MySQL 版为 DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL n SECOND)，
+        PG 改为 CURRENT_TIMESTAMP - make_interval(secs => n)（make_interval 支持绑定参数，
+        PG 9.4+ 可用；若需兼容更低版本可换 numtodsinterval(#{leaseSeconds}, 'second')）。
+    -->
+    <update id="releaseStaleClaims" databaseId="postgres">
+        UPDATE compensation_log
+        SET status = 'EXECUTED',
+            claim_token = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE status = 'COMPENSATING'
+          AND claimed_at &lt; CURRENT_TIMESTAMP - make_interval(secs =&gt; #{leaseSeconds,jdbcType=BIGINT})
+    </update>
+
+    <select id="findExecuted" resultMap="CompensationRecordResult" databaseId="postgres">
+        SELECT * FROM compensation_log
+        WHERE status = 'EXECUTED'
+        ORDER BY updated_at ASC
+        LIMIT #{limit,jdbcType=INTEGER}
+    </select>
+
+    <select id="findSuspended" resultMap="CompensationRecordResult" databaseId="postgres">
+        SELECT * FROM compensation_log
+        WHERE status = 'PENDING'
+        ORDER BY updated_at ASC
+        LIMIT #{limit,jdbcType=INTEGER}
+    </select>
+
+    <select id="findFailed" resultMap="CompensationRecordResult" databaseId="postgres">
+        SELECT * FROM compensation_log
+        WHERE status = 'FAILED'
+        ORDER BY updated_at ASC
+        LIMIT #{limit,jdbcType=INTEGER}
+    </select>
+
+    <select id="findRetryableFailed" resultMap="CompensationRecordResult" parameterType="map" databaseId="postgres">
+        SELECT * FROM compensation_log
+        WHERE status = 'FAILED'
+          AND attempts &lt; #{maxAttempts,jdbcType=INTEGER}
+        ORDER BY updated_at ASC
+        LIMIT #{limit,jdbcType=INTEGER}
+    </select>
+
+</mapper>

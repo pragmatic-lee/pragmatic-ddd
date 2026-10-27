@@ -6,6 +6,7 @@ import io.pragmatic.ddd.application.compensation.spi.ICompensationLog;
 import io.pragmatic.ddd.application.spi.Propagation;
 import io.pragmatic.ddd.application.spi.TransactionOperations;
 
+import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.time.Duration;
 import java.util.List;
@@ -127,7 +128,10 @@ public class MybatisCompensationLog implements ICompensationLog {
 
     /**
      * 沿 cause 链查找 JDBC 完整性约束违反（主键 / 唯一键冲突）。
-     * 用 JDBC 标准异常而非 Spring 的重复键异常：本模块不依赖 Spring，且该判断跨数据库通用。
+     * 用 JDBC 标准异常 / SQLState 而非 Spring 的重复键异常：本模块不依赖 Spring。
+     * MySQL 驱动直接抛 {@link SQLIntegrityConstraintViolationException}；
+     * PostgreSQL 驱动抛 PSQLException（SQLState 23505），不走该子类，
+     * 故补充标准 SQLState「23 类」（完整性约束违反）判断，跨数据库通用。
      *
      * @param e 待检查的异常
      * @return 是否为完整性约束冲突
@@ -136,6 +140,12 @@ public class MybatisCompensationLog implements ICompensationLog {
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof SQLIntegrityConstraintViolationException) {
                 return true;
+            }
+            if (t instanceof SQLException sqlEx) {
+                String sqlState = sqlEx.getSQLState();
+                if (sqlState != null && sqlState.startsWith("23")) {
+                    return true;
+                }
             }
         }
         return false;

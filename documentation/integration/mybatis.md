@@ -364,7 +364,7 @@ long id = allocator.nextId("order");
 
 ## 7. 建表脚本
 
-> 以下脚本以模块 `src/main/resources` 中的 schema 为准（`outbox-schema-mysql.sql` / `id-segment-schema-mysql.sql`）。PostgreSQL 场景请参考同类 schema 文件并适配 `JSON` 类型为 `jsonb`。
+> 以下脚本以模块 `src/main/resources` 中的 schema 为准，按方言二选一：MySQL 取 `outbox-schema-mysql.sql` / `compensation-log-schema-mysql.sql` / `id-segment-schema-mysql.sql`；PostgreSQL 取同目录 `*-postgres.sql`（`LONGTEXT→text`、`DATETIME(3)→TIMESTAMP(3)`、内联索引拆独立 `CREATE INDEX`，幂等可重跑）。配套的 PG 方言 Mapper XML 在 `{outbox,compensation,id}/postgres/` 子目录，装配方式见 [MyBatis 配置设计原则 §3](../best-practices/mybatis-config.md)。
 
 ### 7.1 Outbox 表（outbox_message）
 

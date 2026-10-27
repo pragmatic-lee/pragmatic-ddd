@@ -265,7 +265,7 @@ mybatis.mapper-locations=classpath*:mapper/**/*.xml,classpath*:io/pragmatic/ddd/
 
 1. classpath 有 `pragmatic-ddd-mybatis`（optional，需显式引入）；
 2. 容器里有 `SqlSessionTemplate`；
-3. 按 §9.1 把 `compensation/CompensationMapper.xml` 纳入扫描，并建好 `compensation_log` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/compensation/schema/compensation-log-schema-mysql.sql`）。
+3. 按 §9.1 把 `compensation/CompensationMapper.xml` 纳入扫描，并建好 `compensation_log` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/compensation/schema/compensation-log-schema-mysql.sql`）。PostgreSQL 场景：改扫 `compensation/postgres/CompensationMapper.xml` 并设置 `databaseId`（见 [MyBatis 配置设计原则 §3](../best-practices/mybatis-config.md)），脚本取同目录 `compensation-log-schema-postgres.sql`。
 
 ::: warning 两类缺失不再是静默回落
 - **缺前两个前提**（无 MyBatis 或无会话模板）：子块不装配，补偿主链回落 `in-memory`，并打印一次 WARN 提示原因。不再静默降级，但**模式确实回落了**，上线前需确认该 WARN 未出现。

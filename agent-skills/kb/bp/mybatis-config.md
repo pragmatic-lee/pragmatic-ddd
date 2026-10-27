@@ -69,7 +69,9 @@ resolver.getResources("classpath*:mapper/**/*.xml");
 | 补偿 durable | `io/pragmatic/ddd/mybatis/compensation/CompensationMapper.xml` | `compensation_log` | `io.pragmatic.ddd.mybatis.compensation.CompensationMapper` |
 | 号段 ID | `io/pragmatic/ddd/mybatis/id/IdSegmentMapper.xml` | `id_segment` | `io.pragmatic.ddd.mybatis.id.IdSegmentMapper` |
 
-对应语句常量：`OutboxStatements` / `CompensationStatements` / `IdSegmentStatements`。建表脚本：`io/pragmatic/ddd/mybatis/{outbox,compensation,id}/schema/*-mysql.sql`。
+对应语句常量：`OutboxStatements` / `CompensationStatements` / `IdSegmentStatements`。建表脚本：`io/pragmatic/ddd/mybatis/{outbox,compensation,id}/schema/*-mysql.sql`（PostgreSQL 方言：Mapper XML 在 `{outbox,compensation,id}/postgres/` 子目录，每条语句 `databaseId="postgres"`，脚本取同 schema 目录 `*-postgres.sql`；必须为 `SqlSessionFactory` 设置 `databaseId=postgres`，否则方言语句全部不注册）。
+
+> PG 版方言要点：`claimPending` 用物化 CTE（`AS MATERIALIZED`）+ `FOR UPDATE SKIP LOCKED`；租约回收用 `make_interval`；可空参数全部显式 `jdbcType`（PG 下 MyBatis 默认 `jdbcTypeForNull=OTHER` 报无法确定参数类型）。
 
 > `pragmatic-ddd-spring-boot` 的 `Ddd*AutoConfiguration` **只装配 Bean，不加载 Mapper XML**；starter 不能替代本节配置。
 

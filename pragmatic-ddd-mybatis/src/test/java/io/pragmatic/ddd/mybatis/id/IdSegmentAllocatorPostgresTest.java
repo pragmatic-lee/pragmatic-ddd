@@ -1,0 +1,166 @@
+package io.pragmatic.ddd.mybatis.id;
+
+import io.pragmatic.ddd.base.id.IdGeneratorDefinition;
+import io.pragmatic.ddd.base.id.IdGeneratorRegistry;
+import io.pragmatic.ddd.base.id.IdSegment;
+import io.pragmatic.ddd.base.id.IdType;
+import io.pragmatic.ddd.mybatis.NoopTransactionOperations;
+import io.pragmatic.ddd.mybatis.PostgresTestSupport;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.sql.Statement;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * PostgreSQL 版号段分配集成测试：复用 {@link PostgresTestSupport} 连接真实 PG，验证
+ * IdSegmentMapper（方言 XML：CURRENT_TIMESTAMP）+ DbSegmentAllocator 的号段分配、
+ * 游标推进、渠道隔离与 SELECT ... FOR UPDATE 并发行锁语义。无可达 PostgreSQL 时整体跳过。
+ *
+ * @author wizard-lee
+ */
+class IdSegmentAllocatorPostgresTest {
+
+    private static SqlSessionFactory sqlSessionFactory;
+
+    @BeforeAll
+    static void beforeAll() {
+        Assumptions.assumeTrue(PostgresTestSupport.isAvailable(), "PostgreSQL 不可用，跳过集成测试");
+        try {
+            sqlSessionFactory = PostgresTestSupport.sessionFactory(IdSegmentMapper.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("构建 SqlSessionFactory 失败", e);
+        }
+    }
+
+    @BeforeEach
+    void setUp() throws Exception {
+        // 每个用例前清空并重置种子，保证隔离。
+        try (SqlSession session = sqlSessionFactory.openSession(true);
+             Statement st = session.getConnection().createStatement()) {
+            st.execute("DELETE FROM id_segment");
+            st.execute("INSERT INTO id_segment (biz_key, current_max_id, step, remark) "
+                    + "VALUES ('order', 0, 1000, 'order'), ('payment', 999999, 1000, 'payment')");
+        }
+    }
+
+    private DbSegmentAllocator allocator() {
+        return new DbSegmentAllocator(new TestIdSegmentStatementExecutor(sqlSessionFactory), new NoopTransactionOperations());
+    }
+
+    @Test
+    void allocateNext_returnsFirstSegmentAndAdvancesCursor() throws Exception {
+        DbSegmentAllocator allocator = allocator();
+
+        IdSegment first = allocator.allocateNext("order");
+        Assertions.assertThat(first.current()).isEqualTo(1);
+        Assertions.assertThat(first.max()).isEqualTo(1000);
+        Assertions.assertThat(currentMaxOf("order")).isEqualTo(1000);
+
+        IdSegment second = allocator.allocateNext("order");
+        Assertions.assertThat(second.current()).isEqualTo(1001);
+        Assertions.assertThat(second.max()).isEqualTo(2000);
+        Assertions.assertThat(currentMaxOf("order")).isEqualTo(2000);
+    }
+
+    @Test
+    void allocateNext_isolatesChannels() throws Exception {
+        DbSegmentAllocator allocator = allocator();
+
+        allocator.allocateNext("order");
+
+        // payment 的游标不应被 order 的分配影响。
+        Assertions.assertThat(currentMaxOf("payment")).isEqualTo(999999);
+        IdSegment paymentSeg = allocator.allocateNext("payment");
+        Assertions.assertThat(paymentSeg.current()).isEqualTo(1000000);
+    }
+
+    @Test
+    void registry_producesSequentialAndUniqueIds() throws Exception {
+        IdGeneratorRegistry registry = new IdGeneratorRegistry();
+        registry.register(new IdGeneratorDefinition("order", 1, 1000, IdType.LONG, null, "order"),
+                allocator());
+
+        Set<Long> ids = ConcurrentHashMap.newKeySet();
+        for (int i = 0; i < 1500; i++) {
+            ids.add(registry.nextId("order"));
+        }
+        Assertions.assertThat(ids).hasSize(1500);
+        Assertions.assertThat(ids).contains(1L, 1000L, 1001L, 1500L);
+    }
+
+    @Test
+    void concurrentAllocation_noOverlap() throws Exception {
+        int threads = 10;
+        int step = 1000;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        Set<Long> allIds = ConcurrentHashMap.newKeySet();
+
+        DbSegmentAllocator allocator = allocator();
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    start.await();
+                    IdSegment seg = allocator.allocateNext("order");
+                    for (long id = seg.current(); id <= seg.max(); id++) {
+                        allIds.add(id);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+
+        start.countDown();
+        done.await();
+        pool.shutdown();
+
+        // 10 段 × 1000 = 10000 个 ID，跨线程零重叠、连续覆盖 [1, 10000]，验证行锁有效。
+        Assertions.assertThat(allIds).hasSize(threads * step);
+        long min = allIds.stream().mapToLong(Long::longValue).min().orElse(0);
+        long max = allIds.stream().mapToLong(Long::longValue).max().orElse(0);
+        Assertions.assertThat(min).isEqualTo(1);
+        Assertions.assertThat(max).isEqualTo((long) threads * step);
+    }
+
+    private long currentMaxOf(String bizKey) throws Exception {
+        try (SqlSession session = sqlSessionFactory.openSession(true)) {
+            IdSegmentEntity row = session.selectOne(IdSegmentStatements.SELECT_FOR_UPDATE, Map.of("bizKey", bizKey));
+            return row.getCurrentMaxId();
+        }
+    }
+
+    /** 基于 openSession(true) 的 IIdSegmentStatementExecutor 测试实现（事务由 NoopTransactionOperations 控制，不依赖 Spring）。 */
+    static class TestIdSegmentStatementExecutor implements IIdSegmentStatementExecutor {
+
+        private final SqlSessionFactory sqlSessionFactory;
+
+        TestIdSegmentStatementExecutor(SqlSessionFactory sqlSessionFactory) {
+            this.sqlSessionFactory = sqlSessionFactory;
+        }
+
+        @Override
+        public IdSegment allocateNext(String selectKey, String updateKey, String bizKey) {
+            try (SqlSession session = sqlSessionFactory.openSession(true)) {
+                IdSegmentEntity row = session.selectOne(selectKey, Map.of("bizKey", bizKey));
+                long newMax = row.getCurrentMaxId() + row.getStep();
+                session.update(updateKey, Map.of("bizKey", bizKey, "newMax", newMax));
+                return new IdSegment(row.getCurrentMaxId() + 1, newMax, row.getStep());
+            }
+        }
+    }
+}

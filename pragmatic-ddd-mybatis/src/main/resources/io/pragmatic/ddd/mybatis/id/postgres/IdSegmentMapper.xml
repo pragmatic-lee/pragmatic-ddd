@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  IdSegmentMapper 契约接口的 PostgreSQL 方言 SQL 实现。
+  namespace 与 MySQL 版完全相同（io.pragmatic.ddd.mybatis.id.IdSegmentMapper），
+  表名 id_segment 写死于本文件（默认用法零配置，引用方无需关心任何变量）。
+  每条语句均声明 databaseId="postgres"：仅在 Configuration.databaseId = "postgres" 时注册，
+  因此即使使用方误把 MySQL 版与 PG 版的 Mapper XML 同时扫入，也不会产生 statement 冲突。
+  装配要求：使用方扫描 classpath*:io/pragmatic/ddd/mybatis/id/postgres/*.xml，
+  并为 SqlSessionFactory 设置 DatabaseIdProvider（或直接 setDatabaseId("postgres")）；
+  建表脚本见 schema/id-segment-schema-postgres.sql。
+  与 MySQL 版的唯一方言差异：NOW() 统一为 CURRENT_TIMESTAMP（PG 的 id_segment 表
+  没有 MySQL 的 ON UPDATE CURRENT_TIMESTAMP 自动 bump，updated_at 由本语句显式赋值）。
+  DbSegmentAllocator 等使用方代码无需任何改动。
+-->
+<mapper namespace="io.pragmatic.ddd.mybatis.id.IdSegmentMapper">
+
+    <resultMap id="IdSegmentResult" type="io.pragmatic.ddd.mybatis.id.IdSegmentEntity">
+        <id column="biz_key" property="bizKey"/>
+        <result column="current_max_id" property="currentMaxId"/>
+        <result column="step" property="step"/>
+        <result column="version" property="version"/>
+        <result column="remark" property="remark"/>
+    </resultMap>
+
+    <select id="selectForUpdate" resultMap="IdSegmentResult" databaseId="postgres">
+        SELECT biz_key, current_max_id, step, version, remark
+        FROM id_segment
+        WHERE biz_key = #{bizKey,jdbcType=VARCHAR} FOR UPDATE
+    </select>
+
+    <update id="incrementMax" databaseId="postgres">
+        UPDATE id_segment
+        SET current_max_id = #{newMax,jdbcType=BIGINT}, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE biz_key = #{bizKey,jdbcType=VARCHAR}
+    </update>
+
+</mapper>
