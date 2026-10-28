@@ -18,7 +18,7 @@
 | 业务规则与校验 | 校验规则怎么组织、怎么触发、外部依赖校验怎么接入 |
 | 应用编排 | 应用服务层怎么与聚合协作、操作/事件顺序与工作单元清理 |
 | 持久化 / 读模型 | 写模型仓储怎么实现、聚合到异构存储的读模型怎么落 |
-| 基础设施装配 | MySQL / Elasticsearch / RocketMQ / Outbox 的 Bean 怎么装配 |
+| 基础设施装配 | MySQL / PostgreSQL / Elasticsearch / RocketMQ / Outbox 的 Bean 怎么装配 |
 | 事件与一致性 | 事件怎么建模、跨模块消息怎么可靠投递 |
 
 ## 模式清单
@@ -60,7 +60,8 @@
 
 | 文档 | 落地问题 | 举一反三（示例 → 泛化） |
 | --- | --- | --- |
-| [MySQL 配置设计原则](./mysql-config.md) | 数据源、连接池与事务管理器装配 | MySQL → 任何关系型数据库接入 |
+| [MySQL 配置设计原则](./mysql-config.md) | 数据源、连接池与事务管理器装配 | MySQL → 任何关系型数据库的 JDBC 层 |
+| [PostgreSQL 配置设计原则](./postgresql-config.md) | PG 数据源、方言 XML、`databaseId`、建表脚本与 TypeHandler 适配 | MySQL → PostgreSQL 的方言装配 |
 | [MyBatis 配置设计原则](./mybatis-config.md) | SqlSessionFactory / TypeHandler 多聚合装配 / Mapper XML 加载（含框架固定 Mapper） | MyBatis → 任何 ORM 会话装配 |
 | [Elasticsearch 配置设计原则](./elasticsearch-config.md) | RestClient → Transport → Client 三层构建、认证超时 | ES → 任何外部存储客户端 |
 | [事件管理器装配与选择](./event-manager-config.md) | `IEventManager` 二选一装配原则、本地线程池实现与数据丢失风险 | 事件管理器 → 任何应用 |

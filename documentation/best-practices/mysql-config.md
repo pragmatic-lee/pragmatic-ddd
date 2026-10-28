@@ -1,6 +1,8 @@
 # MySQL 配置设计原则（数据源与事务）
 
 > 本文档只讲 **JDBC 层**：数据源、连接池与事务管理器。MyBatis 的会话工厂、TypeHandler 与 Mapper 加载见 [MyBatis 配置设计原则](./mybatis-config.md)。
+>
+> PostgreSQL 使用方见 [PostgreSQL 配置设计原则](./postgresql-config.md)：JDBC 数据源与事务管理器骨架可复用，但驱动、方言 XML、`databaseId` 与建表脚本不同。
 
 ::: info 与 `pragmatic-ddd-spring-boot` 的关系
 本文主张的「显式声明、不依赖自动配置」只适用于 **DataSource / PlatformTransactionManager** 这一层，它们属于环境专属决策，starter 不接管、也不重造。starter 只**消费**本配置产出的 `PlatformTransactionManager`，以及 [MyBatis 配置](./mybatis-config.md) 产出的 `SqlSessionTemplate`，把上层的 `TransactionOperations`、Outbox、号段 ID 等通用装配接起来（见 [Spring Boot Starter 集成](./../integration/spring-boot.md)）。

@@ -22,7 +22,7 @@
 
 边界：装配类**只声明 Bean 与依赖注入**，不写 SQL、不写事务注解、不持有 Mapper 接口。SQL 在 XML，事务由 `TransactionOperations` 抽象，推送由 `CommandExecutor` 触发。
 
-> ⚠️ **前置条件**：Outbox 的 SQL 全在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`（MySQL），而 starter 不会自动加载它。必须把 `classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml` 纳入 `SqlSessionFactory` 的 Mapper 扫描路径，并建好 `outbox_message` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`；PostgreSQL 场景改扫 `outbox/postgres/*.xml` 并设置 `databaseId`，脚本取同目录 `outbox-schema-postgres.sql`，见 [MyBatis 配置设计原则 §3](./mybatis-config.md)）。缺任一项都会在运行期报 `Mapped Statements collection does not contain value for ...`。
+> ⚠️ **前置条件**：Outbox 的 SQL 全在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`（MySQL），而 starter 不会自动加载它。必须把 `classpath*:io/pragmatic/ddd/mybatis/outbox/*.xml` 纳入 `SqlSessionFactory` 的 Mapper 扫描路径，并建好 `outbox_message` 表（脚本随 jar 发布：`io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。PostgreSQL 场景的方言 XML、`databaseId`、建表脚本与参数绑定见 [PostgreSQL 配置设计原则](./postgresql-config.md)。缺任一项都会在运行期报 `Mapped Statements collection does not contain value for ...`。
 
 ## 2. 命名与包结构
 
