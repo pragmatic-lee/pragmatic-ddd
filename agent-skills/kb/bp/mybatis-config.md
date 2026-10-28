@@ -1,6 +1,6 @@
 # BP 卡：MyBatis 配置设计原则（mybatis-config）
 
-> 源：`documentation/best-practices/mybatis-config.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/mybatis-config.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 职责边界（ORM 层）
 
@@ -69,9 +69,15 @@ resolver.getResources("classpath*:mapper/**/*.xml");
 | 补偿 durable | `io/pragmatic/ddd/mybatis/compensation/CompensationMapper.xml` | `compensation_log` | `io.pragmatic.ddd.mybatis.compensation.CompensationMapper` |
 | 号段 ID | `io/pragmatic/ddd/mybatis/id/IdSegmentMapper.xml` | `id_segment` | `io.pragmatic.ddd.mybatis.id.IdSegmentMapper` |
 
-对应语句常量：`OutboxStatements` / `CompensationStatements` / `IdSegmentStatements`。建表脚本：`io/pragmatic/ddd/mybatis/{outbox,compensation,id}/schema/*-mysql.sql`（PostgreSQL 方言：Mapper XML 在 `{outbox,compensation,id}/postgres/` 子目录，每条语句 `databaseId="postgres"`，脚本取同 schema 目录 `*-postgres.sql`；必须为 `SqlSessionFactory` 设置 `databaseId=postgres`，否则方言语句全部不注册）。
+对应语句常量：`OutboxStatements` / `CompensationStatements` / `IdSegmentStatements`。建表脚本：`io/pragmatic/ddd/mybatis/{outbox,compensation,id}/schema/*-mysql.sql`（PG 版路径为同目录 `*-postgres.sql`，见 `postgresql-config.md` §5）。
 
-> PG 版方言要点：`claimPending` 用物化 CTE（`AS MATERIALIZED`）+ `FOR UPDATE SKIP LOCKED`；租约回收用 `make_interval`；可空参数全部显式 `jdbcType`（PG 下 MyBatis 默认 `jdbcTypeForNull=OTHER` 报无法确定参数类型）。
+**PostgreSQL 方言**：三组 Mapper 均提供 PG 版 XML，目录 `io/pragmatic/ddd/mybatis/{outbox,compensation,id}/postgres/*.xml`（namespace 与 MySQL 版相同，每条语句带 `databaseId="postgres"`）。使用 PG 时有三条硬约束：
+
+1. 扫描 glob 换成 `{outbox,compensation,id}/postgres/*.xml`，**只扫一种方言**；
+2. 必须为 `SqlSessionFactory` 设置 `databaseId`（Spring 用 `VendorDatabaseIdProvider`，原生用 `configuration.setDatabaseId("postgres")`），否则方言语句全部不注册；
+3. 可空参数逐个显式 `jdbcType`，否则 PG 报 `could not determine data type of parameter $n`。
+
+完整装配骨架、PG 建表脚本、JSON 列策略与语句改写见 `postgresql-config.md`。
 
 > `pragmatic-ddd-spring-boot` 的 `Ddd*AutoConfiguration` **只装配 Bean，不加载 Mapper XML**；starter 不能替代本节配置。
 
@@ -99,6 +105,7 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 | 枚举/JSON 通道配置不一致 | 共用同一 resolver/serializer/enumRules |
 | 集合 TypeHandler 多表同名列 | SQL `AS` 别名隔离 |
 | MySQL 用错 JSON 方言 | MySQL 用 `JdbcJsonValue.MYSQL`，PG 用 `PgJdbcJsonValue` |
+| PG 场景仍套用 MySQL 装配 | 扫错方言 XML、未设 `databaseId` 或可空参数漏 `jdbcType`，运行期才报错；按 `postgresql-config.md` 装配 |
 
 ## 6. 被读于
 

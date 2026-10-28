@@ -1,22 +1,22 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-28 · 框架版本：2.0.0（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；**2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约，依源码核验**）
+> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。
 
 ## 坐标（Maven）
 
-> 所有内部模块 `groupId=io.pragmatic.ddd`，版本 `2.0.0`；消费方导入 BOM 即可，无需逐依赖写版本。
+> 所有内部模块 `groupId=io.pragmatic.ddd`，版本 `2.1.0-SNAPSHOT`；消费方导入 BOM 即可，无需逐依赖写版本。
 
 | 坐标 | 说明 |
 | --- | --- |
-| `io.pragmatic.ddd:pragmatic-ddd-bom:2.0.0` | 依赖管理 BOM（`<dependencyManagement>` 引入即可） |
-| `io.pragmatic.ddd:pragmatic-ddd-core:2.0.0` | 核心（聚合/规则/事件/应用/仓储/投影基类） |
-| `io.pragmatic.ddd:pragmatic-ddd-mybatis:2.0.0` | MyBatis 持久化集成 |
-| `io.pragmatic.ddd:pragmatic-ddd-rocketmq:2.0.0` | RocketMQ 领域事件基础设施 |
-| `io.pragmatic.ddd:pragmatic-ddd-kafka:2.0.0` | Kafka 领域事件基础设施 |
-| `io.pragmatic.ddd:pragmatic-ddd-spring-boot:2.0.0` | Spring Boot 自动装配 |
+| `io.pragmatic.ddd:pragmatic-ddd-bom:2.1.0-SNAPSHOT` | 依赖管理 BOM（`<dependencyManagement>` 引入即可） |
+| `io.pragmatic.ddd:pragmatic-ddd-core:2.1.0-SNAPSHOT` | 核心（聚合/规则/事件/应用/仓储/投影基类） |
+| `io.pragmatic.ddd:pragmatic-ddd-mybatis:2.1.0-SNAPSHOT` | MyBatis 持久化集成（含 MySQL / PostgreSQL 双方言） |
+| `io.pragmatic.ddd:pragmatic-ddd-rocketmq:2.1.0-SNAPSHOT` | RocketMQ 领域事件基础设施 |
+| `io.pragmatic.ddd:pragmatic-ddd-kafka:2.1.0-SNAPSHOT` | Kafka 领域事件基础设施 |
+| `io.pragmatic.ddd:pragmatic-ddd-spring-boot:2.1.0-SNAPSHOT` | Spring Boot 自动装配 |
 
 ## 核心基类（领域层）
 
@@ -166,6 +166,23 @@
 
 > ⚠️ `SpringTransactionOperations` / `SpringOutboxStatementExecutor` **不是框架类**，零上下文生成时不要当作框架 API 去 import；应向用户确认其自备实现是否已存在于 `infrastructure/config/`。
 > ⚠️ `IOutboxStatementExecutor` / `MybatisOutboxStore` **位于 `pragmatic-ddd-mybatis` 模块（非 core 源码根）**，装配 Outbox 时需引入该模块依赖，不要误认为 core 内类。
+
+## MyBatis TypeHandler 与方言（pragmatic-ddd-mybatis）
+
+> 供 S3 / PG 场景装配使用；签名依 `pragmatic-ddd-mybatis` 源码核验（2026-10-28）。
+
+| 类 / 接口 | 全限定 import | 关键成员（精确签名） |
+| --- | --- | --- |
+| `TypeHandlerContext` | `io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext` | `record TypeHandlerContext(EnumValueResolver resolver, JsonSerializer serializer, JdbcJsonValue jdbcJsonValue, Map<Class<?>, EnumRule> enumRules, Collection<Class<?>> voTypes, CollectionElementTypeConfig collections)`；`void registerInto(Configuration)`；`Collection<TypeHandlerRegistration> registrations()` |
+| `EnumValueResolver` | `io.pragmatic.ddd.mybatis.typehandler.enums.EnumValueResolver` | 无参构造（`public final class`） |
+| `EnumRule` | `io.pragmatic.ddd.mybatis.typehandler.enums.EnumRule` | 枚举：`EnumRule.CODE` 等 |
+| `Fastjson2JsonSerializer` | `io.pragmatic.ddd.mybatis.typehandler.json.Fastjson2JsonSerializer` | 构造 `Fastjson2JsonSerializer(EnumValueResolver resolver, Map<Class<?>, EnumRule> enumRules)`；实现 `JsonSerializer, IEventSerializer` |
+| `JdbcJsonValue` | `io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue` | 接口；静态常量 `JdbcJsonValue MYSQL`（透传 JSON 字符串）、`JdbcJsonValue DEFAULT`；`Object adapt(Object jsonValue)` |
+| `PgJdbcJsonValue` | `io.pragmatic.ddd.mybatis.typehandler.json.PgJdbcJsonValue` | 构造 `PgJdbcJsonValue()`（默认 `jsonb`）/ `PgJdbcJsonValue(String type)`；`implements JdbcJsonValue`；反射构造 `PGobject`，驱动不在类路径时首次写入抛 `IllegalStateException` |
+| `CollectionElementTypeConfig` | `io.pragmatic.ddd.mybatis.typehandler.list.CollectionElementTypeConfig` | `CollectionElementTypeConfig.empty()` |
+| `OutboxStatements` | `io.pragmatic.ddd.mybatis.outbox.OutboxStatements` | 常量 `NAMESPACE` / `INSERT_BATCH` / `CLAIM_PENDING` / `MARK_SENT` / `RELEASE` 等 |
+| `CompensationStatements` | `io.pragmatic.ddd.mybatis.compensation.CompensationStatements` | 常量 `NAMESPACE` / `INSERT` / `MARK_EXECUTED` 等 |
+| `IdSegmentStatements` | `io.pragmatic.ddd.mybatis.id.IdSegmentStatements` | 常量 `NAMESPACE` / `SELECT_FOR_UPDATE` / `INCREMENT_MAX` |
 
 ## 验证签名的方法
 

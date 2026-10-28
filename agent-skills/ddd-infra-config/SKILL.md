@@ -77,4 +77,4 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 
 ## 7. 防幻觉
 
-- 配置类/Bean 名以 `kb/bp/mysql-config.md` / `kb/bp/mybatis-config.md` / `kb/bp/outbox-config.md` / `kb/bp/rocketmq-config.md` / `kb/bp/elasticsearch-config.md` / `kb/bp/event-manager-config.md` 为准；不确定先 Read 对应卡，或向用户确认其自备实现。KB 自足，不依赖外部示例工程。
+- 配置类/Bean 名以 `kb/bp/mysql-config.md` / `kb/bp/postgresql-config.md`（PostgreSQL 场景） / `kb/bp/mybatis-config.md` / `kb/bp/outbox-config.md` / `kb/bp/rocketmq-config.md` / `kb/bp/elasticsearch-config.md` / `kb/bp/event-manager-config.md` 为准；不确定先 Read 对应卡，或向用户确认其自备实现。KB 自足，不依赖外部示例工程。

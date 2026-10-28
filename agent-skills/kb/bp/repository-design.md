@@ -1,6 +1,6 @@
 # BP 卡：仓储设计原则（repository-design）
 
-> 源：`documentation/best-practices/repository-design.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/repository-design.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 定位与边界
 
@@ -28,11 +28,11 @@
 
 ### 2.2 AbstractRepository 模板方法
 
-`insert`/`update`/`remove` 为 `final`（非 final 类），统一：①先 `triggerDataSyncHook()` ②再委托子类 `doInsert`/`doUpdate`/`doRemove`。子类**只实现三个 `protected abstract`**，不覆写 `final` 方法（保证事件机制不被绕过）。
+`insert`/`update`/`remove` 统一：①先 `triggerDataSyncHook()` ②再委托子类 `doInsert`/`doUpdate`/`doRemove`。三个方法**不是 `final`**（子类理论上可覆写），但**不应覆写**——通用钩子逻辑（`triggerDataSyncHook()`）由父类统一调用，覆写会绕过异构事件收集，导致事件机制失效。子类**只实现三个 `protected abstract`** `doInsert`/`doUpdate`/`doRemove`。
 
 ## 3. 实现规范
 
-- 继承 `AbstractRepository` 覆写 `doInsert`/`doUpdate`/`doRemove`；`findById` 不受 `final` 限制可覆写。
+- 继承 `AbstractRepository` 覆写 `doInsert`/`doUpdate`/`doRemove`；`findById` 是父类查询方法（抽象方法），按需直接实现。
 - **乐观锁 CAS**：`doUpdate` 以 `version = oldVersion` 做 WHERE，`affected==0` 抛 `OptimisticLockingFailureException`；`oldVersion` 由 `findById` 从 DB 版列回填，不自建 version 字段。
 - **子集合差量**：一对多用 `TrackedList<OrderItem, Long>`，消费 `getRemovedItems()` 发 DELETE、`getAppendedItems()` 发 INSERT；子项字段修改语义是 `remove(旧)+append(新)`，不原地 UPDATE。
 - **删除先子后主**，避免孤儿行。

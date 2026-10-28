@@ -1,6 +1,6 @@
 # BP 卡：Outbox 链路装配（outbox-config）
 
-> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/outbox-config.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 本质与边界
 
@@ -14,7 +14,7 @@
 | `EagerOutboxPublisher` | `io.pragmatic.ddd.application.outbox.EagerOutboxPublisher` | 提交后主动推送（快路径） |
 | `OutboxRelay` | `io.pragmatic.ddd.application.outbox.OutboxRelay` | 周期兜底轮询（慢路径） |
 
-> ⚠️ **前置条件**：Outbox 的 SQL 在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，starter 不自动加载；必须纳入 `SqlSessionFactory` 扫描并建 `outbox_message` 表（脚本 `io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。缺任一项运行期报 `Mapped Statements collection does not contain value for ...`。PostgreSQL：改扫 `outbox/postgres/*.xml` + 设 `databaseId=postgres`，脚本取同目录 `outbox-schema-postgres.sql`。
+> ⚠️ **前置条件**：Outbox 的 SQL 在 `io/pragmatic/ddd/mybatis/outbox/OutboxMapper.xml`，starter 不自动加载；必须纳入 `SqlSessionFactory` 扫描并建 `outbox_message` 表（脚本 `io/pragmatic/ddd/mybatis/outbox/schema/outbox-schema-mysql.sql`）。缺任一项运行期报 `Mapped Statements collection does not contain value for ...`。PostgreSQL 场景的方言 XML、`databaseId`、建表脚本与参数绑定见 `postgresql-config.md`。
 
 ## 2. 命名与包结构
 

@@ -1,7 +1,7 @@
 # 防跑偏硬约束（Hard Constraints）
 
 > 源：`documentation/best-practices/` 下各篇——`aggregate-identification.md`（约束 13：跨聚合只持 ID）、`enum-value.md`（E1~E3 枚举基础类型）、`aggregate-evolution-design.md` 与 `order-rule-pattern.md`（旧快照机制）、`registry-design.md`（注册表 public / INSTANCE）、`event-modeling.md`（事件过去式 / buildEvent）、`aggregate-design.md`（聚合根规范 / 零基础设施依赖）。本卡为上述篇章的集中蒸馏清单，供 S4 自检与 S7 评审逐条核对。
-> 派生时间：2026-10-18 · 框架版本：2.0.0
+> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 > **用途**：S4 生成后自检逐条核对；S7 评审逐条检查。任一条不满足即修正后重新核对。
 
 ## 通用红线（所有聚合代码通用）

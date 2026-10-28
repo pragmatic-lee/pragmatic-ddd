@@ -30,7 +30,7 @@ agent-skills/
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
 │   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
-│   ├── bp/                         ← 29 篇 best-practice 派生卡（含 projection-api / aggregate-identification / aggregate-evolution-design / code-comment-specification）
+│   ├── bp/                         ← 31 篇 best-practice 派生卡（含 projection-api / aggregate-identification / aggregate-evolution-design / code-comment-specification / postgresql-config）
 │   └── （无外部示例依赖，KB 自足）
 ├── ddd-project-init/               ← S1 项目初始化
 ├── ddd-aggregate-scaffold/         ← S2 聚合骨架
@@ -59,7 +59,7 @@ agent-skills/
 | --- | --- | --- | --- |
 | S1 `ddd-project-init` | 初始化 | 新建 DDD 工程 | aggregate-structure, hard-constraints |
 | S2 `ddd-aggregate-scaffold` | 骨架 | 建聚合目录骨架 | aggregate-design, application-collaboration, hard-constraints(9) |
-| S3 `ddd-infra-config` | 基础设施 | 配 MySQL/MQ/Outbox/ES/Redis/建表 | repository-design, aggregate-database-design, projection-design, event-subscriber-pattern, hard-constraints(9) |
+| S3 `ddd-infra-config` | 基础设施 | 配 MySQL/PostgreSQL/MQ/Outbox/ES/Redis/建表 | repository-design, aggregate-database-design, projection-design, event-subscriber-pattern, hard-constraints(9), mysql/postgresql/mybatis/outbox/rocketmq/kafka/elasticsearch/event-manager-config |
 | S4 `ddd-aggregate-create` | 创建（核心） | 生成完整聚合 | 全部 bp + hard-constraints + api-contract |
 | S5 `ddd-aggregate-extend` | 扩展 | 给聚合加操作/校验/订阅/子实体/投影源 | 对应 bp + hard-constraints |
 | S6 `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value(E3), hard-constraints |
@@ -113,7 +113,7 @@ agent-skills/
 
 ---
 
-> **版本**：v1.7-draft（KB 全量语义重蒸馏，派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
+> **版本**：v2.0-draft（KB v2.0：PostgreSQL 支持入卡 + 7 张 STALE 卡重蒸馏 + api-contract 钉死 2.1.0-SNAPSHOT；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
-> **适用框架版本**：2.0.0
+> **适用框架版本**：2.1.0-SNAPSHOT
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)

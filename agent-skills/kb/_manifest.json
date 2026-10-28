@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.9-draft",
-  "framework_version": "2.0.0",
+  "kb_version": "2.0-draft",
+  "framework_version": "2.1.0-SNAPSHOT",
   "generated_at": "2026-10-28",
-  "note": "v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "note": "v2.0（2026-10-28）：PostgreSQL 支持入 KB——新增 bp.postgresql-config 卡，重蒸馏 7 张 STALE 卡（value-object / repository-design 修正 final 方法描述；mysql / mybatis / outbox-config 同步 PG 拆分；design-doc 写 / 读模板改为「写法约定 + 编号连续骨架 + 无论证散文」）；api-contract 坐标钉死 2.1.0-SNAPSHOT 并新增「MyBatis TypeHandler 与方言」段（PgJdbcJsonValue / TypeHandlerContext / 语句常量等，依源码核验）。v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -35,7 +35,7 @@
       "id": "bp.value-object",
       "path": "bp/value-object.md",
       "source": "documentation/best-practices/value-object.md",
-      "source_sha": "595fa8a641cd0710afa86db1a465dfd9b80a42353d8dd2a1c23a2559f2ef48d7",
+      "source_sha": "b8469f874b7d24dbb57512cae99b657fef11a01b9633858d1c3737713bd76028",
       "product_sha": "TODO"
     },
     {
@@ -98,7 +98,7 @@
       "id": "bp.repository-design",
       "path": "bp/repository-design.md",
       "source": "documentation/best-practices/repository-design.md",
-      "source_sha": "68c7776212adcbd29fbdefa07fcd2a24036d0444ecc09dec9d16c4d34afe2bd0",
+      "source_sha": "6e21cd43f5154244898f3a0a797d1ada7a6483f46cfcc301a6822ee99493672a",
       "product_sha": "TODO"
     },
     {
@@ -133,14 +133,14 @@
       "id": "bp.design-doc-write-template",
       "path": "bp/design-doc-write-template.md",
       "source": "documentation/best-practices/design-doc-write-template.md",
-      "source_sha": "ede03f0ed32f8d3d925997e62108ee832d6d832485ca900e7a46c8c8e2d810d7",
+      "source_sha": "29af8f1e6332844df23ee2001dd24158dc55a62c977424cd7f1fe1ed53d5ba60",
       "product_sha": "TODO"
     },
     {
       "id": "bp.design-doc-read-template",
       "path": "bp/design-doc-read-template.md",
       "source": "documentation/best-practices/design-doc-read-template.md",
-      "source_sha": "4f891d0d9b31cfc11ad2d7d09abe62e33949b6671d8b3732eb2104d9113b1258",
+      "source_sha": "34c829f6ff885dfc76954a8fcd16065ce7dcdfff9658f7fe82e6274a9654fe77",
       "product_sha": "TODO"
     },
     {
@@ -161,21 +161,21 @@
       "id": "bp.mysql-config",
       "path": "bp/mysql-config.md",
       "source": "documentation/best-practices/mysql-config.md",
-      "source_sha": "fcc79107de8f5049a056ab3b2d92fd2abafa3f1a990962ff110ba46ad85b461a",
+      "source_sha": "4fa8b7862265f327a08cce13b87f1b8c78dc5e6cd716a141a3e61ed4b80f9476",
       "product_sha": "TODO"
     },
     {
       "id": "bp.mybatis-config",
       "path": "bp/mybatis-config.md",
       "source": "documentation/best-practices/mybatis-config.md",
-      "source_sha": "c1d4db10551cc97062f073d5b63640abb58d8440dfd7b02362139dae571c38fc",
+      "source_sha": "9668e41f5cad5f9d24f97fbdf050878dc8a09b667df8670cc7313875b7dc0700",
       "product_sha": "TODO"
     },
     {
       "id": "bp.outbox-config",
       "path": "bp/outbox-config.md",
       "source": "documentation/best-practices/outbox-config.md",
-      "source_sha": "67e4ede66422f5b34c00406cfc938e57d2f1d835e084ecc97b3f24449f4d0c80",
+      "source_sha": "7ab742373d87b9dfa46d816302c11879622fe2f0cc0ff64e6280a0ae5e740c74",
       "product_sha": "TODO"
     },
     {
@@ -190,6 +190,13 @@
       "path": "bp/kafka-config.md",
       "source": "documentation/best-practices/kafka-config.md",
       "source_sha": "62d84ea69fee6f8705d1fbdcaf17a02a5a29d56c26a47c71b4fdfe1a9f9b848e",
+      "product_sha": "TODO"
+    },
+    {
+      "id": "bp.postgresql-config",
+      "path": "bp/postgresql-config.md",
+      "source": "documentation/best-practices/postgresql-config.md",
+      "source_sha": "2339c4bc7693306d0831c010924ef7b8f86cc2fd33a7dbfbbc67a7cf998f1955",
       "product_sha": "TODO"
     },
     {

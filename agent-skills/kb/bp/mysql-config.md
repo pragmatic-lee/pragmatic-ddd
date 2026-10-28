@@ -1,10 +1,12 @@
 # BP 卡：MySQL 配置设计原则（mysql-config）
 
-> 源：`documentation/best-practices/mysql-config.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/mysql-config.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 职责边界（JDBC 层）
 
 `MySqlConfig` 只产 **`DataSource` 与 `PlatformTransactionManager`**，不 import 任何 MyBatis 类型。ORM 细节拆到 `MyBatisConfig`（见 `mybatis-config.md`）。
+
+PostgreSQL 使用方见 `postgresql-config.md`：JDBC 数据源与事务管理器骨架可复用（`PostgresConfig` 与 `MySqlConfig` 同构），但驱动、方言 XML、`databaseId` 与建表脚本不同。
 
 ```text
 infrastructure/config/

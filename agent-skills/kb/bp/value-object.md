@@ -1,6 +1,6 @@
 # BP 卡：值对象最佳实践（value-object）
 
-> 源：`documentation/best-practices/value-object.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/value-object.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 什么是值对象
 
@@ -24,7 +24,7 @@
 
 ### 3.1 继承 `ValueObject` 基类
 
-覆写 `equalityComponents()` 返回参与判等的成分（**顺序敏感**）；`equals`/`hashCode`/`toString` 由基类 `final` 提供，子类不可覆盖；相等判定要求**精确类匹配**（子类间成分相同也不相等）。
+覆写 `equalityComponents()` 返回参与判等的成分（**顺序敏感**）；`equals`/`hashCode` 由基类以 `final` 提供，子类不可覆盖；`toString` **不是** `final`，需要自定义展示时可在子类覆写（默认实现为「类名 + `equalityComponents()` 数组」）；相等判定要求**精确类匹配**（子类间成分相同也不相等）。
 
 ```java
 @Override
