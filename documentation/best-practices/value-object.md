@@ -30,7 +30,7 @@
 
 ### 4.1 继承 `ValueObject` 基类
 
-结构相等用 `ValueObject` 基类，覆写 `equalityComponents()` 返回参与判等的成分（**顺序敏感**）。`equals` / `hashCode` / `toString` 由基类 `final` 提供，子类不可覆盖；相等判定要求**精确类匹配**（子类间即使成分相同也不相等）。
+结构相等用 `ValueObject` 基类，覆写 `equalityComponents()` 返回参与判等的成分（**顺序敏感**）。`equals` / `hashCode` 由基类以 `final` 提供，子类不可覆盖；`toString` **不是** `final`，需要自定义展示时可在子类覆写（默认实现为「类名 + `equalityComponents()` 数组」）。相等判定要求**精确类匹配**（子类间即使成分相同也不相等）。
 
 ```java
 @Override

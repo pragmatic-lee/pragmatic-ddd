@@ -110,18 +110,18 @@ repo.updateOrderItems(orderId, items); // 绕过聚合根直接改子表
 
 ```java
 @Override
-public final void insert(T aggregateRoot) {
+public void insert(T aggregateRoot) {
     aggregateRoot.triggerDataSyncHook(); // 落库前触发聚合根数据同步钩子（收集异构事件）
     this.doInsert(aggregateRoot);        // 子类实现真实落库
 }
 ```
 
-`insert` / `update` / `remove` 三个 `final` 方法统一做了两件事：
+`insert` / `update` / `remove` 三个方法统一做了两件事：
 
 1. 先调用聚合根的 `triggerDataSyncHook()`——落库前让聚合根有机会发异构事件；
 2. 再委托子类实现的 `doInsert` / `doUpdate` / `doRemove` 完成真实持久化。
 
-**子类只需实现三个 `protected abstract` 方法**，不能覆写 `final` 的 insert / update / remove——通用钩子逻辑由框架保证不被绕过。
+**子类只需实现三个 `protected abstract` 方法** `doInsert` / `doUpdate` / `doRemove`。框架的 `insert` / `update` / `remove` 本身**不是 `final`**（子类理论上可以覆写），但**不应**覆写——通用钩子逻辑（`triggerDataSyncHook()`）由父类统一调用，覆写会绕过异构事件收集，导致事件机制失效。
 
 ---
 
@@ -153,7 +153,7 @@ public class OrderRepository extends AbstractOrderRepository {
 }
 ```
 
-`findById` 是查询方法，不受 `final` 限制，按需直接覆写实现。
+`findById` 是查询方法（父类中为抽象方法），按需直接实现。
 
 ### 3.2 乐观锁 CAS：以版本列做条件更新
 
