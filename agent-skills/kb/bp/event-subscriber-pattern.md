@@ -1,6 +1,6 @@
 # BP 卡：事件订阅领域服务落地模式（event-subscriber-pattern）
 
-> 源：`documentation/best-practices/event-subscriber-pattern.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/event-subscriber-pattern.md` · 派生时间：2026-10-28 · 框架版本：2.0.0
 
 ## 1. 本质与定位
 
@@ -14,7 +14,7 @@
 
 ```text
 domain/{agg}/
-├── event/      OrderPaidEvent / OrderDataSyncEvent + buildEvent 工厂
+├── event/      OrderPaidEvent（业务事件，buildEvent 工厂）/ OrderDataSyncEvent（继承 BaseDataSyncEvent，upsert/purge 工厂）
 ├── dependency/ 外部依赖端口（ISmsDependency / IUserPointsDependency）
 ├── projection/ 投影视图 + 目标常量（读模型型订阅者用）
 └── service/    订阅契约接口（仅接口，带 @DomainService）
@@ -37,11 +37,11 @@ infrastructure/persistent/{agg}/projection/  Projector / Source
 
 ## 3. 落地方式（核心）
 
-1. **事件**：只带聚合标识（可带少量路由 ID），`buildEvent(聚合)` 工厂，`operationCode`/`version` 由 `collectEvent` 回填。
+1. **事件**：业务事件只带聚合标识（可带少量路由 ID），`buildEvent(聚合)` 工厂，`operationCode`/`version` 由 `collectEvent` 回填；**异构同步事件**统一 `extends BaseDataSyncEvent`，工厂为 `upsert(聚合)` / `purge(聚合)`。
 2. **契约**：`@DomainService(category = EVENT_SUBSCRIBER, targetName = "<事件类名>", description = "...")`，`extends IDomainService, IHandle<XxxEvent>`，接口内不写实现。
 3. **实现**：两类形态，结构一致「取标识 → 回源聚合 → 空值短路 → 执行动作」：
    - 形态 A 外部联动：`findById` 回源、外部调用经 `IDependency` 端口、空值/非法 `return` 短路、外部副作用带幂等键（`bizId` = 聚合标识）。
-   - 形态 B 读模型物化：一个副本一个订阅者（ES/Redis 平级）、物化版本取 `event.getVersion()`、`源.sync(aggregate)` 收敛编排。
+   - 形态 B 读模型物化：一个副本一个订阅者（ES/Redis 平级）、物化版本取 `event.getVersion()`、**先按 `event.getDataSyncAction()` 分流**（`PURGE` → `源.purge(id)`；`UPSERT` → `findById` → `源.sync(aggregate)`，聚合为 `null` 转 `源.purge(id)`）。
 4. **注册**：`{聚合}EventSubscriberRegistry` 在 `@Configuration` 构造期 `registerSubscriber(别名, 事件.class, 实现)`，注入 `IEventRegistry`（即 `eventManager` Bean）。
 
 ## 4. 关键机制与避坑
@@ -57,6 +57,8 @@ infrastructure/persistent/{agg}/projection/  Projector / Source
 | 无源登记表 | 不存在「源 id → 实例」反查；订阅者直接持有目标源调 `源.sync`，`Missing Bean` 启动期失败 |
 | `handleEvent` 不吞异常 | 基础设施异常上抛交重试/死信；仅业务「无需处理」用 `if` 短路 |
 | 物化版本口径 | 事件路径取 `event.getVersion()`；对账路径才用 `getOldVersion()` |
+| 同步事件动作必须分流 | 先判 `getDataSyncAction()`：`PURGE` 直接 `源.purge(id)`，不得照常 `findById → sync` |
+| 同步事件聚合缺失 | 转 `源.purge(id)`（物理删后的补偿消息），不静默 `return` |
 | 幂等键 | MQ 重投会重复触发，外部副作用用聚合标识作 `bizId` |
 | `start()` 必须调 | RocketMQ 场景漏 `eventManager.start()` 则 Consumer 不订阅 |
 
@@ -66,6 +68,10 @@ infrastructure/persistent/{agg}/projection/  Projector / Source
 | --- | --- |
 | 以为 `@Component` 会被自动扫描注册 | 在注册表显式 `registerSubscriber` |
 | 事件携带整份业务快照 | 只带聚合标识，`handleEvent` 里 `findById` 回源 |
+| 同步事件不分动作直接 `sync` | 先判 `getDataSyncAction()`：`PURGE` → `源.purge(id)` |
+| 同步事件聚合查不到静默 `return` | 转 `源.purge(id)` |
+| 业务方法里手工发 `PURGE` | `PURGE` 只由 `triggerDataSyncHook` 删除路径产生 |
+| 同步事件上带索引名 / key 前缀 | 一个聚合一个同步事件，存储事实归订阅者 |
 | 一个契约 `instanceof` 分支处理多事件 | 一个契约一个事件类型 |
 | 一个订阅者塞多个不相关动作 | 按业务意图拆分、别名独立注册 |
 | 订阅者直接注入第三方 SDK | 抽 `IDependency` 端口，适配器放基础设施层 |

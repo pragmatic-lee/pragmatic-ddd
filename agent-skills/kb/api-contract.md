@@ -1,6 +1,6 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-18 · 框架版本：2.0.0（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；**2026-10-18 v1.7 全量语义重蒸馏，依源码核验无新增漂移**）
+> 派生时间：2026-10-28 · 框架版本：2.0.0（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；**2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约，依源码核验**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。
@@ -67,6 +67,9 @@
 | --- | --- | --- | --- |
 | `BaseDomainEvent` | `io.pragmatic.ddd.event.BaseDomainEvent` | `Event(String entityId)`、`entityId`/`eventId`/`occurredOn` 由基类承载；`operationCode`/`version` 由 `collectEvent` 回填 | 事件类：仅 `@Getter`（**无 setter**）；`operationCode`/`version` 是 **public 字段**，应直接赋值 `event.operationCode = ...`（**切勿调 `setOperationCode(...)`**）；无参构造为手写 `protected BaseDomainEvent()`（非 Lombok `@NoArgsConstructor`）；禁用 `@Data`/`@Builder` |
 | `IDomainEvent` | `io.pragmatic.ddd.event.IDomainEvent` | 延迟事件 `Supplier<IDomainEvent>` 的产出类型 | — |
+| `IDataSyncEvent` | `io.pragmatic.ddd.event.IDataSyncEvent` | `DataSyncAction getDataSyncAction()`；`extends IDomainEvent` | 异构数据同步事件标记接口，只用于「聚合自身 → 副本」同步，**不跨应用** |
+| `DataSyncAction` | `io.pragmatic.ddd.event.DataSyncAction` | 枚举值 `UPSERT` / `PURGE` | `UPSERT` 以聚合当前状态覆盖副本；`PURGE` 清除副本，**只能由 `triggerDataSyncHook` 删除路径产生** |
+| `BaseDataSyncEvent` | `io.pragmatic.ddd.event.BaseDataSyncEvent` | 构造 `protected BaseDataSyncEvent(String entityId, DataSyncAction)` / `protected BaseDataSyncEvent(String entityId, String eventId, Instant occurredOn, DataSyncAction)` / `protected BaseDataSyncEvent()`（FieldBased 反序列化）；`public DataSyncAction dataSyncAction`（默认 `UPSERT`） | **只带聚合标识，不含业务字段**；`dataSyncAction` 字段名是序列化契约不得改名；子类写 `upsert` / `purge` 静态工厂；无 setter |
 
 ## 应用层
 

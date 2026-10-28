@@ -193,11 +193,17 @@ public class OrderSummaryProjection implements IOrderProjection { }       // 业
 // ✅ 推荐：事件只携带聚合标识，处理时反查聚合根取权威状态
 @Override
 public void handleEvent(OrderDataSyncEvent event) {
-    Order order = orderRepository.findById(Long.valueOf(event.getEntityId()));
-    if (order == null) {
+    Long id = Long.valueOf(event.getEntityId());
+    if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+        esSource.purge(id);
         return;
     }
-    esSource.sync(order);   // 内部 project → materialize(projection, aggregate.getOldVersion())
+    Order order = orderRepository.findById(id);
+    if (order == null) {
+        esSource.purge(id);     // 聚合已物理删除：副本必须清除，不能静默跳过
+        return;
+    }
+    esSource.sync(order);       // 内部 project → materialize(projection, aggregate.getOldVersion())
 }
 
 // ❌ 反模式：事件携带整份业务快照，延迟处理后会用旧数据覆盖新副本
@@ -206,6 +212,51 @@ public void handleEvent(OrderDataSyncEvent event) {
 :::: tip 可以带少量路由 ID，但不要带快照
 事件可以携带聚合标识与少量路由 / 上下文 ID（供订阅者定位聚合、路由分支），但**不要携带整份业务快照**——快照会过期、会随业务字段增长而膨胀，权威数据始终以聚合根为准。
 ::::
+
+### 3.4 数据同步事件契约：`IDataSyncEvent`
+
+把聚合自身状态同步到异构副本的事件统一继承 `BaseDataSyncEvent`（`io.pragmatic.ddd.event`），由同步动作表达「写入」还是「清除」：
+
+| 元素 | 语义 |
+| --- | --- |
+| `IDataSyncEvent extends IDomainEvent` | 标记接口，仅新增 `getDataSyncAction()` |
+| `DataSyncAction.UPSERT` | 以聚合当前状态覆盖副本（新增 / 变更） |
+| `DataSyncAction.PURGE` | 清除副本（聚合被删除，或不再满足投影条件） |
+| `BaseDataSyncEvent` | 固定「聚合标识 + 同步动作」，不含业务字段；`dataSyncAction` 字段名是序列化契约 |
+
+**六条硬约束**：
+
+1. **只带聚合标识**：不携带业务快照，`version` / `operationCode` 仍由 `collectEvent` 回填。
+2. **一个聚合一个同步事件类型**：全部副本共用同一事件，事件上不出现索引名 / key 前缀等基础设施事实。
+3. **不跨应用**：仅供本应用内部消费，跨限界上下文集成另建业务领域事件。
+4. **`PURGE` 来源唯一**：由持久化钩子 `triggerDataSyncHook` 的删除路径产生，业务方法内不得手工发 `PURGE`。
+5. **处理器必须分流**：先判动作，`PURGE` 直接 `源.purge(id)`，`UPSERT` 才 `findById` 后 `源.sync(order)`。
+6. **聚合缺失转清除**：`UPSERT` 时 `findById` 为 `null`（物理删后的补偿消息）必须转 `源.purge(id)`，不得静默 `return`。
+
+```java
+// 领域层：事件只声明聚合标识 + 动作
+public class OrderDataSyncEvent extends BaseDataSyncEvent {
+    protected OrderDataSyncEvent(String entityId, DataSyncAction action) {
+        super(entityId, action);
+    }
+
+    protected OrderDataSyncEvent() {
+        super();                       // Fastjson2 FieldBased 反序列化入口
+    }
+
+    public static OrderDataSyncEvent upsert(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.UPSERT);
+    }
+
+    public static OrderDataSyncEvent purge(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.PURGE);
+    }
+}
+```
+
+> ⚠️ **反序列化兼容**：`FieldBased` 下字段名即对外契约，`dataSyncAction` 不得改名；旧消息缺该字段时默认 `UPSERT`，删除场景由约束 6「聚合缺失转清除」兜住。
+>
+> **与业务事件的分工**：「通知别人发生了什么」用业务领域事件；「让我的副本跟上我」用数据同步事件。二者可并存于同一聚合，但语义与消费方不同，不要混用同一事件类型。
 
 ## 4. 组件的落地方式
 
@@ -1195,8 +1246,14 @@ public OrderReadService(IOrderRedisSource redisSource, IOrderESSource esSource) 
 public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
     @Override
     public void handleEvent(OrderDataSyncEvent event) {
-        Order order = orderRepository.findById(Long.valueOf(event.getEntityId()));
+        Long id = Long.valueOf(event.getEntityId());
+        if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+            redisSource.purge(id);
+            return;
+        }
+        Order order = orderRepository.findById(id);
         if (order == null) {
+            redisSource.purge(id);
             return;
         }
         redisSource.sync(order);
@@ -1244,8 +1301,14 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 
     @Override
     public void handleEvent(OrderDataSyncEvent event) {
-        Order order = orderRepository.findById(Long.valueOf(event.getEntityId()));
+        Long id = Long.valueOf(event.getEntityId());
+        if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+            esSource.purge(id);
+            return;
+        }
+        Order order = orderRepository.findById(id);
         if (order == null) {
+            esSource.purge(id);     // 物理删后的补偿消息：清除副本，不静默跳过
             return;
         }
         esSource.sync(order);
@@ -1253,7 +1316,7 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 }
 ```
 
-领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与目标 `源` **组装编排**。`sync` 由源自身完成 project→materialize，投影为 `null` 时静默跳过。
+领域契约 `IOrderDataSyncEsProjectionHandle extends IDomainService, IHandle<OrderDataSyncEvent>`（标注 `@DomainService(category = EVENT_SUBSCRIBER)`）定义于 `domain/order/service/`，仅声明意图；应用层实现负责把领域事件与目标 `源` **组装编排**。处理时先判 `getDataSyncAction()`：`PURGE` 直调 `源.purge(id)`；`UPSERT` 才 `findById` 后 `源.sync(order)`（`sync` 由源自身完成 project→materialize，投影为 `null` 时静默跳过）。
 
 订阅绑定在 `OrderEventSubscriberRegistry`（非 Spring 事件总线环境必须显式注册）。**一份副本一个订阅者**，它们平级、互不引用：
 
@@ -1286,14 +1349,17 @@ public class OrderEventSubscriberRegistry {
 
 ```text
 Order 业务方法 → markModified() / markCreated()
-  └─ triggerDataSyncHook() → collectEvent(OrderDataSyncEvent.buildEvent(order))
+  └─ triggerDataSyncHook() → collectEvent(OrderDataSyncEvent.upsert(order))
+       │                   └─ 删除态（isEntityDelete）→ collectEvent(OrderDataSyncEvent.purge(order))
        └─ IEventRegistry 订阅("es", OrderDataSyncEvent.class, OrderDataSyncEsProjectionHandle)
             │           订阅("redis-cache", ..., OrderRedisCacheHandle)
             └─ handleEvent(event)
-                 ├─ orderRepository.findById(id)
-                 └─ esSource.sync(order) / redisSource.sync(order)
-                      ├─ 源持有的 projector project(order) → 全量投影
-                      └─ 源 materialize(projection, aggregate.getOldVersion())
+                 ├─ PURGE          → 源.purge(id)
+                 └─ UPSERT         → orderRepository.findById(id)
+                      ├─ 聚合不存在 → 源.purge(id)
+                      └─ esSource.sync(order) / redisSource.sync(order)
+                           ├─ 源持有的 projector project(order) → 全量投影
+                           └─ 源 materialize(projection, aggregate.getOldVersion())
 ```
 
 > `源.sync(order)` 由源自身完成 project 后调其 `materialize`；投影为 `null` 静默跳过。避免事件处理器内手写 project→materialize 双份逻辑。
@@ -1428,6 +1494,10 @@ Optional.ofNullable(first.nextCursor())
 | 期望缓存未命中自动回退 ES | 现设计无运行期回源链，`queryById` 未命中返回 `null` | 需要回退就在读服务里显式写；需要自愈走对账路径 |
 | 读服务 `OrderReadService` 注入 `ElasticsearchClient` 拼 DSL | 读侧存储方言泄漏到编排层，替换存储要改读服务 | DSL 翻译下沉到源（或外置的条件工厂） |
 | 事件携带业务快照 | 延迟处理用旧数据覆盖新副本 | 事件只带聚合标识，处理时重新 load 聚合 |
+| 同步事件不分动作直接 `sync` | `PURGE` 被当成普通更新，已删除聚合的副本永久残留 | 先判 `getDataSyncAction()`：`PURGE` → `源.purge(id)` |
+| 同步事件聚合查不到就 `return` | 物理删后的残留条目只能等对账兜底 | 转 `源.purge(id)` |
+| 业务方法里手工发 `PURGE` | 动作语义脱离持久化事实，可能误删副本 | `PURGE` 只由 `triggerDataSyncHook` 删除路径产生 |
+| 同步事件上带索引名 / key 前缀 | 事件与存储绑定，新增副本要改事件 | 一个聚合一个同步事件，存储事实归订阅者 |
 | 真正的写失败（连接 / 映射错误）`catch` 后静默吞掉 | 副本真正落后被掩盖、对账失效 | 异常上抛，交给 `rebuild` 补偿 |
 | External 版本冲突（409）上抛而非静默丢弃 | 旧事件迟到触发无谓 `rebuild`、反复重建已最新副本 | 捕获 `ResponseException` 仅 `log.debug` 静默丢弃 |
 | `readVersion` 在副本缺失时返回 `-1` | 判 UNTRACKED，副本永久落后且无告警 | 副本缺失返回 `0`（判 STALE → rebuild）；`-1` 仅用于"明确不追踪" |

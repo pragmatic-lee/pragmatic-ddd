@@ -220,6 +220,8 @@ protected void doRemove(Order aggregateRoot) {
 }
 ```
 
+> **删除与异构副本**：删除同样必须走 `IRepository.remove`（而非直连 SQL），否则 `triggerDataSyncHook` 不触发、`PURGE` 事件不产生，ES / Redis 副本会长期残留；此时只能靠对账判定 `ORPHAN` 兜底清理。
+
 ### 3.5 纯持久化，无业务逻辑
 
 仓储实现**只做数据存取**，不做业务判断、不做数据组装、不触发领域事件（事件由聚合根经 `triggerDataSyncHook` 统一处理）。任何"要不要删""金额对不对"的判断都属于应用层或领域层，不进仓储。
@@ -363,6 +365,7 @@ void cleanup() {
 | --- | --- | --- |
 | 仓储做业务逻辑 | 领域逻辑泄漏到基础设施，难以复用与测试 | 仓储只做数据存取，业务判断在应用层/领域层 |
 | 直接实现 IRepository 的 insert/update/remove | 绕过 `triggerDataSyncHook`，异构事件失效 | 继承 `AbstractRepository`，覆写 `doXxx` 模板方法 |
+| 删除时直连 SQL / 不传聚合根 | 钩子不触发，`PURGE` 不产生，副本残留 | 走 `remove(aggregateRoot)`，由钩子按删除态发 `PURGE` |
 | 向仓储传散装字段 / 直接操作子表 | 破坏聚合一致性边界 | 整存整取聚合根，子集合随聚合一起落库 |
 | 为子实体单独建仓储 | 破坏聚合边界，子实体游离管理 | 一个聚合根一个仓储 |
 | 全删全插子集合 | 无效 IO、破坏外键引用 | 用 `TrackedList` 三桶做增量 INSERT/DELETE |

@@ -347,6 +347,19 @@ Map<ReplicaKey, Reconciliation> results = reconciliationManager.reconcile(Order.
 - `PageRequest` 越界（`pageSize > 200` 或 `< 1`）抛 `IllegalArgumentException`。
 - `ScrollPosition` 游标不透明；跨页续查传上一页 `ScrollResult.nextCursor`，首次传 `ScrollPosition.initial()`。
 
+### 3.7 删除副本：`PURGE` 事件驱动清除，早于对账 `ORPHAN` 兜底
+
+副本清除有两条路径，优先级不同：
+
+| 路径 | 触发 | 时机 | 结果 |
+| --- | --- | --- | --- |
+| 事件驱动 `PURGE` | 持久化钩子发现聚合删除态，发出同步事件 | 落库后立时 | 处理器直接 `源.purge(id)`，副本清除 |
+| 对账 `ORPHAN` | `writeVersion < 0` 且 `readVersion >= 0` | 延迟复核时 | `purgeOrphan(id)` 清理残留 |
+
+> **重要约束**：`PURGE` 是**主路径**，对账 `ORPHAN` 是**兜底**。处理器不可在聚合查不到时静默 `return`——否则删除后的残留条目只能等对账发现，而所有副本都必须在延迟复核窗口内被清理。
+
+> **重要约束**：`PURGE` 只能由持久化钩子（`triggerDataSyncHook` 的删除路径）产生，业务方法不得手工发。事件驱动清除失败不能回滚业务事务，一致性由对账 `ORPHAN` 最终收敛。
+
 ## 4. 异常与错误处理体系
 
 ### 4.1 继承关系

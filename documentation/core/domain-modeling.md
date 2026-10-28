@@ -225,7 +225,7 @@ protected abstract OperationRegistry operationRegistry();     // 返回操作注
 | `collectEvent(BaseDomainEvent, EntityOperation)` | 收集事件并显式指定成因操作（优先级最高） |
 | `collectEvent(Supplier<IDomainEvent>)` | 收集**延迟事件**，发布时才执行 supplier 并回填 `operationCode` / `version` |
 | `getDomainEvents()` | 返回本工作单元已收集事件（`public`） |
-| `triggerDataSyncHook()` | 持久化落库前由仓储调用；默认空实现，子类覆写以发异构事件 |
+| `triggerDataSyncHook()` | 持久化落库前由仓储调用；默认空实现，子类覆写以发异构事件（`IDataSyncEvent`，删除态发 `PURGE`、其余发 `UPSERT`） |
 
 **操作追踪**（均为 `protected`，除查询方法）：
 
@@ -362,6 +362,17 @@ public class OrderRuleRegistry extends BrokenRuleRegistry {
 
 > **边界外不变性不由聚合根保证。** 聚合根业务方法内不得直接调用另一个聚合根或修改其状态；跨聚合写操作通过领域事件发布 + 订阅者响应完成。违反此约束会破坏事务边界，导致不可预期的并发与一致性问题。
 
+### 3.6 异构事件钩子与删除语义
+
+`triggerDataSyncHook()` 是聚合根面向异构副本的唯一出口，由 `insert` / `update` / `remove` 统一触发：
+
+| 聚合状态 | 应产出的事件 | 语义 |
+| --- | --- | --- |
+| 常规写（新建 / 变更） | `{聚合}DataSyncEvent.upsert(this)` | 以聚合当前状态覆盖副本 |
+| 删除态（`isEntityDelete()`） | `{聚合}DataSyncEvent.purge(this)` | 清除副本 |
+
+> **重要约束**：`PURGE` 只能由钩子的删除态分支产生，业务方法内不得手工 `collectEvent(purge(...))`；否则事件语义脱离持久化事实，可能误删副本。
+
 ## 4. 异常与错误处理体系
 
 ### 4.1 继承关系
@@ -395,6 +406,7 @@ RuntimeException
 | 值对象 | 继承 `ValueObject` 或实现 `IValueObject` | `equals/hashCode` 为 `final`；要求精确类匹配；不可变性自行保证 |
 | 枚举值对象 | 实现 `IEnumValue<T,K>` | 持久化写 `getValue()`，推荐 `CODE` 模式 |
 | 聚合根 | 继承 `AggregateRoot<T>` | 实现两抽象方法；先 `recordOperation` 后 `collectEvent`；`getNewVersion()` 幂等 |
+| 异构同步钩子 | 覆写 `triggerDataSyncHook()`，删除态发 `PURGE`、其余发 `UPSERT` | `PURGE` 不得由业务方法手工发 |
 | 消息码 | `MessageCode.of(...)` + `BrokenRuleRegistry` | 注册表子类必须 `public`，否则码未注册 |
 | 异常 | `PragmaticException` 体系 | `catch (PragmaticException)` 统一兜底；`source` 为 `transient` |
 

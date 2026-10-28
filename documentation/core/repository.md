@@ -137,7 +137,7 @@ IRepository                           源（implements 查询族 SPI）
 
 ### 3.2 C / Q 边界不可混用
 
-> ⚠️ **重要约束**：写侧不依赖 `reconciliation` 的任何类型，只有 `reconciliation` 反向依赖 `IRepository`。不要在仓储实现里直接同步异构存储——应通过 `AggregateRoot.triggerDataSyncHook()` 收集事件，由事件订阅者调 `源.sync()`，否则绕过对账链路且无法补救。
+> ⚠️ **重要约束**：写侧不依赖 `reconciliation` 的任何类型，只有 `reconciliation` 反向依赖 `IRepository`。不要在仓储实现里直接同步异构存储——应通过 `AggregateRoot.triggerDataSyncHook()` 收集事件（删除态发 `PURGE`、其余发 `UPSERT`），由事件订阅者调 `源.sync()` / `源.purge()`，否则绕过对账链路且无法补救。
 
 > ⚠️ **重要约束**：投影与聚合根是两套体系。读侧返回的是投影（可裁剪字段的数据容器），写侧操作的是聚合根（含不变量）。二者不可互相替代。
 
@@ -201,6 +201,7 @@ RuntimeException
 | 概念 | 使用方式 | 最关键约束 |
 | --- | --- | --- |
 | 写模型契约 | 实现 `IRepository<ID, T>`，或继承 `AbstractRepository` | 子类只实现 `doInsert` / `doUpdate` / `doRemove`，覆写落库方法不得绕过 `triggerDataSyncHook` |
+| 删除与副本 | `remove` → 钩子发 `PURGE` → 订阅者 `源.purge(id)` | 删除必须走 `remove`；否则事件不产生，副本残留只能靠对账 `ORPHAN` 兜底 |
 | 权威版本 V | `IRepository.currentVersion(id)` | 返回 `-1` 表示写模型无此聚合，非异常 |
 | 读模型源 | 继承 `AbstractProjectionSource`，按需 `implements` 查询族 | 源自身即副本；`sync` 投影为 `null` 时静默跳过 |
 | 投影器 | 继承 `AbstractAggregateProjector`，手写 `project` | 纯映射、不含存储细节；`projectionType()` 为 `final` |

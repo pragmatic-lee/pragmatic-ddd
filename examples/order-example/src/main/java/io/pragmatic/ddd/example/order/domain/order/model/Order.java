@@ -316,8 +316,15 @@ public class Order extends AggregateRoot<Long> {
         return OrderOperationRegistry.INSTANCE;
     }
 
+    /**
+     * 数据同步钩子：落库前由仓储统一触发，删除态发 PURGE 清除副本，其余发 UPSERT 覆盖副本。
+     */
     @Override
     public void triggerDataSyncHook() {
-        this.collectEvent(OrderDataSyncEvent.buildEvent(this));
+        if (this.isEntityDelete()) {
+            this.collectEvent(OrderDataSyncEvent.purge(this));
+            return;
+        }
+        this.collectEvent(OrderDataSyncEvent.upsert(this));
     }
 }

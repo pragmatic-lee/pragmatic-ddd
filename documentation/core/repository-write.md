@@ -187,6 +187,18 @@ public abstract class AbstractRepository<ID, T extends AggregateRoot<ID>>
 
 > ⚠️ **重要约束**：调用方须先持有聚合根实例（通常先 `findById`）。`doRemove` 内可选择物理删除或软删，但钩子路径（`triggerDataSyncHook`）不可省略，否则该聚合产生的异构事件不会被收集。
 
+### 3.5 删除路径的副本清除
+
+`remove` 是异构副本能被**事件驱动清除**的唯一入口：钩子在删除态应产出 `{聚合}DataSyncEvent.purge(this)`，订阅者据此调 `源.purge(id)`。
+
+| 情形 | 副本结局 |
+| --- | --- |
+| 删除态经 `remove` 落库，钩子发 `PURGE` | 订阅者立时清除副本（主路径） |
+| `PURGE` 消息丢失 / 消费失败 | 延迟复核判定 `ORPHAN`（`writeVersion = -1`）后 `purgeOrphan` 清除（兜底） |
+| 删除时**未**走 `remove`（如直连 SQL 删数据） | 钩子不触发、事件不产生，只能等对账 `ORPHAN` 发现 |
+
+> ⚠️ **重要约束**：删除也不能绕过仓储落库方法；钩子未触发时副本会长期残留，而 `PURGE` 无法事后补发（事件流中没有对应事实）。
+
 ## 4. 异常与错误处理体系
 
 ### 4.1 继承关系
@@ -222,6 +234,7 @@ RuntimeException
 | --- | --- | --- |
 | 持久化契约 | 实现 `IRepository<ID, T>`，或继承 `AbstractRepository` | `currentVersion` 返回 V，`-1` 表示无此聚合、非异常 |
 | 抽象基类 | 继承 `AbstractRepository`，实现 `doInsert/doUpdate/doRemove` | 落库方法固定触发 `triggerDataSyncHook`，不得覆写绕过 |
+| 删除与副本 | `remove` → 钩子发 `PURGE` → 订阅者 `源.purge(id)` | 删除走 `remove`，否则 `PURGE` 无法产生，副本残留只能靠对账 `ORPHAN` |
 | 版本与乐观锁 | `AggregateRoot` 提供 `oldVersion/newVersion` | `update` 用 `WHERE version=oldVersion`，冲突不内置重试 |
 | 对账衔接 | `reconciliation` 反向依赖 `IRepository.currentVersion` | 写模型只暴露 V，不感知读副本 |
 

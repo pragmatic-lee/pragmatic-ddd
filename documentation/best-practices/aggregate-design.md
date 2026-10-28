@@ -117,7 +117,7 @@ IEntity<T>                    实体标识契约（暴露 getEntityId）
 | `collectEvent(BaseDomainEvent, EntityOperation)` | 显式指定成因操作（优先级最高） |
 | `collectEvent(Supplier<IDomainEvent>)` | 延迟事件，发布时才构造并回填，ID 后生成场景必用 |
 | `getDomainEvents()` | `public`，应用层读取本工作单元已收集事件 |
-| `triggerDataSyncHook()` | `public`，仓储落库前调用，子类覆写以发异构事件 |
+| `triggerDataSyncHook()` | `public`，仓储落库前调用，子类覆写以发异构事件（删除态发 `PURGE`、其余发 `UPSERT`） |
 
 > 事件成因约束：使用无显式操作参数的 `collectEvent(BaseDomainEvent)` 前，必须先 `recordOperation(...)`，否则启用了操作体系时抛 `OperationException`。操作与事件的顺序详见 [应用层落地模式](./application-collaboration.md)。
 
@@ -295,6 +295,7 @@ public class Order extends AggregateRoot<Long> {
 | 领域逻辑泄漏到应用层 | 贫血模型 | 领域逻辑内聚到聚合根 |
 | 业务方法内做规则校验 | 校验散落、方法不可测 | 校验交由应用层 `satisfiesRule` 触发 |
 | 业务方法内做数据组装与转换 | 方法职责混杂、不可测 | 组装/转换集中在应用层或调用方，业务方法只做状态变更 |
+| 在业务方法里手工发 `PURGE` | 同步动作脱离持久化事实，可能误删副本 | `PURGE` 只由 `triggerDataSyncHook` 的删除态分支产生 |
 | 聚合根用 `@Data`/`@Builder` | 破坏等同性、构造副作用丢失 | 用 `@Getter`+`@Setter(PROTECTED)`，手写业务构造 |
 
 ---

@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.example.order.application.order.service;
 
+import io.pragmatic.ddd.event.DataSyncAction;
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderRedisCacheHandle;
@@ -28,17 +29,23 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 Redis，版本取自聚合的 oldVersion。
+     * 处理订单数据同步事件：PURGE 直接清除缓存副本；UPSERT 加载最新聚合后经「源」投影并物化，
+     * 聚合已不存在时（物理删）转为清除缓存副本。
      *
      * @param event 订单数据同步事件
      */
     @Override
     public void handleEvent(OrderDataSyncEvent event) {
         Long id = Long.valueOf(event.getEntityId());
-        Order order = orderRepository.findById(id);
-        if (order == null) {
+        if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+            this.redisSource.purge(id);
             return;
         }
-        redisSource.sync(order);
+        Order order = this.orderRepository.findById(id);
+        if (order == null) {
+            this.redisSource.purge(id);
+            return;
+        }
+        this.redisSource.sync(order);
     }
 }

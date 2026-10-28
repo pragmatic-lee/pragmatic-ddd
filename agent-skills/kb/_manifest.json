@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "1.8-draft",
+  "kb_version": "1.9-draft",
   "framework_version": "2.0.0",
-  "generated_at": "2026-10-18",
-  "note": "v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "generated_at": "2026-10-28",
+  "note": "v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -14,7 +14,7 @@
       "id": "bp.aggregate-design",
       "path": "bp/aggregate-design.md",
       "source": "documentation/best-practices/aggregate-design.md",
-      "source_sha": "10a1604fe37e906f37d489dabc7a76489dad5962c2aa39f0eb0c970afa60e31a",
+      "source_sha": "a4b9968283e67305f09b88e4a15466a5ce4f32bebdb3d5932732dccb530b89f4",
       "product_sha": "TODO"
     },
     {
@@ -70,14 +70,14 @@
       "id": "bp.event-modeling",
       "path": "bp/event-modeling.md",
       "source": "documentation/best-practices/event-modeling.md",
-      "source_sha": "9ec560c2b6174914875bdf71406cafff8905a7b30102ae175d5b52a51961e0b2",
+      "source_sha": "c281d48501363bfb3b803d3fff376e8faffa6d504bba7082298258c3bafc914e",
       "product_sha": "TODO"
     },
     {
       "id": "bp.event-subscriber-pattern",
       "path": "bp/event-subscriber-pattern.md",
       "source": "documentation/best-practices/event-subscriber-pattern.md",
-      "source_sha": "4fb2adf589316ae08501df6430232cbe0262c1850ac9f952d8f0792e59a6dbec",
+      "source_sha": "cb19b1a94df515e9b3df4a3b64d52a8f78022ac40f6abb1eb0459175f8417da1",
       "product_sha": "TODO"
     },
     {
@@ -98,7 +98,7 @@
       "id": "bp.repository-design",
       "path": "bp/repository-design.md",
       "source": "documentation/best-practices/repository-design.md",
-      "source_sha": "d4de43b88e391b761310240a5f3989f2b80cb1cc0391b3b46720e4271564ff42",
+      "source_sha": "68c7776212adcbd29fbdefa07fcd2a24036d0444ecc09dec9d16c4d34afe2bd0",
       "product_sha": "TODO"
     },
     {
@@ -112,7 +112,7 @@
       "id": "bp.projection-design",
       "path": "bp/projection-design.md",
       "source": "documentation/best-practices/projection-design.md",
-      "source_sha": "59d94cd0af82e8e7d275e029bb6f893e00660eb92c198e12daef05a964cafb40",
+      "source_sha": "b6b825c0d906e395547054326513bcdcc2e4113e7960d711edf9c21947cc8566",
       "product_sha": "TODO"
     },
     {

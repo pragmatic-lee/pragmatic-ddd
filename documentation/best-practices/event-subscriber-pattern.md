@@ -44,7 +44,7 @@ IEventRegistry (event.spi)                         registerSubscriber(...) × 6 
 
 ```text
 domain/order/
-├── event/        领域事件（OrderPaidEvent / OrderDataSyncEvent + buildEvent 工厂）
+├── event/        领域事件（OrderPaidEvent 走 buildEvent；OrderDataSyncEvent 继承 BaseDataSyncEvent，走 upsert / purge 工厂）
 ├── dependency/   外部依赖端口（ISmsDependency / IUserPointsDependency）
 ├── projection/   投影视图 + 目标常量（读模型型订阅者用）
 └── service/      事件订阅契约（仅接口）
@@ -105,21 +105,26 @@ public interface IOrderEventProcessor extends IDomainService, IHandle<OrderPaidE
 
 按「事件 → 领域契约 → 应用层实现 → 注册表绑定」的顺序落地。
 
-### 4.1 领域事件：只带聚合标识 + `buildEvent` 工厂
+### 4.1 领域事件：只带聚合标识 + 静态工厂
 
 ```java
-// domain/order/event/OrderDataSyncEvent.java —— 数据同步事件，只带聚合标识
-@Getter
-@Setter(AccessLevel.PROTECTED)
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OrderDataSyncEvent extends BaseDomainEvent {
+// domain/order/event/OrderDataSyncEvent.java —— 数据同步事件，只带聚合标识 + 同步动作
+public class OrderDataSyncEvent extends BaseDataSyncEvent {
 
-    public OrderDataSyncEvent(String entityId) {
-        super(entityId);
+    protected OrderDataSyncEvent(String entityId, DataSyncAction action) {
+        super(entityId, action);
     }
 
-    public static OrderDataSyncEvent buildEvent(Order order) {
-        return new OrderDataSyncEvent(order.getEntityId().toString());
+    protected OrderDataSyncEvent() {
+        super();                            // Fastjson2 FieldBased 反序列化入口
+    }
+
+    public static OrderDataSyncEvent upsert(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.UPSERT);
+    }
+
+    public static OrderDataSyncEvent purge(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.PURGE);
     }
 }
 ```
@@ -150,9 +155,10 @@ public class OrderPaidEvent extends BaseDomainEvent {
 编写规则：
 
 - **只携带聚合标识**，可带少量路由 / 上下文 ID（支付时刻、金额），**不携带业务快照**。
-- 提供 **静态工厂 `buildEvent(聚合根)`**，把「聚合 → 事件」的取值收口在事件类内部。
-- 构造为 `protected` / 无参构造为 `protected`：`@NoArgsConstructor(access = PROTECTED)` 是给反序列化留的入口，业务代码一律走 `buildEvent`。
+- 提供 **静态工厂**（业务事件 `buildEvent(聚合根)`、同步事件 `upsert(聚合)` / `purge(聚合)`），把「聚合 → 事件」的取值收口在事件类内部。
+- 构造为 `protected` / 无参构造为 `protected`：`@NoArgsConstructor(access = PROTECTED)` 是给反序列化留的入口，业务代码一律走静态工厂。
 - `operationCode` / `version` 由框架在 `collectEvent` 时回填，子类不赋值。
+- **异构数据同步事件**继承 `BaseDataSyncEvent`（实现 `IDataSyncEvent`），工厂为 `upsert(聚合)` / `purge(聚合)`；`PURGE` 只由 `triggerDataSyncHook` 的删除路径产生，业务方法不得手工发。
 - 事件建模的完整规范见 [事件建模指南](./event-modeling.md)。
 
 ### 4.2 领域层契约：一行接口 + `@DomainService`
@@ -188,7 +194,7 @@ public interface IOrderDataSyncEsProjectionHandle
 
 ### 4.3 应用层实现：两类形态
 
-订阅者实现按业务意图分两类形态，结构一致：**取标识 → 回源聚合 → 空值短路 → 执行动作**。
+订阅者实现按业务意图分两类形态。形态 A 结构为**取标识 → 回源聚合 → 空值短路 → 执行动作**；形态 B（读模型物化）额外多一步**先判同步动作**，且聚合缺失不是短路而是转清除。
 
 #### 形态 A：外部系统联动（副作用型）
 
@@ -299,18 +305,24 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，经投影器生成视图后物化到 ES，写入版本取自事件携带的副本版本。
+     * 处理订单数据同步事件：PURGE 直接清除副本；UPSERT 加载最新聚合后经「源」投影并物化，
+     * 聚合已不存在时（物理删）转为清除副本。
      *
      * @param event 订单数据同步事件
      */
     @Override
     public void handleEvent(OrderDataSyncEvent event) {
         Long id = Long.valueOf(event.getEntityId());
-        Order order = orderRepository.findById(id);
-        if (order == null) {
+        if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+            esSource.purge(id);
             return;
         }
-        orderEsSource.sync(order);
+        Order order = orderRepository.findById(id);
+        if (order == null) {
+            esSource.purge(id);
+            return;
+        }
+        esSource.sync(order);
     }
 }
 ```
@@ -319,13 +331,14 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
 // application/order/service/OrderRedisCacheHandle.java —— 同一事件的另一个平级订阅者
 @Component
 public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
-    // 结构同 OrderDataSyncEsProjectionHandle：findById → orderRedisSource.sync(order)
+    // 结构同 OrderDataSyncEsProjectionHandle：先按动作分流，UPSERT → findById → sync，PURGE / 查不到 → purge
 }
 ```
 
 编写规则：
 
 - **一个副本一个订阅者**：ES 与 Redis 是两个平级订阅者，各自驱动自己的 `Source`（写读一体，落在 `projection/replica/` 包），互不引用、互不感知。
+- **先按 `event.getDataSyncAction()` 分流**：`PURGE` 直接 `源.purge(id)`，`UPSERT` 才 `findById` 后 `源.sync(order)`；聚合查不到（物理删后的补偿消息）一律转 `源.purge(id)`，不得静默 `return`——否则残留条目只能等对账 `ORPHAN` 兜底。
 - **物化版本取 `event.getVersion()`**（`collectEvent` 回填的 `getNewVersion()`），不取 `order.getOldVersion()`——后者是对账补偿路径的口径。
 - **编排收敛到 `源.sync(aggregate)`**：订阅者只做 `findById` + `sync` 两件事，project→materialize 的内部四步由源完成；投影映射与存储读写留在基础设施层，订阅者只做装配编排。
 - 投影 / 源 / 检索 / 裁剪 / 对账的完整落地见 [投影读模型代码落地指南](./projection-design.md)。
@@ -434,7 +447,7 @@ public final class EventSubscriberAliases {
 
 > ⚠️ **重要约束**：`handleEvent` 内不要 `try-catch` 后静默返回。基础设施异常上抛后由事件管理器按 `DeliveryPolicy` 与重试策略处理（RocketMQ 场景返回 `RECONSUME_LATER`，重试耗尽进死信）。吞掉异常会让副本落后或动作丢失，且对账路径无法感知。
 >
-> 例外：业务上「无需处理」的判断（聚合不存在、手机号为空、积分为 0）用 `if` 短路 `return`，这是**正常的空值处理**，不是吞异常。
+> 例外：业务上「无需处理」的判断（手机号为空、积分为 0）用 `if` 短路 `return`，这是**正常的空值处理**，不是吞异常。读模型型订阅者是唯一例外：聚合查不到时必须转 `源.purge(id)`，不能静默返回。
 
 ## 6. 常见反模式
 
@@ -450,6 +463,9 @@ public final class EventSubscriberAliases {
 | 不标 `@DomainService` 或 `category` 标错 | `category()` 返回 `UNKNOWN`，丢失分类元信息 | 标注 `EVENT_SUBSCRIBER`，`targetName` 填事件类名 |
 | 不同包下定义同名事件类 | 简单类名即路由 key，串事件 | 事件类名全局唯一 |
 | 物化时版本取 `order.getOldVersion()` | 事件路径与对账路径版本口径混用，副本版本错乱 | 事件路径取 `event.getVersion()`，对账路径才用 `getOldVersion()` |
+| 同步事件不判动作直接 `sync` | `PURGE` 被当成普通更新，删掉的聚合残留副本 | 先判 `getDataSyncAction()`：`PURGE` → `源.purge(id)` |
+| 同步事件聚合查不到就 `return` | 物理删后的残留条目只能等对账兜底 | 转 `源.purge(id)` |
+| 业务方法里手工发 `PURGE` | 动作语义脱离持久化事实，可能误删副本 | `PURGE` 只由 `triggerDataSyncHook` 删除路径产生 |
 | 外部副作用不带幂等键 | MQ 重投导致重复发短信 / 重复加积分 | 用聚合标识作 `bizId` 传给下游 |
 | 在 `handleEvent` 内同步编排多个聚合的写操作 | 跨聚合事务、锁竞争 | 写编排放应用服务；订阅者只做自己那一个动作 |
 

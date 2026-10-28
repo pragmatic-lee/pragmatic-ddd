@@ -54,11 +54,12 @@ application/{agg}/      OrderWriteService / OrderReadService / service/（sync�
 5. **条件族**：三 `sealed interface`（`OneQueryCriteria`/`ListQueryCriteria`/`PageQueryCriteria`，互不继承）+ `record` 场景；字段全必填（One/List）/全 Optional（Page）；枚举降级 `Integer`；条件不含分页参数与存储方言。
 6. **读服务**：`implements IQueryApplicationService`（**无基类**），注入领域源接口，方法体显式选源（ById→Redis、条件/分页→ES），两跳：`源.查询族()` 拿全量 → `源.getReducer(类型).reduce` 裁剪；目标即全量投影时 `isInstance` 短路 `cast`；`getReducer` 返回 `null` 显式抛 `ProjectionReducerNotFoundException`；`totalCount`/`nextCursor` 取自裁剪前。
 7. **装配**：投影侧零登记（源 `@Component` 即 Bean）；唯一装配 `OrderReconciliationConfig` 贡献 `ReconcileContribution.registerRepository(Order.class, repo)`；副本由 `List<IReadModelReplica<?>>` 自动登记。
-8. **事件订阅**：一份副本一个订阅者（`OrderDataSyncEsProjectionHandle` 等），`handleEvent` 内 `findById` → `源.sync(order)`；`DeliveryPolicy.DELAYED` 的 `reconcile` 订阅者做写后延迟复核。
+8. **事件订阅**：一份副本一个订阅者（`OrderDataSyncEsProjectionHandle` 等），`handleEvent` **先按 `event.getDataSyncAction()` 分流**：`PURGE` → `源.purge(id)`；`UPSERT` → `findById` → `源.sync(order)`，聚合为 `null` 时转 `源.purge(id)`（不静默 `return`）；`DeliveryPolicy.DELAYED` 的 `reconcile` 订阅者做写后延迟复核。
 
 ## 4. 三路径与版本语义
 
-- **写路径**：`Order.业务方法 → triggerDataSyncHook → collectEvent` → 订阅者 `findById` → `源.sync(order)`（`project` + `materialize(projection, aggregate.getOldVersion())`）。
+- **写路径**：`Order.业务方法 → triggerDataSyncHook → collectEvent(OrderDataSyncEvent.upsert/purge)` → 订阅者按动作分流 → `源.sync(order)`（`project` + `materialize(projection, aggregate.getOldVersion())`）或 `源.purge(id)`。
+- **删除路径**：聚合删除态 `triggerDataSyncHook` 发 `PURGE` → 订阅者立时清除副本；清除失败不阻业务事务，由对账 `ORPHAN`（`purgeOrphan`）最终收敛。`PURGE` 只此一个来源。
 - **读路径**：调用方 → `readService.queryXxx(条件/PageRequest, 类型.class)` → 两跳裁剪；**不回源聚合根**。
 - **对账路径**：`ReconciliationManager.reconcile(Order.class, id)` → 遍历 `replicaKeysOf` → `readVersion(V')` + `repo.currentVersion(V)`（聚合不存在 `-1`）+ `Reconciliation.of(V',V)` → STALE→`rebuild`（`findById→sync`）、ORPHAN→`purgeOrphan`。
 - **版本判定**：`readVersion` 副本缺失返回 `0`（判 STALE→rebuild），**非 `-1`**（`-1`=UNTRACKED 不重建）；`≥V`→CONSISTENT。
@@ -66,6 +67,8 @@ application/{agg}/      OrderWriteService / OrderReadService / service/（sync�
 ## 5. ⚠️ 关键约束
 
 - 写模型零改动：聚合根只经 `triggerDataSyncHook` 发数据同步事件。
+- 同步事件统一继承 `BaseDataSyncEvent`（`IDataSyncEvent`）：只带聚合标识 + `DataSyncAction`（`UPSERT`/`PURGE`），不携业务快照，不跨应用。
+- 处理器必须按动作分流，且「聚合缺失」一律转 `源.purge(id)`；不得静默跳过——否则残留只能等对账兜底。
 - 源只承载一种索引级全量投影，泛型 `P` 编译期钉死；业务子投影由 `getReducer` 在 Java 内存产出。
 - 能力不对称合法：Redis 只 extends ById 族，调 `search`/`searchPage` 编译期失败。
 - 无运行期回源链、无源登记中心：`queryById` Redis 未命中返回 `null`（不自动回退）；读服务不暴露 `ProjectionSource` 入参。
@@ -89,6 +92,11 @@ application/{agg}/      OrderWriteService / OrderReadService / service/（sync�
 | 期望缓存未命中自动回退 ES | 需回退显式写；自愈走对账 |
 | 读服务注入 ES Client 拼 DSL | DSL 下沉源/条件工厂 |
 | 事件携带业务快照 | 只带聚合标识，`handleEvent` 内 `findById` |
+| `handleEvent` 不判动作直接 `sync` | 先判 `getDataSyncAction()`：`PURGE` → `purge(id)` |
+| 聚合查不到 `return` 静默跳过 | 转 `源.purge(id)`（物理删后的补偿消息） |
+| 业务方法里手工发 `PURGE` 事件 | `PURGE` 只由 `triggerDataSyncHook` 删除路径产生 |
+| 同步事件上带索引名/key 前缀 | 一个聚合一个同步事件，存储事实归订阅者 |
+| 同步事件注册跨限界上下文消费者 | 跨应用集成另建业务领域事件 |
 | 真正写失败 catch 静默吞 | 上抛交 rebuild |
 | 409 冲突也上抛 | 捕获 `ResponseException` 仅 `log.debug` |
 | `readVersion` 缺失返回 `-1` | 返回 `0`（判 STALE→rebuild） |

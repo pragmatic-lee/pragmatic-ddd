@@ -115,6 +115,29 @@ public class OrderPaidEvent extends BaseDomainEvent {
 - 工厂入参是聚合对象（业务方法里传 `this`），`buildEvent` 内先 `new Event(entityId)`、再 `set` 必要字段，避免在业务方法里拼零散参数。
 - 事件字段只承载「定位聚合 + 少量路由 ID」，不携带业务快照（见 §3）。
 
+**例外：异构数据同步事件的工厂**
+
+异构同步事件（`IDataSyncEvent`）不用 `buildEvent`，而是继承 `BaseDataSyncEvent` 并按动作提供两个工厂：
+
+| 工厂 | 用途 | 写入动作 |
+| --- | --- | --- |
+| `{聚合}DataSyncEvent.upsert(聚合)` | 新增 / 变更 | `DataSyncAction.UPSERT` |
+| `{聚合}DataSyncEvent.purge(聚合)` | 删除（副本清除） | `DataSyncAction.PURGE` |
+
+```java
+public class OrderDataSyncEvent extends BaseDataSyncEvent {
+    public static OrderDataSyncEvent upsert(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.UPSERT);
+    }
+
+    public static OrderDataSyncEvent purge(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.PURGE);
+    }
+}
+```
+
+> ⚠️ **重要约束**：`PURGE` 只能由 `triggerDataSyncHook` 的删除态分支产生，业务方法内只调 `upsert`。详见 [核心：领域事件](../core/domain-events.md) 与 [投影读模型代码落地指南](./projection-design.md)。
+
 ## 5. 即时事件 vs 延迟事件
 
 选择依据以**构造期 ID 是否确定**为主：

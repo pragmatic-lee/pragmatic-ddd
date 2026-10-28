@@ -36,6 +36,7 @@
 - **乐观锁 CAS**：`doUpdate` 以 `version = oldVersion` 做 WHERE，`affected==0` 抛 `OptimisticLockingFailureException`；`oldVersion` 由 `findById` 从 DB 版列回填，不自建 version 字段。
 - **子集合差量**：一对多用 `TrackedList<OrderItem, Long>`，消费 `getRemovedItems()` 发 DELETE、`getAppendedItems()` 发 INSERT；子项字段修改语义是 `remove(旧)+append(新)`，不原地 UPDATE。
 - **删除先子后主**，避免孤儿行。
+- **删除必须走 `remove(aggregateRoot)`**（不直连 SQL）：钩子未触发则 `PURGE` 不产生，ES / Redis 副本长期残留，只能靠对账 `ORPHAN` 兜底。
 - **纯持久化无业务逻辑**：不判断、不组装、不触发事件（事件由 `triggerDataSyncHook` 统一处理）。
 
 ### 3.1 MyBatis 专题
@@ -62,6 +63,7 @@
 | 为子实体建仓储 | 一个聚合根一个仓储 |
 | 全删全插子集合 | `TrackedList` 三桶增量 |
 | 删除不清理子表 | 先子后主 |
+| 删除直连 SQL / 不传聚合根 | 走 `remove(aggregateRoot)`，由钩子发 `PURGE` |
 | 绕过版本列 UPDATE | `version=oldVersion` CAS |
 | 查询列混逻辑外键不映射 | 显式 resultMap，逻辑外键不入查询列 |
 | 仓储开事务注解 | 事务由执行器经 `TransactionOperations` 负责 |

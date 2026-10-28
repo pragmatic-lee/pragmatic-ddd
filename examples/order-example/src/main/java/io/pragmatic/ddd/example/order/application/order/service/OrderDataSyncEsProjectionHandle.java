@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.example.order.application.order.service;
 
+import io.pragmatic.ddd.event.DataSyncAction;
 import io.pragmatic.ddd.example.order.domain.order.event.OrderDataSyncEvent;
 import io.pragmatic.ddd.example.order.domain.order.model.Order;
 import io.pragmatic.ddd.example.order.domain.order.service.IOrderDataSyncEsProjectionHandle;
@@ -29,17 +30,23 @@ public class OrderDataSyncEsProjectionHandle implements IOrderDataSyncEsProjecti
     }
 
     /**
-     * 处理订单数据同步事件：加载最新聚合，由「源」投影并物化到 ES，版本取自聚合的 oldVersion。
+     * 处理订单数据同步事件：PURGE 直接清除副本；UPSERT 加载最新聚合后经「源」投影并物化，
+     * 聚合已不存在时（物理删）转为清除副本。
      *
      * @param event 订单数据同步事件
      */
     @Override
     public void handleEvent(OrderDataSyncEvent event) {
         Long id = Long.valueOf(event.getEntityId());
-        Order order = orderRepository.findById(id);
-        if (order == null) {
+        if (DataSyncAction.PURGE == event.getDataSyncAction()) {
+            this.esSource.purge(id);
             return;
         }
-        esSource.sync(order);
+        Order order = this.orderRepository.findById(id);
+        if (order == null) {
+            this.esSource.purge(id);
+            return;
+        }
+        this.esSource.sync(order);
     }
 }

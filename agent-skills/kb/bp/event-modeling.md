@@ -62,6 +62,8 @@ public void handle(OrderCreatedEvent event) {
 - 构造：`Event(String entityId)` 调 `super(entityId)`；`entityId`/`eventId`/`occurredOn` 由基类承载，`operationCode`/`version` 由 `collectEvent` 回填。
 - **禁用 `@Data`/`@Builder`**（事件等同性不承载业务含义；`@Builder` 无法把聚合标识传基类构造）。
 
+**例外——异构数据同步事件**：不用 `buildEvent`，继承 `BaseDataSyncEvent` 并提供 `upsert(聚合)` / `purge(聚合)` 两个工厂（对应 `DataSyncAction.UPSERT` / `PURGE`）。`PURGE` 只由 `triggerDataSyncHook` 删除态分支产生，业务方法内只调 `upsert`。
+
 ## 5. 即时事件 vs 延迟事件
 
 以**构造期 ID 是否确定**为主：

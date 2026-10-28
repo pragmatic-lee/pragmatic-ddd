@@ -12,6 +12,14 @@
 IDomainEvent (事件契约接口)
   ↑ implements
 BaseDomainEvent (抽象基类, 不可变, 提供 eventId/entityId/occurredOn + operationCode/version)
+  ↑ extends
+BaseDataSyncEvent (异构同步事件基类, 额外固定 dataSyncAction)
+
+IDomainEvent
+  ↑ extends
+IDataSyncEvent (异构同步标记接口, 新增 getDataSyncAction)
+  ↑ implements
+BaseDataSyncEvent
 
 AggregateRoot (io.pragmatic.ddd.base)
   └── 持有 TriggeredEvents，提供 collectEvent / getDomainEvents / clearWorkUnitState
@@ -85,6 +93,58 @@ public class OrderPaidEvent extends BaseDomainEvent {
 }
 ```
 
+#### 1.1 异构数据同步事件：IDataSyncEvent / BaseDataSyncEvent
+
+专门用于把聚合自身状态同步到异构副本（ES 索引 / Redis 键空间 / 宽表）的事件，与业务领域事件是两类语义。
+
+| 类型 | 说明 |
+|------|------|
+| `IDataSyncEvent` | 标记接口，`extends IDomainEvent`，仅新增 `getDataSyncAction()` |
+| `DataSyncAction` | `UPSERT`（以聚合当前状态覆盖副本）/ `PURGE`（清除副本） |
+| `BaseDataSyncEvent` | 基类，`extends BaseDomainEvent`，固定「聚合标识 + 同步动作」，不含业务字段 |
+
+**关键设计点 / 限制条件**：
+
+- **只携带聚合标识**：`version` / `operationCode` 仍由 `collectEvent` 回填，事件**禁止携带业务快照**；订阅方处理时重新 `findById` 加载最新聚合。
+- **一个聚合一个同步事件类型**：全部副本共用同一事件，事件上不出现目标存储（索引名 / key 前缀）等基础设施事实，副本取舍由订阅者注册与否表达。
+- **不跨应用**：同步事件只供本应用内部消费，不得注册跨限界上下文的消费者；跨上下文集成请另建业务领域事件。
+- **`PURGE` 来源唯一**：只能由持久化钩子（`triggerDataSyncHook` 的删除路径）产生；处理器在聚合查不到时也应转 `purge`，不得静默跳过。
+
+**代码示例**：
+
+```java
+// 领域层：同步事件只声明聚合标识 + 动作
+public class OrderDataSyncEvent extends BaseDataSyncEvent {
+    protected OrderDataSyncEvent(String entityId, DataSyncAction action) {
+        super(entityId, action);
+    }
+
+    protected OrderDataSyncEvent() {
+        super();                       // Fastjson2 FieldBased 反序列化入口
+    }
+
+    public static OrderDataSyncEvent upsert(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.UPSERT);
+    }
+
+    public static OrderDataSyncEvent purge(Order order) {
+        return new OrderDataSyncEvent(order.getEntityId().toString(), DataSyncAction.PURGE);
+    }
+}
+
+// 聚合根：落库前由仓储统一触发，按实体状态分流动作
+@Override
+public void triggerDataSyncHook() {
+    if (this.isEntityDelete()) {
+        this.collectEvent(OrderDataSyncEvent.purge(this));
+        return;
+    }
+    this.collectEvent(OrderDataSyncEvent.upsert(this));
+}
+```
+
+> ⚠️ **重要约束**：`BaseDataSyncEvent.dataSyncAction` 在 `FieldBased` 序列化下是**跨版本字段契约**，不得改名；旧消息缺该字段时按 `UPSERT` 处理，删除场景由处理器「聚合缺失转 purge」兜住。
+
 ### 2. 事件收集：AggregateRoot.collectEvent 与 TriggeredEvents
 
 **契约 / 接口**：事件收集是聚合根工作单元的一部分，由 `io.pragmatic.ddd.base.AggregateRoot` 提供，不直接暴露给应用层。
@@ -96,7 +156,7 @@ public class OrderPaidEvent extends BaseDomainEvent {
 | `collectEvent(Supplier<IDomainEvent>)` | 收集延迟事件，发布时惰性求值并回填 `operationCode`/`version` |
 | `getDomainEvents()` | 返回本工作单元已收集事件的不可变快照 |
 | `clearWorkUnitState()` | 清空事件、外部需求与因果操作，由应用层在分发完成后调用 |
-| `triggerDataSyncHook()` | 持久化前钩子，默认空实现，供子类发"聚合自身"异构事件 |
+| `triggerDataSyncHook()` | 持久化前钩子，默认空实现，供子类发"聚合自身"异构事件（`IDataSyncEvent`，含 `UPSERT` / `PURGE` 动作） |
 
 **基类能力**：`TriggeredEvents` 是底层收集容器，区分即时事件与延迟事件。
 
@@ -387,6 +447,7 @@ PragmaticException (基类)
 | 概念 | 使用方式 | 最关键约束 |
 |------|----------|------------|
 | `BaseDomainEvent` | 继承并实现业务字段，构造传 `entityId` | `operationCode`/`version` 由框架回填，子类禁赋值 |
+| `BaseDataSyncEvent` | 继承并实现 `upsert` / `purge` 工厂 | 只带聚合标识；动作字段不可改名；`PURGE` 仅由持久化钩子产生 |
 | `AggregateRoot.collectEvent` | 业务方法内 `recordOperation` 后调用 | 启用 operation 体系时必带操作，否则抛 `OperationException` |
 | `TriggeredEvents` | 经聚合根 `getDomainEvents()` 读取 | 非线程安全；延迟事件仅物化一次 |
 | `IEventManager.registerSubscriber` | 6 重载组合条件/依赖/策略 | 同事件别名不可重复；类名即路由 key |
@@ -401,6 +462,7 @@ PragmaticException (基类)
 | 元素 | 格式 | 示例 |
 |------|------|------|
 | 领域事件类 | `{业务对象}{动作}Event`，类名即路由标识 | `OrderPaidEvent` |
+| 异构同步事件类 | `{业务对象}DataSyncEvent`，继承 `BaseDataSyncEvent` | `OrderDataSyncEvent` |
 | 事件字段 / 载荷 | 业务语义命名，不可变 final 字段 | `orderId`、`amount` |
 | Handler 契约接口 | `I{业务动作}On{触发事件}`（继承 `IDomainService` + `IHandle<T>`） | `IInventoryDeductionOnOrderPaid` |
 | Handler 实现类 | `{业务动作}On{触发事件}`（去 `I` 前缀） | `InventoryDeductionOnOrderPaid` |

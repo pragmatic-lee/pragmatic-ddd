@@ -31,6 +31,7 @@ domain/{agg}/
 
 - **等同性**：`equals`/`hashCode` 由 `AbstractEntity` 基于 `entityId`，**不要覆盖**。
 - **事件收集（protected，仅聚合根内部）**：`collectEvent(BaseDomainEvent)` / `collectEvent(BaseDomainEvent, EntityOperation)` / `collectEvent(Supplier<IDomainEvent>)`（延迟）/ `getDomainEvents()` / `triggerDataSyncHook()`。用无操作参数的 `collectEvent` 前必须先 `recordOperation`，否则启用了操作体系时抛 `OperationException`。
+- **`triggerDataSyncHook()`**：`public`，由 `insert`/`update`/`remove` 落库前触发；子类覆写时删除态发 `PURGE`、其余发 `UPSERT`；`PURGE` 不得由业务方法手工发。
 - **两个抽象方法必须实现**：`brokenRuleRegistry()`（**不能返回 null**）、`operationRegistry()`（返回 null = 不启用操作体系）。
 
 ## 3. 聚合根骨架与约定
