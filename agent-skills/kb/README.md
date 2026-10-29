@@ -35,7 +35,7 @@
 | `bp/application-collaboration.md` | 应用层 WriteService 编排 | S4 / S7 |
 | `bp/code-comment-specification.md` | 代码注释规范（实体字段 / 业务方法 / Input 类与字段） | S4 / S5 / S7 |
 | `bp/repository-design.md` | 仓储设计（AbstractRepository / TrackedList / 乐观锁） | S4 / S3 / S7 |
-| `bp/aggregate-database-design.md` | 聚合数据库设计（表边界=聚合边界） | S3 / S4 / S7 |
+| `bp/aggregate-database-design.md` | 聚合数据库设计（两层判定：表边界 + 值对象落列 A/B） | S3 / S4 / S7 / ddd-design-doc |
 | `bp/projection-design.md` | 投影读模型四角色与硬约束 | S6 / S7 |
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |

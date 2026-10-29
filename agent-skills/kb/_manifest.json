@@ -105,7 +105,7 @@
       "id": "bp.aggregate-database-design",
       "path": "bp/aggregate-database-design.md",
       "source": "documentation/best-practices/aggregate-database-design.md",
-      "source_sha": "00f202bef41ebbd1ecf89f3c80e773659bd36144fbf5d38f6dd59eacfae0bcf3",
+      "source_sha": "912bc0fc8b4fba676b4759171f07eacdd2ba2121935167511f146ca982544e4a",
       "product_sha": "TODO"
     },
     {
@@ -140,14 +140,14 @@
       "id": "bp.design-doc-write-template",
       "path": "bp/design-doc-write-template.md",
       "source": "documentation/best-practices/design-doc-write-template.md",
-      "source_sha": "4e181190a6d852b50cb3f7910c5c71adf3ef8226a28818e76977aa13d94f9c9d",
+      "source_sha": "5b84417a5dc42c0290884b00a1ab83df9ab418dc720efa903889b0cd56aa9b8c",
       "product_sha": "TODO"
     },
     {
       "id": "bp.design-doc-read-template",
       "path": "bp/design-doc-read-template.md",
       "source": "documentation/best-practices/design-doc-read-template.md",
-      "source_sha": "cc84f432ae28b2b0576a47d848eb5059e7d0098b73fae04464433cb9ce949823",
+      "source_sha": "f84ac101e2cd4a15785a9a37231ec1f6b78deaa24c134474b71953c7ef2bb862",
       "product_sha": "TODO"
     },
     {
@@ -168,7 +168,7 @@
       "id": "bp.design-doc-facts",
       "path": "bp/design-doc-facts.md",
       "source": "documentation/best-practices/design-doc-facts.md",
-      "source_sha": "c6c722ac983fb377e0193f7a39d8f627482af4bfc129908f358e971b021d9c83",
+      "source_sha": "93437dead4cc3645269d3afb244e53e7cbd0b23fbfe20676cd89a957a2336acf",
       "product_sha": "TODO"
     },
     {

@@ -29,7 +29,7 @@
 | --- | --- | --- |
 | [聚合目录落地骨架](./aggregate-structure.md) | 新建聚合先初始化目录、按图索骥到各模式 | Order 目录 → 任何聚合目录 |
 | [聚合设计原则](./aggregate-design.md) | 聚合边界与粒度、框架父类已托管能力、聚合根编码规范 | `Order` → 任何聚合根 |
-| [聚合数据库设计原则](./aggregate-database-design.md) | 表边界 = 聚合边界、字段列映射、复杂类型存储 | 订单多表 → 任何聚合的表结构 |
+| [聚合数据库设计原则](./aggregate-database-design.md) | 两层判定：表边界 = 聚合边界 + 值对象落列（A 展开 / B JSON + 生成列） | 订单多表 → 任何聚合的表结构 |
 | [普通实体设计原则](./entity-design.md) | 聚合内子实体的设计与编码 | `OrderItem` → 任何聚合内实体 |
 | [值对象最佳实践](./value-object.md) | 结构相等的可嵌入数据结构、与实体/枚举取舍 | 地址 / 金额 → 任何值对象 |
 | [枚举值对象最佳实践](./enum-value.md) | 用 `IEnumValue` 替代 Java enum、CODE 持久化 | 订单状态 → 任何离散常量集合 |
