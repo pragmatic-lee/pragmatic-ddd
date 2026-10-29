@@ -145,12 +145,16 @@ export default defineConfig({
               ]
             },
             {
-              text: '⑦ 设计文档（识别 → 演进 → 文档标准）',
+              text: '⑦ 设计文档（识别 → 语义 → 写 / 读设计）',
               collapsed: true,
               items: [
                 { text: '聚合识别设计原则', link: '/best-practices/aggregate-identification' },
                 { text: '聚合演进设计原则', link: '/best-practices/aggregate-evolution-design' },
-                { text: '设计文档编写规范', link: '/best-practices/design-doc-template' }
+                { text: '设计文档标准（三层总说明）', link: '/best-practices/design-doc-template' },
+                { text: '① 业务语义文档', link: '/best-practices/design-doc-semantics' },
+                { text: '② 聚合写设计文档', link: '/best-practices/design-doc-write-template' },
+                { text: '③ 投影读设计文档', link: '/best-practices/design-doc-read-template' },
+                { text: '实施前置条件', link: '/best-practices/design-doc-prerequisites' }
               ]
             },
             {

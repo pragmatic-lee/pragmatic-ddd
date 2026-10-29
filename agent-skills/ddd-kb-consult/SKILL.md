@@ -1,12 +1,12 @@
 ---
 name: ddd-kb-consult
-description: 咨询 Pragmatic DDD 框架的设计规范与最佳实践（只读 KB 答疑，不生成代码）。当用户问「pragmatic-ddd 里 xxx 怎么设计/为什么这样/怎么配」「聚合怎么拆分」「RocketMQ 还是 Kafka 怎么选」「规则容器/操作注册表/规则注册表怎么写」「枚举出入参为什么用 Integer」「Outbox 怎么配」等解释性问题时触发。强制先 Read 对应 `kb/` 卡再作答，禁止凭记忆臆造；拿不准的框架签名以 `kb/api-contract.md` 为唯一权威。
+description: 咨询 Pragmatic DDD 框架的设计规范与最佳实践（只读 KB 答疑，不生成代码）。当用户问「pragmatic-ddd 里 xxx 怎么设计/为什么这样/怎么配」「聚合怎么拆分」「RocketMQ 还是 Kafka 怎么选」「规则容器/操作注册表/规则注册表怎么写」「枚举出入参为什么用 Integer」「Outbox 怎么配」「设计文档分几层、语义文档怎么写」「生成代码前要确认哪些前提」等解释性问题时触发。强制先 Read 对应 `kb/` 卡再作答，禁止凭记忆臆造；拿不准的框架签名以 `kb/api-contract.md` 为唯一权威。
 ---
 
 # ddd-kb-consult（KB 咨询 / 答疑）
 
 > 类型：咨询类（只读 KB，不产代码）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v1.1 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，路由表见 `../kb/README.md` §3；全量卡目见 `../kb/README.md` §2）
 
 ## 1. 定位
@@ -43,7 +43,11 @@ description: 咨询 Pragmatic DDD 框架的设计规范与最佳实践（只读 
 | 投影基类签名（零上下文必读） | `bp/projection-api` |
 | 广播事件（一写多读） | `bp/broadcast` |
 | 外部依赖声明、ACL 网关 | `bp/dependency-declaration` |
-| 设计文档模板（含大纲跳转） | `bp/design-doc-template` |
+| 设计文档三层关系、该产出哪几份 | `bp/design-doc-semantics` + `bp/design-doc-write-template` + `bp/design-doc-read-template`（总说明见 `documentation/best-practices/design-doc-template.md`） |
+| 聚合业务语义文档怎么写（8 章 + 3 附录） | `bp/design-doc-semantics` |
+| 聚合写设计文档怎么写（11 节） | `bp/design-doc-write-template` |
+| 投影读设计文档怎么写（6 节、三读源） | `bp/design-doc-read-template` |
+| 生成代码前必须确认什么、未确认怎么阻 | `bp/design-doc-prerequisites` |
 | ES 配置 | `bp/elasticsearch-config` |
 | 事件管理器选型（Kafka/RocketMQ/ThreadPool） | `bp/event-manager-config` |
 | MySQL 配置（数据源 / 事务） | `bp/mysql-config` |
