@@ -1,4 +1,8 @@
-# Pragmatic DDD · AI Skills 与知识包（v1.0 完整草稿，含阶段 3）
+# Pragmatic DDD · AI Skills 与知识包（v2.1 · KB 2.3-draft）
+
+> **使用说明看 [`USAGE.md`](./USAGE.md)**（我现在该用哪个、说句话会触发什么、四份文档怎么协作）。
+> **安装到其他智能体看 [`INSTALL.md`](./INSTALL.md)**（目录依赖、三种安装方式、版本自检）。
+> 本文件是目录与能力总览，面向维护者。
 
 - [1. 这是什么](#1-这是什么)
 - [2. 目录结构](#2-目录结构)
@@ -30,7 +34,7 @@ agent-skills/
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
 │   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
-│   ├── bp/                         ← 31 篇 best-practice 派生卡（含 projection-api / aggregate-identification / aggregate-evolution-design / code-comment-specification / postgresql-config）
+│   ├── bp/                         ← 34 篇 best-practice 派生卡（含 design-doc 五张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
 │   └── （无外部示例依赖，KB 自足）
 ├── ddd-project-init/               ← S1 项目初始化
 ├── ddd-aggregate-scaffold/         ← S2 聚合骨架
@@ -65,8 +69,20 @@ agent-skills/
 | S6 `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value(E3), hard-constraints |
 | S7 `ddd-code-review` | 评审 | 评审代码合规 | hard-constraints + api-contract |
 | P2 `ddd-modeling-guide` | 建模引导 | 聚合边界/聚合度怎么划（只引导，不出文档） | aggregate-design, aggregate-database-design, entity-design |
-| D `ddd-design-doc` | 设计文档产出 | 从需求识别聚合并出标准/版本化设计文档（全新/加聚合/改聚合） | aggregate-identification, aggregate-evolution-design, aggregate-design, entity-design, hard-constraints |
-| KB `ddd-kb-consult` | 咨询答疑 | 解释 pragmatic-ddd 规范/最佳实践（不产代码） | 按问题路由到对应 bp + hard-constraints + api-contract |
+| D `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照：语义 / 写设计 / 投影读设计 / 事实 | design-doc-semantics / write-template / read-template / facts / prerequisites + aggregate-identification / aggregate-evolution-design |
+| KB `ddd-kb-consult` | 咨询答疑 | 唯一咨询入口：怎么用 / 用哪个 → `USAGE.md`；为什么这么设计 → KB 卡（不产代码） | `USAGE.md` 或按问题路由到对应 bp + hard-constraints + api-contract |
+
+**上游文档契约**（部署类 Skill 读哪份文档）
+
+| Skill | 读哪份文档 | 无文档时 |
+| --- | --- | --- |
+| S1 项目初始化 | — | 产出前置条件清单空模板 |
+| S2 聚合骨架 | ② §2.1 包布局 | 只建目录，不猜结构 |
+| S3 基础设施 | ② §7 + **前置条件清单** | 未确认项不装配 |
+| S4 聚合创建 | ② §2–§9（含 §3.1 操作 / §4.4 规则 / §7 DDL） | **不自行推导语义**，先跑 `ddd-design-doc` |
+| S5 聚合扩展 | ④ §3 + ① 增量 + ② §8 | 先补 ④ |
+| S6 投影创建 | ③ §2–§6 | **不自行设计读模型**，先跑 `ddd-design-doc` |
+| S7 代码评审 | 代码 + 可选 ②③④ | 只审硬约束，不做设计符合性对账 |
 
 > 隔离角色 `agents/ddd-reviewer.md` 与 S7 同基准，区别在运行隔离（只读、零写入）。
 
@@ -113,7 +129,7 @@ agent-skills/
 
 ---
 
-> **版本**：v2.0-draft（KB v2.0：PostgreSQL 支持入卡 + 7 张 STALE 卡重蒸馏 + api-contract 钉死 2.1.0-SNAPSHOT；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
+> **版本**：v2.1（KB v2.3：设计文档改为「三契约 + 一快照」+ 需求目录制，34 张 bp 卡；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
 > **适用框架版本**：2.1.0-SNAPSHOT
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)

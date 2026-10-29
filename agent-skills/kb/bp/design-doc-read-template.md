@@ -4,9 +4,9 @@
 
 ## 1. 定位
 
-三层文档中的第三层，与写设计成对：写管「数据怎么变」，本卡管「数据怎么查」。
+三契约中的第三份，与写设计成对：② 管「数据怎么变」，本卡管「数据怎么查」。
 
-落盘：`docs/design/{agg}-projection-read-design-v{N}.md`；与写文档**同批归档**；不设改动清单 / 测试 / 风险（由写文档统管）。
+落盘：`docs/design/changes/active/{需求}/{agg}/projection-read.md`；与写文档**同批归档**（随目录移到 `changes/archive/`）；不设改动清单 / 测试 / 风险（由写文档统管）。当前实际形态看 `bp.design-doc-facts`。
 
 ## 2. 三种读源
 

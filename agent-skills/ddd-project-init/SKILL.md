@@ -6,7 +6,7 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 # ddd-project-init（项目初始化）
 
 > 类型：S1（初始化类）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位
@@ -47,7 +47,23 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 
 项目上下文徽章（根目录 `.ddd/`），记录：技术栈、模块选型、根包、ID 策略、约定（小聚合 / 出参 DTO / 事件驱动 / 聚合根禁 `@Data`）。供 AI 后续步骤快速加载。模板见 `kb/bp/aggregate-structure.md`。
 
-### 3.6 自检 + 交付
+### 3.6 初始化设计文档工作区
+
+执行 `agent-skills/scripts/design-doc-workspace.sh init`，产出：
+
+```text
+docs/design/
+├── prerequisites.md      ← 10 项全「待确认」，不预填默认值
+├── changes/active/
+├── changes/archive/
+└── aggregates/
+```
+
+理由：数据库 / 总线 / Outbox 等选择在 S3 装配时才用，但必须在项目起点就形成待确认清单与目录骨架，否则 S3 / S4 会被迫「默认选型」，设计文档也无处安放。
+
+目录约定见 `docs/design/agent-skills/文档产物目录规划-v2.md`。
+
+### 3.7 自检 + 交付
 
 - 核对：BOM 管理版本、目录与 `aggregate-structure.md` 一致、properties 无硬编码秘密。
 - 提示：业务聚合用 S2 搭骨架、S4 填逻辑；基础设施详配用 S3。

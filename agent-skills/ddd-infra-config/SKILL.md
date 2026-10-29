@@ -6,7 +6,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 # ddd-infra-config（基础设施配置）
 
 > 类型：S3（基础设施配置类）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位
@@ -16,8 +16,10 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 ## 2. 输入
 
 - 已初始化的工程（S1 产物）。
-- 待装配能力清单：MySQL + MyBatis（默认）/ RocketMQ / Outbox / ES 源 / Redis 源。
-- 真实连接信息：仅填 `application.properties` 的 `${ENV}` 占位（不硬编码）。
+- **前置条件清单（必读）**：数据库类型与版本、事件总线、Outbox 开关、补偿模式、ES / Redis 版本与安全开关。**未确认项不生成对应装配**（阻断映射见 `bp.design-doc-prerequisites` §4）。
+- **上游写设计文档 ② §7**：表结构、索引、特殊列（`version` / 软删 / 审计）决定建表 SQL 与 TypeHandler 登记。
+- 待装配能力清单：MySQL / PostgreSQL + MyBatis（默认）/ RocketMQ / Kafka / Outbox / ES 源 / Redis 源。
+- 真实连接信息：仅填 `application.yaml` 的 `${ENV}` 占位（不硬编码）。
 
 ## 3. 工作流程
 

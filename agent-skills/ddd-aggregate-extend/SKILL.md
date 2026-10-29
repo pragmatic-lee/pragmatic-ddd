@@ -6,7 +6,7 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 # ddd-aggregate-extend（聚合扩展）
 
 > 类型：S5（扩展类）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位
@@ -15,8 +15,10 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 
 ## 2. 输入
 
+- **必须同时读三份**（同一需求目录 `docs/design/changes/active/{需求}/{agg}/`，已归档则读 `changes/archive/{需求}/{agg}/`）：④ `aggregates/{agg}/facts.md` §3（当前实际结构，避免与既有代码冲突）、① `semantics.md`（本次增量要求，差异就参看那里）、② `aggregate-design.md` §8（改动清单与落地顺序）。
 - 目标聚合现有代码（必须 Read 现有 `domain/{agg}` 全量，先理解再改）。
 - 扩展需求：新增操作 / 补校验 / 加订阅 / 加子实体或值对象 / 加投影源。
+- **前置条件清单**：本次改动涉及执行器、总线、存储时，未确认项不生成。
 
 ## 3. 工作流程（按需求选分支）
 

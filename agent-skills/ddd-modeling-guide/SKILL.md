@@ -6,7 +6,7 @@ description: 聚合建模引导（长线 P2）——通过多轮问答帮助确�
 # ddd-modeling-guide（聚合建模引导，P2）
 
 > 类型：P2（建模引导，长线）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md`）
 > 关联：`../kb/bp/aggregate-design.md` · `../kb/bp/aggregate-database-design.md` · `../kb/bp/entity-design.md`
 

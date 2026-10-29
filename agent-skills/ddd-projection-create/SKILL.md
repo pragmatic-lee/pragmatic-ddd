@@ -6,7 +6,7 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 # ddd-projection-create（投影读模型创建，S6）
 
 > 类型：S6（投影类）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 > 核心依据：`kb/bp/projection-design.md`（极长，生成前必读）
 
@@ -16,10 +16,21 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 
 ## 2. 输入
 
+- **必须有 ③ 投影读设计文档**：`docs/design/changes/active/{需求}/{agg}/projection-read.md`（已归档则读 `changes/archive/{需求}/{agg}/projection-read.md`）。投影 DTO、条件族、源端口、读源结构、查询族全在它里。
+- **无 ③ 时不得自行设计读模型**，先提示用户跑 `ddd-design-doc`（产 ③）。
 - 已存在的聚合（S4 产物）及其领域事件。
-- 目标存储：ES 索引 / Redis 缓存 / 第二索引（每副本 = 一个 Source）。
-- 查询族需求：单查 / 列表 / 分页（决定 `sealed interface` 三族）。
-- 业务子投影（需裁剪的字段/层级）。
+- **前置条件清单**：ES / Redis 版本与安全开关未确认时，对应副本不生成。
+
+从 ③ 读什么：
+
+| 读 ③ 的哪节 | 用来定什么 |
+| --- | --- |
+| §1.3 读源与澄清 | 上哪几种副本、哪些查询未澄清 |
+| §2.2 副本维度 / §2.3 契约 | 源端口与副本标识 |
+| §3.1 投影 DTO / §3.2 条件族 | 投影类与查询条件 record |
+| §4.1–§4.3 读源结构 | 索引 mapping、Redis key、直读 SQL |
+| §5 构建与同步 | 投影器、裁剪器、源、订阅者 |
+| §6.2 查询族与源对应 | 读服务方法清单 |
 
 ## 3. 工作流程（按 projection-design.md 四角色落地）
 

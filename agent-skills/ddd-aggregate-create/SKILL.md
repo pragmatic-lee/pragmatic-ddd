@@ -6,26 +6,40 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 # ddd-aggregate-create（聚合创建，核心 Skill）
 
 > 类型：S4（创建类，核心）
-> 版本：v1.0-draft · 适用框架：2.0.0
+> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 前置
 
+- **必须有 ② 聚合写设计文档**：`docs/design/changes/active/{需求}/{agg}/aggregate-design.md`（已归档则读 `changes/archive/{需求}/{agg}/aggregate-design.md`）。类清单、操作码、规则、事件、DDL、执行器选型全部从它来。
+- **无 ② 时不得自行推导语义**，先提示用户跑 `ddd-design-doc`（产 ①②③），再回来生成代码。
+- 迭代场景另读 ④ `docs/design/aggregates/{agg}/facts.md` §3，确认当前实际类与表，避免与既有代码冲突。
+- **前置条件清单**：执行器选型、数据源、总线、Outbox 等项未确认时，对应部分不生成（见 `bp.design-doc-prerequisites`）。
 - 必须先有 S2 产出的目录骨架（或用户已有包结构）。无骨架时先建议跑 S2。
 - 生成前 Read 知识包：`kb/hard-constraints.md`、`kb/api-contract.md`、`kb/bp/aggregate-design.md`、`kb/bp/operation-registry-design.md`、`kb/bp/registry-design.md`、`kb/bp/order-rule-pattern.md`、`kb/bp/event-modeling.md`、`kb/bp/enum-value.md`、`kb/bp/application-collaboration.md`、`kb/bp/repository-design.md`。
 - 拿不准任何签名 → 先 Read `kb/api-contract.md`（含全限定 import + 精确方法签名）；骨架/范式类疑问 Read 对应 `kb/bp/*.md`。**KB 自足，不依赖任何外部示例工程**，禁止臆造。
 
 ## 执行步骤（五步生成）
 
-### 步骤 1：澄清聚合语义
+### 步骤 1：读上游文档（不自行澄清语义）
 
-- 确认聚合名 `{Agg}`、ID 类型（`Long` 自增 / `String` UUID/雪花）。
-- 确认业务操作清单（创建 / 支付 / 取消 / 发货……）→ 映射为操作注册表常量 + 充血方法。
-- 确认需要哪些业务校验 → 映射为规则容器 `addRule`。
-- 确认哪些校验是外部的（权限 / 存在性 / 跨服务）→ 走领域服务契约（`I{Agg}{Target}Service extends IDomainService`）。
+| 读 ② 的哪节 | 用来定什么 |
+| --- | --- |
+| §2.2 类清单 / §2.1 包布局 | 要生成哪些文件、放哪个包 |
+| §3.1 操作清单 / §3.2 注册表 | 操作码常量与充血方法清单 |
+| §4.4 覆盖对照 | 每条规则的编号、消息码、激活条件、判定基准 |
+| §5.1 事件清单 | 事件类与载荷字段 |
+| §6.1–§6.5 | Input / 工厂 / Updater / 写服务 / 规则装配 |
+| §6.4 写服务（含执行器选型表） | 用哪个执行器（普通 / Outbox / 可补偿） |
+| §6.7 外部依赖与补偿 | 需求声明与补偿动作 |
+| §7.2 DDL / §7.3 映射 | 表结构与 TypeHandler |
+| §10.4 框架签名 | 逐项核实后再写代码，不臆造 |
+
+文档缺项时的处理：回 ② 补，不在生成阶段“设计” —— 生成阶段的职责是把已定结构落成代码。
 
 ### 步骤 2：生成领域模型（model/）
 
+- **按 ② §2 骨架逐个落文件，不改结构**：类清单少一个或多一个都要回文档核对。
 - 聚合根 `{Agg} extends AggregateRoot<ID>`，Lombok 仅 `@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`（硬约束 8）。
 - 状态用枚举（领域内部 `int` code），见 `kb/bp/enum-value.md`；**出入参层字段按 `kb/hard-constraints.md` E1~E3 用 `Integer`/`String`**。
 - `initData` 模式：`new {Agg}({Agg}InitData, id)`，构造只赋值 + `markCreated()`（审计时间戳 createdAt/updatedAt）+ `markNew()`（新建路由标志 isNew，仓储据此 INSERT）+ 延迟创建事件（硬约束 6）；两个标记职责不同，新建构造都要调。

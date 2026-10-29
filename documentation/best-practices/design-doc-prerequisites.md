@@ -1,7 +1,7 @@
 # 实施前置条件规约
 
 > 适用：任何聚合出设计文档或生成代码之前。
-> 配套清单由各项目自行维护（不走文档站），模板见仓库 `docs/design/documentation/`。
+> 配套清单由各项目自行维护（不走文档站），落盘 `docs/design/prerequisites.md`；模板示例见仓库 `docs/design/documentation/实施前置条件清单示例.md`。
 
 ## 1. 什么是前置条件
 
