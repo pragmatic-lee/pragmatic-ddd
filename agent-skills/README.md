@@ -34,7 +34,7 @@ agent-skills/
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
 │   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
-│   ├── bp/                         ← 34 篇 best-practice 派生卡（含 design-doc 五张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
+│   ├── bp/                         ← 35 篇 best-practice 派生卡（含 design-doc 六张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
 │   └── （无外部示例依赖，KB 自足）
 ├── ddd-project-init/               ← S1 项目初始化
 ├── ddd-aggregate-scaffold/         ← S2 聚合骨架
@@ -69,7 +69,7 @@ agent-skills/
 | S6 `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value(E3), hard-constraints |
 | S7 `ddd-code-review` | 评审 | 评审代码合规 | hard-constraints + api-contract |
 | P2 `ddd-modeling-guide` | 建模引导 | 聚合边界/聚合度怎么划（只引导，不出文档） | aggregate-design, aggregate-database-design, entity-design |
-| D `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照：语义 / 写设计 / 投影读设计 / 事实 | design-doc-semantics / write-template / read-template / facts / prerequisites + aggregate-identification / aggregate-evolution-design |
+| D `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照（语义多轮迭代 → 定稿 → 写 / 读按点单）；流程权威：四道闸门 + 回流矩阵 | design-doc-template（流程权威）/ semantics / write-template / read-template / facts / prerequisites + aggregate-identification / aggregate-evolution-design |
 | KB `ddd-kb-consult` | 咨询答疑 | 唯一咨询入口：怎么用 / 用哪个 → `USAGE.md`；为什么这么设计 → KB 卡（不产代码） | `USAGE.md` 或按问题路由到对应 bp + hard-constraints + api-contract |
 
 **上游文档契约**（部署类 Skill 读哪份文档）
@@ -118,7 +118,7 @@ agent-skills/
 | 隔离评审角色 | `agents/ddd-reviewer.md`（只读工具、零写入、同 S7 基准） |
 | AGENTS.md 路由表 | 根 `AGENTS.md` 追加「AI Skills 路由（兜底）」段 |
 | 建模引导 P2 | `ddd-modeling-guide/SKILL.md` + `templates/modeling-worksheet.md` |
-| 设计文档产出 D | `ddd-design-doc/SKILL.md`（聚合识别 + 13 节标准文档，版本化；实现交 S4/S5） |
+| 设计文档产出 D | `ddd-design-doc/SKILL.md`（聚合识别 + 三契约一快照 + 闸门制交付：语义多轮迭代后定稿，②③ 点单产出；实现交 S4/S5） |
 
 ## 8. 后续可选增强
 
@@ -129,7 +129,7 @@ agent-skills/
 
 ---
 
-> **版本**：v2.1（KB v2.3：设计文档改为「三契约 + 一快照」+ 需求目录制，34 张 bp 卡；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
+> **版本**：v2.2（KB v2.4：设计文档交付改为闸门制 + 回流矩阵，新增 `bp.design-doc-template` 流程权威卡，35 张 bp 卡；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
 > **适用框架版本**：2.1.0-SNAPSHOT
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)

@@ -10,7 +10,7 @@
 
 核心特征：
 
-- **中立读视图**：投影 DTO 只声明字段、对齐存储 Mapping，不含存储与查询逻辑。
+- **中立读视图**：投影只声明字段、对齐存储形状，不含存储与查询逻辑。
 - **纯映射**：投影器只做字段取值 / 裁剪 / 派生，不接触存储客户端。
 - **源承载写读对账**：一份物理副本的写（`materialize` / `purge`）、读（查询族实现）、对账（`readVersion` / `rebuild`）收敛在同一个源对象内。
 - **检索在源内**：条件翻译与检索实现是源的一部分，不再拆成独立的 Searcher 类。
@@ -19,7 +19,7 @@
 
 **写模型零改动**：聚合根不持有任何存储依赖，只在仓储落库前经 `triggerDataSyncHook()` 发出数据同步事件；投影的装配与存储细节全部落在领域契约与基础设施实现中。
 
-### 1.1 读侧四个角色
+### 1.1 读侧四个角色（异构副本）
 
 读模型一侧由四个角色协作，职责边界不可越界：
 
@@ -32,6 +32,8 @@
 | 读服务 `OrderReadService` | 读侧入口（应用层） | 注入源接口、按族分派、查全量 + 裁剪两跳 | 直接持有存储客户端、把源或 `ProjectionSource` 暴露给调用方 |
 
 > 原设计中「检索器 `Searcher`」是独立构件、由框架基类 `AbstractProjectionQuery` 做「选源 → 查全量 → 裁剪」三跳编排。现设计下**检索能力收进源、编排能力收进应用服务**，框架只提供查询族 SPI 与分页值对象。
+>
+> **适用范围**：上述四角色描述的是**异构副本**（ES / Redis）。同源直读没有投影器与副本，读侧只有「读源 + 读服务」，裁剪器可选，见 §4.15。
 
 ## 2. 包结构与命名规范
 
@@ -79,6 +81,20 @@ application/order/subscriber/                  事件订阅绑定
 ```
 
 依赖方向单向内聚：`Infrastructure → Domain → Framework`。
+
+同一聚合若有「本库直读」查询，再加一支（与上面的副本支并行，互不替代）：
+
+```text
+domain/order/projection/
+  ├── IOrderReadSource                          读源端口：只 extends 真实支撑的查询族 + getReducer
+  └── OrderRowProjection                        行投影：字段 = 本次 SELECT 列，实现 IOrderProjection
+infrastructure/persistent/order/projection/
+  ├── reader/OrderDbReadSource                  直读源实现：包 Mapper，无基类、无副本、无版本
+  ├── mapper/OrderRowMapper + OrderRowMapper.xml    只被读源实现调用，不出 infrastructure
+  └── reducer/OrderRowSummaryReducer            行投影 → 业务子投影（纯内存，可选）
+```
+
+直读支**没有**投影器、副本常量、数据同步事件与对账登记；它只多一条「SQL → 行投影」的读路径。
 
 ### 2.2 命名规范
 
@@ -258,6 +274,24 @@ public class OrderDataSyncEvent extends BaseDataSyncEvent {
 >
 > **与业务事件的分工**：「通知别人发生了什么」用业务领域事件；「让我的副本跟上我」用数据同步事件。二者可并存于同一聚合，但语义与消费方不同，不要混用同一事件类型。
 
+### 3.5 行投影：与索引级全量投影平级
+
+同源直读没有副本，但同样需要一个「读源形状」的容器，称为**行投影**。它与索引级全量投影平级，差异只在来源：
+
+| 项 | 索引级全量投影（`OrderEsProjection` / `OrderCacheProjection`） | 行投影（`OrderRowProjection`） |
+| --- | --- | --- |
+| 形状由谁决定 | 物理存储 Mapping | 本次 `SELECT` 列 |
+| 谁产出 | 投影器 `AbstractAggregateProjector` | `resultMap`（SQL → 对象） |
+| 是否有副本 | 是（索引 / 键空间） | 否（同源直读） |
+| 是否有版本 | 是（`_version` / 内嵌 `version`） | 否 |
+| 裁剪器输入 | 是 | 是 |
+
+三条规则：
+
+- **行投影不是聚合镜像**：只放本次查询需要的列，5 个字段就写 5 个。
+- **行投影必须实现聚合投影根接口**：否则裁剪器用不了（`IReducer` 两端上界都是 `IAggregateProjection`）。
+- **一个行投影对应一个读源**：同一读源要出多种形状用裁剪，不再加行投影。
+
 ## 4. 组件的落地方式
 
 按以下顺序逐个落地组件，即可得到可运行的投影读模型代码。
@@ -302,7 +336,7 @@ public interface IOrderRedisSource extends IProjectionByIdSearcher<OrderCachePro
 >
 > ⚠️ **接口里没有 `criteriaType()` / `projectionType()` 这类元数据方法**：条件类型与投影类型由 `implements` 时的泛型实参钉死。写检索实现时不需要、也无法在运行时自报类型。
 
-### 4.2 投影 DTO：`OrderEsProjection`
+### 4.2 投影：`OrderEsProjection`
 
 纯数据容器，用 Lombok `@Data` 简化（含嵌套 `@Data` 静态类）。只声明字段、对齐 Mapping，**不含计算逻辑**：
 
@@ -1172,7 +1206,7 @@ public class OrderReconciliationConfig {
 | --- | --- | --- |
 | 某聚合详情页查得慢，想加 Redis 热缓存，按主键直取 | ✅ 加一个 Redis 源（源端口只 extends ById 族） | 读写热路径分离，Redis 只承担主键直取 |
 | 同一聚合有两个物理索引（详情索引 A / 概要索引 B）承载不同查询 | ✅ 加一个 ES 索引源（各自 extends 各自要支撑的族） | 两个源互不冲突，`REPLICA_ID` 不同 |
-| 只是想在既有 ES 上加字段 / 加一个查询场景 | ❌ 不是新副本，是改既有投影 DTO + 源内加 `search` 分发分支 / 加条件族 `record` | 结构内扩展，不新增源 |
+| 只是想在既有 ES 上加字段 / 加一个查询场景 | ❌ 不是新副本，是改既有投影 + 源内加 `search` 分发分支 / 加条件族 `record` | 结构内扩展，不新增源 |
 
 > 判断核心：**副本是"同一份读模型的另一种物化 / 另一份物理拷贝"，不是"给既有副本加能力"**。前者新增源；后者在既有源内扩展。
 
@@ -1180,7 +1214,7 @@ public class OrderReconciliationConfig {
 
 以「给已有 ES 订单副本，再加一份 Redis 主键直取缓存」为例：
 
-**① 领域层——新投影 DTO + 常量 + 源端口**
+**① 领域层——新投影 + 常量 + 源端口**
 
 ```java
 // domain/order/projection/OrderCacheProjection.java —— Redis 键存储的文档形状（含 version）
@@ -1266,7 +1300,7 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 | 约束 | 说明 | 违反后果 |
 | --- | --- | --- |
 | **新副本 = 新源 + 新源端口，不改既有源** | 复用已有的 ES 源类去"兼写 Redis"会把两种存储方言耦合进一个类 | 替换存储要改源，失去可扩展性 |
-| **索引级投影 DTO 各自独立** | 每个源的全量投影对齐各自物理存储文档形状；不共享"通用投影" | 源与存储 Mapping 错位，检索结果失真 |
+| **索引级投影各自独立** | 每个源的全量投影对齐各自物理存储文档形状；不共享"通用投影" | 源与存储 Mapping 错位，检索结果失真 |
 | **副本标识唯一，不手拼** | 每个源 `REPLICA_ID` 全局唯一 | 重复标识抛 `ProjectionSourceConflictException` / `ReconcileDuplicateReplicaException` |
 | **能力按需 extends，不强求全集** | 缓存副本只 extends 它要支撑的族 | 强行给只读缓存补全检索器，制造无意义实现 |
 | **每副本自带对账能力** | `readVersion` / `rebuild` 由各源独立实现 | 多个副本共用一个 `REPLICA_ID`，对账互相覆盖 |
@@ -1281,7 +1315,7 @@ public class OrderRedisCacheHandle implements IOrderRedisCacheHandle {
 | 只写了源却忘了写事件处理器 | 新副本无写路径，永远为空 | 写路径与读路径各自独立接线 |
 | 多个副本共用一个 `REPLICA_ID` | 副本标识与副本非一一对应，`rebuild` 串写、版本互相干扰 | 每副本独立 `REPLICA_ID`，源自身即副本 |
 
-> **举一反三**：这套"加副本 = 加源 + 加源端口"的模式对任何模块通用——`{Agg}EsSource` 之外再加 `{Agg}RedisSource`（缓存）或 `{Agg}XxxIndexSource`（第二个索引），都走「领域层加投影 DTO + 常量 + 源端口 → 基础设施写源（含投影器 / 裁剪器）→ 装配 register → 应用层读服务接线 + 事件订阅」四步；ES 与 Redis 只是两种已落地的存储实例，不是扩展的天花板。
+> **举一反三**：这套"加副本 = 加源 + 加源端口"的模式对任何模块通用——`{Agg}EsSource` 之外再加 `{Agg}RedisSource`（缓存）或 `{Agg}XxxIndexSource`（第二个索引），都走「领域层加投影 + 常量 + 源端口 → 基础设施写源（含投影器 / 裁剪器）→ 装配 register → 应用层读服务接线 + 事件订阅」四步；ES 与 Redis 只是两种已落地的存储实例，不是扩展的天花板。
 
 ### 4.14 事件订阅：应用层编排 + 绑定
 
@@ -1340,6 +1374,195 @@ public class OrderEventSubscriberRegistry {
 ```
 
 > `reconcile` 订阅者以 `DeliveryPolicy.DELAYED` 声明，复用同一条数据同步事件做**写后延迟复核**（`reconciliationManager.reconcile(Order.class, id)`），用于规避"事件刚发布、副本尚未同步完"的竞态。core 的 `Reconciler` 是纯同步原语，不做延迟复核。
+
+### 4.15 同源直读：无副本的读源
+
+用于「数据就在写库、不需要独立索引」的查询。直读**仍然产出投影**，只是投影由 `resultMap` 产出：没有副本、没有版本、没有同步事件、不进对账。
+
+#### 4.15.1 何时选直读
+
+| 维度 | 数据库直读 | ES | Redis |
+| --- | --- | --- | --- |
+| 一致性 | 同库强一致（读写分离需容忍延迟） | 最终一致 | 最终一致 |
+| 形状自由度 | 高：JOIN / 聚合 / 计算列 | 中：文档 + 检索 | 低：按 key 取整份 |
+| 检索能力 | 依赖 SQL 谓词与索引，无分词打分 | 强 | 无 |
+| 额外成本 | 无（复用写库） | 索引 + 同步 + 对账 | 实例 + 同步 + 对账 |
+| 典型 Q | 后台列表 / 详情、对账导出、统计报表 | 多条件检索、模糊、深翻页 | 详情缓存 |
+
+判定顺序：**索引 SQL 能表达 → 直读；需要分词 / 打分 / 多值组合 → ES；只需按主键高频取 → Redis。**
+
+#### 4.15.2 一个读源 = 一个行投影
+
+与「一个索引 = 一个源」同构：一个 `IXxxReadSource` 只承载一个 `XxxRowProjection`。要第二种形状，要么两跳裁剪，要么另开行投影 + 另开读源。
+
+#### 4.15.3 目录与命名
+
+| 构件 | 命名 | 位置 |
+| --- | --- | --- |
+| 读源端口 | `I{Agg}ReadSource` | `domain/{agg}/projection/` |
+| 行投影 | `{Agg}RowProjection` | `domain/{agg}/projection/` |
+| 读源实现 | `{Agg}DbReadSource` | `infrastructure/persistent/{agg}/projection/reader/` |
+| 行裁剪器（可选） | `{Agg}Row{Target}Reducer` | `infrastructure/persistent/{agg}/projection/reducer/` |
+| Mapper 与 XML | `{Agg}RowMapper` | `infrastructure/persistent/{agg}/projection/mapper/` |
+| 跨聚合视图根接口 | `I{Agg}ViewProjection` | `domain/{agg}/projection/` |
+
+包布局见 §2.1；直读支不产生投影器、副本常量、订阅者与对账登记。
+
+#### 4.15.4 行投影：`OrderRowProjection`
+
+```java
+@Data
+public class OrderRowProjection implements IOrderProjection {
+
+    private Long orderId;
+    private int status;
+    private String statusName;             // code 落库，name 由读源回填
+    private BigDecimal actualAmount;       // 单位与聚合一致，不换算
+    private LocalDateTime createdAt;
+    // 只放本 Q 需要的列，不做聚合镜像
+}
+```
+
+- 字段与 `SELECT` 列一一对应，不做聚合全量镜像；
+- **查询键用业务标识列**（如 `order_id`），不用数据库自增主键；两者并存时以业务标识为准，主键列不参与读侧查询与游标；
+- 枚举 `code` 由 SQL 取出，`name` 由读源用 `XxxStatus.of(code).getName()` 回填，SQL 不写死文案；
+- JSON 列用 `JSON_EXTRACT` 抽标量；
+- 不实现 `IReadModelReplica`，不写 `version` 字段。
+
+#### 4.15.5 读源端口：`IOrderReadSource`
+
+```java
+public interface IOrderReadSource
+        extends IProjectionByIdSearcher<OrderRowProjection>,
+                IPagedQuerySearcher<OrderRowProjection, OrderPageQuery> {
+
+    /** 按目标子投影类型取裁剪器；未注册返回 null。 */
+    <X extends IOrderProjection> IReducer<OrderRowProjection, X> getReducer(Class<X> target);
+}
+```
+
+- 端口在领域层，只声明能力，不写实现；
+- 只 `extends` 真实支撑的族：不支持滚动就不 `extends IPagedQuerySearcher`，或按 §4.15.8 约定抛异常；
+- `getById(Object)` 的 `Object` → 业务 ID 转换收敛在实现内。
+
+#### 4.15.6 读源实现：`OrderDbReadSource`
+
+```java
+@Component
+public class OrderDbReadSource implements IOrderReadSource {
+
+    private final OrderRowMapper mapper;
+    private final List<IReducer<OrderRowProjection, ?>> reducers;
+
+    public OrderDbReadSource(OrderRowMapper mapper, OrderRowSummaryReducer summaryReducer) {
+        this.mapper = mapper;
+        this.reducers = List.of(summaryReducer);
+    }
+
+    @Override
+    public OrderRowProjection getById(Object id) {
+        Long orderId = Long.valueOf(id.toString());
+        return ProjectionExceptions.retrieve(() -> this.mapper.selectRowById(orderId), "getById");
+    }
+
+    @Override
+    public List<OrderRowProjection> getByIds(List<Object> ids) {
+        List<Long> orderIds = ids.stream().map(id -> Long.valueOf(id.toString())).toList();
+        return ProjectionExceptions.retrieve(
+                () -> this.fillEnumNames(this.mapper.selectRowsByIds(orderIds)), "getByIds");
+    }
+
+    @Override
+    public PageResult<OrderRowProjection> searchPage(OrderPageQuery condition, PageRequest pageRequest) {
+        long total = this.mapper.countByCondition(condition);
+        List<OrderRowProjection> data =
+                this.mapper.selectPageByCondition(condition, pageRequest.offset(), pageRequest.pageSize());
+        return PageResult.of(this.fillEnumNames(data), total, pageRequest);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <X extends IOrderProjection> IReducer<OrderRowProjection, X> getReducer(Class<X> target) {
+        return this.reducers.stream()
+                .filter(reducer -> target.isAssignableFrom(reducer.projectionType()))
+                .map(reducer -> (IReducer<OrderRowProjection, X>) reducer)
+                .findFirst()
+                .orElse(null);
+    }
+}
+```
+
+- **不继承** `AbstractProjectionSource`：它的 `materialize / purge / readVersion / rebuild` 对无副本读源无语义；
+- **不定义** `REPLICA_ID`、**不发** `IDataSyncEvent`；
+- 裁剪器列表构造注入，`getReducer` 本地解析，不引入全局注册中心；
+- Mapper 只在读源实现内使用，不出 `infrastructure`；
+- **纯 XML Mapper 同样适用**：项目不在 Java 中持有 Mapper 接口时（如 `order-example`），把注入的 `Mapper` 换成 `SqlSessionTemplate`，按 `命名空间.语句` 调用，其余约束不变。
+
+#### 4.15.7 读服务与两跳
+
+```java
+public <X extends IOrderProjection> X queryById(Long id, Class<X> target) {
+    OrderRowProjection row = this.readSource.getById(id);
+    if (row == null) {
+        return null;
+    }
+    return this.reduceWith(this.readSource.getReducer(target), row, target);
+}
+```
+
+与 ES / Redis 版完全同形：**第一跳取行投影，第二跳按需裁剪**。单跳只是目标类型等于行投影，短路返回。
+
+> ⚠️ **读服务不注入 Mapper**：Mapper 是基础设施细节；绕过读源会让「换存储 / 加裁剪 / 统一异常」三件事全部返工。
+
+#### 4.15.8 分页与滚动
+
+| 需求 | 做法 | 关键约束 |
+| --- | --- | --- |
+| 浅分页（后台列表） | `searchPage`：count + `LIMIT offset, size` | count 与数据页用同一条件；排序带唯一 tiebreaker |
+| 深翻页 / 导出 | `searchScroll`：keyset | 排序键唯一且不可变；禁止 `OFFSET` 模拟滚动 |
+| 报表 / 聚合查询 | 只 `extends` 分页族；不需要滚动就不实现 `searchScroll` | 已 `extends` 就必须实现，不支持时抛 `UnsupportedOperationException` |
+
+keyset 写法（MySQL 8 / PostgreSQL 行值比较）：
+
+```sql
+-- 游标内容：(created_at, order_id)，末行编码成 nextCursor
+SELECT order_id, status, actual_amount, created_at
+FROM t_order
+WHERE (created_at, order_id) < (#{lastCreatedAt}, #{lastOrderId})
+ORDER BY created_at DESC, order_id DESC
+LIMIT #{pageSize}
+```
+
+- 游标对调用方不透明，由读源编码 / 解码；
+- 排序键必须是唯一且不可变的组合（如 `created_at + order_id`），否则翻页会漏行 / 重行；
+- 滚动不是快照：需要导出期间冻结数据，就在条件里加 `created_at <= T0`；
+- 建议单页上限 1000，不复用 `PageRequest` 的 200 限制。
+
+#### 4.15.9 跨聚合、报表与一致性
+
+| 场景 | 做法 |
+| --- | --- |
+| 查询本聚合 → 关联字典 / 枚举表 | 允许 JOIN，字段仍落在本聚合投影体系内 |
+| JOIN 其它聚合业务表 | 默认不允许；确需时在投影读设计 §4.3 显式登记，并用独立根接口 `I{Agg}ViewProjection`，不进聚合 sealed 体系 |
+| GROUP BY 报表 | 可建 `{Agg}StatRowProjection`，它同样是行投影；形状由聚合函数决定 |
+| 读写分离 | 读源连从库时必须标注延迟容忍度，不得默认当强一致 |
+
+> ⚠️ **跨聚合行投影不挂聚合投影体系**：`IOrderProjection` 的 sealed 体系表达「订单聚合的读模型」；一份订单 + 客户的联表结果不属于它，强行塞入会破坏封闭性。
+
+#### 4.15.10 硬规则
+
+1. 不继承 `AbstractProjectionSource`、不实现 `IReadModelReplica`、不定义 `REPLICA_ID`、不发 `IDataSyncEvent`、不进对账。
+2. 读侧入口必须是投影；**禁止 Mapper 直出非投影对象**。
+3. 读服务只注入读源端口，不注入 Mapper、不注入存储客户端。
+4. 行投影只放本 Q 需要的列，不做聚合镜像。
+5. 一个读源对应一个行投影类型；多形状靠裁剪或另开源。
+6. 枚举 code 落库、name 回填；SQL 不写死展示文案；JSON 列用 `JSON_EXTRACT` 抽标量。
+7. 金额与聚合同单位同精度，不做换算。
+8. page 用 offset；scroll 用 keyset（唯一不可变排序键 + tiebreaker），禁止用 offset 模拟。
+9. 滚动非快照，需要冻结时加 `T0` 上界条件。
+10. 过滤 / 排序列必须有索引或生成列；明细集合一次 `IN` 批量取，禁止 N+1。
+11. 跨聚合 / 报表行投影用独立根接口 `I{Agg}ViewProjection`，JOIN 限字典 / 枚举表。
+12. 两跳时裁剪器两端都必须是投影，由读源端口暴露、读服务显式取用。
 
 ## 5. 三条路径：写入、读取、对账
 
@@ -1409,6 +1632,7 @@ ReconciliationManager.reconcile(Order.class, id)
 | 版本来源 | `aggregate.getOldVersion()`（与 `currentVersion` 一致） | 不参与版本 | 同上 |
 | 关键构件 | Projector + 源（`sync` / `materialize`） | 源（查询族实现）+ Reducer | 源自身（`readVersion` / `rebuild` / `purgeOrphan`） |
 | 目的 | 更新副本 | 取回副本 | 副本落后 / 残留时重建或清理 |
+| 直读（无副本） | 不适用 | 读源（Mapper）→ 行投影 →（可选）Reducer | 不适用 |
 
 > ⚠️ **`rebuild` 必须从写模型当前快照重建**（`findById` → `sync`），而非重放那条被漏消费的事件——丢失的事件已不在事件流里，重放单条事件无法补齐副本。
 
@@ -1466,6 +1690,7 @@ Optional.ofNullable(first.nextCursor())
 - **V（写模型权威版本）**：`IRepository.currentVersion(id)` 取 `aggregate.getOldVersion()`，聚合不存在返回 `-1`（判 ORPHAN）。写路径 `源.sync(aggregate)` 用的也是 `getOldVersion()`。
 - **V'（副本版本）**：存储中的副本版本元数据（ES 为 `_version`；Redis 为投影 JSON 内嵌的 `version` 字段），由源的 `readVersion` 读取。
 - **判定纯函数**：`Reconciliation.of(V', V)` —— `V'<0` → `UNTRACKED`；`V<0` 且 `V'≥0` → `ORPHAN`；`V'≥V` → `CONSISTENT`；否则 `STALE`。
+- **直读无版本**：同源直读没有副本，`V'` / `readVersion` / `rebuild` 均不适用，也不进对账注册表。
 
 | `readVersion` 返回值 | 判定 | 行为 |
 | --- | --- | --- |
@@ -1481,8 +1706,11 @@ Optional.ofNullable(first.nextCursor())
 
 | 反模式 | 问题 | 正确做法 |
 | --- | --- | --- |
-| 领域包引入存储客户端 / Spring 依赖 | 契约层与存储耦合、无法替换存储 | 领域只定义投影 DTO、条件族与源端口；存储实现在 infrastructure |
-| 把聚合根当投影返回 | 泄露写模型内部结构、破坏读写边界 | 定义中立投影 DTO，投影器裁剪字段 |
+| 领域包引入存储客户端 / Spring 依赖 | 契约层与存储耦合、无法替换存储 | 领域只定义投影、条件族与源端口；存储实现在 infrastructure |
+| 把聚合根当投影返回 | 泄露写模型内部结构、破坏读写边界 | 定义中立投影，投影器裁剪字段 |
+| Mapper 直出非投影对象（如查询 DTO） | 读侧出现第二种中间形态，两跳与裁剪失效 | 先落行投影，再按需裁剪（见 §4.15） |
+| 直读源继承 `AbstractProjectionSource` / 实现 `IReadModelReplica` | 被强制实现 `materialize` / `readVersion`，产生假对账 | 直读源只实现查询族端口，不碰副本契约 |
+| 直读发数据同步事件 | 无副本可同步，事件无人消费、徒增契约 | 直读不需要 `IDataSyncEvent` |
 | 投影器内做存储读写 / 版本控制 | 投影器无法单测、存储细节扩散 | 投影器纯映射；持久化与检索在源 |
 | 无理由地把金额统一转成「分」 | 单位换算成了默认约定，投影与聚合单位不一致、排查困难 | 用 `BigDecimal` 原样承载；仅当存储 Mapping 明确要求时才换算并注明 |
 | 投影器与裁剪器各换算一次金额 | 重复进位，金额翻倍 | 换算只发生在聚合 → 全量投影这一次，裁剪器同单位直取 |
@@ -1510,7 +1738,7 @@ Optional.ofNullable(first.nextCursor())
 | 读路径为拿最新数据回源聚合根 | 同步阻塞、绕过副本、副本落后无法暴露 | 读路径只读副本，落后由对账修复 |
 | 绕过源手写投影更新 | 事件路径与 resync 逻辑不一致 | 共用 `AbstractProjectionSource.sync` |
 | resync 重放单条事件 | 丢失的事件无法补齐副本 | 从写模型当前快照重建（findById → project → materialize） |
-| 投影用聚合根的 Lombok 约定 | 数据容器被 @Builder 等污染 | 投影 DTO 用 `@Data`；聚合根禁用 `@Data` |
+| 投影用聚合根的 Lombok 约定 | 数据容器被 @Builder 等污染 | 投影用 `@Data`；聚合根禁用 `@Data` |
 | 裁剪后重新计算 `totalCount` / `nextCursor` | 页边界与游标错误 | 分页留在源内，二者取裁剪前的全量结果 |
 | 裁剪器内查库 / 调远程 | 破坏纯函数性，造成 N+1 | `reduce` 只做内存转换，所需数据由源一次取全 |
 | 一个裁剪器内按目标类型 `instanceof` 分支 | 与「一个实例服务一个 (源, 子)」契约相悖 | 一个子投影一个裁剪器 |

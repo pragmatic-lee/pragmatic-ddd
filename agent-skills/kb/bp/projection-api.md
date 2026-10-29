@@ -144,7 +144,7 @@ public final class PageResult<T> { /* 分页结果容器，查询族返回类型
 
 ## 零上下文生成清单（避免 [KB缺口]）
 
-1. 投影 DTO 放领域层 `...projection`，`@Data` 允许（仅聚合根/事件禁用 @Data，硬约束 8）。
+1. 投影放领域层 `...projection`，`@Data` 允许（仅聚合根/事件禁用 @Data，硬约束 8）。
 2. 源端口 `ICouponRedisSource extends IAggregateProjection` 外的「查询族接口」——业务自定义接口，方法签名由业务定；KB 不强制。
 3. `CouponSummaryProjector extends AbstractAggregateProjector<Coupon, CouponSummaryProjection>`，构造传 `.class`。
 4. `CouponRedisSource extends AbstractProjectionSource<Coupon, Long, CouponSummaryProjection> implements ICouponRedisSource`，5 参构造注入 `ProjectionSource`、`Coupon.class`、`CouponSummaryProjection.class`、`projector`、`List<IReducer<...>>`。

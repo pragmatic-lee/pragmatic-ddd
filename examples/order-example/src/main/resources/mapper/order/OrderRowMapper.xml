@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单同源直读 Mapper（纯 XML，无 Java 接口）：由 OrderDbReadSource 经 SqlSessionTemplate 调用。
+  只服务读侧行投影，不参与聚合落库；口径与写侧 OrderMapper 保持一致——
+  order_id 是唯一业务标识（数据库自增主键 id 不参与业务查询），金额单位元。
+-->
+<mapper namespace="OrderRowMapper">
+
+    <!-- 行投影查询列：只取本次查询需要的列，不做聚合镜像 -->
+    <sql id="rowColumns">
+        order_id                                                              AS orderId,
+        status                                                                AS status,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(actual_amount, '$.amount')) AS DECIMAL(18, 2)) AS actualAmount,
+        created_at                                                            AS createdAt
+    </sql>
+
+    <!-- 通用筛选条件：各字段为空则不参与筛选 -->
+    <sql id="conditionWhere">
+        <where>
+            <if test="orderId != null">
+                AND order_id = #{orderId}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="createdFrom != null">
+                AND created_at &gt;= #{createdFrom}
+            </if>
+            <if test="createdTo != null">
+                AND created_at &lt;= #{createdTo}
+            </if>
+        </where>
+    </sql>
+
+    <!-- 按业务标识取单条行投影 -->
+    <select id="selectRowById"
+            resultType="io.pragmatic.ddd.example.order.domain.order.projection.OrderRowProjection">
+        SELECT
+        <include refid="rowColumns"/>
+        FROM t_order
+        WHERE order_id = #{orderId}
+    </select>
+
+    <!-- 按业务标识批量取行投影（调用方保证 ids 非空） -->
+    <select id="selectRowsByIds"
+            resultType="io.pragmatic.ddd.example.order.domain.order.projection.OrderRowProjection">
+        SELECT
+        <include refid="rowColumns"/>
+        FROM t_order
+        WHERE order_id IN
+        <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
+            #{orderId}
+        </foreach>
+        ORDER BY created_at DESC, order_id DESC
+    </select>
+
+    <!-- 分页总数：与数据页使用同一条件片段 -->
+    <select id="countByCondition" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM t_order
+        <include refid="conditionWhere"/>
+    </select>
+
+    <!-- 浅分页：offset + limit；排序带唯一 tiebreaker（order_id） -->
+    <select id="selectPageByCondition"
+            resultType="io.pragmatic.ddd.example.order.domain.order.projection.OrderRowProjection">
+        SELECT
+        <include refid="rowColumns"/>
+        FROM t_order
+        <include refid="conditionWhere"/>
+        ORDER BY created_at DESC, order_id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 滚动：keyset 翻页，排序键 (created_at, order_id) 唯一且不可变；禁止用 offset 模拟 -->
+    <select id="selectScrollByCondition"
+            resultType="io.pragmatic.ddd.example.order.domain.order.projection.OrderRowProjection">
+        SELECT
+        <include refid="rowColumns"/>
+        FROM t_order
+        <include refid="conditionWhere"/>
+        <if test="lastCreatedAt != null">
+            AND (created_at &lt; #{lastCreatedAt}
+            OR (created_at = #{lastCreatedAt} AND order_id &lt; #{lastOrderId}))
+        </if>
+        ORDER BY created_at DESC, order_id DESC
+        LIMIT #{pageSize}
+    </select>
+
+</mapper>

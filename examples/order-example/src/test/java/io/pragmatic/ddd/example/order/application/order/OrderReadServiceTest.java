@@ -2,14 +2,17 @@ package io.pragmatic.ddd.example.order.application.order;
 
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderESSource;
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.IOrderReadSource;
 import io.pragmatic.ddd.example.order.domain.order.projection.IOrderRedisSource;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderCacheProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderEsProjection;
+import io.pragmatic.ddd.example.order.domain.order.projection.OrderRowProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.OrderSummaryProjection;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderListQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderOneQuery;
 import io.pragmatic.ddd.example.order.domain.order.projection.query.OrderPageQuery;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderCacheSummaryReducer;
+import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderRowSummaryReducer;
 import io.pragmatic.ddd.example.order.infrastructure.persistent.order.projection.reducer.OrderSummaryReducer;
 import io.pragmatic.ddd.repository.query.exception.ProjectionReducerNotFoundException;
 import io.pragmatic.ddd.repository.query.paging.PageRequest;
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,11 +50,38 @@ class OrderReadServiceTest {
 
     private StubEsSource esSource;
 
+    private StubReadSource readSource;
+
     @BeforeEach
     void setUp() {
         redisSource = new StubRedisSource();
         esSource = new StubEsSource();
-        readService = new OrderReadService(redisSource, esSource);
+        readSource = new StubReadSource();
+        readService = new OrderReadService(redisSource, esSource, readSource);
+    }
+
+    // ==================== 同源直读：单跳 / 两跳 ====================
+
+    @Test
+    @DisplayName("queryRowById 单跳返回行投影，不裁剪")
+    void queryRowById_returnsRowProjection() {
+        OrderRowProjection row = readService.queryRowById(1001L);
+
+        assertThat(row).isNotNull();
+        assertThat(row.getOrderId()).isEqualTo(1001L);
+        assertThat(row.getStatusName()).isEqualTo("进行中");
+        assertThat(readSource.getByIdCalled).isTrue();
+    }
+
+    @Test
+    @DisplayName("queryByIdFromDb 两跳：行投影裁剪为概要投影")
+    void queryByIdFromDb_reducesRowProjection() {
+        OrderSummaryProjection result = readService.queryByIdFromDb(1001L, OrderSummaryProjection.class);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getOrderId()).isEqualTo(1001L);
+        assertThat(result.getActualAmount()).isEqualByComparingTo("88.00");
+        assertThat(readSource.getByIdCalled).isTrue();
     }
 
     // ==================== ById 族：走 Redis ====================
@@ -207,6 +238,50 @@ class OrderReadServiceTest {
         public <X extends IAggregateProjection> IReducer<OrderCacheProjection, X> getReducer(Class<X> target) {
             if (target.isAssignableFrom(reducer.projectionType())) {
                 return (IReducer<OrderCacheProjection, X>) reducer;
+            }
+            return null;
+        }
+    }
+
+    /** 直读源桩：实现 ById + 分页 / 滚动，行投影裁为概要投影，记录调用情况。 */
+    private static final class StubReadSource implements IOrderReadSource {
+
+        private boolean getByIdCalled;
+        private final IReducer<OrderRowProjection, OrderSummaryProjection> reducer = new OrderRowSummaryReducer();
+
+        @Override
+        public OrderRowProjection getById(Object id) {
+            this.getByIdCalled = true;
+            OrderRowProjection row = new OrderRowProjection();
+            row.setOrderId(Long.valueOf(id.toString()));
+            row.setStatus(1);
+            row.setStatusName("进行中");
+            row.setActualAmount(new BigDecimal("88.00"));
+            row.setCreatedAt(LocalDateTime.of(2026, 10, 1, 10, 0));
+            return row;
+        }
+
+        @Override
+        public List<OrderRowProjection> getByIds(List<Object> ids) {
+            return ids.stream().map(this::getById).toList();
+        }
+
+        @Override
+        public PageResult<OrderRowProjection> searchPage(OrderPageQuery criteria, PageRequest pageRequest) {
+            return PageResult.of(List.of(this.getById(1001L)), 1L, pageRequest);
+        }
+
+        @Override
+        public ScrollResult<OrderRowProjection> searchScroll(
+                OrderPageQuery criteria, ScrollPosition cursor, int pageSize) {
+            return ScrollResult.of(List.of(this.getById(1001L)), "2026-10-01T10:00:00|1001");
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <X extends IOrderProjection> IReducer<OrderRowProjection, X> getReducer(Class<X> target) {
+            if (target.isAssignableFrom(reducer.projectionType())) {
+                return (IReducer<OrderRowProjection, X>) reducer;
             }
             return null;
         }

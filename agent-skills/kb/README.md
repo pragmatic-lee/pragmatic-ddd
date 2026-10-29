@@ -12,10 +12,10 @@
 本目录是 Pragmatic DDD 全部 AI Skill 的**唯一共享知识源（单物理副本，只读引用）**。Skill 只写「流程 + 知识索引」，具体命名、骨架、约束全部指向本目录，不内联重复。
 
 - 卡从 `documentation/best-practices/`（VitePress 文档，git 内）派生。
-- 本版为**全量草稿**：34 篇 bp 卡 + 硬约束 + API 契约。
+- 本版为**全量草稿**：35 篇 bp 卡 + 硬约束 + API 契约。
 - **KB 自足**：本目录是完整知识体，**不依赖仓库内任何示例工程**，第三方可独立使用（见 [§6](#6-自足性与发布范围)）。
 
-## 2. 目录（34 篇 bp 卡）
+## 2. 目录（35 篇 bp 卡）
 
 | 路径 | 内容 | 被哪些 Skill 读 |
 | --- | --- | --- |
@@ -40,7 +40,8 @@
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |
 | `bp/dependency-declaration.md` | 外部依赖声明（`@ExternalDependency` 三档分类 + 契约/网关） | S4 / S5 / S7 |
-| `bp/design-doc-semantics.md` | 本次需求语义（契约：8 章 + 3 附录，含增量写法） | ddd-design-doc / ddd-kb-consult |
+| `bp/design-doc-template.md` | 设计文档标准（**流程权威**：四道闸门 / 迭代轮次 / 回流矩阵 / 一致性校验） | ddd-design-doc / ddd-kb-consult |
+| `bp/design-doc-semantics.md` | 本次需求语义（契约：8 章 + 3 附录，含增量写法与迭代轮次） | ddd-design-doc / ddd-kb-consult |
 | `bp/design-doc-write-template.md` | 聚合写设计文档（11 节，含关系表持久化，主文档统管横切） | S3 / S4 / S5 / S7 / ddd-design-doc |
 | `bp/design-doc-read-template.md` | 投影读设计文档（6 节，含三读源：ES / Redis / 数据库直读） | S6 / S7 / ddd-design-doc |
 | `bp/design-doc-prerequisites.md` | 实施前置条件（项目级 10 项 + 阻断映射） | ddd-design-doc / S3 / S4 / S6 |
@@ -101,5 +102,5 @@
 ---
 
 > **版本**：v2.2-draft
-> **变更**：v2.2（2026-10-29）文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 `bp.design-doc-facts`（从代码推导、每次实施后覆盖）。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）——新增 `bp.design-doc-semantics` / `bp.design-doc-prerequisites` 两张卡；写 / 读模板按新骨架重蒸馏（写 11 节含元素级追溯与实施回填；读 6 节含三读源与澄清机制）；`ddd-design-doc` 工作流从 7 步扩为 10 步。v2.0（2026-10-28）PostgreSQL 支持入 KB——新增 `bp.postgresql-config`；重蒸馏 7 张 STALE 卡；`api-contract.md` 坐标钉死 2.1.0-SNAPSHOT 并补「MyBatis TypeHandler 与方言」段。v1.9（2026-10-28）新增异构数据同步事件契约。v1.7（2026-10-18）全量语义重蒸馏。更早变更见 `_manifest.json` 的 note
+> **变更**：v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 `bp.design-doc-facts`（从代码推导、每次实施后覆盖）。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）——新增 `bp.design-doc-semantics` / `bp.design-doc-prerequisites` 两张卡；写 / 读模板按新骨架重蒸馏（写 11 节含元素级追溯与实施回填；读 6 节含三读源与澄清机制）；`ddd-design-doc` 工作流从 7 步扩为 10 步。v2.0（2026-10-28）PostgreSQL 支持入 KB——新增 `bp.postgresql-config`；重蒸馏 7 张 STALE 卡；`api-contract.md` 坐标钉死 2.1.0-SNAPSHOT 并补「MyBatis TypeHandler 与方言」段。v1.9（2026-10-28）新增异构数据同步事件契约。v1.7（2026-10-18）全量语义重蒸馏。更早变更见 `_manifest.json` 的 note
 > **适用框架版本**：2.1.0-SNAPSHOT

@@ -7,7 +7,7 @@ import io.pragmatic.ddd.repository.query.paging.ScrollPosition;
 import io.pragmatic.ddd.repository.query.paging.ScrollResult;
 
 /**
- * 分页 / 滚动查询族：从某异构存储按业务条件做分页或滚动取回投影。
+ * 分页 / 滚动查询族：从某读源（异构存储或同源直读）按业务条件做分页或滚动取回投影。
  *
  * <p>条件泛型 {@code C} 的上界为框架抽象 {@link PageQueryCriteria}，分页与滚动同族同条件；
  * 实现方在 {@code implements} 时钉死为业务查询类型（如 {@code OrderPageQuery}）。</p>
