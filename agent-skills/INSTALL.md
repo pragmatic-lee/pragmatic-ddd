@@ -21,7 +21,7 @@ agent-skills/
 ├── ddd-modeling-guide/     ← P2 建模引导
 ├── ddd-design-doc/         ← 设计文档产出（三契约 + 一快照）
 ├── ddd-kb-consult/         ← 咨询入口（怎么用 / 为什么这么设计）
-├── kb/                     ← 共享知识包：34 张 bp 卡 + 硬约束 + API 契约 + 索引清单
+├── kb/                     ← 共享知识包：35 张 bp 卡 + 硬约束 + API 契约 + 索引清单
 ├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh
 └── reference/              ← 安装附件：设计文档模板原文副本（见 §3 步骤 3）
 ```
@@ -107,9 +107,9 @@ cp agent-skills/reference/best-practices/*.md <目标工程>/documentation/best-
 
 | 项 | 位置 | 当前值 |
 | --- | --- | --- |
-| KB 版本 | `kb/_manifest.json` → `kb_version` | `2.3-draft` |
+| KB 版本 | `kb/_manifest.json` → `kb_version` | `2.4-draft` |
 | 框架版本 | `kb/_manifest.json` → `framework_version` | `2.1.0-SNAPSHOT` |
-| 卡片数量 | `kb/bp/*.md` | 34 |
+| 卡片数量 | `kb/bp/*.md` | 35 |
 
 在**本仓库内**（源文档都在）可跑：
 

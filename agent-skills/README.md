@@ -1,4 +1,4 @@
-# Pragmatic DDD · AI Skills 与知识包（v2.1 · KB 2.3-draft）
+# Pragmatic DDD · AI Skills 与知识包（v2.2 · KB 2.4-draft）
 
 > **使用说明看 [`USAGE.md`](./USAGE.md)**（我现在该用哪个、说句话会触发什么、四份文档怎么协作）。
 > **安装到其他智能体看 [`INSTALL.md`](./INSTALL.md)**（目录依赖、三种安装方式、版本自检）。

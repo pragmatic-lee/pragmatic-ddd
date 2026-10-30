@@ -7,13 +7,13 @@
 #   ├── INSTALL.md / USAGE.md / README.md
 #   ├── ddd-*/SKILL.md            10 个 Skill
 #   ├── agents/ddd-reviewer.md    隔离评审角色
-#   ├── kb/                       34 张 bp 卡 + 硬约束 + API 契约
+#   ├── kb/                       35 张 bp 卡 + 硬约束 + API 契约
 #   ├── scripts/                  派生 / 校验 / 工作区脚本
 #   └── reference/best-practices/ 设计文档模板副本（供独立安装时落到目标工程）
 #
 # 用法：
 #   package-skills.sh [版本号]        版本号默认取 kb/_manifest.json 的 kb_version
-#   OUT=/path/to/out.zip package-skills.sh 2.3
+#   OUT=/path/to/out.zip package-skills.sh 2.4
 #
 # 说明：内部规划稿（A4-A5-walkthrough.md / KB-REBUILD-PLAN.md）不入包。
 # =============================================================================
@@ -48,6 +48,9 @@ rsync -a --exclude '.DS_Store' \
 
 mkdir -p "$STAGE/agent-skills/reference/best-practices"
 cp "$REPO_ROOT"/documentation/best-practices/design-doc-*.md \
+   "$STAGE/agent-skills/reference/best-practices/"
+# 写设计 §7.1 落列形态决策直接引用本文的 §3.4 判据，故一并入包
+cp "$REPO_ROOT/documentation/best-practices/aggregate-database-design.md" \
    "$STAGE/agent-skills/reference/best-practices/"
 
 cat > "$STAGE/agent-skills/reference/README.md" <<'EOF'
