@@ -1,7 +1,7 @@
 # Pragmatic DDD Skills 使用说明
 
 > 面向使用者。想知道「我现在该做什么、说句话会触发什么」，看这一份。
-> 想知道每个 Skill 内部怎么实现，看各自的 `SKILL.md`；想查规范，看 `../documentation/best-practices/`。
+> 想知道每个 Skill 内部怎么实现，看各自的 `SKILL.md`；想查规范，看知识包 `kb/`（`kb/README.md` 是路由表）。
 
 ## 0. 先建立一张地图
 
@@ -160,7 +160,7 @@
 | --- | --- |
 | 用哪个、怎么说、流程怎么走 | 直接问 `ddd-kb-consult`，或看本份 §1 / §5 |
 | 各 Skill 的详细步骤 | `ddd-*/SKILL.md` |
-| 框架约定与最佳实践 | `../documentation/best-practices/` |
+| 框架约定与最佳实践 | 知识包 `kb/bp/*.md`（35 张卡，`kb/README.md` 为路由表） |
 | 框架真实 API 签名 | `kb/api-contract.md` |
 | 14 条硬约束 | `kb/hard-constraints.md` |
 | 知识卡索引 | `kb/README.md` |
