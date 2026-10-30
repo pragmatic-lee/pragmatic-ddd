@@ -54,3 +54,4 @@ documentation/.vitepress/dist
 documentation/node_modules
 .claude/
 .sh/
+dist/

@@ -22,7 +22,7 @@ agent-skills/
 ├── ddd-design-doc/         ← 设计文档产出（三契约 + 一快照）
 ├── ddd-kb-consult/         ← 咨询入口（怎么用 / 为什么这么设计）
 ├── kb/                     ← 共享知识包：35 张 bp 卡 + 硬约束 + API 契约 + 索引清单
-├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh
+├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh / package-qoder-plugin.sh
 └── reference/              ← 安装附件：设计文档模板原文副本（见 §3 步骤 3）
 ```
 
@@ -124,7 +124,15 @@ bash scripts/derive-kb.sh    # 源文档改过后刷新 source_sha（卡正文�
 
 ```bash
 bash scripts/package-skills.sh        # 版本号默认取 kb_version，产物在仓库根 agent-skills-kb{版本}.zip
+bash scripts/package-qoder-plugin.sh  # 打成 Qoder 插件目录（dist/pragmatic-ddd-skills/ + 同名 zip），用于市场提交
 ```
+
+两种产物的差别：
+
+| 产物 | 用途 | 结构 |
+| --- | --- | --- |
+| `agent-skills-kb{V}.zip` | 手动安装 / 内部分发 | 根目录直放 `ddd-*/SKILL.md` + `kb/` |
+| `dist/pragmatic-ddd-skills/` | **Qoder 市场提交** | `.qoder-plugin/plugin.json` + `skills/<name>/SKILL.md` + `agents/` + 根共享 `kb/`；技能内引用自动改写为 `../../kb/` |
 
 ## 6. 边界：这套能力不做什么
 
