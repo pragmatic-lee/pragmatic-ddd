@@ -9,6 +9,7 @@ description: 聚合设计文档产出（三契约 + 一快照）——先核对�
 > 版本：v3.4 · 适用框架：2.1.0-SNAPSHOT
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md`）
 > 统一结构：`documentation/best-practices/design-doc-template.md`（三契约 + 一快照总说明）+ 四份模板
+> 模板形态：设计文档模板随能力包提供（只读引用，**不写入目标工程**）；目标工程只产出 `docs/design/` 下设计文档，不新建任何模板文件。
 
 ## 1. 定位
 

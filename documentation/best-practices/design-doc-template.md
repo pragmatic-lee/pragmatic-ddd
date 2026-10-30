@@ -126,7 +126,7 @@ flowchart LR
 
 ### 5.3 新建聚合
 
-1. 定需求名并建目录：`changes/active/{需求}/{agg}/`（可用 `agent-skills/scripts/design-doc-workspace.sh new <需求> <agg>`）。
+1. 定需求名并建目录：`changes/active/{需求}/{agg}/`（可用 `scripts/design-doc-workspace.sh new <需求> <agg>`）。
 2. 核对前置条件清单。
 3. **G1 → G2**：写 ①（全量，头部标「基线：无（新建）」）→ 按 §5.2 迭代 → 交业务方确认。
 4. **G3**：问用户是否出写设计，确认后写 ②。

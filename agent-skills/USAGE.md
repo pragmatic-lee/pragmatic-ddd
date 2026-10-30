@@ -54,7 +54,7 @@
 | ④ | `docs/design/aggregates/{agg}/facts.md`（一个聚合一份，永不归档） |
 | 前置条件清单 | `docs/design/prerequisites.md`（项目级，一份） |
 
-目录操作可直接用脚本：`agent-skills/scripts/design-doc-workspace.sh init|new|archive|list`。
+目录操作可直接用脚本：`scripts/design-doc-workspace.sh init|new|archive|list`（脚本随能力包提供，不落盘到目标工程）。
 
 ## 3. 五个典型场景
 

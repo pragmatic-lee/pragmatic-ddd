@@ -3,6 +3,7 @@
 > **使用说明看 [`USAGE.md`](./USAGE.md)**（我现在该用哪个、说句话会触发什么、四份文档怎么协作）。
 > **安装到其他智能体看 [`INSTALL.md`](./INSTALL.md)**（目录依赖、三种安装方式、版本自检）。
 > 本文件是目录与能力总览，面向维护者。
+> 打包提示：`package-skills.sh` 会用「使用者版 README」覆盖产物内的本文件，路线图 / 验收走查 / 建设阶段等维护者内容只留在仓库。
 
 - [1. 这是什么](#1-这是什么)
 - [2. 目录结构](#2-目录结构)
@@ -49,7 +50,8 @@ agent-skills/
 ├── ddd-design-doc/                ← D 设计文档产出（全新/加聚合/改聚合，出标准版本化文档）
 │   └── SKILL.md
 ├── agents/ddd-reviewer.md          ← 隔离评审角色（只读、零写入）
-└── scripts/                        ← verify-kb.sh（CI 卡口）+ derive-kb.sh（半自动派生）
+├── scripts/                        ← verify-kb.sh（CI 卡口）+ derive-kb.sh（半自动派生）
+└── reference/best-practices/       ← 设计文档模板副本（随包只读，不写入目标工程）
 ```
 
 ## 3. 与 `docs/design/ai` 路线图的关系
@@ -93,6 +95,7 @@ agent-skills/
 3. **fail-fast**：Skill 找不到对应 KB 时停止生成并报告，禁止凭记忆续写。
 4. **防幻觉**：KB 中出现的框架类/方法签名以 `kb/api-contract.md` 为唯一权威（含全限定 import + 精确方法签名）；拿不准先 Read 该卡，缺符号则向用户提问。**自 v1.3 起 KB 不引用任何仓库内示例工程**（见 `kb/README.md` §6）。
 5. **溯源 + 漂移治理**：每张卡头部标「源文档 + 派生时间 + 框架版本」；`_manifest.json` 记真实 `source_sha`；`scripts/verify-kb.sh` 在源 hash 变化时标卡过期（CI 卡口）；`scripts/derive-kb.sh` 半自动回填 sha256。
+6. **模板随包，不写入目标工程**：设计文档模板在 `reference/best-practices/`，Skill 以 `../reference/best-practices/…` 只读引用；目标工程只产出 `docs/design/` 下的设计文档，不复制任何模板文件（模板升级靠重新安装 / 重新打包）。
 
 ## 6. 验证方法
 

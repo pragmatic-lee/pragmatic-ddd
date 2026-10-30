@@ -1,0 +1,217 @@
+{
+  "plugin": {
+    "name": "pragmatic-ddd-expert",
+    "expertType": "agent",
+    "version": "2.4.0",
+    "description": "Pragmatic DDD domain modeling and design-document expert: identifies aggregate boundaries, produces gated design contracts, then generates and reviews aggregate code.",
+    "author": {
+      "name": "wizard-lee",
+      "email": "wizard-lee@users.noreply.github.com"
+    },
+    "agents": [
+      "./agents/pragmatic-ddd-architect.md",
+      "./agents/ddd-reviewer.md"
+    ],
+    "agentName": "pragmatic-ddd-architect",
+    "displayName": {
+      "en": "Pragmatic DDD Architect",
+      "zh": "DDD 建模架构师"
+    },
+    "profession": {
+      "en": "Domain Modeling & Design Architect",
+      "zh": "领域建模与设计架构师"
+    },
+    "displayDescription": {
+      "en": "Turns a business requirement into gated design contracts and reviewable aggregate code: aggregate boundaries, semantics, write design, projection read design, DDL, and compliance review.",
+      "zh": "识别聚合边界与不变性，产出语义与写读设计文档，生成聚合与投影代码，并按硬约束完成合规评审。"
+    },
+    "avatar": "avatars/expert.png",
+    "categoryId": "02-Engineering",
+    "plugin": "pragmatic-ddd-expert",
+    "defaultInitPrompt": {
+      "zh": "帮我按 Pragmatic DDD 输出订单聚合的设计文档",
+      "en": "Produce the design documents for an Order aggregate with Pragmatic DDD"
+    },
+    "quickPrompts": [
+      {
+        "zh": "帮我按 Pragmatic DDD 输出订单聚合的设计文档",
+        "en": "Produce the design documents for an Order aggregate with Pragmatic DDD"
+      },
+      {
+        "zh": "识别这份需求里的聚合边界",
+        "en": "Identify the aggregate boundaries in this requirement"
+      },
+      {
+        "zh": "生成订单聚合的充血模型代码",
+        "en": "Generate the rich domain model code for the Order aggregate"
+      }
+    ],
+    "tags": [
+      {
+        "en": "Domain Modeling",
+        "zh": "领域建模"
+      },
+      {
+        "en": "Aggregate Design",
+        "zh": "聚合设计"
+      },
+      {
+        "en": "Design Docs",
+        "zh": "设计文档"
+      }
+    ],
+    "homepage": "https://github.com/pragmatic-lee/pragmatic-ddd",
+    "repository": "https://github.com/pragmatic-lee/pragmatic-ddd",
+    "license": "Apache-2.0",
+    "keywords": [
+      "ddd",
+      "domain-driven-design",
+      "aggregate",
+      "projection",
+      "design-doc",
+      "java"
+    ]
+  },
+  "skills": {
+    "ddd-project-init": {
+      "display_name": "DDD 工程初始化",
+      "display_name_en": "DDD Project Init",
+      "description_zh": "生成接入 Pragmatic DDD 的 Maven 工程骨架、四层目录与配置模板。",
+      "description_en": "Scaffold a Maven project wired for Pragmatic DDD, with layers and config templates.",
+      "examples_zh": [
+        "新建一个采用 Pragmatic DDD 的订单工程",
+        "帮我初始化 DDD 项目的目录结构和 pom"
+      ],
+      "examples_en": [
+        "Create a new order project using Pragmatic DDD",
+        "Initialize the DDD project layout and pom"
+      ]
+    },
+    "ddd-modeling-guide": {
+      "display_name": "聚合建模引导",
+      "display_name_en": "Aggregate Modeling Guide",
+      "description_zh": "通过问答划定聚合边界、聚合度与聚合间引用方式，不产出代码。",
+      "description_en": "Guide aggregate boundaries, granularity, and cross-aggregate references through Q&A.",
+      "examples_zh": [
+        "订单和订单项应该是一个聚合还是两个",
+        "帮我做这个领域的聚合建模"
+      ],
+      "examples_en": [
+        "Should Order and OrderItem be one aggregate or two",
+        "Model the aggregates for this domain with me"
+      ]
+    },
+    "ddd-aggregate-scaffold": {
+      "display_name": "聚合目录骨架",
+      "display_name_en": "Aggregate Scaffold",
+      "description_zh": "为聚合生成极简分层目录骨架，只搭结构不含业务代码。",
+      "description_en": "Create the minimal layered directory skeleton for a new aggregate.",
+      "examples_zh": [
+        "建一个 Order 聚合的目录骨架",
+        "帮我把 order 和 payment 的包结构建好"
+      ],
+      "examples_en": [
+        "Scaffold the directory structure for the Order aggregate",
+        "Create the package skeleton for order and payment"
+      ]
+    },
+    "ddd-aggregate-create": {
+      "display_name": "聚合代码生成",
+      "display_name_en": "Aggregate Generator",
+      "description_zh": "从零生成充血聚合根、操作与规则注册表、领域事件与应用层。",
+      "description_en": "Generate a full aggregate: rich methods, operation and rule registries, events, application layer.",
+      "examples_zh": [
+        "帮我生成订单聚合的完整代码",
+        "按设计文档生成 Order 聚合"
+      ],
+      "examples_en": [
+        "Generate the complete Order aggregate code",
+        "Implement the Order aggregate from the design doc"
+      ]
+    },
+    "ddd-aggregate-extend": {
+      "display_name": "聚合能力扩展",
+      "display_name_en": "Aggregate Extension",
+      "description_zh": "给既有聚合新增业务操作、外部校验、事件订阅、子实体或投影源。",
+      "description_en": "Extend an existing aggregate with operations, external checks, subscribers, child entities, or projection sources.",
+      "examples_zh": [
+        "给订单加一个改地址的操作",
+        "订单取消前要校验风控，帮我补上"
+      ],
+      "examples_en": [
+        "Add a change-address operation to Order",
+        "Add a risk check before cancelling an order"
+      ]
+    },
+    "ddd-design-doc": {
+      "display_name": "聚合设计文档",
+      "display_name_en": "DDD Design Documents",
+      "description_zh": "按闸门制产出语义、写设计、投影读设计三份契约，并维护事实快照。",
+      "description_en": "Produce gated semantics, write-design, and projection-read contracts, plus the fact snapshot.",
+      "examples_zh": [
+        "帮我出订单聚合的设计文档",
+        "这次迭代要改订单聚合，先梳理业务语义"
+      ],
+      "examples_en": [
+        "Produce the design documents for the Order aggregate",
+        "This iteration changes Order, start with the semantics doc"
+      ]
+    },
+    "ddd-projection-create": {
+      "display_name": "投影读模型生成",
+      "display_name_en": "Projection Generator",
+      "description_zh": "生成投影器、源端口、条件族、裁剪器与读服务，支持 ES、Redis 与同源直读。",
+      "description_en": "Generate projectors, source ports, criteria, reducers, and read services for ES, Redis, or direct DB reads.",
+      "examples_zh": [
+        "给订单加一个 ES 投影",
+        "生成订单的读模型和查询服务"
+      ],
+      "examples_en": [
+        "Add an Elasticsearch projection for Order",
+        "Generate the read model and query service for Order"
+      ]
+    },
+    "ddd-infra-config": {
+      "display_name": "基础设施装配",
+      "display_name_en": "Infrastructure Wiring",
+      "description_zh": "装配数据源、MyBatis 会话、事件总线、Outbox 与聚合建表脚本。",
+      "description_en": "Wire datasource, MyBatis session, message bus, outbox, and aggregate DDL.",
+      "examples_zh": [
+        "帮我把 MySQL 和 MyBatis 配好",
+        "接一下 RocketMQ 和 Outbox"
+      ],
+      "examples_en": [
+        "Configure MySQL and MyBatis",
+        "Wire RocketMQ and the outbox"
+      ]
+    },
+    "ddd-code-review": {
+      "display_name": "聚合代码评审",
+      "display_name_en": "Aggregate Code Review",
+      "description_zh": "按框架硬约束评审聚合代码，输出阻断项与修复建议。",
+      "description_en": "Review aggregate code against framework hard constraints and list blocking findings.",
+      "examples_zh": [
+        "检查一下这段聚合代码合不合规",
+        "帮我把订单聚合按硬约束过一遍"
+      ],
+      "examples_en": [
+        "Check whether this aggregate code follows the conventions",
+        "Review the Order aggregate against the hard constraints"
+      ]
+    },
+    "ddd-kb-consult": {
+      "display_name": "规范与最佳实践咨询",
+      "display_name_en": "Knowledge Consult",
+      "description_zh": "从只读知识包回答聚合、规则、事件、投影等规范问题，不生成代码。",
+      "description_en": "Answer convention and best-practice questions from the read-only knowledge base without writing code.",
+      "examples_zh": [
+        "规则容器里组 C 为什么要读 old",
+        "投影什么时候该走数据库直读"
+      ],
+      "examples_en": [
+        "Why must group C rules read the old snapshot",
+        "When should a projection use direct database reads"
+      ]
+    }
+  }
+}

@@ -49,7 +49,7 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 
 ### 3.6 初始化设计文档工作区
 
-执行 `agent-skills/scripts/design-doc-workspace.sh init`，产出：
+执行 `scripts/design-doc-workspace.sh init`，产出：
 
 ```text
 docs/design/

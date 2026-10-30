@@ -23,7 +23,7 @@ agent-skills/
 ├── ddd-kb-consult/         ← 咨询入口（怎么用 / 为什么这么设计）
 ├── kb/                     ← 共享知识包：35 张 bp 卡 + 硬约束 + API 契约 + 索引清单
 ├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh / package-qoder-plugin.sh
-└── reference/              ← 安装附件：设计文档模板原文副本（见 §3 步骤 3）
+└── reference/              ← 设计文档模板原文（随包只读引用，不落入目标工程，见 §3 末）
 ```
 
 ## 2. 安装前必须知道的两条依赖
@@ -34,8 +34,9 @@ agent-skills/
 
 - `../kb/api-contract.md`、`../kb/hard-constraints.md`、`../kb/bp/*.md`
 - `../kb/README.md`（路由表）
+- `../reference/best-practices/design-doc-*.md`（设计文档模板，`ddd-design-doc` 用）
 
-因此 `ddd-*/`、`agents/`、`kb/`、`scripts/` **必须保持同级的相对位置**。只复制某个 Skill 目录、不带 `kb/`，Skill 会因找不到知识而停止生成（这是刻意设计的 fail-fast，防止凭记忆编签名）。
+因此 `ddd-*/`、`agents/`、`kb/`、`scripts/`、`reference/` **必须保持同级的相对位置**。只复制某个 Skill 目录、不带 `kb/`，Skill 会因找不到知识而停止生成（这是刻意设计的 fail-fast，防止凭记忆编签名）。
 
 **（2）目标工程的工作区依赖**
 
@@ -66,16 +67,13 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 
 装完自查：打开任一 `SKILL.md`，确认它引用的 `../kb/bp/xxx.md` 在磁盘上真实存在。
 
-**第 3 步（容易漏）：落设计文档模板**
+**模板不落盘到目标工程**
 
-`ddd-design-doc` 与 `ddd-kb-consult` 把「设计文档骨架」的结构权威指向文档站原文，而在独立安装环境中这个路径不存在。因此需要：
+`ddd-design-doc` 与 `ddd-kb-consult` 需要的设计文档模板（结构与流程权威）随包放在 `reference/best-practices/`，Skill 通过 `../reference/best-practices/…` 只读引用。
 
-```bash
-mkdir -p <目标工程>/documentation/best-practices
-cp agent-skills/reference/best-practices/*.md <目标工程>/documentation/best-practices/
-```
-
-漏了这一步，设计文档类 Skill 只能按 KB 卡骨架降级工作（缺少完整逐节规约与反例）。
+- **不要**把模板复制到目标工程的 `documentation/best-practices/`：那是框架仓库文档站的路径。
+- 目标工程只需要产出自己的 `docs/design/` 下设计文档（① 语义 / ② 写设计 / ③ 投影读设计 / ④ 事实），不因使用本能力多出模板文件。
+- 模板升级靠重新安装 / 重新打包，不改目标工程。
 
 ### 方式 B：单文件提示词型智能体
 
@@ -123,16 +121,18 @@ bash scripts/derive-kb.sh    # 源文档改过后刷新 source_sha（卡正文�
 重新打包（在本仓库内）：
 
 ```bash
-bash scripts/package-skills.sh        # 版本号默认取 kb_version，产物在仓库根 agent-skills-kb{版本}.zip
-bash scripts/package-qoder-plugin.sh  # 打成 Qoder 插件目录（dist/pragmatic-ddd-skills/ + 同名 zip），用于市场提交
+bash scripts/package-skills.sh          # 通用安装包：仓库根 agent-skills-kb{版本}.zip
+bash scripts/package-qoder-plugin.sh    # Qoder 插件（专家套件）：dist/pragmatic-ddd-skills/
+bash scripts/package-workbuddy-expert.sh # 腾讯 WorkBuddy 专家：dist/pragmatic-ddd-expert/
 ```
 
-两种产物的差别：
+三种产物的差别：
 
 | 产物 | 用途 | 结构 |
 | --- | --- | --- |
 | `agent-skills-kb{V}.zip` | 手动安装 / 内部分发 | 根目录直放 `ddd-*/SKILL.md` + `kb/` |
-| `dist/pragmatic-ddd-skills/` | **Qoder 市场提交** | `.qoder-plugin/plugin.json` + `skills/<name>/SKILL.md` + `agents/` + 根共享 `kb/`；技能内引用自动改写为 `../../kb/` |
+| `dist/pragmatic-ddd-skills/` | **Qoder 市场提交** | `.qoder-plugin/plugin.json` + `skills/<name>/SKILL.md` + `agents/` + 根共享 `kb/`；技能引用改写为 `../../kb/` |
+| `dist/pragmatic-ddd-expert/` | **腾讯 WorkBuddy 专家提交** | `.codebuddy-plugin/plugin.json` + `avatars/expert.png` + `agents/` + `skills/<name>/`（**KB 自包含**到 `references/kb/`，引用改 `@references/…`，并补全 8 个必填 frontmatter 字段） |
 
 ## 6. 边界：这套能力不做什么
 

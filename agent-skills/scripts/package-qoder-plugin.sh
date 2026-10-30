@@ -8,12 +8,14 @@
 #   ├── skills/<skill>/SKILL.md     10 个技能（含各自资源目录）
 #   ├── agents/ddd-reviewer.md      评审角色
 #   ├── kb/                         35 张卡 + 硬约束 + API 契约（插件根共享）
-#   ├── scripts/                    KB 派生 / 校验 / 工作区脚本
+#   ├── reference/best-practices/   设计文档模板（随包只读引用，不写入目标工程）
+#   ├── scripts/                   运行期脚本（派生 / 校验 / 工作区）
 #   ├── USAGE.md
 #   └── README.md                   插件说明
 #
 # 关键差异（相对 package-skills.sh 的 bundle）：技能下沉到 skills/<name>/，
-# 因此技能内 `../kb/` 改写为 `../../kb/`，`../USAGE.md` 改写为 `../../USAGE.md`。
+# 因此技能内 `../kb/` 改写为 `../../kb/`，`../USAGE.md` 改写为 `../../USAGE.md`，
+# `documentation/best-practices/` 改写为 `../../reference/best-practices/`（模板随包，不落用户工程）。
 #
 # 用法：
 #   package-qoder-plugin.sh [版本号]       默认取 kb/_manifest.json 的 kb_version
@@ -48,7 +50,7 @@ for dir in "$SKILLS_DIR"/ddd-*/; do
   cp -R "$dir" "$STAGE/skills/$name"
   # 技能层级下移一层：跨目录引用补一级
   if [ -f "$STAGE/skills/$name/SKILL.md" ]; then
-    perl -pi -e 's#\.\./kb/#../../kb/#g; s#\.\./USAGE\.md#../../USAGE.md#g' \
+    perl -pi -e 's#\.\./kb/#../../kb/#g; s#\.\./USAGE\.md#../../USAGE.md#g; s#documentation/best-practices/#../../reference/best-practices/#g' \
       "$STAGE/skills/$name/SKILL.md"
   fi
   find "$STAGE/skills/$name" -name '.DS_Store' -delete
@@ -56,10 +58,26 @@ done
 
 # ---------- 角色 / 共享资源 / 说明 ----------
 cp "$SKILLS_DIR/agents/ddd-reviewer.md" "$STAGE/agents/"
+# 技能下沉到 skills/ 后，agent 里的同级 Skill 引用需补一层
+perl -pi -e 's#\.\./ddd-code-review/SKILL\.md#../skills/ddd-code-review/SKILL.md#g' \
+  "$STAGE/agents/ddd-reviewer.md"
 cp -R "$SKILLS_DIR/kb" "$STAGE/kb"
-cp -R "$SKILLS_DIR/scripts" "$STAGE/scripts"
+
+# 只带运行期脚本（派生 / 校验 / 工作区）；构建期打包脚本与平台清单不进插件包
+mkdir -p "$STAGE/scripts"
+for s in derive-kb.sh verify-kb.sh design-doc-workspace.sh; do
+  cp "$SKILLS_DIR/scripts/$s" "$STAGE/scripts/"
+done
+
 cp "$SKILLS_DIR/USAGE.md" "$STAGE/USAGE.md"
-find "$STAGE/kb" "$STAGE/scripts" -name '.DS_Store' -delete
+
+# 设计文档模板：随包提供（与 package-skills.sh 保持同一清单），不要求落到用户工程
+mkdir -p "$STAGE/reference/best-practices"
+cp "$REPO_ROOT"/documentation/best-practices/design-doc-*.md \
+   "$STAGE/reference/best-practices/"
+cp "$REPO_ROOT/documentation/best-practices/aggregate-database-design.md" \
+   "$STAGE/reference/best-practices/"
+find "$STAGE/kb" "$STAGE/scripts" "$STAGE/reference" -name '.DS_Store' -delete
 
 # ---------- plugin.json（name 必填，其余元信息可选） ----------
 cat > "$STAGE/.qoder-plugin/plugin.json" <<EOF
@@ -114,7 +132,8 @@ cat > "$STAGE/README.md" <<'EOF'
 ## 依赖
 
 - 知识包在插件根 `kb/`（35 张卡 + `hard-constraints.md` + `api-contract.md`），技能通过 `../../kb/` 引用。
-- `scripts/` 提供 KB 派生 / 校验 / 设计文档工作区脚本。
+- 设计文档模板在插件根 `reference/best-practices/`，技能通过 `../../reference/best-practices/` 引用；不写入目标工程。
+- `scripts/` 只含运行期脚本（`verify-kb.sh` / `derive-kb.sh` / `design-doc-workspace.sh`），构建期打包脚本不入插件包。
 
 ## 适用场景
 
@@ -125,7 +144,11 @@ EOF
 
 # ---------- 校验 ----------
 python3 - "$STAGE" "$PLUGIN_NAME" <<'PY'
-import json, os, re, sys
+import glob
+import json
+import os
+import re
+import sys
 
 stage, plugin_name = sys.argv[1], sys.argv[2]
 errors = []
@@ -164,8 +187,14 @@ for skill in skills:
         errors.append(f"{skill}: description 超过 1024 字符")
     if re.search(r"(?<!\.\./)\.\./kb/", text):
         errors.append(f"{skill}: 仍存在未改写的 ../kb/ 引用")
-    # 校验所有 ../../kb/ 目标存在
-    for ref in set(re.findall(r"\.\./\.\./(kb/[^\s)`\]\"']+)", text)):
+    if "documentation/best-practices/" in text:
+        errors.append(f"{skill}: 仍指向仓库文档路径 documentation/best-practices/")
+    # 校验所有 ../../kb/ 与 ../../reference/ 目标存在（通配引用按 glob 校验）
+    for ref in set(re.findall(r"\.\./\.\./((?:kb|reference)/[^\s)`\]\"']+)", text)):
+        if "*" in ref:
+            if not glob.glob(os.path.join(stage, ref)):
+                errors.append(f"{skill}: 通配引用无匹配 {ref}")
+            continue
         if not os.path.exists(os.path.join(stage, ref)):
             errors.append(f"{skill}: 引用不存在 {ref}")
 
@@ -173,6 +202,27 @@ if not os.path.isdir(os.path.join(stage, "agents")):
     errors.append("缺少 agents/ 目录")
 if not os.path.isfile(os.path.join(stage, "agents", "ddd-reviewer.md")):
     errors.append("缺少 agents/ddd-reviewer.md")
+else:
+    agent_text = open(os.path.join(stage, "agents", "ddd-reviewer.md"), encoding="utf-8").read()
+    if "../ddd-code-review/" in agent_text:
+        errors.append("agents/ddd-reviewer.md: Skill 引用未补 skills/ 一层")
+    for ref in set(re.findall(r"\.\./kb/[^\s)`\]\"']+", agent_text)):
+        cleaned = ref.rstrip(".,;:)")
+        if "*" in cleaned:
+            if not glob.glob(os.path.join(stage, cleaned[3:])):
+                errors.append(f"agents/ddd-reviewer.md: kb 通配引用无匹配 {cleaned}")
+            continue
+        if not os.path.exists(os.path.join(stage, cleaned[3:])):
+            errors.append(f"agents/ddd-reviewer.md: kb 引用不存在 {cleaned}")
+
+# scripts/ 只允许运行期脚本，构建期脚本与平台清单不得入插件包
+ALLOWED_SCRIPTS = {"derive-kb.sh", "verify-kb.sh", "design-doc-workspace.sh"}
+scripts_dir = os.path.join(stage, "scripts")
+actual_scripts = set(os.listdir(scripts_dir)) if os.path.isdir(scripts_dir) else set()
+for extra in sorted(actual_scripts - ALLOWED_SCRIPTS):
+    errors.append(f"scripts/ 含构建期文件：{extra}")
+for missing in sorted(ALLOWED_SCRIPTS - actual_scripts):
+    errors.append(f"scripts/ 缺运行期脚本：{missing}")
 
 if errors:
     print("校验失败：")

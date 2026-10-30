@@ -89,13 +89,13 @@
 | 是否属于 KB 发布范围 | 对象 | 说明 |
 | --- | --- | --- |
 | ✅ 属于 | `kb/**` 全部内容（`hard-constraints.md` / `api-contract.md` / `bp/*.md` / `_manifest.json`） | 唯一权威知识源，可直接分发给第三方 |
-| ❌ 不属于 | 仓库内示例工程 `examples/order-example/` | 仅作**仓库内** A4/A5 回归基线（见 `../A4-A5-walkthrough.md`），第三方环境不存在，**KB 与 Skill 不得引用** |
+| ❌ 不属于 | 仓库内示例工程 `examples/order-example/` | 仅作**仓库内** A4/A5 回归基线（见仓库内走查方案 `A4-A5-walkthrough.md`，不入发布包），第三方环境不存在，**KB 与 Skill 不得引用** |
 
 **为什么移除 example 依赖（2026-09-26 决策）**：
 
 1. **第三方必然阻断**：原 `kb/examples/order/README.md` 指向 `examples/order-example/`，该目录不在 KB 发布范围内；再叠加本 README 的 fail-fast 纪律（找不到 KB 即停止生成），会在第三方环境直接停摆。
 2. **`Order.java`（verbatim）污染包名**：其 `package io.pragmatic.ddd.example.order.*` 与同名 import 会被照抄，产生不存在的包。
-3. **实验证据**：`../A4-A5-walkthrough.md` §7.2 的零上下文子 agent 在**禁读** `examples/order-example` 的前提下，KB v1.2 下 5 个 Tier-2 易错文件全部写对、`mvn compile` EXIT=0——证明闭合缺口的是 `api-contract.md` 与 `bp/projection-api.md`，而非 verbatim 示例。
+3. **实验证据**：仓库内 A4/A5 走查方案 §7.2 的零上下文子 agent 在**禁读** `examples/order-example` 的前提下，KB v1.2 下 5 个 Tier-2 易错文件全部写对、`mvn compile` EXIT=0——证明闭合缺口的是 `api-contract.md` 与 `bp/projection-api.md`，而非 verbatim 示例。
 
 **占位约定**：`bp/*.md` 中出现的 `Order` / `OrderRule` 等标识符是**最佳实践文档的范式载体**（源自 `documentation/best-practices/`），生成时须替换为目标聚合名；它们不代表任何仓库内真实示例工程文件。
 
