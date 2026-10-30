@@ -50,10 +50,12 @@ docs/design/
 └── aggregates/{agg}/facts.md           ④ 聚合事实（当前态）
 ```
 
-首次使用前先跑一次初始化：
+首次使用前，在**目标工程根目录**跑一次初始化（脚本在能力包内，落点会自动指向当前工程）：
 
 ```bash
-bash scripts/design-doc-workspace.sh init
+cd <目标工程>
+bash <能力包目录>/scripts/design-doc-workspace.sh init
+# → 设计目录：<目标工程>/docs/design
 ```
 
 ## 3. 安装方式
@@ -97,7 +99,7 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 
 | 你的环境 | `design-doc-workspace.sh` | 说明 |
 | --- | --- | --- |
-| **Git for Windows（Git Bash）** | ✅ 直接可用 | 推荐。`bash scripts/design-doc-workspace.sh init`；`bash` 需在 PATH（安装时选「Use Git and optional Unix tools from the Command Prompt」） |
+| **Git for Windows（Git Bash）** | ✅ 直接可用 | 推荐。在目标工程里执行 `bash <能力包>/scripts/design-doc-workspace.sh init`；`bash` 需在 PATH（安装时选「Use Git and optional Unix tools from the Command Prompt」） |
 | **WSL** | ✅ 可用 | 工程在 `/mnt/c/...` 时从工程目录执行即可，无需手写路径；放在 WSL 文件系统里更快 |
 | **纯 PowerShell / cmd** | ❌ 不能执行 `.sh` | 用下方「手工等价命令」，或安装 Git Bash |
 
