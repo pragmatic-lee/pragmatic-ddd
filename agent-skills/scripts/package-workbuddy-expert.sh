@@ -357,7 +357,13 @@ print(f"校验通过：{len(skills_meta)} 技能 + {len(plugin['agents'])} agent
 PY
 
 # ---------- 打包 ----------
-( cd "$DIST_DIR" && rm -f "$OUT" && zip -r -q -X "$OUT" pragmatic-ddd-expert )
+# 统一文件时间戳 → 可复现构建（默认取最近一次提交时间）
+STAMP="$(git -C "$REPO_ROOT" log -1 --format=%cd --date=format:'%Y%m%d%H%M.%S' 2>/dev/null || true)"
+STAMP="${STAMP:-202001010000}"
+find "$STAGE" -exec touch -t "$STAMP" {} +
+
+# -X 不写额外属性；-D 不写目录条目（解压时自动建目录）→ 产物可复现，重打 SHA 不变
+( cd "$DIST_DIR" && rm -f "$OUT" && zip -r -q -X -D "$OUT" pragmatic-ddd-expert )
 
 echo "已生成目录：$STAGE"
 echo "已生成压缩包：$OUT"

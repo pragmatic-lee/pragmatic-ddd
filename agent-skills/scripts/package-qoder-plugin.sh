@@ -234,7 +234,13 @@ print(f"校验通过：{len(skills)} 个技能 + agents/ + kb/，plugin.json nam
 PY
 
 # ---------- 打包 ----------
-( cd "$DIST_DIR" && rm -f "$OUT" && zip -r -q -X "$OUT" "$PLUGIN_NAME" )
+# 统一文件时间戳 → 可复现构建（默认取最近一次提交时间）
+STAMP="$(git -C "$REPO_ROOT" log -1 --format=%cd --date=format:'%Y%m%d%H%M.%S' 2>/dev/null || true)"
+STAMP="${STAMP:-202001010000}"
+find "$STAGE" -exec touch -t "$STAMP" {} +
+
+# -X 不写额外属性；-D 不写目录条目（解压时自动建目录）→ 产物可复现，重打 SHA 不变
+( cd "$DIST_DIR" && rm -f "$OUT" && zip -r -q -X -D "$OUT" "$PLUGIN_NAME" )
 
 echo "已生成目录：$STAGE"
 echo "已生成压缩包：$OUT"

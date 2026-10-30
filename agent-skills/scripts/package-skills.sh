@@ -238,8 +238,14 @@ if grep -rniE 'qoder|codebuddy|workbuddy' "$STAGE/agent-skills" > /dev/null; the
   exit 1
 fi
 
+# 统一文件时间戳 → 可复现构建（默认取最近一次提交时间，不在 git 仓库时用固定值）
+STAMP="$(git -C "$REPO_ROOT" log -1 --format=%cd --date=format:'%Y%m%d%H%M.%S' 2>/dev/null || true)"
+STAMP="${STAMP:-202001010000}"
+find "$STAGE" -exec touch -t "$STAMP" {} +
+
 # 必须先删旧包：zip 是增量追加，不删会残留上一版已排除的文件
-( cd "$STAGE" && rm -f "$OUT" && zip -r -q -X "$OUT" agent-skills )
+# -X 不写额外属性；-D 不写目录条目（解压时自动建目录）→ 产物可复现，重打 SHA 不变
+( cd "$STAGE" && rm -f "$OUT" && zip -r -q -X -D "$OUT" agent-skills )
 
 echo "已生成：$OUT"
 echo "  平台中立：不含 Qoder / CodeBuddy / WorkBuddy 专属脚本、Agent 与表述"
