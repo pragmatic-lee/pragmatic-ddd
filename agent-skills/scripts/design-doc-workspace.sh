@@ -12,10 +12,12 @@
 # 用法：
 #   design-doc-workspace.sh init                        建骨架
 #   design-doc-workspace.sh new <需求> <agg> [agg...]   建活动需求目录
-#   design-doc-workspace.sh archive <需求>              检查判据后归档
+#   design-doc-workspace.sh archive <需求> [--yes]      检查判据后归档（--yes 跳过人工确认）
 #   design-doc-workspace.sh list                        列出活动需求与聚合
 #
-# 环境变量：DESIGN_ROOT（默认 {仓库根}/docs/design）
+# 环境变量：
+#   DESIGN_ROOT        设计目录根（默认 {仓库根}/docs/design）
+#   DESIGN_ASSUME_YES  置 1 时 archive 不再交互确认（等价 --yes，供 AI / CI 无 TTY 场景）
 # =============================================================================
 set -euo pipefail
 
@@ -29,7 +31,21 @@ AGGREGATES_DIR="$DESIGN_ROOT/aggregates"
 PREREQUISITES="$DESIGN_ROOT/prerequisites.md"
 
 usage() {
-  sed -n '11,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # 内联用法说明（不从文件头按行号截取，避免注释块变动后失效）
+  cat >&2 <<'EOF'
+用法：
+  design-doc-workspace.sh init                        建目录骨架
+  design-doc-workspace.sh new <需求> <agg> [agg...]   建活动需求目录
+  design-doc-workspace.sh archive <需求> [--yes]      检查判据后归档
+  design-doc-workspace.sh list                        列出活动需求与聚合
+
+选项：
+  --yes            archive 时跳过人工确认（等价环境变量 DESIGN_ASSUME_YES=1）
+
+环境变量：
+  DESIGN_ROOT         设计目录根（默认 {仓库根}/docs/design）
+  DESIGN_ASSUME_YES   置 1 时 archive 不再交互确认
+EOF
   exit 1
 }
 
@@ -101,8 +117,21 @@ cmd_new() {
 }
 
 cmd_archive() {
-  [ "$#" -eq 1 ] || fail "用法：archive <需求>"
-  local req="$1"
+  local assume_yes="${DESIGN_ASSUME_YES:-0}"
+  local req=""
+  while [ "$#" -ge 1 ]; do
+    case "$1" in
+      --yes|-y)
+        assume_yes=1
+        shift
+        ;;
+      *)
+        req="$1"
+        shift
+        ;;
+    esac
+  done
+  [ -n "$req" ] || fail "用法：archive <需求> [--yes]"
   require_name "$req"
 
   local src="$ACTIVE_DIR/$req"
@@ -131,12 +160,20 @@ cmd_archive() {
 
   # 判据三（§10.6 回填）无法自动判定，交由人工确认
   echo "自动判据通过：聚合目录齐全、事实文档齐全。"
-  echo "人工确认项：② 的 §10.6 实施回填是否已完成？"
-  read -r -p "确认后归档 [y/N] " answer
-  case "$answer" in
-    y|Y) ;;
-    *) echo "已取消归档"; exit 0 ;;
-  esac
+  if [ "$assume_yes" = "1" ]; then
+    echo "跳过人工确认（--yes / DESIGN_ASSUME_YES=1）：请自行确保 ② 的 §10.6 实施回填已完成。"
+  else
+    echo "人工确认项：② 的 §10.6 实施回填是否已完成？"
+    local answer=""
+    read -r -p "确认后归档 [y/N] " answer || answer=""
+    case "$answer" in
+      y|Y) ;;
+      *)
+        echo "已取消归档"
+        exit 0
+        ;;
+    esac
+  fi
 
   mkdir -p "$ARCHIVE_DIR"
   if [ -d "$ARCHIVE_DIR/$req" ]; then

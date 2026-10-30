@@ -89,6 +89,43 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 
 只复制 `ddd-kb-consult/SKILL.md` + `kb/` 全量。得到「问规范即答、不产代码」的问答能力，不涉及工程写入。
 
+### 方式 D：Windows 环境（Git Bash / WSL / 纯 PowerShell）
+
+包本身与平台无关：文件名全 ASCII、UTF-8 无 BOM、全 LF、无符号链接，解压即可用；Skill / KB / 模板都是 Markdown，任何编辑器与 AI 工具可直接读。
+
+差别只在**要不要执行包内脚本**（主要是 `scripts/design-doc-workspace.sh`，它负责按「需求目录制」建目录与归档）：
+
+| 你的环境 | `design-doc-workspace.sh` | 说明 |
+| --- | --- | --- |
+| **Git for Windows（Git Bash）** | ✅ 直接可用 | 推荐。`bash scripts/design-doc-workspace.sh init`；`bash` 需在 PATH（安装时选「Use Git and optional Unix tools from the Command Prompt」） |
+| **WSL** | ✅ 可用 | 工程在 `/mnt/c/...` 时可 `DESIGN_ROOT=/mnt/c/.../docs/design` 指定；放在 WSL 文件系统里更快 |
+| **纯 PowerShell / cmd** | ❌ 不能执行 `.sh` | 用下方「手工等价命令」，或安装 Git Bash |
+
+**归档必须非交互**：`archive` 默认会让你 `[y/N]` 确认；在 AI / CI 等无 TTY 的终端里会直接取消。脚本调用请带 `--yes`（或设 `DESIGN_ASSUME_YES=1`）：
+
+```bash
+bash scripts/design-doc-workspace.sh archive <需求> --yes
+```
+
+**换行符**：仓库已用 `.gitattributes` 锁定 `*.sh` 为 LF，从 zip 解压同样保持 LF。若脚本报 `$'\r': command not found`，说明文件被转成了 CRLF，执行 `git config core.autocrlf input` 后重新检出即可。
+
+**Python**：`scripts/verify-kb.sh` / `scripts/derive-kb.sh` 需要 `python3`，且只能在框架仓库内使用（要读 `documentation/best-practices/` 源文档算 sha）。Windows 官方安装器默认只提供 `python` / `py`，如需使用可自行建立 `python3` 别名。
+
+**纯 PowerShell 的手工等价命令**（脚本不可用时的最小操作集）：
+
+```powershell
+# 1. 建骨架（等价 init）
+New-Item -ItemType Directory -Force docs\design\changes\active, docs\design\changes\archive, docs\design\aggregates | Out-Null
+
+# 2. 建活动需求目录（等价 new 202610-order order）
+New-Item -ItemType Directory -Force docs\design\changes\active\202610-order\order | Out-Null
+
+# 3. 归档（等价 archive 202610-order --yes）
+Move-Item docs\design\changes\active\202610-order docs\design\changes\archive\202610-order
+```
+
+手工归档前仍需自己核对三条判据：聚合子目录齐全、每个聚合有 `aggregates/{agg}/facts.md`、写设计 §10.6 已回填。
+
 ## 4. 装完后的第一次运行
 
 | 你想干什么 | 说什么 | 会触发 |

@@ -1,0 +1,39 @@
+# =============================================================================
+# 换行符与二进制属性：保证 macOS / Linux / Windows 三端一致
+#
+# 背景：shell 脚本一旦被检出/转存为 CRLF，Windows 上执行会报
+#       `bash: $'\r': command not found`；agent-skills 能力包要分发到
+#       Windows 用户，故脚本强制 LF，批处理强制 CRLF。
+# =============================================================================
+
+* text=auto
+
+# 脚本：一律 LF（Windows 上用 Git Bash / WSL 执行）
+*.sh text eol=lf
+
+# Windows 批处理：一律 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 文档与文本配置：一律 LF
+*.md text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.properties text eol=lf
+*.sql text eol=lf
+
+# 二进制：不做换行转换
+*.zip binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# 矢量图是文本，按 LF 处理
+*.svg text eol=lf
