@@ -16,14 +16,30 @@
 #   design-doc-workspace.sh list                        列出活动需求与聚合
 #
 # 环境变量：
-#   DESIGN_ROOT        设计目录根（默认 {仓库根}/docs/design）
+#   DESIGN_ROOT        设计目录根（落点优先级：显式 DESIGN_ROOT → 当前 git 仓库根 → 当前工作目录，
+#                      均拼上 /docs/design；不再基于脚本自身位置推算）
 #   DESIGN_ASSUME_YES  置 1 时 archive 不再交互确认（等价 --yes，供 AI / CI 无 TTY 场景）
 # =============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DESIGN_ROOT="${DESIGN_ROOT:-$REPO_ROOT/docs/design}"
+# 设计目录落点：跟「当前工程」走，不跟脚本自身位置走
+#   1) 显式 DESIGN_ROOT（最高优先级）
+#   2) 当前 git 仓库根 + /docs/design（在目标工程或其子目录执行都对）
+#   3) 当前工作目录 + /docs/design（非 git 工程的兜底）
+resolve_design_root() {
+  if [ -n "${DESIGN_ROOT:-}" ]; then
+    printf '%s\n' "$DESIGN_ROOT"
+    return
+  fi
+  local git_root=""
+  if git_root="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -n "$git_root" ]; then
+    printf '%s\n' "$git_root/docs/design"
+    return
+  fi
+  printf '%s\n' "$PWD/docs/design"
+}
+
+DESIGN_ROOT="$(resolve_design_root)"
 
 ACTIVE_DIR="$DESIGN_ROOT/changes/active"
 ARCHIVE_DIR="$DESIGN_ROOT/changes/archive"
@@ -43,8 +59,10 @@ usage() {
   --yes            archive 时跳过人工确认（等价环境变量 DESIGN_ASSUME_YES=1）
 
 环境变量：
-  DESIGN_ROOT         设计目录根（默认 {仓库根}/docs/design）
+  DESIGN_ROOT         设计目录根（默认：当前 git 仓库根 + /docs/design，退到当前目录 + /docs/design）
   DESIGN_ASSUME_YES   置 1 时 archive 不再交互确认
+
+落点规则：在目标工程（或其子目录）执行即可，无需传参；落点不对时用 DESIGN_ROOT 覆盖。
 EOF
   exit 1
 }
@@ -198,6 +216,7 @@ main() {
   [ "$#" -ge 1 ] || usage
   local cmd="$1"
   shift
+  echo "设计目录：$DESIGN_ROOT"
   case "$cmd" in
     init) cmd_init ;;
     new) cmd_new "$@" ;;

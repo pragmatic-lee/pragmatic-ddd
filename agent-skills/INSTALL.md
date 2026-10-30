@@ -98,8 +98,24 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 | 你的环境 | `design-doc-workspace.sh` | 说明 |
 | --- | --- | --- |
 | **Git for Windows（Git Bash）** | ✅ 直接可用 | 推荐。`bash scripts/design-doc-workspace.sh init`；`bash` 需在 PATH（安装时选「Use Git and optional Unix tools from the Command Prompt」） |
-| **WSL** | ✅ 可用 | 工程在 `/mnt/c/...` 时可 `DESIGN_ROOT=/mnt/c/.../docs/design` 指定；放在 WSL 文件系统里更快 |
+| **WSL** | ✅ 可用 | 工程在 `/mnt/c/...` 时从工程目录执行即可，无需手写路径；放在 WSL 文件系统里更快 |
 | **纯 PowerShell / cmd** | ❌ 不能执行 `.sh` | 用下方「手工等价命令」，或安装 Git Bash |
+
+**设计目录落点**：脚本按「显式 `DESIGN_ROOT` → 当前 git 仓库根 → 当前工作目录」的顺序解析，最终落点固定为 `<根>/docs/design`，执行时会打印出来。所以**在目标工程里执行就不用传参**：
+
+```bash
+cd <目标工程>                                    # 或工程内任意子目录（同一 git 仓库）
+bash <能力包>/scripts/design-doc-workspace.sh init
+# → 设计目录：<目标工程>/docs/design
+```
+
+仅在落点不符合预期时覆盖（如 monorepo、非 git 目录）：
+
+```bash
+DESIGN_ROOT=<目标工程>/docs/design bash <能力包>/scripts/design-doc-workspace.sh init
+```
+
+Windows 上路径这样写：Git Bash 用 `DESIGN_ROOT="D:/work/myproj/docs/design"`，PowerShell 用 `$env:DESIGN_ROOT="D:\work\myproj\docs\design"`。
 
 **归档必须非交互**：`archive` 默认会让你 `[y/N]` 确认；在 AI / CI 等无 TTY 的终端里会直接取消。脚本调用请带 `--yes`（或设 `DESIGN_ASSUME_YES=1`）：
 
