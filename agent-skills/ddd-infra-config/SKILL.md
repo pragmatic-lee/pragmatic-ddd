@@ -6,7 +6,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 # ddd-infra-config（基础设施配置）
 
 > 类型：S3（基础设施配置类）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位

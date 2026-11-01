@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "2.5",
-  "framework_version": "2.1.0-SNAPSHOT",
-  "generated_at": "2026-10-29",
-  "note": "v2.5（2026-11-01）：设计文档体系改为「一轮三件套 + 轮次」——取消聚合事实文档（bp.design-doc-facts 退役，现状一律以代码为准，每轮按固定勘察清单现读）；① 语义 / ② 写聚合 / ③ 读投影 文件名加 -V{NN} 后缀、不再覆盖写；三件套固定产出（取消 G3/G4 点单）；一轮结束 = 代码落地 + 三条核对，落地后冻结（只允许文字勘误与 §10.6 实施备注）；§10.6 取消「实施偏差」，改「实施备注」；新增轮次判定三条判据（拿不准必问）与「glob + 取最大 V」解析规则。v2.4（2026-10-29）：设计文档交付改为闸门制（G1/G2 语义多轮迭代与定稿、G3/G4 写/读点单）+ 回流矩阵（业务口径回 ①，技术形态止于 ②③，逐级不跳档）+ 三份一致性校验；新增 bp.design-doc-template 卡作为流程权威。v2.3（2026-10-29）：设计文档落盘改为「需求目录制」——①②③ 落 `docs/design/changes/active/{需求}/{agg}/`（semantics / aggregate-design / projection-read），归档为整目录移到 `changes/archive/`；④ 落 `docs/design/aggregates/{agg}/facts.md`；项目前置条件清单落 `docs/design/prerequisites.md`；新增 scripts/design-doc-workspace.sh（init / new / archive / list）；纯技术改动可跳过语义文档。见 docs/design/agent-skills/文档产物目录规划-v2.md。v2.2（2026-10-29）：文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 bp.design-doc-facts（聚合事实快照，从代码推导、每次实施后覆盖）。v2.1（2026-10-29）：设计文档体系改为三层（语义 → 写 → 读）——新增 bp.design-doc-semantics / bp.design-doc-prerequisites 两张卡；design-doc-write-template / read-template 按「11 节 / 6 节」新骨架重蒸馏（新增条件子节不删不重编号、元素级追溯、实施回填；读模板新增三读源：ES / Redis / 数据库直读与澄清机制）。v2.0（2026-10-28）：PostgreSQL 支持入 KB——新增 bp.postgresql-config 卡，重蒸馏 7 张 STALE 卡（value-object / repository-design 修正 final 方法描述；mysql / mybatis / outbox-config 同步 PG 拆分；design-doc 写 / 读模板改为「写法约定 + 编号连续骨架 + 无论证散文」）；api-contract 坐标钉死 2.1.0-SNAPSHOT 并新增「MyBatis TypeHandler 与方言」段（PgJdbcJsonValue / TypeHandlerContext / 语句常量等，依源码核验）。v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "kb_version": "2.6",
+  "framework_version": "2.1.0",
+  "generated_at": "2026-11-01",
+  "note": "v2.6（2026-11-01）：坐标重验 + ④ 入 KB + 卡口硬化——api-contract Maven 坐标改为真实值 com.pragmatic-ddd:*:2.1.0（groupId 已于 42eb8c1 迁移、2.1.0 于 2026-10-30 发 Central），并声明 groupId ≠ 包前缀、artifactId 以 pragmatic-ddd-bom 的 dependencyManagement 为唯一权威；清除不存在的 pragmatic-ddd-outbox 模块名（Outbox 是 mybatis 内置能力）；新增 bp.design-doc-accepted（v2.5 新增的源文档当时未收口，本次补齐源↔卡↔技能三层，design-doc-workspace.sh 同步预置 aggregates/{agg}/ 目录）；bp.design-doc-template 重蒸馏纳入 ④ 与编号对照；verify-kb.sh 重写为哈希引擎：区分 STALE / BROKEN / UNSEEDED / PRODUCT DRIFT，支持 source_kind=code-tree（源码与 pom 变更即标 STALE），不再静默跳过缺源，全部 37 张卡的 source_sha 与 product_sha 已回填；derive-kb.sh 改为转发，单一实现。见 docs/design/agent-skills/agent-skills-kb-consistency-remediation-v01.md。 v2.5（2026-11-01）：设计文档体系改为「一轮三件套 + 轮次」——取消聚合事实文档（bp.design-doc-facts 退役，现状一律以代码为准，每轮按固定勘察清单现读）；① 语义 / ② 写聚合 / ③ 读投影 文件名加 -V{NN} 后缀、不再覆盖写；三件套固定产出（取消 G3/G4 点单）；一轮结束 = 代码落地 + 三条核对，落地后冻结（只允许文字勘误与 §10.6 实施备注）；§10.6 取消「实施偏差」，改「实施备注」；新增轮次判定三条判据（拿不准必问）与「glob + 取最大 V」解析规则。v2.4（2026-10-29）：设计文档交付改为闸门制（G1/G2 语义多轮迭代与定稿、G3/G4 写/读点单）+ 回流矩阵（业务口径回 ①，技术形态止于 ②③，逐级不跳档）+ 三份一致性校验；新增 bp.design-doc-template 卡作为流程权威。v2.3（2026-10-29）：设计文档落盘改为「需求目录制」——①②③ 落 `docs/design/changes/active/{需求}/{agg}/`（semantics / aggregate-design / projection-read），归档为整目录移到 `changes/archive/`；④ 落 `docs/design/aggregates/{agg}/facts.md`；项目前置条件清单落 `docs/design/prerequisites.md`；新增 scripts/design-doc-workspace.sh（init / new / archive / list）；纯技术改动可跳过语义文档。见 docs/design/agent-skills/文档产物目录规划-v2.md。v2.2（2026-10-29）：文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 bp.design-doc-facts（聚合事实快照，从代码推导、每次实施后覆盖）。v2.1（2026-10-29）：设计文档体系改为三层（语义 → 写 → 读）——新增 bp.design-doc-semantics / bp.design-doc-prerequisites 两张卡；design-doc-write-template / read-template 按「11 节 / 6 节」新骨架重蒸馏（新增条件子节不删不重编号、元素级追溯、实施回填；读模板新增三读源：ES / Redis / 数据库直读与澄清机制）。v2.0（2026-10-28）：PostgreSQL 支持入 KB——新增 bp.postgresql-config 卡，重蒸馏 7 张 STALE 卡（value-object / repository-design 修正 final 方法描述；mysql / mybatis / outbox-config 同步 PG 拆分；design-doc 写 / 读模板改为「写法约定 + 编号连续骨架 + 无论证散文」）；api-contract 坐标钉死 2.1.0-SNAPSHOT 并新增「MyBatis TypeHandler 与方言」段（PgJdbcJsonValue / TypeHandlerContext / 语句常量等，依源码核验）。v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -15,252 +15,307 @@
       "path": "bp/aggregate-design.md",
       "source": "documentation/best-practices/aggregate-design.md",
       "source_sha": "a4b9968283e67305f09b88e4a15466a5ce4f32bebdb3d5932732dccb530b89f4",
-      "product_sha": "TODO"
+      "product_sha": "b246e6f0b81f87886dc7a7baa604b2494e10eafbaa0f20b01cd0f0c7f6aff762",
+      "source_kind": "file"
     },
     {
       "id": "bp.aggregate-structure",
       "path": "bp/aggregate-structure.md",
       "source": "documentation/best-practices/aggregate-structure.md",
       "source_sha": "63381295df16d635ce762670d6e475cd81792f0f57d182b9aff552516008bc9f",
-      "product_sha": "TODO"
+      "product_sha": "96b06099a6e115fbe88ee5db3715d0e4cf11119198bc6b153b7b9522a99ba284",
+      "source_kind": "file"
     },
     {
       "id": "bp.entity-design",
       "path": "bp/entity-design.md",
       "source": "documentation/best-practices/entity-design.md",
       "source_sha": "4d30d54f42a220d21b76b1f86a29c75de38820662c7be6c595213fd67f1fc325",
-      "product_sha": "TODO"
+      "product_sha": "721536b8d2a34a304b7fe5c310878e50956e8a963251bcdbe36cb8c5acc7f9a5",
+      "source_kind": "file"
     },
     {
       "id": "bp.value-object",
       "path": "bp/value-object.md",
       "source": "documentation/best-practices/value-object.md",
       "source_sha": "b8469f874b7d24dbb57512cae99b657fef11a01b9633858d1c3737713bd76028",
-      "product_sha": "TODO"
+      "product_sha": "c62db054e5de8081e4018cdd3f0a2cd85da9709888f6cd7e4df4c6d0836d005d",
+      "source_kind": "file"
     },
     {
       "id": "bp.enum-value",
       "path": "bp/enum-value.md",
       "source": "documentation/best-practices/enum-value.md",
       "source_sha": "c6282be4f5aecf77d94a53a68051e4d59016e535a1254197058590602046794d",
-      "product_sha": "TODO"
+      "product_sha": "a32028aeba764e0713447c1c7a47dc79010441953ffdf5e676e7612069cad6b3",
+      "source_kind": "file"
     },
     {
       "id": "bp.operation-registry-design",
       "path": "bp/operation-registry-design.md",
       "source": "documentation/best-practices/operation-registry-design.md",
       "source_sha": "751726fd97528699857b4c4609b7ee014d0ab069ac467ed77ad1053950e12d43",
-      "product_sha": "TODO"
+      "product_sha": "a23fa3a1cba3db3bf0f9923cf017aaf3055736b087efe85d870a296c75129639",
+      "source_kind": "file"
     },
     {
       "id": "bp.registry-design",
       "path": "bp/registry-design.md",
       "source": "documentation/best-practices/registry-design.md",
       "source_sha": "0fd99652d48287ff1b77862def44a5ea656e272eb79ef8dfc005e40688698529",
-      "product_sha": "TODO"
+      "product_sha": "dd408051eae7943dbf7955e00466b8121cb2b4426d9eb19a45ba0bf20254521a",
+      "source_kind": "file"
     },
     {
       "id": "bp.order-rule-pattern",
       "path": "bp/order-rule-pattern.md",
       "source": "documentation/best-practices/order-rule-pattern.md",
       "source_sha": "40bc082e1118d371611fb48281fbcef56186cfc7b73d831abaac113b1bf9abe9",
-      "product_sha": "TODO"
+      "product_sha": "1910def2cc1f8fe78b6852af5be9a30bd44da54b40dcd2429b6a781a6946595d",
+      "source_kind": "file"
     },
     {
       "id": "bp.event-modeling",
       "path": "bp/event-modeling.md",
       "source": "documentation/best-practices/event-modeling.md",
       "source_sha": "c281d48501363bfb3b803d3fff376e8faffa6d504bba7082298258c3bafc914e",
-      "product_sha": "TODO"
+      "product_sha": "bceb0df90a7b387bfee66bc8d787e655811d952365e20585e853caee49120881",
+      "source_kind": "file"
     },
     {
       "id": "bp.event-subscriber-pattern",
       "path": "bp/event-subscriber-pattern.md",
       "source": "documentation/best-practices/event-subscriber-pattern.md",
       "source_sha": "cb19b1a94df515e9b3df4a3b64d52a8f78022ac40f6abb1eb0459175f8417da1",
-      "product_sha": "TODO"
+      "product_sha": "26e0e9679c4ac77044967fab558a9fe975afd7064bb8dd6d3abc7d12dafa0c63",
+      "source_kind": "file"
     },
     {
       "id": "bp.domain-service",
       "path": "bp/domain-service.md",
       "source": "documentation/best-practices/domain-service.md",
       "source_sha": "19a01feba0bbf0c77fba80d50314913d0bf24ac67777c0492a1283c69b4213f4",
-      "product_sha": "TODO"
+      "product_sha": "f709fd70e5b16e3de737f5d3f97eb92c3a7c080f0b982c4f919fd1a8abfc290d",
+      "source_kind": "file"
     },
     {
       "id": "bp.application-collaboration",
       "path": "bp/application-collaboration.md",
       "source": "documentation/best-practices/application-collaboration.md",
       "source_sha": "6c4cd264aa1c5e868f6ba5cba5d0e86ab94f83ae645ac975a7db54aaa818293c",
-      "product_sha": "TODO"
+      "product_sha": "932312c912ced5e6e525c52b531330387f2f368fe7a0975fa191a8d12a23e49b",
+      "source_kind": "file"
     },
     {
       "id": "bp.repository-design",
       "path": "bp/repository-design.md",
       "source": "documentation/best-practices/repository-design.md",
       "source_sha": "6e21cd43f5154244898f3a0a797d1ada7a6483f46cfcc301a6822ee99493672a",
-      "product_sha": "TODO"
+      "product_sha": "689c7455c50dccc493fea280770031fad7d8aefc0c6d59762ca07a7d1ee570d8",
+      "source_kind": "file"
     },
     {
       "id": "bp.aggregate-database-design",
       "path": "bp/aggregate-database-design.md",
       "source": "documentation/best-practices/aggregate-database-design.md",
       "source_sha": "eee6ebb3a6b3dade608b439a048d378f7cd6790006c98104bde91d3d43d195b9",
-      "product_sha": "TODO"
+      "product_sha": "e9d219bb8799a32c8ea99d8d0c2cd51cdfc0ace45d20f9c79015ac27302dd356",
+      "source_kind": "file"
     },
     {
       "id": "bp.projection-design",
       "path": "bp/projection-design.md",
       "source": "documentation/best-practices/projection-design.md",
       "source_sha": "5e63f933d9a1f32e6665755646e365d09fbf219e3551c7bc085a861082385c49",
-      "product_sha": "TODO"
+      "product_sha": "521cfc9088fea1b82c1b9e1d9f24d43abb25cf677908da40d3642bc4bb1ec02e",
+      "source_kind": "file"
     },
     {
       "id": "bp.broadcast",
       "path": "bp/broadcast.md",
       "source": "documentation/best-practices/broadcast.md",
       "source_sha": "f85cbd5a60682e2afbf5058af9e1ed380f244f1b452846eacc519219dcfdd9ea",
-      "product_sha": "TODO"
+      "product_sha": "e16ef1d0a0cee6bf9772953a834f90766888e395c23165a62fccefbb99b22058",
+      "source_kind": "file"
     },
     {
       "id": "bp.dependency-declaration",
       "path": "bp/dependency-declaration.md",
       "source": "documentation/best-practices/dependency-declaration.md",
       "source_sha": "d1299d3d144b8514be65fe9d31fad525f2268aa4a5673677d37febb5d2400eef",
-      "product_sha": "TODO"
+      "product_sha": "1cd30679d9cf0da4db3363b32d831be733fa3a1ed931adcec533b1a5b8e774cd",
+      "source_kind": "file"
     },
     {
       "id": "bp.design-doc-template",
       "path": "bp/design-doc-template.md",
       "source": "documentation/best-practices/design-doc-template.md",
-      "source_sha": "9f2f041f82e91fabd96fe8159afa755b33f174e1f5dfb1ad054f223e7665cedc",
-      "product_sha": "TODO"
+      "source_sha": "19301e959fa05e5eaf5e929c0b1ca9f07088490f4d06ef31d5307c164283ef8d",
+      "product_sha": "55937dbc49de487cf6138bf1d8558e12b7182402bd7b40bc1cd80f96dda59e8d",
+      "source_kind": "file"
     },
     {
       "id": "bp.design-doc-write-template",
       "path": "bp/design-doc-write-template.md",
       "source": "documentation/best-practices/design-doc-write-template.md",
       "source_sha": "e721168cf1e4d43bc41ee5a254a343237ccccc7f2288fe1a3e261b50c134dfea",
-      "product_sha": "TODO"
+      "product_sha": "79c6baa96ffb9129edeac676339e749893f481eb3ea32bef4d4035e8ddb71eb4",
+      "source_kind": "file"
     },
     {
       "id": "bp.design-doc-read-template",
       "path": "bp/design-doc-read-template.md",
       "source": "documentation/best-practices/design-doc-read-template.md",
       "source_sha": "ca5276e8d21db5e34656aeb5539568fd4eb1dbff6179b4c0318445af0c8f1941",
-      "product_sha": "TODO"
+      "product_sha": "87b938642064d03d5efb5c76943d79149a5d812b5026e94eca2f205cad0221ba",
+      "source_kind": "file"
     },
     {
       "id": "bp.design-doc-semantics",
       "path": "bp/design-doc-semantics.md",
       "source": "documentation/best-practices/design-doc-semantics.md",
       "source_sha": "7519d2b9371581b44a6cb37fb5e4c6e07d0df6589839e9a3beeb1b535fd4b07f",
-      "product_sha": "TODO"
+      "product_sha": "bb86db2d2b92e832c315d6c25d1edb7b1e67c06a56fb7bf7f8f20fe7b461ce18",
+      "source_kind": "file"
     },
     {
       "id": "bp.design-doc-prerequisites",
       "path": "bp/design-doc-prerequisites.md",
       "source": "documentation/best-practices/design-doc-prerequisites.md",
       "source_sha": "6e0dfa9c62d2095fc99dee92730556f9cfb5bdf80cb5ac666dec133085feb23b",
-      "product_sha": "TODO"
+      "product_sha": "523c2811923b10ce04a4ef1ef19c96ccc58862f5d53eeb8ebce0a7d7c784fe32",
+      "source_kind": "file"
+    },
+    {
+      "id": "bp.design-doc-accepted",
+      "path": "bp/design-doc-accepted.md",
+      "source": "documentation/best-practices/design-doc-accepted.md",
+      "source_kind": "file",
+      "source_sha": "dcb65d4636b237871a67ad8f7ad9c5810e95cc5d62d27a7f016755673039c93f",
+      "product_sha": "674e835ea1d07dafd286caec04183b53289bb5f7a976bf6621191323ef91edc9"
     },
     {
       "id": "bp.elasticsearch-config",
       "path": "bp/elasticsearch-config.md",
       "source": "documentation/best-practices/elasticsearch-config.md",
       "source_sha": "be4894c6842c441a71ae535b9b7322ed13f846cfec7d1f39b14734708e99f15e",
-      "product_sha": "TODO"
+      "product_sha": "59f180800e54abffd5c9c8a3dcffae10c4196d900bca1e2bd56d0458a127f5be",
+      "source_kind": "file"
     },
     {
       "id": "bp.event-manager-config",
       "path": "bp/event-manager-config.md",
       "source": "documentation/best-practices/event-manager-config.md",
       "source_sha": "6b1aab19f0ad2a1e0e04f004b2961e610c37ee53b594ebd72518bba3ffe632dd",
-      "product_sha": "TODO"
+      "product_sha": "9ebbd703a4bbe8253c6853cb95c7f5a791c20b383552178bb6637e4fdd614f3a",
+      "source_kind": "file"
     },
     {
       "id": "bp.mysql-config",
       "path": "bp/mysql-config.md",
       "source": "documentation/best-practices/mysql-config.md",
       "source_sha": "4fa8b7862265f327a08cce13b87f1b8c78dc5e6cd716a141a3e61ed4b80f9476",
-      "product_sha": "TODO"
+      "product_sha": "8996fb423c836913f425036a3fec3fb95c01b2fe8ab089ad2408363761b5760c",
+      "source_kind": "file"
     },
     {
       "id": "bp.mybatis-config",
       "path": "bp/mybatis-config.md",
       "source": "documentation/best-practices/mybatis-config.md",
       "source_sha": "9668e41f5cad5f9d24f97fbdf050878dc8a09b667df8670cc7313875b7dc0700",
-      "product_sha": "TODO"
+      "product_sha": "380471d73c056f0fac2aa4acce888b5903b6c330578651a3dfc115a09d4f10c3",
+      "source_kind": "file"
     },
     {
       "id": "bp.outbox-config",
       "path": "bp/outbox-config.md",
       "source": "documentation/best-practices/outbox-config.md",
       "source_sha": "7ab742373d87b9dfa46d816302c11879622fe2f0cc0ff64e6280a0ae5e740c74",
-      "product_sha": "TODO"
+      "product_sha": "0d9ab84c06d797f2aa19302d9d2c830faaba79ceb16e8779715e62d825ccac31",
+      "source_kind": "file"
     },
     {
       "id": "bp.rocketmq-config",
       "path": "bp/rocketmq-config.md",
       "source": "documentation/best-practices/rocketmq-config.md",
       "source_sha": "3fff64753ef7d4ff89a65930bb93d42c6aaa7c60716f9f6acec93000441236ae",
-      "product_sha": "TODO"
+      "product_sha": "ff6642e011e14b30288a607389f051e8d009e9bcd092c80079cc57e0ca0b41ec",
+      "source_kind": "file"
     },
     {
       "id": "bp.kafka-config",
       "path": "bp/kafka-config.md",
       "source": "documentation/best-practices/kafka-config.md",
       "source_sha": "62d84ea69fee6f8705d1fbdcaf17a02a5a29d56c26a47c71b4fdfe1a9f9b848e",
-      "product_sha": "TODO"
+      "product_sha": "4fe1493285720f09365d5ebc84989851a24d9586a93dfc6085a325e17eb3b213",
+      "source_kind": "file"
     },
     {
       "id": "bp.postgresql-config",
       "path": "bp/postgresql-config.md",
       "source": "documentation/best-practices/postgresql-config.md",
       "source_sha": "2339c4bc7693306d0831c010924ef7b8f86cc2fd33a7dbfbbc67a7cf998f1955",
-      "product_sha": "TODO"
+      "product_sha": "971f2395f8211bfb3aa79fbf7c72edfebdc25df2b3a3057ffc701bd9a88649aa",
+      "source_kind": "file"
     },
     {
       "id": "kb.hard-constraints",
       "path": "hard-constraints.md",
-      "source": "docs/design/ai/aggregate-generator-landing-design.md#5",
-      "source_sha": "TODO",
-      "product_sha": "TODO"
+      "source": "docs/design/ai/aggregate-generator-landing-design.md",
+      "source_sha": "83350079abe1be0fd57c3f4be5d440f3a465038e59a811943d92102f1ef8fe47",
+      "product_sha": "a9b6c63b52e8872a05ec954390b466c533b9947329d9678c351a07cfc2b73a14",
+      "source_kind": "file"
     },
     {
       "id": "kb.api-contract",
       "path": "api-contract.md",
-      "source": "pragmatic-ddd-core (io.pragmatic.ddd.*)",
-      "source_sha": "TODO",
-      "product_sha": "TODO"
+      "source": "pragmatic-ddd framework sources (java + poms)",
+      "source_sha": "fa2417a0c9157c241ab51850b42aaeac00a2a353e20dbec889852f6bc811a8be",
+      "product_sha": "9a84d32add4ccc87329a55e0f5f6f5f60fdb2717df3de001cc4b1b58c5221cd5",
+      "source_kind": "code-tree",
+      "source_globs": [
+        "pragmatic-ddd-*/src/main/java/**/*.java",
+        "pragmatic-ddd-*/pom.xml",
+        "pom.xml"
+      ]
     },
     {
       "id": "bp.projection-api",
       "path": "bp/projection-api.md",
-      "source": "pragmatic-ddd-core (io.pragmatic.ddd.repository.query.projection.*)",
-      "source_sha": "TODO",
-      "product_sha": "TODO"
+      "source": "pragmatic-ddd-core repository/query/projection sources",
+      "source_sha": "9e70d2445c44d208fffa7e0093650042d3e84ebd673a6ae58d6521ae60d92f82",
+      "product_sha": "82e6073bb65d0e0b004b4d1fa516fde45e68a0b3ebec00d792568ba8cb8529b5",
+      "source_kind": "code-tree",
+      "source_globs": [
+        "pragmatic-ddd-core/src/main/java/io/pragmatic/ddd/repository/**/*.java",
+        "pragmatic-ddd-mybatis/src/main/java/**/*.java",
+        "pragmatic-ddd-*/pom.xml",
+        "pom.xml"
+      ]
     },
     {
       "id": "bp.aggregate-identification",
       "path": "bp/aggregate-identification.md",
       "source": "documentation/best-practices/aggregate-identification.md",
       "source_sha": "4acbefefe497be84fbe8fa26150092feb41b10a578f69ffc856df5fb2589d125",
-      "product_sha": "TODO"
+      "product_sha": "0800a8c5401d3a7d1a3937d08c1d3dedaf2e4fecce5eee12d9237d6066f36e03",
+      "source_kind": "file"
     },
     {
       "id": "bp.aggregate-evolution-design",
       "path": "bp/aggregate-evolution-design.md",
       "source": "documentation/best-practices/aggregate-evolution-design.md",
       "source_sha": "ea8a512bf9dd2729b2a9ba176bc5e6c701ed794c2e1007c86ab82d1110bcce35",
-      "product_sha": "TODO"
+      "product_sha": "4745c7913b932e39a58789dba0cbb76982ae573ed54aa9146149881d8508afeb",
+      "source_kind": "file"
     },
     {
       "id": "bp.code-comment-specification",
       "path": "bp/code-comment-specification.md",
       "source": "documentation/best-practices/code-comment-specification.md",
       "source_sha": "5f22150be096a1198e15df48639c523ecc0bff2ae63c63ff5f69b99c0cb8ced2",
-      "product_sha": "TODO"
+      "product_sha": "446bff87bb7fdced1a25b90d89834928f8165d44737596169fe56fec3f8481be",
+      "source_kind": "file"
     }
   ],
   "removed_scopes": [

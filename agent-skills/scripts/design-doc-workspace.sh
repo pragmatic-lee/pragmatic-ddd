@@ -7,7 +7,8 @@
 #   ├── prerequisites.md                 项目级前置条件清单
 #   ├── changes/active/{需求}/{agg}/     活动需求：三件套带轮次后缀
 #   │                                      semantics-V01.md / aggregate-design-V01.md / projection-read-V01.md
-#   └── changes/archive/{需求}/{agg}/    需求交付后整目录移走
+#   ├── changes/archive/{需求}/{agg}/    需求交付后整目录移走
+#   └── aggregates/{agg}/                ④ 判决名单 accepted.md（跨需求累积，不参与归档）
 #
 # 用法：
 #   design-doc-workspace.sh init                        建骨架
@@ -45,6 +46,8 @@ DESIGN_ROOT="$(resolve_design_root)"
 ACTIVE_DIR="$DESIGN_ROOT/changes/active"
 ARCHIVE_DIR="$DESIGN_ROOT/changes/archive"
 PREREQUISITES="$DESIGN_ROOT/prerequisites.md"
+# ④ 判决名单根目录：一聚合一份 accepted.md，跨需求累积、不随归档搬走
+AGGREGATES_DIR="$DESIGN_ROOT/aggregates"
 
 # 三件套的固定文件名前缀（实际文件名 = 前缀 + "-V{NN}.md"）
 DOC_KINDS="semantics aggregate-design projection-read"
@@ -86,7 +89,7 @@ require_name() {
 }
 
 cmd_init() {
-  mkdir -p "$ACTIVE_DIR" "$ARCHIVE_DIR"
+  mkdir -p "$ACTIVE_DIR" "$ARCHIVE_DIR" "$AGGREGATES_DIR"
   if [ ! -f "$PREREQUISITES" ]; then
     cat > "$PREREQUISITES" <<'EOF'
 # 实施前置条件清单
@@ -111,7 +114,7 @@ EOF
     echo "前置条件清单已存在，跳过：$PREREQUISITES"
   fi
   echo "骨架就绪：$DESIGN_ROOT"
-  echo "  changes/active  changes/archive"
+  echo "  changes/active  changes/archive  aggregates/"
 }
 
 cmd_new() {
@@ -132,6 +135,13 @@ cmd_new() {
     mkdir -p "$target/$agg"
     echo "  + $req/$agg/"
     print_round_files "$target/$agg" "$(next_round_no "$target/$agg")"
+    # ④ 判决名单为聚合级：顺手建目录，首次动手时由 Skill 按 bp/design-doc-accepted.md 的空骨架落文件
+    mkdir -p "$AGGREGATES_DIR/$agg"
+    if [ -f "$AGGREGATES_DIR/$agg/accepted.md" ]; then
+      echo "  ④ 已有判决名单：aggregates/$agg/accepted.md（先读，命中旧判决不重议）"
+    else
+      echo "  ④ 无判决名单：aggregates/$agg/（本轮有判决再建 accepted.md）"
+    fi
   done
   echo "需求目录就绪：$target"
 }

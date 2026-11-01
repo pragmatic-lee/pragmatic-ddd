@@ -6,7 +6,7 @@ description: 为 Pragmatic DDD 新聚合生成「极简目录骨架」——仅 
 # ddd-aggregate-scaffold（聚合骨架生成）
 
 > 类型：S2（初始化 / 项目骨架类）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 触发

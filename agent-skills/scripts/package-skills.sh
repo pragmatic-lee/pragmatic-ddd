@@ -7,8 +7,8 @@
 #   ├── INSTALL.md / USAGE.md / README.md
 #   ├── ddd-*/SKILL.md            10 个 Skill
 #   ├── agents/ddd-reviewer.md    隔离评审角色
-#   ├── kb/                       35 张 bp 卡 + 硬约束 + API 契约
-#   ├── scripts/                  派生 / 校验 / 工作区 / 打包脚本
+#   ├── kb/                       bp 卡 + 硬约束 + API 契约（张数以 _manifest.json 为准）
+#   ├── scripts/                  仅三个运行期脚本：derive-kb / verify-kb / design-doc-workspace
 #   └── reference/best-practices/ 设计文档模板副本（随包只读引用，不落入目标工程）
 #
 # 用法：
@@ -152,7 +152,7 @@ agent-skills/
 | `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value, hard-constraints |
 | `ddd-code-review` | 评审 | 评审代码合规 | hard-constraints + api-contract |
 | `ddd-modeling-guide` | 建模引导 | 聚合边界 / 聚合度怎么划（只引导） | aggregate-design, aggregate-database-design, entity-design |
-| `ddd-design-doc` | 设计文档产出 | 一轮三件套（语义 → 写聚合 → 读投影），文件名带 `-V{NN}`，落地即冻结；现状以代码为准 | design-doc 系列卡 + 模板原文 |
+| `ddd-design-doc` | 设计文档产出 | 一轮三件套（语义 → 写聚合 → 读投影），文件名带 `-V{{NN}}`，落地即冻结；现状以代码为准；判决只存 ④ accepted.md | design-doc 系列卡（含 ④）+ 模板原文 |
 | `ddd-kb-consult` | 咨询答疑 | 怎么用 / 为什么这么设计（不产代码） | `USAGE.md` 或路由到对应 bp 卡 |
 
 **上游文档契约**（部署类 Skill 读哪份文档）
@@ -162,8 +162,8 @@ agent-skills/
 | `ddd-project-init` | — | 产出前置条件清单空模板 |
 | `ddd-aggregate-scaffold` | 写设计 §2.1 包布局 | 只建目录，不猜结构 |
 | `ddd-infra-config` | 写设计 §7 + 前置条件清单 | 未确认项不装配 |
-| `ddd-aggregate-create` | 写设计 §2–§9 | **不自行推导语义**，先跑 `ddd-design-doc` |
-| `ddd-aggregate-extend` | 事实文档 §3 + 语义增量 + 写设计 §8 | 先补事实文档 |
+| `ddd-aggregate-create` | 写设计 §2–§9（迭代场景另读现有代码 + ④ 判决名单） | **不自行推导语义**，先跑 `ddd-design-doc` |
+| `ddd-aggregate-extend` | ① 语义增量 + 写设计 §8 + 现有代码勘察（④ 命中不重议） | 先按勘察清单读现有代码 |
 | `ddd-projection-create` | 投影读设计 §2–§6 | **不自行设计读模型**，先跑 `ddd-design-doc` |
 | `ddd-code-review` | 代码 + 可选设计文档 | 只审硬约束，不做设计符合性对账 |
 
@@ -202,7 +202,6 @@ PLATFORM = re.compile(r"qoder|codebuddy|workbuddy", re.I)
 # 行内含多处信息，先做短语级替换，避免整行丢失
 PHRASES = {
     "INSTALL.md": [
-        (" / package-skills.sh / package-qoder-plugin.sh", ""),
         ("Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：",
          "支持 `SKILL.md` 目录约定（目录即 Skill）的智能体可直接安装，任选其一："),
     ],
@@ -230,6 +229,14 @@ for name in ("INSTALL.md", "README.md"):
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(kept))
     path.write_text(text.rstrip("\n") + "\n", encoding="utf-8")
 PY
+
+# ---------- 运行期脚本白名单校验：构建期脚本不得混入产物 ----------
+EXPECTED_SCRIPTS="derive-kb.sh design-doc-workspace.sh verify-kb.sh"
+ACTUAL_SCRIPTS="$(cd "$STAGE/agent-skills/scripts" && ls *.sh | sort | tr '\n' ' ' | sed 's/ $//')"
+if [ "$ACTUAL_SCRIPTS" != "$EXPECTED_SCRIPTS" ]; then
+  echo "打包失败：scripts/ 内容不在白名单——期望「$EXPECTED_SCRIPTS」，实际「$ACTUAL_SCRIPTS」" >&2
+  exit 1
+fi
 
 # ---------- 平台词零残留校验 ----------
 if grep -rniE 'qoder|codebuddy|workbuddy' "$STAGE/agent-skills" > /dev/null; then

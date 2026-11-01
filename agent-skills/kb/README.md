@@ -12,10 +12,10 @@
 本目录是 Pragmatic DDD 全部 AI Skill 的**唯一共享知识源（单物理副本，只读引用）**。Skill 只写「流程 + 知识索引」，具体命名、骨架、约束全部指向本目录，不内联重复。
 
 - 卡从 `documentation/best-practices/`（VitePress 文档，git 内）派生。
-- 本版为**全量草稿**：35 篇 bp 卡 + 硬约束 + API 契约。
+- 本版为**全量草稿**：35 篇 bp 卡 + 硬约束 + API 契约（共 37 张，以 `_manifest.json` 为准）。
 - **KB 自足**：本目录是完整知识体，**不依赖仓库内任何示例工程**，第三方可独立使用（见 [§6](#6-自足性与发布范围)）。
 
-## 2. 目录（35 篇 bp 卡）
+## 2. 目录（35 篇 bp 卡 + 2 张顶层卡）
 
 | 路径 | 内容 | 被哪些 Skill 读 |
 | --- | --- | --- |
@@ -40,11 +40,12 @@
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |
 | `bp/dependency-declaration.md` | 外部依赖声明（`@ExternalDependency` 三档分类 + 契约/网关） | S4 / S5 / S7 |
-| `bp/design-doc-template.md` | 设计文档标准（**流程权威**：一轮四阶段 / 落地核对 / 冻结 / 轮次判定 / 回流矩阵 / 一致性校验） | ddd-design-doc / ddd-kb-consult |
+| `bp/design-doc-template.md` | 设计文档标准（**流程权威**：一轮四阶段 / 落地核对 / 冻结 / 轮次判定 / 回流矩阵 / 一致性校验 / ④ 在流程中的位置） | ddd-design-doc / ddd-kb-consult |
 | `bp/design-doc-semantics.md` | 业务语义（契约：8 章 + 3 附录，含增量写法与稿次规则） | ddd-design-doc / ddd-kb-consult |
 | `bp/design-doc-write-template.md` | 写聚合设计文档（11 节，含关系表持久化，主文档统管横切） | S3 / S4 / S5 / S7 / ddd-design-doc |
 | `bp/design-doc-read-template.md` | 读投影设计文档（6 节，含三读源：ES / Redis / 数据库直读） | S6 / S7 / ddd-design-doc |
 | `bp/design-doc-prerequisites.md` | 实施前置条件（项目级 10 项 + 阻断映射） | ddd-design-doc / S3 / S4 / S6 |
+| `bp/design-doc-accepted.md` | ④ 判决名单（三份契约之外唯一长期产物，只增不改、永不归档） | ddd-design-doc / S4 / S5 / ddd-kb-consult |
 | `bp/elasticsearch-config.md` | ES 配置（RestClient 单 Bean、投影写入、限流） | S3 / S7 |
 | `bp/event-manager-config.md` | 事件管理器三选一（Kafka/RocketMQ/ThreadPool）装配 | S3 / S7 |
 | `bp/mysql-config.md` | MySQL 配置（数据源、连接池、事务管理器） | S3 / S7 |
@@ -66,13 +67,17 @@
 - **S6 投影创建** → `projection-design`(全量) + `projection-api`(全量) + `event-subscriber-pattern` + `enum-value`(E3) + `hard-constraints`。
 - **S7 合规评审** → `hard-constraints` 全量 + 相关 bp（含 `code-comment-specification` 的注释核对） + `api-contract`。
 - **KB 咨询（ddd-kb-consult）** → 按用户问题路由到对应 `bp/*.md` + `hard-constraints` + `api-contract`；只读卡作答，不产代码。
+- **④ 判决名单读法**：任何涉及一个已有聚合的需求/扩展，开场先读 `bp/design-doc-accepted.md` §7 的时机表，命中已有判决不重议；目标文件在**目标工程**的 `docs/design/aggregates/{agg}/accepted.md`，不在本包内。
 - 任何卡内出现框架符号拿不准 → 先 Read `api-contract.md`（权威符号表，含全限定 import 与精确方法签名），禁止臆造。
 
 ## 4. 溯源与派生纪律
 
 - 每张卡头部标注：`源文档 | 派生时间 | 框架版本`。
 - 改框架约定 → 先改 `documentation/best-practices/` 源文档 → 重派生对应卡；**不反向改卡**。
-- `_manifest.json`：记录源/产物 `sha256`，CI 在源 hash 变化时标卡过期（见 `../scripts/verify-kb.sh`）。
+- `_manifest.json`：每条记录 `source_kind`（`file` / `code-tree`）与源/产物 `sha256`。
+  - `file`：单文件源（绝大多数 bp 卡），源文档 sha 直接比对。
+  - `code-tree`：源是代码/pom 而非单文件（`api-contract`、`bp/projection-api`），取「有序文件列表逐文件 sha256 → 汇总 sha256」比对；框架代码或 pom（含 groupId / 版本）变更即标 STALE，提醒重验签名与坐标。
+- CI 卡口 `../scripts/verify-kb.sh` 报三类：`STALE`（源变了）/ `BROKEN`（登记的源找不到）/ `PRODUCT DRIFT`（卡被手改）。三者均退出码 1。
 
 ## 5. 防幻觉红线
 
@@ -100,6 +105,6 @@
 
 ---
 
-> **版本**：v2.5
-> **变更**：v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 `bp.design-doc-facts`（从代码推导、每次实施后覆盖）。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）——新增 `bp.design-doc-semantics` / `bp.design-doc-prerequisites` 两张卡；写 / 读模板按新骨架重蒸馏（写 11 节含元素级追溯与实施回填；读 6 节含三读源与澄清机制）；`ddd-design-doc` 工作流从 7 步扩为 10 步。v2.0（2026-10-28）PostgreSQL 支持入 KB——新增 `bp.postgresql-config`；重蒸馏 7 张 STALE 卡；`api-contract.md` 坐标钉死 2.1.0-SNAPSHOT 并补「MyBatis TypeHandler 与方言」段。v1.9（2026-10-28）新增异构数据同步事件契约。v1.7（2026-10-18）全量语义重蒸馏。更早变更见 `_manifest.json` 的 note
-> **适用框架版本**：2.1.0-SNAPSHOT
+> **版本**：v2.6
+> **变更**：v2.6（2026-11-01）**坐标重验 + ④ 入 KB + 卡口硬化** —— `api-contract` Maven 坐标改为真实值 `com.pragmatic-ddd:*:2.1.0`（已发 Central）并声明 `groupId ≠ 包前缀`、artifactId 以 BOM 为唯一权威；清除不存在的 `pragmatic-ddd-outbox` 模块名；新增 `bp/design-doc-accepted`（v2.5 新增的源当时未收口，现补齐源↔卡↔技能三层）；`verify-kb.sh` 区分 STALE / BROKEN / PRODUCT DRIFT 并支持 `code-tree` 源哈希，不再静默跳过缺源；卡数口径按实际修正。v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）。v2.0（2026-10-28）PostgreSQL 支持入 KB。更早变更见 `_manifest.json` 的 note
+> **适用框架版本**：`2.1.0`——**以 `_manifest.json` 的 `framework_version` 为单一权威**；各卡头部的「框架版本」记录的是**派生当时**对应的版本，不随整体适用版本回填

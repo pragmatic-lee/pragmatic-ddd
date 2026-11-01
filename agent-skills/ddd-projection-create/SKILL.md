@@ -6,7 +6,7 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 # ddd-projection-create（投影读模型创建，S6）
 
 > 类型：S6（投影类）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 > 核心依据：`kb/bp/projection-design.md`（极长，生成前必读）
 

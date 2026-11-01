@@ -6,7 +6,7 @@ description: 隔离的「类合规评审」角色。与 ddd-code-review Skill �
 # ddd-reviewer（隔离评审角色）
 
 > 类型：隔离角色（路线图 §7.4，由 S7 `ddd-code-review` 升级而来）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享基准：`../kb/hard-constraints.md` + `../kb/api-contract.md`
 
 ## 1. 角色定位

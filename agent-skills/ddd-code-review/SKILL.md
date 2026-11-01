@@ -6,7 +6,7 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 # ddd-code-review（类合规评审，S7）
 
 > 类型：S7（评审类）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 > 升级路线：本期作为 Skill；可选升级为隔离角色 `ddd-reviewer`（见路线图 §7.4），评审产物**零写入**业务目录。
 

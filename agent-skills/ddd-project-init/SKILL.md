@@ -1,12 +1,12 @@
 ---
 name: ddd-project-init
-description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生成 pom.xml（依赖 pragmatic-ddd-bom + 内核/MyBatis/RocketMQ/Outbox 模块）、四层目录骨架、主启动类、application.properties 模板与 .ddd/project-context.md 项目上下文徽章。当用户说「新建一个 DDD 项目」「初始化工程脚手架」「接入 pragmatic-ddd 框架」时触发。只做初始化，业务聚合交给 ddd-aggregate-scaffold / ddd-aggregate-create。
+description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生成 pom.xml（依赖 pragmatic-ddd-bom + 内核/MyBatis/RocketMQ/Kafka 模块，Outbox 为 MyBatis 内置能力）、四层目录骨架、主启动类、application.properties 模板与 .ddd/project-context.md 项目上下文徽章。当用户说「新建一个 DDD 项目」「初始化工程脚手架」「接入 pragmatic-ddd 框架」时触发。只做初始化，业务聚合交给 ddd-aggregate-scaffold / ddd-aggregate-create。
 ---
 
 # ddd-project-init（项目初始化）
 
 > 类型：S1（初始化类）
-> 版本：v2.0 · 适用框架：2.1.0-SNAPSHOT
+> 版本：v2.0 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位
@@ -16,7 +16,7 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 ## 2. 输入
 
 - 工程坐标 `groupId` / `artifactId`（必填，向用户确认）。
-- 模块选型：内核（必选）+ MyBatis（默认）/ RocketMQ（默认）/ Outbox（可选）/ Kafka（可选）。
+- 模块选型：内核（必选）+ MyBatis（默认）/ RocketMQ（默认）/ Kafka（可选）/ Spring Boot 装配。**Outbox 不是模块**：它是 `pragmatic-ddd-mybatis` 的内置能力（`MybatisOutboxStore` + Relay），只作为一个「是否启用」的开关选项。
 - 数据库与 MQ 连接信息（仅写入 `application.properties` 占位模板，敏感信息用 `${ENV}` 占位，**禁止硬编码**）。
 
 ## 3. 工作流程
@@ -25,7 +25,8 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 
 - 父 pom 引入 `pragmatic-ddd-bom` 统一版本管理。
 - 依赖：`pragmatic-ddd-core`（必选）、`pragmatic-ddd-mybatis`（默认）、`pragmatic-ddd-rocketmq`（默认）、`pragmatic-ddd-spring-boot`（装配）。
-- 可选：`pragmatic-ddd-kafka`、`pragmatic-ddd-outbox`（与 RocketMQ 互斥时二选一）。
+- 可选：`pragmatic-ddd-kafka`（与 RocketMQ 互斥时二选一）。
+- **无 `pragmatic-ddd-outbox` 模块**：启用 Outbox 只多一张 outbox 表与 Relay 装配，依赖仍是 `pragmatic-ddd-mybatis`（见 `kb/bp/outbox-config.md`）。
 - Java 17（`<maven.compiler.release>17</maven.compiler.release>`），Lombok `provided`。
 - 不写版本号（交 BOM 管理）。
 
@@ -82,7 +83,7 @@ docs/design/
 
 ## 6. 检查清单
 
-- [ ] pom 引入 BOM，无写死版本
+- [ ] pom 引入 BOM（`com.pragmatic-ddd:pragmatic-ddd-bom`），无写死版本、无 BOM 未列的模块名
 - [ ] 四层空目录存在且可编译
 - [ ] 主启动类与根包一致
 - [ ] application.properties 敏感项全 `${ENV}` 占位
@@ -91,4 +92,6 @@ docs/design/
 
 ## 7. 防幻觉
 
-- 模块坐标以 `pragmatic-ddd-bom` 实际 artifactId 为准；不确定先 Read 仓库根 `pom.xml` / `pragmatic-ddd-bom/pom.xml`。
+- 模块坐标以 `kb/api-contract.md`「坐标（Maven）」段为准：`groupId=com.pragmatic-ddd`，artifactId 清单以 `pragmatic-ddd-bom/pom.xml` 的 `<dependencyManagement>` 为**唯一权威**，BOM 未列出的模块名一律不得使用。
+- **groupId 与包前缀不通用**：pom 写 `com.pragmatic-ddd`，`import` 用 `io.pragmatic.ddd.*`，不得互推。
+- 第三方工程无法 Read 框架仓库时，以上述卡为唯一源，不臆测模块名。

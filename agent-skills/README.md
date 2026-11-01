@@ -35,7 +35,7 @@ agent-skills/
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
 │   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
-│   ├── bp/                         ← 35 篇 best-practice 派生卡（含 design-doc 六张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
+│   ├── bp/                         ← 35 篇 best-practice 派生卡（含 design-doc 七张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
 │   └── （无外部示例依赖，KB 自足）
 ├── ddd-project-init/               ← S1 项目初始化
 ├── ddd-aggregate-scaffold/         ← S2 聚合骨架
@@ -115,9 +115,9 @@ agent-skills/
 | 项 | 交付 |
 | --- | --- |
 | **KB 自足（v1.3）** | 已移除 `kb/examples/order/`（verbatim + sha 清单）与全部 example 引用；5 个 Skill + 1 个角色的防幻觉段改指向 `api-contract.md` / `bp/*.md` |
-| `_manifest.json` 真实 sha | bp 卡 `source_sha` 已回填真实值；`removed_scopes` 记录已下线的 example 范围 |
-| CI 卡口 | `scripts/verify-kb.sh`（源 hash 变化标 STALE 并退出 1） |
-| 派生脚本 | `scripts/derive-kb.sh`（半自动回填 source_sha；卡内容蒸馏需 AI+人审） |
+| `_manifest.json` 真实 sha | 37 张卡的 `source_sha` 与 `product_sha` 均已回填，无 TODO 残留；`removed_scopes` 记录已下线的 example 范围 |
+| CI 卡口 | `scripts/verify-kb.sh`：报 STALE（源变了）/ BROKEN（源或卡找不到）/ UNSEEDED（sha 未回填）/ PRODUCT DRIFT（卡被手改），任一命中退出 1 |
+| 派生脚本 | `scripts/derive-kb.sh`（转发 `verify-kb.sh --write` 回填双 sha；卡内容蒸馏仍由 AI + 人审完成，单一实现不漂移） |
 | 隔离评审角色 | `agents/ddd-reviewer.md`（只读工具、零写入、同 S7 基准） |
 | AGENTS.md 路由表 | 根 `AGENTS.md` 追加「AI Skills 路由（兜底）」段 |
 | 建模引导 P2 | `ddd-modeling-guide/SKILL.md` + `templates/modeling-worksheet.md` |
@@ -132,7 +132,7 @@ agent-skills/
 
 ---
 
-> **版本**：v2.2（KB v2.4：设计文档交付改为闸门制 + 回流矩阵，新增 `bp.design-doc-template` 流程权威卡，35 张 bp 卡；派生自 documentation/best-practices/ 与 pragmatic-ddd-core 源码）
+> **版本**：v2.3（KB v2.6：`api-contract` 坐标重验为 `com.pragmatic-ddd:*:2.1.0`、新增 `bp.design-doc-accepted`（④ 判决名单入源↔卡↔技能三层）、`verify-kb.sh` 升为四态哈希引擎并支持 `code-tree` 源；35 张 bp 卡，共 37 张；派生自 documentation/best-practices/ 与 pragmatic-ddd 源码 + pom）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
-> **适用框架版本**：2.1.0-SNAPSHOT
+> **适用框架版本**：2.1.0（以 `kb/_manifest.json` 的 `framework_version` 为单一权威）
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)

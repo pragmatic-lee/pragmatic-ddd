@@ -1,22 +1,26 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**）
+> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**；**2026-11-01 v2.6 坐标重验：groupId 已迁至 `com.pragmatic-ddd`，版本取已发 Central 的正式版 `2.1.0`**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。
 
 ## 坐标（Maven）
 
-> 所有内部模块 `groupId=io.pragmatic.ddd`，版本 `2.1.0-SNAPSHOT`；消费方导入 BOM 即可，无需逐依赖写版本。
+> 所有内部模块 `groupId=com.pragmatic-ddd`，版本 `2.1.0`（已发 Maven Central，2026-10-30）；消费方导入 BOM 即可，无需逐依赖写版本。
+>
+> **groupId ≠ 包前缀**：Maven 坐标用 `com.pragmatic-ddd`，Java 包前缀仍为 `io.pragmatic.ddd.*`（本文件下各表「全限定 import」列）。两者不通用：**写 `pom.xml` 用前者，写 `import` 用后者**，不得互推。
+>
+> **artifactId 清单唯一权威**：`pragmatic-ddd-bom/pom.xml` 的 `<dependencyManagement>`。BOM 未列出的模块名一律不得使用（无 `pragmatic-ddd-outbox` 模块：Outbox 是 `pragmatic-ddd-mybatis` 的内置能力，见 `bp/outbox-config.md`）。
 
 | 坐标 | 说明 |
 | --- | --- |
-| `io.pragmatic.ddd:pragmatic-ddd-bom:2.1.0-SNAPSHOT` | 依赖管理 BOM（`<dependencyManagement>` 引入即可） |
-| `io.pragmatic.ddd:pragmatic-ddd-core:2.1.0-SNAPSHOT` | 核心（聚合/规则/事件/应用/仓储/投影基类） |
-| `io.pragmatic.ddd:pragmatic-ddd-mybatis:2.1.0-SNAPSHOT` | MyBatis 持久化集成（含 MySQL / PostgreSQL 双方言） |
-| `io.pragmatic.ddd:pragmatic-ddd-rocketmq:2.1.0-SNAPSHOT` | RocketMQ 领域事件基础设施 |
-| `io.pragmatic.ddd:pragmatic-ddd-kafka:2.1.0-SNAPSHOT` | Kafka 领域事件基础设施 |
-| `io.pragmatic.ddd:pragmatic-ddd-spring-boot:2.1.0-SNAPSHOT` | Spring Boot 自动装配 |
+| `com.pragmatic-ddd:pragmatic-ddd-bom:2.1.0` | 依赖管理 BOM（`<dependencyManagement>` 引入即可） |
+| `com.pragmatic-ddd:pragmatic-ddd-core:2.1.0` | 核心（聚合/规则/事件/应用/仓储/投影基类） |
+| `com.pragmatic-ddd:pragmatic-ddd-mybatis:2.1.0` | MyBatis 持久化集成（含 MySQL / PostgreSQL 双方言，**Outbox 亦在此模块内**） |
+| `com.pragmatic-ddd:pragmatic-ddd-rocketmq:2.1.0` | RocketMQ 领域事件基础设施 |
+| `com.pragmatic-ddd:pragmatic-ddd-kafka:2.1.0` | Kafka 领域事件基础设施 |
+| `com.pragmatic-ddd:pragmatic-ddd-spring-boot:2.1.0` | Spring Boot 自动装配 |
 
 ## 核心基类（领域层）
 

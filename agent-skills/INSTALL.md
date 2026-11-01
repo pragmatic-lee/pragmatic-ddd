@@ -19,10 +19,10 @@ agent-skills/
 ├── ddd-projection-create/  ← S6 投影读模型
 ├── ddd-code-review/        ← S7 合规评审
 ├── ddd-modeling-guide/     ← P2 建模引导
-├── ddd-design-doc/         ← 设计文档产出（一轮三件套）
+├── ddd-design-doc/         ← 设计文档产出（一轮三件套 + ④ 判决名单）
 ├── ddd-kb-consult/         ← 咨询入口（怎么用 / 为什么这么设计）
 ├── kb/                     ← 共享知识包：35 张 bp 卡 + 硬约束 + API 契约 + 索引清单
-├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh / package-qoder-plugin.sh
+├── scripts/                ← 运行期三个：derive-kb.sh / verify-kb.sh / design-doc-workspace.sh（打包脚本仅仓库内，不入包）
 └── reference/              ← 设计文档模板原文（随包只读引用，不落入目标工程，见 §3 末）
 ```
 
@@ -46,7 +46,8 @@ agent-skills/
 docs/design/
 ├── prerequisites.md                    项目级前置条件清单（10 项）
 ├── changes/active/{需求}/{agg}/        semantics-V01.md / aggregate-design-V01.md / projection-read-V01.md
-└── changes/archive/{需求}/{agg}/       交付后的归档（各轮文件一起）
+├── changes/archive/{需求}/{agg}/       交付后的归档（各轮文件一起）
+└── aggregates/{agg}/                   ④ 判决名单 accepted.md（跟需求无关、跨需求累积，**不随归档搬走**）
 ```
 
 首次使用前，在**目标工程根目录**跑一次初始化（脚本在能力包内，落点会自动指向当前工程）：
@@ -73,7 +74,7 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 `ddd-design-doc` 与 `ddd-kb-consult` 需要的设计文档模板（结构与流程权威）随包放在 `reference/best-practices/`，Skill 通过 `../reference/best-practices/…` 只读引用。
 
 - **不要**把模板复制到目标工程的 `documentation/best-practices/`：那是框架仓库文档站的路径。
-- 目标工程只需要产出自己的 `docs/design/` 下设计文档（一轮的 `semantics-V{NN}.md` / `aggregate-design-V{NN}.md` / `projection-read-V{NN}.md`），不因使用本能力多出模板文件。
+- 目标工程只需要产出自己的 `docs/design/` 下设计文档（一轮的 `semantics-V{NN}.md` / `aggregate-design-V{NN}.md` / `projection-read-V{NN}.md`，加聚合级累积的 `aggregates/{agg}/accepted.md`），不因使用本能力多出模板文件。
 - 模板升级靠重新安装 / 重新打包，不改目标工程。
 
 ### 方式 B：单文件提示词型智能体
@@ -157,11 +158,11 @@ Move-Item docs\design\changes\active\202610-order docs\design\changes\archive\20
 
 ## 5. 版本与自检
 
-| 项 | 位置 | 当前值 |
+| 项 | 位置 | 如何自检 |
 | --- | --- | --- |
-| KB 版本 | `kb/_manifest.json` → `kb_version` | `2.4-draft` |
-| 框架版本 | `kb/_manifest.json` → `framework_version` | `2.1.0-SNAPSHOT` |
-| 卡片数量 | `kb/bp/*.md` | 35 |
+| KB 版本 | `kb/_manifest.json` → `kb_version` | 直读该字段（包内即当前值，本文不写死避免漂移） |
+| 框架版本 | `kb/_manifest.json` → `framework_version` | 同上；Maven 坐标写法以 `kb/api-contract.md`「坐标（Maven）」段为准 |
+| 卡片数量 | `kb/bp/*.md` | `ls kb/bp/*.md \| wc -l`，并与 `_manifest.json` 的 `cards` 数对账 |
 
 在**本仓库内**（源文档都在）可跑：
 
