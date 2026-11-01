@@ -60,7 +60,7 @@ KB_SRC = os.path.join(skills_src, "kb")
 DOCS_SRC = os.path.join(repo_root, "documentation", "best-practices")
 DOC_SET = [
     "design-doc-template.md", "design-doc-semantics.md", "design-doc-write-template.md",
-    "design-doc-read-template.md", "design-doc-facts.md", "design-doc-prerequisites.md",
+    "design-doc-read-template.md", "design-doc-prerequisites.md",
     "aggregate-database-design.md",
 ]
 FULL_KB_SKILL = "ddd-kb-consult"

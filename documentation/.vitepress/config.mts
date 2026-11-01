@@ -145,7 +145,7 @@ export default defineConfig({
               ]
             },
             {
-              text: '⑦ 设计文档（语义 → 写 / 读 → 事实快照）',
+              text: '⑦ 设计文档（语义 → 写 / 读 → 落地冻结）',
               collapsed: true,
               items: [
                 { text: '聚合识别设计原则', link: '/best-practices/aggregate-identification' },
@@ -153,8 +153,7 @@ export default defineConfig({
                 { text: '设计文档标准（三层总说明）', link: '/best-practices/design-doc-template' },
                 { text: '① 业务语义文档', link: '/best-practices/design-doc-semantics' },
                 { text: '② 聚合写设计文档', link: '/best-practices/design-doc-write-template' },
-                { text: '③ 投影读设计文档', link: '/best-practices/design-doc-read-template' },
-                { text: '④ 聚合事实（快照）', link: '/best-practices/design-doc-facts' },
+                { text: '③ 读投影设计文档', link: '/best-practices/design-doc-read-template' },
                 { text: '实施前置条件', link: '/best-practices/design-doc-prerequisites' }
               ]
             },

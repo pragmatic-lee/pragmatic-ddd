@@ -71,7 +71,7 @@ agent-skills/
 | S6 `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value(E3), hard-constraints |
 | S7 `ddd-code-review` | 评审 | 评审代码合规 | hard-constraints + api-contract |
 | P2 `ddd-modeling-guide` | 建模引导 | 聚合边界/聚合度怎么划（只引导，不出文档） | aggregate-design, aggregate-database-design, entity-design |
-| D `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照（语义多轮迭代 → 定稿 → 写 / 读按点单）；流程权威：四道闸门 + 回流矩阵 | design-doc-template（流程权威）/ semantics / write-template / read-template / facts / prerequisites + aggregate-identification / aggregate-evolution-design |
+| D `ddd-design-doc` | 设计文档产出 | 一轮三件套（语义 → 写聚合 → 读投影，带 `-V{NN}`），落地即冻结；现状以代码为准 | design-doc-template（流程权威）/ semantics / write-template / read-template / prerequisites + aggregate-identification / aggregate-evolution-design |
 | KB `ddd-kb-consult` | 咨询答疑 | 唯一咨询入口：怎么用 / 用哪个 → `USAGE.md`；为什么这么设计 → KB 卡（不产代码） | `USAGE.md` 或按问题路由到对应 bp + hard-constraints + api-contract |
 
 **上游文档契约**（部署类 Skill 读哪份文档）
@@ -82,9 +82,9 @@ agent-skills/
 | S2 聚合骨架 | ② §2.1 包布局 | 只建目录，不猜结构 |
 | S3 基础设施 | ② §7 + **前置条件清单** | 未确认项不装配 |
 | S4 聚合创建 | ② §2–§9（含 §3.1 操作 / §4.4 规则 / §7 DDL） | **不自行推导语义**，先跑 `ddd-design-doc` |
-| S5 聚合扩展 | ④ §3 + ① 增量 + ② §8 | 先补 ④ |
+| S5 聚合扩展 | ① 增量 + ② §8 + 现有代码勘察 | 先按勘察清单读现有代码 |
 | S6 投影创建 | ③ §2–§6 | **不自行设计读模型**，先跑 `ddd-design-doc` |
-| S7 代码评审 | 代码 + 可选 ②③④ | 只审硬约束，不做设计符合性对账 |
+| S7 代码评审 | 代码 + 可选 ②③ | 只审硬约束，不做设计符合性对账 |
 
 > 隔离角色 `agents/ddd-reviewer.md` 与 S7 同基准，区别在运行隔离（只读、零写入）。
 
@@ -121,7 +121,7 @@ agent-skills/
 | 隔离评审角色 | `agents/ddd-reviewer.md`（只读工具、零写入、同 S7 基准） |
 | AGENTS.md 路由表 | 根 `AGENTS.md` 追加「AI Skills 路由（兜底）」段 |
 | 建模引导 P2 | `ddd-modeling-guide/SKILL.md` + `templates/modeling-worksheet.md` |
-| 设计文档产出 D | `ddd-design-doc/SKILL.md`（聚合识别 + 三契约一快照 + 闸门制交付：语义多轮迭代后定稿，②③ 点单产出；实现交 S4/S5） |
+| 设计文档产出 D | `ddd-design-doc/SKILL.md`（聚合识别 + 一轮三件套 + 落地冻结：语义定稿后出写聚合与读投影，落地后不再改；实现交 S4/S5） |
 
 ## 8. 后续可选增强
 

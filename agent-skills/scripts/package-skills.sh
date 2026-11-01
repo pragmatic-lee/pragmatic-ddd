@@ -74,7 +74,7 @@ cat > "$STAGE/agent-skills/reference/README.md" <<'EOF'
 模板属「能力包」的一部分，目标工程只产出自己的设计文档：
 
 ```text
-<目标工程>/docs/design/…   ① semantics.md ② aggregate-design.md ③ projection-read.md ④ facts.md
+<目标工程>/docs/design/…   semantics-V01.md  aggregate-design-V01.md  projection-read-V01.md
 ```
 
 目标工程不因使用本能力多出任何模板文件；模板升级由重新安装/重新打包完成。
@@ -152,7 +152,7 @@ agent-skills/
 | `ddd-projection-create` | 投影 | 生成查询侧读模型 | projection-design, event-subscriber-pattern, enum-value, hard-constraints |
 | `ddd-code-review` | 评审 | 评审代码合规 | hard-constraints + api-contract |
 | `ddd-modeling-guide` | 建模引导 | 聚合边界 / 聚合度怎么划（只引导） | aggregate-design, aggregate-database-design, entity-design |
-| `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照（语义多轮迭代 → 定稿 → 写 / 读按点单） | design-doc 系列卡 + 模板原文 |
+| `ddd-design-doc` | 设计文档产出 | 一轮三件套（语义 → 写聚合 → 读投影），文件名带 `-V{NN}`，落地即冻结；现状以代码为准 | design-doc 系列卡 + 模板原文 |
 | `ddd-kb-consult` | 咨询答疑 | 怎么用 / 为什么这么设计（不产代码） | `USAGE.md` 或路由到对应 bp 卡 |
 
 **上游文档契约**（部署类 Skill 读哪份文档）

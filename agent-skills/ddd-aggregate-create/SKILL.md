@@ -11,9 +11,9 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 ## 前置
 
-- **必须有 ② 聚合写设计文档**：`docs/design/changes/active/{需求}/{agg}/aggregate-design.md`（已归档则读 `changes/archive/{需求}/{agg}/aggregate-design.md`）。类清单、操作码、规则、事件、DDL、执行器选型全部从它来。
+- **必须有 ② 写聚合设计文档**：取该聚合目录下 `aggregate-design-V*.md` 中 V 编号最大的那份（`docs/design/changes/active/{需求}/{agg}/`，已归档则看 `changes/archive/{需求}/{agg}/`；**不要硬编码文件名**）。类清单、操作码、规则、事件、DDL、执行器选型全部从它来。
 - **无 ② 时不得自行推导语义**，先提示用户跑 `ddd-design-doc`（产 ①②③），再回来生成代码。
-- 迭代场景另读 ④ `docs/design/aggregates/{agg}/facts.md` §3，确认当前实际类与表，避免与既有代码冲突。
+- 迭代场景另读现有代码（聚合根 / 枚举 / 注册表 / 规则容器 / DDL + Mapper / 事件类），确认当前实际类与表，避免与既有代码冲突（**现状不落文档，无事实文档可读**）。
 - **前置条件清单**：执行器选型、数据源、总线、Outbox 等项未确认时，对应部分不生成（见 `bp.design-doc-prerequisites`）。
 - 必须先有 S2 产出的目录骨架（或用户已有包结构）。无骨架时先建议跑 S2。
 - 生成前 Read 知识包：`kb/hard-constraints.md`、`kb/api-contract.md`、`kb/bp/aggregate-design.md`、`kb/bp/operation-registry-design.md`、`kb/bp/registry-design.md`、`kb/bp/order-rule-pattern.md`、`kb/bp/event-modeling.md`、`kb/bp/enum-value.md`、`kb/bp/application-collaboration.md`、`kb/bp/repository-design.md`。

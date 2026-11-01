@@ -2,18 +2,19 @@
 # =============================================================================
 # design-doc-workspace.sh — 设计文档工作区操作
 #
-# 目录约定（见 docs/design/agent-skills/文档产物目录规划-v2.md）：
+# 目录约定（见 docs/design/agent-skills/设计文档轮次机制调整方案.md）：
 #   docs/design/
 #   ├── prerequisites.md                 项目级前置条件清单
-#   ├── changes/active/{需求}/{agg}/     活动需求的契约
-#   ├── changes/archive/{需求}/{agg}/    已归档需求的契约
-#   └── aggregates/{agg}/facts.md        聚合事实（当前态）
+#   ├── changes/active/{需求}/{agg}/     活动需求：三件套带轮次后缀
+#   │                                      semantics-V01.md / aggregate-design-V01.md / projection-read-V01.md
+#   └── changes/archive/{需求}/{agg}/    需求交付后整目录移走
 #
 # 用法：
 #   design-doc-workspace.sh init                        建骨架
-#   design-doc-workspace.sh new <需求> <agg> [agg...]   建活动需求目录
+#   design-doc-workspace.sh new <需求> <agg> [agg...]   建活动需求目录（提示本轮 V 号）
+#   design-doc-workspace.sh next-round <需求> <agg>     算下一个轮次号并列出应建文件
 #   design-doc-workspace.sh archive <需求> [--yes]      检查判据后归档（--yes 跳过人工确认）
-#   design-doc-workspace.sh list                        列出活动需求与聚合
+#   design-doc-workspace.sh list                        列出活动需求、各聚合轮次与状态
 #
 # 环境变量：
 #   DESIGN_ROOT        设计目录根（落点优先级：显式 DESIGN_ROOT → 当前 git 仓库根 → 当前工作目录，
@@ -43,8 +44,10 @@ DESIGN_ROOT="$(resolve_design_root)"
 
 ACTIVE_DIR="$DESIGN_ROOT/changes/active"
 ARCHIVE_DIR="$DESIGN_ROOT/changes/archive"
-AGGREGATES_DIR="$DESIGN_ROOT/aggregates"
 PREREQUISITES="$DESIGN_ROOT/prerequisites.md"
+
+# 三件套的固定文件名前缀（实际文件名 = 前缀 + "-V{NN}.md"）
+DOC_KINDS="semantics aggregate-design projection-read"
 
 usage() {
   # 内联用法说明（不从文件头按行号截取，避免注释块变动后失效）
@@ -52,8 +55,9 @@ usage() {
 用法：
   design-doc-workspace.sh init                        建目录骨架
   design-doc-workspace.sh new <需求> <agg> [agg...]   建活动需求目录
+  design-doc-workspace.sh next-round <需求> <agg>     算下一个轮次号并列出应建文件
   design-doc-workspace.sh archive <需求> [--yes]      检查判据后归档
-  design-doc-workspace.sh list                        列出活动需求与聚合
+  design-doc-workspace.sh list                        列出活动需求、各聚合轮次与状态
 
 选项：
   --yes            archive 时跳过人工确认（等价环境变量 DESIGN_ASSUME_YES=1）
@@ -82,7 +86,7 @@ require_name() {
 }
 
 cmd_init() {
-  mkdir -p "$ACTIVE_DIR" "$ARCHIVE_DIR" "$AGGREGATES_DIR"
+  mkdir -p "$ACTIVE_DIR" "$ARCHIVE_DIR"
   if [ ! -f "$PREREQUISITES" ]; then
     cat > "$PREREQUISITES" <<'EOF'
 # 实施前置条件清单
@@ -107,7 +111,7 @@ EOF
     echo "前置条件清单已存在，跳过：$PREREQUISITES"
   fi
   echo "骨架就绪：$DESIGN_ROOT"
-  echo "  changes/active  changes/archive  aggregates"
+  echo "  changes/active  changes/archive"
 }
 
 cmd_new() {
@@ -127,11 +131,59 @@ cmd_new() {
     require_name "$agg"
     mkdir -p "$target/$agg"
     echo "  + $req/$agg/"
-    if [ ! -f "$AGGREGATES_DIR/$agg/facts.md" ]; then
-      echo "    提示：聚合 '$agg' 还没有事实文档（$AGGREGATES_DIR/$agg/facts.md），迭代前建议先补"
-    fi
+    print_round_files "$target/$agg" "$(next_round_no "$target/$agg")"
   done
   echo "需求目录就绪：$target"
+}
+
+# 输出目录下最大的轮次号（无文件则回 0）
+current_round_no() {
+  local dir="$1"
+  local max=0
+  local f base num
+  for f in "$dir"/*-V[0-9][0-9].md; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    num="${base##*-V}"
+    num="${num%.md}"
+    # 去前导零后比较，避免 08 被当作八进制
+    num=$((10#${num}))
+    [ "$num" -gt "$max" ] && max="$num"
+  done
+  printf '%d' "$max"
+}
+
+next_round_no() {
+  printf '%02d' $(( $(current_round_no "$1") + 1 ))
+}
+
+print_round_files() {
+  local dir="$1"
+  local vno="$2"
+  echo "    本轮 V${vno} 应建三份（不适用就薄写）："
+  local kind
+  for kind in $DOC_KINDS; do
+    echo "      $dir/$kind-V${vno}.md"
+  done
+}
+
+cmd_next_round() {
+  [ "$#" -eq 2 ] || fail "用法：next-round <需求> <agg>"
+  local req="$1"
+  local agg="$2"
+  require_name "$req"
+  require_name "$agg"
+  local dir="$ACTIVE_DIR/$req/$agg"
+  [ -d "$dir" ] || fail "聚合目录不存在：${dir}（先跑 new 或手工建目录）"
+  local cur next
+  cur="$(current_round_no "$dir")"
+  next="$(next_round_no "$dir")"
+  if [ "$cur" = "0" ]; then
+    echo "$req/${agg}：尚无轮次，本轮为 V${next}"
+  else
+    echo "$req/${agg}：当前最大轮次 V$(printf '%02d' "$cur")，下一轮为 V${next}"
+  fi
+  print_round_files "$dir" "$next"
 }
 
 cmd_archive() {
@@ -163,25 +215,32 @@ cmd_archive() {
   done
   [ "${#agg_dirs[@]}" -ge 1 ] || fail "需求目录下没有聚合子目录：$src"
 
-  # 判据二：涉及的每个聚合都有事实文档
+  # 判据二：每个聚合目录下，最大 V 的三件套齐全
   local missing=()
-  local agg
+  local agg cur kind
   for d in "${agg_dirs[@]}"; do
     agg="$(basename "$d")"
-    if [ ! -f "$AGGREGATES_DIR/$agg/facts.md" ]; then
-      missing+=("$agg")
+    cur="$(current_round_no "$d")"
+    if [ "$cur" = "0" ]; then
+      missing+=("${agg}（无 V*.md）")
+      continue
     fi
+    for kind in $DOC_KINDS; do
+      if [ ! -f "$d/$kind-V$(printf '%02d' "$cur").md" ]; then
+        missing+=("$agg/$kind-V$(printf '%02d' "$cur").md")
+      fi
+    done
   done
   if [ "${#missing[@]}" -ge 1 ]; then
-    fail "以下聚合缺少事实文档，先更新再归档：${missing[*]}"
+    fail "以下文档缺失（三件套不齐，不适用也要薄写）：${missing[*]}"
   fi
 
-  # 判据三（§10.6 回填）无法自动判定，交由人工确认
-  echo "自动判据通过：聚合目录齐全、事实文档齐全。"
+  # 判据三（落地核对与冻结）无法自动判定，交由人工确认
+  echo "自动判据通过：聚合目录齐全、各聚合最大 V 的三件套齐全。"
   if [ "$assume_yes" = "1" ]; then
-    echo "跳过人工确认（--yes / DESIGN_ASSUME_YES=1）：请自行确保 ② 的 §10.6 实施回填已完成。"
+    echo "跳过人工确认（--yes / DESIGN_ASSUME_YES=1）：请自行确保三条落地核对已过、三份已置「已落地」。"
   else
-    echo "人工确认项：② 的 §10.6 实施回填是否已完成？"
+    echo "人工确认项：三条落地核对已过？三份已置「已落地」？"
     local answer=""
     read -r -p "确认后归档 [y/N] " answer || answer=""
     case "$answer" in
@@ -203,13 +262,29 @@ cmd_archive() {
 
 cmd_list() {
   echo "活动需求（${ACTIVE_DIR}）："
-  if [ -d "$ACTIVE_DIR" ]; then
-    find "$ACTIVE_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | sed 's/^/  /'
-  fi
-  echo "聚合事实（${AGGREGATES_DIR}）："
-  if [ -d "$AGGREGATES_DIR" ]; then
-    find "$AGGREGATES_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | sed 's/^/  /'
-  fi
+  [ -d "$ACTIVE_DIR" ] || return 0
+  local req agg dir cur f base state
+  for req in "$ACTIVE_DIR"/*/; do
+    [ -d "$req" ] || continue
+    echo "  $(basename "$req")"
+    for agg in "$req"*/; do
+      [ -d "$agg" ] || continue
+      dir="${agg%/}"
+      cur="$(current_round_no "$dir")"
+      if [ "$cur" = "0" ]; then
+        echo "    $(basename "$dir")  （尚无轮次）"
+        continue
+      fi
+      # 从语义文档头部读状态（取不到就标未知）
+      state="未知"
+      f="$dir/semantics-V$(printf '%02d' "$cur").md"
+      if [ -f "$f" ]; then
+        state="$(grep -m1 -o '状态：[^｜|]*' "$f" 2>/dev/null | sed 's/状态：//' | tr -d ' ' || true)"
+        [ -n "$state" ] || state="未知"
+      fi
+      echo "    $(basename "$dir")  V$(printf '%02d' "$cur")  ${state}"
+    done
+  done
 }
 
 main() {
@@ -220,6 +295,7 @@ main() {
   case "$cmd" in
     init) cmd_init ;;
     new) cmd_new "$@" ;;
+    next-round) cmd_next_round "$@" ;;
     archive) cmd_archive "$@" ;;
     list) cmd_list ;;
     *) usage ;;

@@ -146,8 +146,8 @@
     "ddd-design-doc": {
       "display_name": "聚合设计文档",
       "display_name_en": "DDD Design Documents",
-      "description_zh": "按闸门制产出语义、写设计、投影读设计三份契约，并维护事实快照。",
-      "description_en": "Produce gated semantics, write-design, and projection-read contracts, plus the fact snapshot.",
+      "description_zh": "按轮次产出业务语义、写聚合、读投影三件套（带 -V{NN} 后缀），落地即冻结；现状以代码为准。",
+      "description_en": "Produce a round of three docs (semantics, aggregate write-design, projection read-design) with -V{NN} suffixes; frozen once landed; current state comes from code.",
       "examples_zh": [
         "帮我出订单聚合的设计文档",
         "这次迭代要改订单聚合，先梳理业务语义"

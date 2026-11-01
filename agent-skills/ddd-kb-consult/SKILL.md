@@ -55,11 +55,11 @@ description: 咨询入口（只读答疑，不生成代码）——分两条路�
 | 投影基类签名（零上下文必读） | `bp/projection-api` |
 | 广播事件（一写多读） | `bp/broadcast` |
 | 外部依赖声明、ACL 网关 | `bp/dependency-declaration` |
-| 设计文档三层关系、该产出哪几份 | `bp/design-doc-semantics` + `bp/design-doc-write-template` + `bp/design-doc-read-template` + `bp/design-doc-facts`（总说明见 `documentation/best-practices/design-doc-template.md`） |
+| 设计文档三级关系、一轮该产出哪几份 | `bp/design-doc-semantics` + `bp/design-doc-write-template` + `bp/design-doc-read-template`（总说明见 `documentation/best-practices/design-doc-template.md`） |
 | 聚合业务语义文档怎么写（8 章 + 3 附录、增量写法） | `bp/design-doc-semantics` |
 | 聚合写设计文档怎么写（11 节） | `bp/design-doc-write-template` |
 | 投影读设计文档怎么写（6 节、三读源） | `bp/design-doc-read-template` |
-| 聚合当前实际是什么、与语义哪里不一致 | `bp/design-doc-facts` |
+| 聚合当前实际是什么 | **不看文档，按 `bp/design-doc-template` 勘察清单读代码** |
 | 生成代码前必须确认什么、未确认怎么阻 | `bp/design-doc-prerequisites` |
 | ES 配置 | `bp/elasticsearch-config` |
 | 事件管理器选型（Kafka/RocketMQ/ThreadPool） | `bp/event-manager-config` |

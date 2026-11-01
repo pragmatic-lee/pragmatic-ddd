@@ -16,7 +16,7 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 
 ## 2. 输入
 
-- **必须有 ③ 投影读设计文档**：`docs/design/changes/active/{需求}/{agg}/projection-read.md`（已归档则读 `changes/archive/{需求}/{agg}/projection-read.md`）。投影 DTO、条件族、源端口、读源结构、查询族全在它里。
+- **必须有 ③ 读投影设计文档**：取该聚合目录下 `projection-read-V*.md` 中 V 编号最大的那份（`docs/design/changes/active/{需求}/{agg}/`，已归档则看 `changes/archive/{需求}/{agg}/`；**不要硬编码文件名**）。投影 DTO、条件族、源端口、读源结构、查询族全在它里。
 - **无 ③ 时不得自行设计读模型**，先提示用户跑 `ddd-design-doc`（产 ③）。
 - 已存在的聚合（S4 产物）及其领域事件。
 - **前置条件清单**：ES / Redis 版本与安全开关未确认时，对应副本不生成。

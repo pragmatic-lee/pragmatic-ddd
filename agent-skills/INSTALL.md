@@ -19,7 +19,7 @@ agent-skills/
 ├── ddd-projection-create/  ← S6 投影读模型
 ├── ddd-code-review/        ← S7 合规评审
 ├── ddd-modeling-guide/     ← P2 建模引导
-├── ddd-design-doc/         ← 设计文档产出（三契约 + 一快照）
+├── ddd-design-doc/         ← 设计文档产出（一轮三件套）
 ├── ddd-kb-consult/         ← 咨询入口（怎么用 / 为什么这么设计）
 ├── kb/                     ← 共享知识包：35 张 bp 卡 + 硬约束 + API 契约 + 索引清单
 ├── scripts/                ← derive-kb.sh / verify-kb.sh / design-doc-workspace.sh / package-skills.sh / package-qoder-plugin.sh
@@ -45,9 +45,8 @@ agent-skills/
 ```text
 docs/design/
 ├── prerequisites.md                    项目级前置条件清单（10 项）
-├── changes/active/{需求}/{agg}/        ① semantics.md ② aggregate-design.md ③ projection-read.md
-├── changes/archive/{需求}/{agg}/       归档后的契约
-└── aggregates/{agg}/facts.md           ④ 聚合事实（当前态）
+├── changes/active/{需求}/{agg}/        semantics-V01.md / aggregate-design-V01.md / projection-read-V01.md
+└── changes/archive/{需求}/{agg}/       交付后的归档（各轮文件一起）
 ```
 
 首次使用前，在**目标工程根目录**跑一次初始化（脚本在能力包内，落点会自动指向当前工程）：
@@ -74,7 +73,7 @@ Claude Code、Qoder 等支持 `SKILL.md` 目录约定的工具，任选其一：
 `ddd-design-doc` 与 `ddd-kb-consult` 需要的设计文档模板（结构与流程权威）随包放在 `reference/best-practices/`，Skill 通过 `../reference/best-practices/…` 只读引用。
 
 - **不要**把模板复制到目标工程的 `documentation/best-practices/`：那是框架仓库文档站的路径。
-- 目标工程只需要产出自己的 `docs/design/` 下设计文档（① 语义 / ② 写设计 / ③ 投影读设计 / ④ 事实），不因使用本能力多出模板文件。
+- 目标工程只需要产出自己的 `docs/design/` 下设计文档（一轮的 `semantics-V{NN}.md` / `aggregate-design-V{NN}.md` / `projection-read-V{NN}.md`），不因使用本能力多出模板文件。
 - 模板升级靠重新安装 / 重新打包，不改目标工程。
 
 ### 方式 B：单文件提示词型智能体
@@ -142,15 +141,15 @@ New-Item -ItemType Directory -Force docs\design\changes\active\202610-order\orde
 Move-Item docs\design\changes\active\202610-order docs\design\changes\archive\202610-order
 ```
 
-手工归档前仍需自己核对三条判据：聚合子目录齐全、每个聚合有 `aggregates/{agg}/facts.md`、写设计 §10.6 已回填。
+手工归档前仍需自己核对三条判据：各聚合目录存在且最大 V 的三份齐全、三条落地核对已过、三份已置「已落地」。
 
 ## 4. 装完后的第一次运行
 
 | 你想干什么 | 说什么 | 会触发 |
 | --- | --- | --- |
 | 建工程 | 「初始化一个 DDD 工程」 | S1，顺手产出前置条件清单空模板 |
-| 出设计文档 | 「按这份需求出订单聚合的设计文档」 | `ddd-design-doc`：先出 ① 语义并多轮迭代，定稿后再按点单出 ②③ |
-| 看现状 | 「订单聚合现在实际是什么」 | `ddd-design-doc` 现状型分支，产出 ④ |
+| 出设计文档 | 「按这份需求出订单聚合的设计文档」 | `ddd-design-doc`：一轮三件套（语义定稿 → 写聚合 + 读投影），落地后冻结 |
+| 看现状 | 「订单聚合现在实际是什么」 | `ddd-design-doc` 按勘察清单读代码直接回答（不产文档） |
 | 生成代码 | 「按设计文档生成订单聚合」 | S4，无 ② 时会拒绝并提示先补设计 |
 | 查合规 | 「检查这段代码合不合规」 | S7，只做框架约定与设计一致性评审 |
 

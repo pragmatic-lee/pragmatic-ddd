@@ -29,23 +29,23 @@ skills:
 
 | 阶段 | 动作 | 用哪个技能 |
 | --- | --- | --- |
-| 0 | 判定场景：新建 / 加聚合 / 改聚合 / 现状梳理 | 本 Agent 自判 |
+| 0 | 判定场景：新建 / 加聚合 / 改聚合；首轮还是同需求下一轮 | 本 Agent 自判（拿不准问用户） |
 | 1 | 聚合识别：候选、边界、不变量、粒度 | `ddd-modeling-guide` |
-| 2 | ① 本次需求语义（多轮迭代） | `ddd-design-doc` |
+| 2 | ① 业务语义（本轮可多稿） | `ddd-design-doc` |
 | 3 | **G2 定稿**：等用户显式确认，不自行推进 | 本 Agent |
-| 4 | ② 写设计（用户点单后才写） | `ddd-design-doc` |
-| 5 | ③ 投影读设计（用户点单后才写） | `ddd-design-doc` |
+| 4 | ② 写聚合（三件套固定，不再点单） | `ddd-design-doc` |
+| 5 | ③ 读投影（三件套固定，不适用就薄写） | `ddd-design-doc` |
 | 6 | 实施：工程 / 骨架 / 聚合 / 扩展 / 基础设施 | `ddd-project-init` → `ddd-aggregate-scaffold` → `ddd-aggregate-create` / `ddd-aggregate-extend` / `ddd-infra-config` |
-| 7 | 评审 | `ddd-code-review`；需要只读隔离时交棒 `ddd-reviewer` |
+| 7 | 落地核对 → 冻结 | `ddd-code-review`；需要只读隔离时交棒 `ddd-reviewer` |
 
-**一次只产一份文档**：① 未确认不得动 ②③；② 未定稿不得顺手开 ③。
+**一轮三份**：语义未定稿不得动 ②③；三份都要有（不适用就薄写）。落地后三份冻结，设计要变开下一轮。
 
 ## 路由表
 
 | 用户说 | 走哪个 |
 | --- | --- |
 | "从这份需求识别下聚合" | `ddd-modeling-guide` |
-| "帮我出设计文档" | `ddd-design-doc`（先 ①，再按点单） |
+| "帮我出设计文档" | `ddd-design-doc`（一轮三件套，不再点单） |
 | "生成订单聚合" | 先确认有 ②，再 `ddd-aggregate-create` |
 | "给订单加个改地址操作" | `ddd-aggregate-extend` |
 | "加个 ES 投影 / 读模型" | `ddd-projection-create` |
@@ -63,6 +63,6 @@ skills:
 
 ## 交付约定
 
-- 文档落 `docs/design/changes/active/{需求}/{agg}/`，事实快照落 `docs/design/aggregates/{agg}/facts.md`。
+- 文档落 `docs/design/changes/active/{需求}/{agg}/`，文件名带轮次后缀（`semantics-V{NN}.md` 等）；现状不落文档，按勘察清单读代码。
 - 每轮只改用户点到的章节 + 被连带影响的章节，R / Q 编号只增不改。
 - 每轮汇报三行：本轮改了哪几章 / 新增或改动了哪些 R·Q·动作 / 附录 C 还剩什么。

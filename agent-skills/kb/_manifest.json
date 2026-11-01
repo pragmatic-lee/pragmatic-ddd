@@ -1,9 +1,9 @@
 {
   "package": "pragmatic-ddd-skills",
-  "kb_version": "2.4-draft",
+  "kb_version": "2.5",
   "framework_version": "2.1.0-SNAPSHOT",
   "generated_at": "2026-10-29",
-  "note": "v2.4（2026-10-29）：设计文档交付改为闸门制（G1/G2 语义多轮迭代与定稿、G3/G4 写/读点单）+ 回流矩阵（业务口径回 ①，技术形态止于 ②③，逐级不跳档）+ 三份一致性校验；新增 bp.design-doc-template 卡作为流程权威。v2.3（2026-10-29）：设计文档落盘改为「需求目录制」——①②③ 落 `docs/design/changes/active/{需求}/{agg}/`（semantics / aggregate-design / projection-read），归档为整目录移到 `changes/archive/`；④ 落 `docs/design/aggregates/{agg}/facts.md`；项目前置条件清单落 `docs/design/prerequisites.md`；新增 scripts/design-doc-workspace.sh（init / new / archive / list）；纯技术改动可跳过语义文档。见 docs/design/agent-skills/文档产物目录规划-v2.md。v2.2（2026-10-29）：文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 bp.design-doc-facts（聚合事实快照，从代码推导、每次实施后覆盖）。v2.1（2026-10-29）：设计文档体系改为三层（语义 → 写 → 读）——新增 bp.design-doc-semantics / bp.design-doc-prerequisites 两张卡；design-doc-write-template / read-template 按「11 节 / 6 节」新骨架重蒸馏（新增条件子节不删不重编号、元素级追溯、实施回填；读模板新增三读源：ES / Redis / 数据库直读与澄清机制）。v2.0（2026-10-28）：PostgreSQL 支持入 KB——新增 bp.postgresql-config 卡，重蒸馏 7 张 STALE 卡（value-object / repository-design 修正 final 方法描述；mysql / mybatis / outbox-config 同步 PG 拆分；design-doc 写 / 读模板改为「写法约定 + 编号连续骨架 + 无论证散文」）；api-contract 坐标钉死 2.1.0-SNAPSHOT 并新增「MyBatis TypeHandler 与方言」段（PgJdbcJsonValue / TypeHandlerContext / 语句常量等，依源码核验）。v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
+  "note": "v2.5（2026-11-01）：设计文档体系改为「一轮三件套 + 轮次」——取消聚合事实文档（bp.design-doc-facts 退役，现状一律以代码为准，每轮按固定勘察清单现读）；① 语义 / ② 写聚合 / ③ 读投影 文件名加 -V{NN} 后缀、不再覆盖写；三件套固定产出（取消 G3/G4 点单）；一轮结束 = 代码落地 + 三条核对，落地后冻结（只允许文字勘误与 §10.6 实施备注）；§10.6 取消「实施偏差」，改「实施备注」；新增轮次判定三条判据（拿不准必问）与「glob + 取最大 V」解析规则。v2.4（2026-10-29）：设计文档交付改为闸门制（G1/G2 语义多轮迭代与定稿、G3/G4 写/读点单）+ 回流矩阵（业务口径回 ①，技术形态止于 ②③，逐级不跳档）+ 三份一致性校验；新增 bp.design-doc-template 卡作为流程权威。v2.3（2026-10-29）：设计文档落盘改为「需求目录制」——①②③ 落 `docs/design/changes/active/{需求}/{agg}/`（semantics / aggregate-design / projection-read），归档为整目录移到 `changes/archive/`；④ 落 `docs/design/aggregates/{agg}/facts.md`；项目前置条件清单落 `docs/design/prerequisites.md`；新增 scripts/design-doc-workspace.sh（init / new / archive / list）；纯技术改动可跳过语义文档。见 docs/design/agent-skills/文档产物目录规划-v2.md。v2.2（2026-10-29）：文档体系改为「三契约 + 一快照」——语义文档改为本次需求契约（验收后归档）+ 增量写法；新增 bp.design-doc-facts（聚合事实快照，从代码推导、每次实施后覆盖）。v2.1（2026-10-29）：设计文档体系改为三层（语义 → 写 → 读）——新增 bp.design-doc-semantics / bp.design-doc-prerequisites 两张卡；design-doc-write-template / read-template 按「11 节 / 6 节」新骨架重蒸馏（新增条件子节不删不重编号、元素级追溯、实施回填；读模板新增三读源：ES / Redis / 数据库直读与澄清机制）。v2.0（2026-10-28）：PostgreSQL 支持入 KB——新增 bp.postgresql-config 卡，重蒸馏 7 张 STALE 卡（value-object / repository-design 修正 final 方法描述；mysql / mybatis / outbox-config 同步 PG 拆分；design-doc 写 / 读模板改为「写法约定 + 编号连续骨架 + 无论证散文」）；api-contract 坐标钉死 2.1.0-SNAPSHOT 并新增「MyBatis TypeHandler 与方言」段（PgJdbcJsonValue / TypeHandlerContext / 语句常量等，依源码核验）。v1.9（2026-10-28）：新增异构数据同步事件契约 IDataSyncEvent / DataSyncAction / BaseDataSyncEvent，api-contract 补 3 条契约；documentation 十篇（core/domain-events、core/domain-modeling、core/repository、core/repository-write、core/projection-read，bp/projection-design、bp/event-subscriber-pattern、bp/aggregate-design、bp/repository-design、bp/event-modeling）同步「同步动作分流 / 删除→PURGE / 聚合缺失转 purge」语义，对应 bp 卡与 source_sha 重派生。v1.8（2026-10-26）：设计文档模板「三份合并为两份」，bp.design-doc-persistence-template 退役（关系表归写模板 §9、ES/Redis 归读模板 §4）。v1.7（2026-10-18）：全量语义重蒸馏。忽略 sha 一致，逐卡从 documentation/best-practices/ 与 pragmatic-ddd-core 源码重新蒸馏；29 张 bp 卡头部派生时间统一刷新为 2026-10-18；api-contract.md 经 code-explorer 依 core 源码全量核验（Tier-1/Tier-2 含 D1–D5 担忧点一致，无新增漂移）；hard-constraints.md / projection-api.md 同步刷新基线。覆盖：27 篇 best-practices 文档 + projection-api（core 源码）+ hard-constraints（多源聚合）+ api-contract（core 源码）= 30 张卡。v1.6：新增 bp.code-comment-specification 卡。v1.5：拆分配置知识（mysql-config 瘦身 + mybatis-config / outbox-config 补前置条件）。v1.4：重建自 documentation/best-practices/ 当前源，新增 kafka-config，重蒸馏 10 张 STALE 卡。v1.3：移除 examples/order/ 依赖，KB 自足。v1.2：钉死 Tier-2 精确方法签名。v1.1：补全全限定 import 子包并新增 bp/projection-api.md。CI 卡口：scripts/verify-kb.sh。",
   "derivation": {
     "source_root": "documentation/best-practices/",
     "product_root": "agent-skills/kb/",
@@ -105,7 +105,7 @@
       "id": "bp.aggregate-database-design",
       "path": "bp/aggregate-database-design.md",
       "source": "documentation/best-practices/aggregate-database-design.md",
-      "source_sha": "912bc0fc8b4fba676b4759171f07eacdd2ba2121935167511f146ca982544e4a",
+      "source_sha": "eee6ebb3a6b3dade608b439a048d378f7cd6790006c98104bde91d3d43d195b9",
       "product_sha": "TODO"
     },
     {
@@ -133,28 +133,28 @@
       "id": "bp.design-doc-template",
       "path": "bp/design-doc-template.md",
       "source": "documentation/best-practices/design-doc-template.md",
-      "source_sha": "ac4ec797b160625c13bbca069e993741f06dc825d6d29b61252aa32dfbb3be06",
+      "source_sha": "9f2f041f82e91fabd96fe8159afa755b33f174e1f5dfb1ad054f223e7665cedc",
       "product_sha": "TODO"
     },
     {
       "id": "bp.design-doc-write-template",
       "path": "bp/design-doc-write-template.md",
       "source": "documentation/best-practices/design-doc-write-template.md",
-      "source_sha": "5b84417a5dc42c0290884b00a1ab83df9ab418dc720efa903889b0cd56aa9b8c",
+      "source_sha": "e721168cf1e4d43bc41ee5a254a343237ccccc7f2288fe1a3e261b50c134dfea",
       "product_sha": "TODO"
     },
     {
       "id": "bp.design-doc-read-template",
       "path": "bp/design-doc-read-template.md",
       "source": "documentation/best-practices/design-doc-read-template.md",
-      "source_sha": "f84ac101e2cd4a15785a9a37231ec1f6b78deaa24c134474b71953c7ef2bb862",
+      "source_sha": "ca5276e8d21db5e34656aeb5539568fd4eb1dbff6179b4c0318445af0c8f1941",
       "product_sha": "TODO"
     },
     {
       "id": "bp.design-doc-semantics",
       "path": "bp/design-doc-semantics.md",
       "source": "documentation/best-practices/design-doc-semantics.md",
-      "source_sha": "64da0e19d14f60253dcffec7698ed9816d7aeaa4fb3a28c17f2218de41a236df",
+      "source_sha": "7519d2b9371581b44a6cb37fb5e4c6e07d0df6589839e9a3beeb1b535fd4b07f",
       "product_sha": "TODO"
     },
     {
@@ -162,13 +162,6 @@
       "path": "bp/design-doc-prerequisites.md",
       "source": "documentation/best-practices/design-doc-prerequisites.md",
       "source_sha": "6e0dfa9c62d2095fc99dee92730556f9cfb5bdf80cb5ac666dec133085feb23b",
-      "product_sha": "TODO"
-    },
-    {
-      "id": "bp.design-doc-facts",
-      "path": "bp/design-doc-facts.md",
-      "source": "documentation/best-practices/design-doc-facts.md",
-      "source_sha": "93437dead4cc3645269d3afb244e53e7cbd0b23fbfe20676cd89a957a2336acf",
       "product_sha": "TODO"
     },
     {

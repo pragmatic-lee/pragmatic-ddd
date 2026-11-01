@@ -110,7 +110,7 @@ EOF
 cat > "$STAGE/README.md" <<'EOF'
 # 领域建模套件（pragmatic-ddd-skills）
 
-围绕 **Pragmatic DDD** 方法论的岗位套件：从需求识别聚合，到产出三契约设计文档（语义 / 写设计 / 投影读设计），再到生成与评审代码。
+围绕 **Pragmatic DDD** 方法论的岗位套件：从需求识别聚合，到一个轮次产出三件套设计文档（业务语义 / 写聚合 / 读投影，带 `-V{NN}` 轮次后缀），再到生成与评审代码。
 
 ## 技能清单
 
@@ -121,7 +121,7 @@ cat > "$STAGE/README.md" <<'EOF'
 | `ddd-aggregate-scaffold` | 生成聚合目录骨架 |
 | `ddd-aggregate-create` | 从零生成完整聚合（充血方法、注册表、事件、应用层） |
 | `ddd-aggregate-extend` | 给既有聚合加操作 / 校验 / 订阅 / 子实体 |
-| `ddd-design-doc` | 产出三契约 + 一快照设计文档（闸门制交付） |
+| `ddd-design-doc` | 按轮次产出三件套设计文档（语义 / 写聚合 / 读投影） |
 | `ddd-projection-create` | 生成查询侧投影读模型（ES / Redis / 同源直读） |
 | `ddd-infra-config` | 装配 MySQL / PostgreSQL / MyBatis / MQ / Outbox |
 | `ddd-code-review` | 框架约定合规评审（只查硬约束，不判业务） |

@@ -29,7 +29,7 @@ agent-skills/kb/                ← 蒸馏卡（单物理副本，只读引用�
 | `ddd-projection-create` | 投影 | 生成查询侧读模型 |
 | `ddd-code-review` | 评审 | 评审代码合规 |
 | `ddd-modeling-guide` | 建模引导 | 聚合边界/聚合度怎么划（只引导，不出文档） |
-| `ddd-design-doc` | 设计文档产出 | 三契约 + 一快照，语义多轮迭代后定稿，写 / 读设计按闸门点单产出 |
+| `ddd-design-doc` | 设计文档产出 | 一轮三件套（业务语义 → 写聚合 → 读投影，带 `-V{NN}`），落地即冻结；现状以代码为准 |
 | `ddd-kb-consult` | 咨询答疑 | 解释规范/最佳实践（不产代码） |
 | `agents/ddd-reviewer` | 隔离评审角色 | 与 S7 同基准，只读、零写入 |
 
