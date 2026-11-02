@@ -17,7 +17,7 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 - 迭代场景同时读 ④ 判决名单 `docs/design/aggregates/{agg}/accepted.md`（不存在则跳过）：命中「已接受的现状」则按原判决写，不自行“顺手优化”；写法见 `kb/bp/design-doc-accepted.md`。
 - **前置条件清单**：执行器选型、数据源、总线、Outbox 等项未确认时，对应部分不生成（见 `bp.design-doc-prerequisites`）。
 - 必须先有 S2 产出的目录骨架（或用户已有包结构）。无骨架时先建议跑 S2。
-- 生成前 Read 知识包：`kb/hard-constraints.md`、`kb/api-contract.md`、`kb/bp/aggregate-design.md`、`kb/bp/operation-registry-design.md`、`kb/bp/registry-design.md`、`kb/bp/order-rule-pattern.md`、`kb/bp/event-modeling.md`、`kb/bp/enum-value.md`、`kb/bp/application-collaboration.md`、`kb/bp/repository-design.md`。
+- 生成前 Read 知识包：`kb/hard-constraints.md`、`kb/api-contract.md`、`kb/bp/aggregate-structure.md`（**包落点唯一权威**，每个新类落哪个包一律查其落点判据表）、`kb/bp/aggregate-design.md`、`kb/bp/operation-registry-design.md`、`kb/bp/registry-design.md`、`kb/bp/order-rule-pattern.md`、`kb/bp/event-modeling.md`、`kb/bp/enum-value.md`、`kb/bp/application-collaboration.md`、`kb/bp/repository-design.md`。
 - 拿不准任何签名 → 先 Read `kb/api-contract.md`（含全限定 import + 精确方法签名）；骨架/范式类疑问 Read 对应 `kb/bp/*.md`。**KB 自足，不依赖任何外部示例工程**，禁止臆造。
 
 ## 执行步骤（五步生成）
@@ -38,11 +38,13 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 文档缺项时的处理：回 ② 补，不在生成阶段“设计” —— 生成阶段的职责是把已定结构落成代码。
 
-### 步骤 2：生成领域模型（model/）
+### 步骤 2：生成领域模型（`model/` 与 `param/`）
 
 - **按 ② §2 骨架逐个落文件，不改结构**：类清单少一个或多一个都要回文档核对。
-- 聚合根 `{Agg} extends AggregateRoot<ID>`，Lombok 仅 `@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`（硬约束 8）。
-- 状态用枚举（领域内部 `int` code），见 `kb/bp/enum-value.md`；**出入参层字段按 `kb/hard-constraints.md` E1~E3 用 `Integer`/`String`**。
+- 每个新类的**包落点一律查 `kb/bp/aggregate-structure.md` 落点判据表**（硬约束 15），不靠临场判断。
+- 聚合根 `{Agg} extends AggregateRoot<ID>` 落 `model/`，Lombok 仅 `@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`（硬约束 8）。
+- 状态用枚举（领域内部 `int` code）落 `model/enums/`，见 `kb/bp/enum-value.md`；值对象落 `model/valueobject/`；**出入参层字段按 `kb/hard-constraints.md` E1~E3 用 `Integer`/`String`**。
+- **参数对象单独落 `domain/{agg}/param/`，不落 `model/`**（硬约束 15）：命名 `{Agg}InitData` / `{Agg}{Action}Data`，`@Data implements IParamObject`。
 - `initData` 模式：`new {Agg}({Agg}InitData, id)`，构造只赋值 + `markCreated()`（审计时间戳 createdAt/updatedAt）+ `markNew()`（新建路由标志 isNew，仓储据此 INSERT）+ 延迟创建事件（硬约束 6）；两个标记职责不同，新建构造都要调。
 - 一对多用 `TrackedList<{Sub}, ID>`。
 - 充血方法：纯赋值、先做对外校验再赋值、无 `if+throw` 守卫（硬约束 4）；**先 `recordOperation` 后 `collectEvent`**（硬约束 5）。
@@ -53,11 +55,11 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 - 操作注册表 `{Agg}OperationRegistry extends OperationRegistry`：`public` 子类 + `private` 构造 + `INSTANCE` + `EntityOperation.of(code, desc)`；常量声明在最终子类，`code` 全大写下划线无前缀（硬约束 1、§5）。
 - 规则注册表 `{Agg}BrokenRuleRegistry extends BrokenRuleRegistry`：`public` 子类 + `INSTANCE` + `MessageCode.of(localCode, desc)`；`localCode` 唯一且与常量名一致（硬约束 1、2）。
 - 规则容器 `{Agg}Rule extends EntityRule<{Agg}>`：无状态，`addRule(ICheckRule, MessageCode[, IActiveRuleCondition])`；激活条件写第三参（见 `kb/bp/order-rule-pattern.md`）。
-- 领域事件 `{Agg}{Op}Event extends BaseDomainEvent`：过去式命名、`buildEvent` 工厂、只带聚合 ID + 少量路由 ID、禁用 `@Data`/`@Builder`（硬约束 7、8）；延迟事件 `() -> XxxEvent.buildEvent(this)`（硬约束 6）。
+- 领域事件 `{Agg}{Op}Event extends BaseDomainEvent` **落 `domain/{agg}/event/`**（硬约束 15）：过去式命名、`buildEvent` 工厂、只带聚合 ID + 少量路由 ID、禁用 `@Data`/`@Builder`（硬约束 7、8）；延迟事件 `() -> XxxEvent.buildEvent(this)`（硬约束 6）。
 
 ### 步骤 4：生成应用层 + 仓储抽象
 
-- `input/`：每个操作独立 `{Action}Input`（硬约束 10）。
+- `input/`：每个操作独立 `{Action}Input`（硬约束 10）；**Input 永留 `application/{agg}/input/`，即使实现 `IParamObject` 也不得搬进 `domain/{agg}/param/`**（硬约束 15 双条件）。
 - `factory/{Agg}Factory implements EntityFactory<{Agg}, Create{Agg}Input>`：先算后赋。
 - `updater/{Agg}{Action}Updater implements EntityUpdater<{Agg}, {Action}Input>`：只转换 + 调充血方法，不校验/不持久化/不发事件（硬约束 11）。
 - `rule/{Agg}RuleConfig`：`@Configuration` 装配 `new {Agg}Rule(契约...)`。
@@ -67,7 +69,7 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 ### 步骤 5：自检（逐条核对）
 
-- 读 `kb/hard-constraints.md` 14 条 + E1~E3，逐条核对。
+- 读 `kb/hard-constraints.md` 全量硬约束 + E1~E3，逐条核对（包落点类约束的判据在 `kb/bp/aggregate-structure.md`）。
 - 编译验证：`mvn compile`。
 - 输出「待补事项」清单：仓储 SQL、Controller、投影/MQ 装配、单测。
 
@@ -78,5 +80,5 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 ## 验收（对照路线图 §8）
 
-- A2 `mvn compile` 通过；A3 硬约束 14 条 + E1~E3 零违反、零幻觉符号。
+- A2 `mvn compile` 通过；A3 硬约束全量 + E1~E3 零违反、零幻觉符号。
 - A4 基准回归（**仅仓库内验证**，第三方无需执行）：用本 Skill 从零重建 `examples/order-example` 的 Order 聚合，逐文件 diff 与 `examples/order-example` 结构一致。该示例工程属本仓库，**不属于 KB 发布范围**。

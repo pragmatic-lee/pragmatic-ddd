@@ -2,7 +2,7 @@
   "plugin": {
     "name": "pragmatic-ddd-expert",
     "expertType": "agent",
-    "version": "2.7.0",
+    "version": "2.8.0",
     "description": "Pragmatic DDD domain modeling and design-document expert: identifies aggregate boundaries, produces gated design contracts, then generates and reviews aggregate code.",
     "author": {
       "name": "wizard-lee",

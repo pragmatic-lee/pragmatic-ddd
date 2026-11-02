@@ -1,6 +1,6 @@
 # BP 卡：聚合写设计文档模板（写模型）
 
-> 源：`documentation/best-practices/design-doc-write-template.md` · 派生时间：2026-10-29（闸门 / 回流同步） · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/design-doc-write-template.md` · 派生时间：2026-11-02（闸门 / 回流口径不变；新增 §2 包布局需符合落点判据表、Input 固定落 `application/{agg}/input/`） · 框架版本：2.1.0
 > 流程权威：`bp.design-doc-template`（一轮四阶段、落地核对、冻结、回流矩阵、一致性校验）。
 
 ## 1. 定位
@@ -43,6 +43,7 @@
 - 业务方法纯赋值，无 `if + throw`、无数据组装；先 `recordOperation` 后 `collectEvent`。
 - ID 构造期已确定用即时事件，未确定才用 `() -> buildEvent(this)`，并写明判定依据。
 - 值对象 `extends ValueObject` + `equalityComponents()`；枚举 `implements IEnumValue<Integer, 自身>` + `of()`。
+- **包布局必须符合 `bp/aggregate-structure.md` 落点判据表**（硬约束 15）：参数对象列 `domain/{agg}/param/`（不得列进 `model/`）、事件列 `event/`、值对象列 `model/valueobject/`、Input 列 `application/{agg}/input/`；类清单与包布局逐行对得上。
 
 **规则**
 
@@ -93,7 +94,7 @@
 
 ## 6. 自检要点（20 项，摘要）
 
-生命周期四项齐 / 追溯覆盖全部元素 / 类清单与包布局一致 / 无 `@Data` 与 `if+throw` / recordOperation 先于 collectEvent / 组 C 读 old 且逐条列改写操作 / 执行器选型覆盖全部用例 / 一工作单元一操作 / 差量先删后插 / DDL 三件套 / 测试按消息码 + 组 C 不激活回归 / §10 六小节无空格 / 前置条件已确认 / §7.1 形态逐值对象有结论且 A 型已获确认 / 无手写 `search_*`、生成列不入写语句、A 型全列同写。
+生命周期四项齐 / 追溯覆盖全部元素 / 类清单与包布局一致 / **包落点符合判据表（参数对象在 `param/`）** / 无 `@Data` 与 `if+throw` / recordOperation 先于 collectEvent / 组 C 读 old 且逐条列改写操作 / 执行器选型覆盖全部用例 / 一工作单元一操作 / 差量先删后插 / DDL 三件套 / 测试按消息码 + 组 C 不激活回归 / §10 六小节无空格 / 前置条件已确认 / §7.1 形态逐值对象有结论且 A 型已获确认 / 无手写 `search_*`、生成列不入写语句、A 型全列同写。
 
 ## 7. 被读于
 

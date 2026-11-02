@@ -165,6 +165,6 @@
 | 各 Skill 的详细步骤 | `ddd-*/SKILL.md` |
 | 框架约定与最佳实践 | 知识包 `kb/bp/*.md`（35 张卡，`kb/README.md` 为路由表） |
 | 框架真实 API 签名 | `kb/api-contract.md` |
-| 14 条硬约束 | `kb/hard-constraints.md` |
+| 防跑偏硬约束（含包落点） | `kb/hard-constraints.md` |
 | 知识卡索引 | `kb/README.md` |
 | 根目录各文件是什么 | `README.md` |

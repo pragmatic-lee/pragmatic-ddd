@@ -353,6 +353,8 @@ E3 投影枚举转基础类型：CouponSummaryProjection status/type = int + sta
 
 ### 7.10 待补（Tier-3 微缺口，可选）
 
+> **状态（2026-11-02）：已收口**——包落点判据表入源文档与卡、新增硬约束 15（参数对象 → `domain/{agg}/param/`）、S2 / S4 / S5 / S7 引用改道与评审维度已逐项落地，见 [docs/design/agent-skills/kb-package-landing-closure-v01.md](../docs/design/agent-skills/kb-package-landing-closure-v01.md)（KB v2.8）。本节以下为收口前的原文记录，不再改动。
+
 - `kb/api-contract.md` 或 `ddd-aggregate-create` 明确包惯例：param 对象放 `...param`、枚举放 `...model.enums`、值对象放 `...model.valueobject`、事件放 `...event`、仓储放 `...repository`、源端口放领域层 `...projection`（已在 S4/S6 SKILL 提及，可同步进 api-contract 包布局段）。
 - 补齐后无需再跑（v3 已通过）；仅作文档完整性收尾。
 

@@ -36,7 +36,7 @@ description: 为 Pragmatic DDD 新聚合生成「极简目录骨架」——仅 
 
 ```text
 {root}/domain/{agg}/
-├── model/                 # 聚合根 / 子实体 / 值对象（待 S4 填）
+├── model/                 # 聚合根 / 子实体（含 enums/ valueobject/ 子包，待 S4 填）
 ├── operation/             # 操作注册表（待 S4）
 ├── rule/                  # 规则注册表 + 规则容器 + 装配（待 S4）
 ├── repository/            # 领域层仓储抽象（待 S4）
@@ -55,7 +55,7 @@ description: 为 Pragmatic DDD 新聚合生成「极简目录骨架」——仅 
 └── {Agg}ReadService.java  # 查询应用服务（待 S4）
 ```
 
-- 包结构依据：`kb/bp/aggregate-design.md` §1 + `kb/bp/application-collaboration.md` §1。
+- 包结构依据：`kb/bp/aggregate-structure.md` §2 目录骨架 + §3.1 落点判据表（硬约束 15）；应用层命名依据 `kb/bp/application-collaboration.md`。
 - 每个目录下建一个空的 `package-info.java`（或占位 `.gitkeep`），保证包存在、可编译。
 
 ### 步骤 3：自检 + 交付
@@ -65,9 +65,9 @@ description: 为 Pragmatic DDD 新聚合生成「极简目录骨架」——仅 
 
 ## 防幻觉
 
-- 目录命名以 `kb/bp/aggregate-design.md` §1 为准；不确定先 Read `kb/api-contract.md` 或 `kb/bp/aggregate-structure.md`。
+- 目录命名以 `kb/bp/aggregate-structure.md` §2 为准（包落点唯一权威）；不确定先 Read `kb/api-contract.md`。
 
 ## 验收
 
-- 产出的目录与 `kb/bp/aggregate-design.md` §1 / `application-collaboration.md` §1 一致。
+- 产出的目录与 `kb/bp/aggregate-structure.md` §2 / §3.1 一致（含 `param/`；`model/` 下预建 `enums/` 与 `valueobject/` 子包可选，由 S4 按需建）。
 - `mvn compile` 在补完 S4 业务前不要求通过（空包即可）。

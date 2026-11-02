@@ -29,13 +29,15 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 1. 操作注册表 `{Agg}OperationRegistry` 追加 `public static final EntityOperation {OP} = EntityOperation.of("{OP}", "...")`（**code 不与既有重复**，全大写下划线无前缀，声明在最终子类——硬约束 1/2）。
 2. 规则注册表（如需新消息码）追加 `MessageCode.of(...)`（localCode 唯一）。
 3. 规则容器 `{Agg}Rule` 追加 `addRule(...)`（含激活条件）。
-4. 聚合根充血方法：纯赋值，先做对外校验，先 `recordOperation({OP})` 后 `collectEvent(...)`（硬约束 4/5）。
-5. 领域事件 `{Agg}{Op}Event extends BaseDomainEvent`（过去式 + buildEvent + 延迟事件写法）。
+4. 聚合根充血方法：纯赋值，先做对外校验，先 `recordOperation({OP})` 后 `collectEvent(...)`（硬约束 4/5）；入参 >5 个或成组时新增参数对象 `{Agg}{Op}Data implements IParamObject`，**落 `domain/{agg}/param/`，不落 `model/`**（硬约束 15）。
+5. 领域事件 `{Agg}{Op}Event extends BaseDomainEvent` **落 `domain/{agg}/event/`**（硬约束 15；过去式 + buildEvent + 延迟事件写法）。
 6. 应用层：独立 `{Op}Input` + `{Agg}{Op}Updater`（`apply` 只转换 + 调充血方法，不校验不持久化不发事件——硬约束 11）+ `OrderWriteService` 新增公开方法走 `execute`。
+
+> 每个新类的包落点一律查 `kb/bp/aggregate-structure.md` 落点判据表（硬约束 15）；存量类位置与该表不符时**不顺手迁移**，按项目判决名单写（§2 第 3 条）。
 
 ### 3.2 补充外部校验
 
-- 领域层新增契约 `I{Agg}{Target}Service extends IDomainService`（见 `domain-service.md`）。
+- 领域层新增契约 `I{Agg}{Target}Service extends IDomainService` **落 `domain/{agg}/service/`**（硬约束 15，见 `domain-service.md`）。
 - 规则容器 `addRule` 引用契约；应用层 `@Service` 实现 + 注入规则容器（`OrderRuleConfig`）。
 - 注解 `@DomainService(category=BUSINESS_RULE, targetName=...)`。
 
@@ -46,7 +48,7 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 
 ### 3.4 新增子实体 / 值对象
 
-- 子实体 `extends AbstractEntity<ID>`，挂 `TrackedList` 到聚合根；值对象实现 `IValueObject`（`private final` + 不可变，禁用 `@Data`——见 `value-object.md`）。
+- 子实体 `extends AbstractEntity<ID>` **落 `domain/{agg}/model/`**，挂 `TrackedList` 到聚合根；值对象实现 `IValueObject` **落 `domain/{agg}/model/valueobject/`**（`private final` + 不可变，禁用 `@Data`——见 `value-object.md`；硬约束 15）。
 - 建表：子实体独立子表 + 逻辑外键索引；值对象并入父表 JSON（见 `aggregate-database-design.md`）。
 
 ### 3.5 新增投影副本源
@@ -61,7 +63,7 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 
 ## 5. 强制约束
 
-- 硬约束 1/2/4/5/8/11 + E1~E3 全部适用（与 S4 同基准）。
+- 硬约束 1/2/4/5/8/11/15 + E1~E3 全部适用（与 S4 同基准）。
 - 不改聚合根既有字段类型（破坏等同性/已持久化数据）；确需改走迁移脚本。
 - 注册表子类 public、常量最终子类；事件延迟 vs 即时按 ID 策略（硬约束 6）。
 
@@ -73,6 +75,7 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 - [ ] 外部校验走领域服务契约，未把 Input 塞进契约
 - [ ] 订阅已显式 registerSubscriber
 - [ ] 投影源扩展未改既有源
+- [ ] 新增类的包落点符合硬约束 15（参数对象在 `param/`、事件在 `event/`、值对象在 `model/valueobject/`，Input 仍在 `application/{agg}/input/`）
 - [ ] `mvn compile` 通过 + S7 评审零阻断
 
 ## 7. 防幻觉

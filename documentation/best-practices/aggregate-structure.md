@@ -58,7 +58,7 @@
 | `domain/{agg}/model` | 聚合根、实体、值对象、枚举 | [聚合设计原则](./aggregate-design.md) · [普通实体设计原则](./entity-design.md) · [值对象最佳实践](./value-object.md) · [枚举值对象最佳实践](./enum-value.md) |
 | `domain/{agg}/event` | 领域事件类 | [事件建模指南](./event-modeling.md) |
 | `domain/{agg}/operation` | 操作注册表 | [操作注册表设计](./operation-registry-design.md) |
-| `domain/{agg}/param` | 参数对象 | [聚合设计原则](./aggregate-design.md) §3.4 |
+| `domain/{agg}/param` | 参数对象 | [聚合设计原则](./aggregate-design.md) |
 | `domain/{agg}/rule` | 规则容器 + 规则注册表 | [规则注册表设计](./registry-design.md) · [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md) |
 | `domain/{agg}/service` + `calculator` | 四类领域服务契约 | [领域服务落地模式](./domain-service.md) |
 | `domain/{agg}/dependency` | 外部依赖声明 | [核心：依赖体系](../core/dependency.md) |
@@ -72,6 +72,37 @@
 | `infrastructure/persistent/{agg}/projection` | 投影器 / 物化器 | [投影读模型代码落地指南](./projection-design.md) · [Elasticsearch 配置设计原则](./elasticsearch-config.md) |
 | `infrastructure/config`（通用）+ `config/{agg}/` | Bean 装配 | [MySQL](./mysql-config.md) · [MyBatis](./mybatis-config.md) · [Elasticsearch](./elasticsearch-config.md) · [RocketMQ](./rocketmq-config.md) · [Outbox](./outbox-config.md) |
 | `infrastructure/dependency/{agg}`（+ `shared/`） | 外部依赖实现 | [核心：依赖体系](../core/dependency.md) · [ACL 防腐层](./../getting-started/project-structure.md#32-防腐层acl怎么放) |
+
+### 3.1 类类型 → 包：落点判据（唯一权威表）
+
+> 本表是包落点的**唯一来源**。其他篇（含 [推荐项目结构](../getting-started/project-structure.md)）只允许指向本表作导览，**不得复制清单**——两份清单并存必然漂移。
+
+判定采用**双条件**：`对象类型（含标记接口）+ 所在层`。不看调用方，可机械执行。
+
+| 对象类型 | 识别特征 | 落点 | 不得落 |
+| --- | --- | --- | --- |
+| 聚合根 | `extends AggregateRoot<ID>` | `domain/{agg}/model/` | — |
+| 子实体 | `extends AbstractEntity<ID>` / `implements ITrackable<ID>` | `domain/{agg}/model/` | — |
+| 枚举值对象 | `implements IEnumValue<..>` | `domain/{agg}/model/enums/` | `model/` 平铺 |
+| 值对象 | `extends ValueObject` / `implements IValueObject` | `domain/{agg}/model/valueobject/` | `model/` 平铺、`param/` |
+| **参数对象** | `implements IParamObject` **且**位于 `domain/` 下，命名 `{Agg}InitData` / `{Agg}{Action}Data` | **`domain/{agg}/param/`** | **`model/`** |
+| 领域事件 | `extends BaseDomainEvent` / `BaseDataSyncEvent` | `domain/{agg}/event/` | `model/` |
+| 操作注册表 | `extends OperationRegistry` | `domain/{agg}/operation/` | — |
+| 规则容器 / 规则注册表 | `extends EntityRule` / `extends BrokenRuleRegistry` | `domain/{agg}/rule/` | — |
+| 领域服务契约 | `extends IDomainService` | `domain/{agg}/service/` | `application/` |
+| 属性计算契约 | `extends IDomainService` 且命名 `{Agg}{Prop}Calculator` | `domain/{agg}/calculator/` | `service/` |
+| 仓储抽象 | `extends AbstractRepository<ID, T>` | `domain/{agg}/repository/` | — |
+| 投影契约 | `I{Agg}{Store}Source` / `{Agg}{View}Projection` | `domain/{agg}/projection/` | `infrastructure/` |
+| 应用层 Input | `@Data`，命名 `{Action}{Agg}Input`，位于 `application/` 下 | `application/{agg}/input/` | 即使实现 `IParamObject` 也不入 `domain/` |
+
+**两条硬说明**
+
+- **判据不得简化成「只看标记接口」**：应用层 Input 与领域层参数对象可以实现同一个 `IParamObject`，但一个落 `application/{agg}/input/`、一个落 `domain/{agg}/param/`。把 Input 按接口搬进领域层会同时破坏领域层零基础设施依赖与 Input 的协议适配定位。
+- **参数对象命名口径钉死为 `*Data`**：`{Agg}InitData` / `{Agg}{Action}Data`（如 `OrderInitData`、`OrderAddItemData`），不用 `*Param`。
+
+**存量降级规则**
+
+本表对**新建类与本轮新增类**强制生效。存量类位置与本表不符时：不强制迁移，评审按建议项（Advisory）登记为待迁移；项目若决定长期保留现状，记入该项目的判决名单 `docs/design/aggregates/{agg}/accepted.md`，后续生成与评审按判决写，不重议。
 
 ## 4. 四层职责速记
 
@@ -103,5 +134,5 @@
 ## 7. 下一步
 
 - [聚合设计原则](./aggregate-design.md)：填充 `model/` 的第一篇
-- [推荐项目结构](../getting-started/project-structure.md)：模块级四层全貌与多模块拆分
+- [推荐项目结构](../getting-started/project-structure.md)：模块级四层全貌与多模块拆分（包落点判据以本文 §3.1 为准）
 - 按 §3 表格逐文件夹进入对应模式文档

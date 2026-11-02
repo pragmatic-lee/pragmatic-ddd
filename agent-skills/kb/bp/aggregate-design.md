@@ -1,22 +1,13 @@
 # BP 卡：聚合设计原则（aggregate-design）
 
-> 源：`documentation/best-practices/aggregate-design.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/aggregate-design.md` · 派生时间：2026-11-02（§1 包结构树移除并归权威；参数对象落点补写） · 框架版本：2.1.0
 
-## 1. 命名与包结构
+## 1. 命名
 
-```text
-domain/{agg}/
-├── model/
-│   ├── {Agg}.java              # 聚合根 extends AggregateRoot<ID>
-│   ├── {SubEntity}.java        # 子实体 extends AbstractEntity<ID>
-│   └── {ValueObject}.java
-├── operation/{Agg}OperationRegistry.java
-├── rule/{Agg}Rule.java + {Agg}RuleConfig(装配) + {Agg}BrokenRuleRegistry.java
-└── repository/Abstract{Agg}Repository.java
-```
+- 聚合根：`{Agg}`；子实体：`{SubEntity} extends AbstractEntity<ID>`；值对象：`{ValueObject}`；枚举：`{Enum} implements IEnumValue`。
+- 参数对象命名 `{Agg}InitData` / `{Agg}{Action}Data`（**不用 `*Param`**）。
 
-- 聚合根：`{Agg}`；子实体/值对象同目录 `model/`。
-- 操作注册表 `operation/`、规则 `rule/`、仓储 `repository/` 与 `model/` 平级。
+> ⚠️ **包落点不在本卡**。本卡以前给过一份包结构树，但清单不全且与权威不一致，已删除。类该落哪个包一律查 [聚合目录落地骨架](./aggregate-structure.md) 的「类类型 → 包：落点判据」表（硬约束 15）：聚合根/子实体 → `model/`，枚举 → `model/enums/`，值对象 → `model/valueobject/`，**参数对象 → `param/`（不是 `model/`）**，事件 → `event/`，注册表 → `operation/` 与 `rule/`，仓储抽象 → `repository/`。
 
 ## 2. 父类已托管能力（不要在聚合根里重造）
 
@@ -90,6 +81,8 @@ public class OrderInitData implements IParamObject {
 ```
 与值对象（`IValueObject`）区别：参数对象是入参载体、不持久化、等同性由 Lombok 生成；值对象是领域内可嵌入结构，判等是领域行为。
 
+**落包**：参数对象落 `domain/{agg}/param/`，**不落 `model/`**（硬约束 15）。同理：值对象不落 `param/`，应用层 Input 即使实现 `IParamObject` 也留在 `application/{agg}/input/`。
+
 ### 3.3 Lombok 约定（硬约束 8）
 聚合根：`@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`；**禁用 `@Data`/`@EqualsAndHashCode`/`@Builder`**（等同性由父类托管）。值对象见 [值对象最佳实践](./value-object.md)。
 
@@ -111,6 +104,7 @@ public class OrderInitData implements IParamObject {
 | 聚合根用 `@Data`/`@Builder` | `@Getter`+`@Setter(PROTECTED)`+`@NoArgsConstructor(PROTECTED)` |
 | 自定义 ID/版本/审计字段 | 用父类托管能力（硬约束 14） |
 | 覆盖 `equals`/`hashCode` | 由 `AbstractEntity` 基于 entityId |
+| 参数对象放 `model/` | 放 `domain/{agg}/param/`（硬约束 15，判据见 aggregate-structure 落点表） |
 
 ## 5. 被读于
 

@@ -60,6 +60,8 @@ com/yourcompany/{module}/
 
 #### 2.1.1 分包与契约
 
+> 本表只作导览；某个类该落哪个包的**判据**以 [聚合目录落地骨架](../best-practices/aggregate-structure.md) §3.1 落点判据表为唯一权威（硬约束 15）。
+
 | 包 | 你放的内容 | 继承/注解的框架类型 | 说明 |
 |----|-----------|---------------------|------|
 | `model/` | 聚合根、实体、值对象、`enums/`、`valueobject/` | `AggregateRoot` | 业务数据与行为载体 |
@@ -71,7 +73,7 @@ com/yourcompany/{module}/
 | `service/` | `I{Agg}{Ability}` | `@DomainService` | 领域服务接口，四类（见 2.1.3） |
 | `config/` | `{Agg}Configuration` | `AbstractConfiguration` | 语义化配置门面（只读） |
 | `operation/` | `{Agg}OperationRegistry` | `OperationRegistry` | 操作驱动建模时暴露（内部 `static final EntityOperation` 常量，非独立子类） |
-| `param/` | `{Agg}{Action}Param` | `IParamObject` | 实体构造/业务方法入参 |
+| `param/` | `{Agg}InitData` / `{Agg}{Action}Data` | `IParamObject` | 实体构造 / 业务方法入参（命名用 `*Data`，不用 `*Param`；**不放 `model/`**） |
 
 #### 2.1.2 包结构示例
 
@@ -112,9 +114,9 @@ domain/{agg}/
 │   └── IOrderCreatedNoticeWarehouse.java # @DomainService(EVENT_SUBSCRIBER)
 ├── config/OrderConfiguration.java           # 继承 AbstractConfiguration
 ├── operation/OrderOperationRegistry.java     # 继承 OperationRegistry（static final EntityOperation 常量）
-└── param/                          # 参数对象
-    ├── OrderInitParam.java
-    └── OrderUpdateAddressParam.java
+└── param/                          # 参数对象（命名 *Data，不落 model/）
+    ├── OrderInitData.java
+    └── OrderUpdateAddressData.java
 ```
 
 #### 2.1.3 领域服务四类（`@DomainService(category=...)`）

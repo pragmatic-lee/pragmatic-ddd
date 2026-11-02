@@ -69,7 +69,8 @@ description: 咨询入口（只读答疑，不生成代码）——分两条路�
 | Outbox 配置 | `bp/outbox-config` |
 | RocketMQ 配置 | `bp/rocketmq-config` |
 | Kafka 配置 | `bp/kafka-config` |
-| 14 条硬约束 / 枚举出入参规则 | `hard-constraints` |
+| 全量硬约束 / 枚举出入参规则 | `hard-constraints` |
+| 某个类该放哪个包（参数对象 / 事件 / 值对象 / Input） | `bp/aggregate-structure`（落点判据表，硬约束 15） |
 | 任何框架类/方法签名 | `api-contract` |
 
 ## 4. 防幻觉红线

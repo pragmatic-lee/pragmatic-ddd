@@ -1,6 +1,6 @@
 # BP 卡：聚合目录落地骨架（aggregate-structure）
 
-> 源：`documentation/best-practices/aggregate-structure.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/aggregate-structure.md` · 派生时间：2026-11-02（新增「类类型 → 包」落点判据表，本卡成为包落点唯一权威） · 框架版本：2.1.0
 
 ## 1. 本质与定位
 
@@ -42,7 +42,7 @@
 | `domain/{agg}/model` | aggregate-design · entity-design · value-object · enum-value |
 | `domain/{agg}/event` | event-modeling |
 | `domain/{agg}/operation` | operation-registry-design |
-| `domain/{agg}/param` | aggregate-design §3.4 |
+| `domain/{agg}/param` | 参数对象（[聚合设计原则](./aggregate-design.md)） |
 | `domain/{agg}/rule` | registry-design · order-rule-pattern |
 | `domain/{agg}/service` + `calculator` | domain-service |
 | `domain/{agg}/dependency` | 核心：依赖体系 |
@@ -56,6 +56,32 @@
 | `infrastructure/persistent/{agg}/projection` | projection-design · elasticsearch-config |
 | `infrastructure/config`(+`config/{agg}/`) | mysql-config · mybatis-config · elasticsearch-config · rocketmq-config · outbox-config |
 | `infrastructure/dependency/{agg}`(+`shared/`) | 核心：依赖体系 · ACL 防腐层 |
+
+## 3.1 类类型 → 包：落点判据（唯一权威表）
+
+> 本表是包落点的**唯一来源**；其他卡与文档站页面只允许指向本表，不得复制清单。
+
+判定采用**双条件**：`对象类型（含标记接口）+ 所在层`。不看调用方，可机械执行。
+
+| 对象类型 | 识别特征 | 落点 | 不得落 |
+| --- | --- | --- | --- |
+| 聚合根 | `extends AggregateRoot<ID>` | `domain/{agg}/model/` | — |
+| 子实体 | `extends AbstractEntity<ID>` / `implements ITrackable<ID>` | `domain/{agg}/model/` | — |
+| 枚举值对象 | `implements IEnumValue<..>` | `domain/{agg}/model/enums/` | `model/` 平铺 |
+| 值对象 | `extends ValueObject` / `implements IValueObject` | `domain/{agg}/model/valueobject/` | `model/` 平铺、`param/` |
+| **参数对象** | `implements IParamObject` **且**位于 `domain/` 下，命名 `{Agg}InitData` / `{Agg}{Action}Data` | **`domain/{agg}/param/`** | **`model/`** |
+| 领域事件 | `extends BaseDomainEvent` / `BaseDataSyncEvent` | `domain/{agg}/event/` | `model/` |
+| 操作注册表 | `extends OperationRegistry` | `domain/{agg}/operation/` | — |
+| 规则容器 / 规则注册表 | `extends EntityRule` / `extends BrokenRuleRegistry` | `domain/{agg}/rule/` | — |
+| 领域服务契约 | `extends IDomainService` | `domain/{agg}/service/` | `application/` |
+| 属性计算契约 | `extends IDomainService` 且命名 `{Agg}{Prop}Calculator` | `domain/{agg}/calculator/` | `service/` |
+| 仓储抽象 | `extends AbstractRepository<ID, T>` | `domain/{agg}/repository/` | — |
+| 投影契约 | `I{Agg}{Store}Source` / `{Agg}{View}Projection` | `domain/{agg}/projection/` | `infrastructure/` |
+| 应用层 Input | `@Data`，命名 `{Action}{Agg}Input`，位于 `application/` 下 | `application/{agg}/input/` | 即使实现 `IParamObject` 也不入 `domain/` |
+
+- **不得简化成「只看标记接口」**：Input 与领域参数对象可实现同一个 `IParamObject`，落点仍按所在层区分。
+- **参数对象命名固定 `*Data`**（`{Agg}InitData` / `{Agg}{Action}Data`），不用 `*Param`。
+- **存量降级**：本表只对新建类 / 本轮新增类强制生效；存量位置不符 → 评审记建议项（Advisory）不阻断，项目长期保留现状则记入该项目判决名单 `accepted.md`。
 
 ## 4. 四层职责速记
 
@@ -72,11 +98,14 @@
 - 领域层零基础设施依赖：`domain/{agg}` 不出现 Spring/MyBatis/MQ 导入；外部能力用 `dependency` 声明 + 领域服务契约。
 - 聚合间不共享：目录独立，通信优先领域事件，不跨聚合 new 仓储/服务。
 - 目录名即语义：`service` 只放契约（领域层）或实现（应用/基础设施层）。
+- **包落点只有一个答案**：本卡 §3.1 落点判据表（硬约束 15）。其他篇给的树仅供导览。
 
 ## 6. 常见反模式
 
 | 反模式 | 正确做法 |
 | --- | --- |
+| 参数对象放 `model/`（或命名 `*Param`） | 放 `domain/{agg}/param/`，命名 `{Agg}{Action}Data`（§3.1） |
+| 按「实现了 `IParamObject`」就把应用层 Input 搬进领域层 | 落点双条件：类型 + 所在层，Input 永留 `application/{agg}/input/` |
 | 领域/应用层以技术分层为第一级（如 `domain/repository/`） | 以聚合 `{agg}` 为第一级 |
 | 基础设施层以聚合为一级并重复通用配置 | 类型优先：`persistent`/`dependency`/`config` 一级、聚合二级 |
 | `domain/{agg}` 出现 Spring/Mapper/MQ 导入 | 用契约 + 依赖声明 |
@@ -86,4 +115,4 @@
 
 ## 7. 被读于
 
-S1 `ddd-project-init`、S2 `ddd-aggregate-scaffold`、S7 `ddd-code-review`。
+S1 `ddd-project-init`、S2 `ddd-aggregate-scaffold`（包结构依据）、S4 `ddd-aggregate-create` / S5 `ddd-aggregate-extend`（每个新类的落点）、S6 `ddd-projection-create`、S7 `ddd-code-review`（硬约束 15 的判据来源）。

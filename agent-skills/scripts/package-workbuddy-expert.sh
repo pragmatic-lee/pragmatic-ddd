@@ -168,9 +168,10 @@ for name in sorted(skills_meta):
                 rel = os.path.relpath(os.path.join(root, f), KB_SRC)
                 copy_kb(rel, refs_dir, copied)
 
-    # 5) 代码评审技能：Agent 会引用这两份，强制带上
+    # 5) 代码评审技能：Agent 会引用这三份，强制带上
+    #    （aggregate-structure 载「类类型 → 包」落点判据表，是硬约束 15 的唯一判据源，缺则 S7 能读条无法判）
     if name == "ddd-code-review":
-        for rel in ("hard-constraints.md", "api-contract.md"):
+        for rel in ("hard-constraints.md", "api-contract.md", "bp/aggregate-structure.md"):
             copy_kb(rel, refs_dir, copied)
 
     # 6) README 索引重建（不复制原 35 卡索引，避免指向未随包的卡）

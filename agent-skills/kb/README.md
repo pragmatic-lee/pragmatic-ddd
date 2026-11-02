@@ -19,10 +19,10 @@
 
 | 路径 | 内容 | 被哪些 Skill 读 |
 | --- | --- | --- |
-| `hard-constraints.md` | 14 条防跑偏硬约束 + 枚举出入参规则 | 全部（尤其 S4 / S7） |
+| `hard-constraints.md` | 防跑偏硬约束（条数以本卡为准）+ 枚举出入参规则 | 全部（尤其 S4 / S7） |
 | `api-contract.md` | 框架真实类/接口契约，防幻觉符号 | 全部（生成代码前必读） |
 | `bp/aggregate-design.md` | 聚合设计原则（小聚合、父类能力、Lombok、充血方法） | S4 / S7 |
-| `bp/aggregate-structure.md` | 聚合四层目录骨架与按图索骥 | S1 / S2 / S7 |
+| `bp/aggregate-structure.md` | 聚合四层目录骨架、按图索骥、**类类型 → 包落点判据表（唯一权威）** | S1 / S2 / S4 / S5 / S6 / S7 |
 | `bp/entity-design.md` | 普通实体（子实体）设计 | S4 / S5 / S7 |
 | `bp/value-object.md` | 值对象（不可变、equalityComponents、禁 @Data） | S4 / S5 / S7 |
 | `bp/enum-value.md` | 枚举值对象 `IEnumValue` | S4 / S6 / S7 |
@@ -60,12 +60,12 @@
 ## 3. 路由表（Skill 如何找卡）
 
 - **S1 项目初始化** → `aggregate-structure` + `hard-constraints`。
-- **S2 聚合骨架** → `aggregate-design`(§1) + `application-collaboration`(§1) + `hard-constraints`(9)。
+- **S2 聚合骨架** → `aggregate-structure`(目录骨架 + 落点判据表) + `application-collaboration`(命名) + `hard-constraints`(9)。
 - **S3 基础设施配置** → `repository-design` + `aggregate-database-design` + `design-doc-write-template`(§7 持久化) + `design-doc-prerequisites`(数据库/总线版本) + `projection-design` + `event-subscriber-pattern` + `hard-constraints`(9) + `mysql-config` / `postgresql-config` / `mybatis-config` / `outbox-config` / `rocketmq-config` / `kafka-config` / `elasticsearch-config` / `event-manager-config`。
-- **S4 聚合创建** → 全量 bp + `hard-constraints` + `api-contract`。
-- **S5 聚合扩展** → 对应 bp（操作→operation-registry/order-rule/event-modeling；校验→domain-service；订阅→event-subscriber-pattern；子实体→entity-design/value-object；投影源→projection-design）+ `hard-constraints`。
+- **S4 聚合创建** → 全量 bp + `hard-constraints` + `api-contract`；**每个新类的包落点查 `aggregate-structure` 落点判据表（硬约束 15）**。
+- **S5 聚合扩展** → 对应 bp（操作→operation-registry/order-rule/event-modeling；校验→domain-service；订阅→event-subscriber-pattern；子实体→entity-design/value-object；投影源→projection-design）+ `hard-constraints`；新增类同查 `aggregate-structure` 落点判据表。
 - **S6 投影创建** → `projection-design`(全量) + `projection-api`(全量) + `event-subscriber-pattern` + `enum-value`(E3) + `hard-constraints`。
-- **S7 合规评审** → `hard-constraints` 全量 + 相关 bp（含 `code-comment-specification` 的注释核对） + `api-contract`。
+- **S7 合规评审** → `hard-constraints` 全量 + 相关 bp（含 `code-comment-specification` 的注释核对；包落点约束 15 的判据取 `aggregate-structure`） + `api-contract`。
 - **KB 咨询（ddd-kb-consult）** → 按用户问题路由到对应 `bp/*.md` + `hard-constraints` + `api-contract`；只读卡作答，不产代码。
 - **④ 判决名单读法**：任何涉及一个已有聚合的需求/扩展，开场先读 `bp/design-doc-accepted.md` §7 的时机表，命中已有判决不重议；目标文件在**目标工程**的 `docs/design/aggregates/{agg}/accepted.md`，不在本包内。
 - 任何卡内出现框架符号拿不准 → 先 Read `api-contract.md`（权威符号表，含全限定 import 与精确方法签名），禁止臆造。
@@ -78,13 +78,15 @@
   - `file`：单文件源（绝大多数 bp 卡），源文档 sha 直接比对。
   - `code-tree`：源是代码/pom 而非单文件（`api-contract`、`bp/projection-api`），取「有序文件列表逐文件 sha256 → 汇总 sha256」比对；框架代码或 pom（含 groupId / 版本）变更即标 STALE，提醒重验签名与坐标。
 - CI 卡口 `../scripts/verify-kb.sh` 报三类：`STALE`（源变了）/ `BROKEN`（登记的源找不到）/ `PRODUCT DRIFT`（卡被手改）。三者均退出码 1。
+- **卡内互引只写卡名 + 主题，不写小节号**：卡是对源文档的蒸馏重写，小节号常与源不一致（历史坑：`aggregate-structure` 曾指向 `aggregate-design §3.4`，而卡内参数对象在 §3.2，循指针必落空）。
+- **单一主题的权威表只允许一份**：包落点判据表只在 `bp/aggregate-structure.md`，其他卡与 Skill 只指向不复制（双份清单必然漂移）；卡头「源」里没登记的节不得写进卡——卡比源多内容时哈希卡口查不出来，下次重蒸馏时会被静默冲掉。
 
 ## 5. 防幻觉红线
 
 - KB 中出现的类/方法签名以 `api-contract.md` 为**唯一权威**（含全限定 import 与精确方法签名）。
 - 第三方使用时**禁止**访问或假设仓库内示例工程的存在（见 [§6](#6-自足性与发布范围)）；缺符号先查 `api-contract.md`，再向用户提问。
 - Skill 生成代码前，对任一不确定签名必须先 Read 核实，再写。
-- 注册表类必须 `public`、聚合根禁用 `@Data` 等硬约束见 `hard-constraints.md`，逐条核对。
+- 注册表类必须 `public`、聚合根禁用 `@Data`、参数对象落 `param/` 等硬约束见 `hard-constraints.md`，逐条核对（条数以该卡为准，不写死数字）。
 
 ## 6. 自足性与发布范围
 
@@ -105,6 +107,6 @@
 
 ---
 
-> **版本**：v2.7
-> **变更**：v2.7（2026-11-02）**标识两模式入卡** —— `bp/aggregate-database-design` 重蒸馏（源 commit `4fcc562`）：§5 主键与标识改为模式一（`{聚合名}_id` 自增主键直接充当 `entityId`，ID 后生成）/ 模式二（物理 `id` 自增主键 + `{聚合名}_id` 唯一索引，ID 代码生成）两选，明确逻辑外键不受模式影响；§6 补「标识模式决定整存整取顺序」（模式一先主后子靠 `useGeneratedKeys` 回填）；`api-contract` 坐标段补红线「仓库 pom 为开发版 `2.2.0-SNAPSHOT`，不得写入消费方坐标」；`ddd-infra-config` §3.4 读卡章节号 `§4`→`§5` 并要求先与用户确认标识模式。v2.6（2026-11-01）**坐标重验 + ④ 入 KB + 卡口硬化** —— `api-contract` Maven 坐标改为真实值 `com.pragmatic-ddd:*:2.1.0`（已发 Central）并声明 `groupId ≠ 包前缀`、artifactId 以 BOM 为唯一权威；清除不存在的 `pragmatic-ddd-outbox` 模块名；新增 `bp/design-doc-accepted`（v2.5 新增的源当时未收口，现补齐源↔卡↔技能三层）；`verify-kb.sh` 区分 STALE / BROKEN / PRODUCT DRIFT 并支持 `code-tree` 源哈希，不再静默跳过缺源；卡数口径按实际修正。v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）。v2.0（2026-10-28）PostgreSQL 支持入 KB。更早变更见 `_manifest.json` 的 note
+> **版本**：v2.8
+> **变更**：v2.8（2026-11-02）**包落点入硬约束** —— `bp/aggregate-structure` 新增「类类型 → 包」落点判据表（双条件：类型 + 所在层），成为包落点唯一权威；`bp/aggregate-design` §1 残缺包结构树删除并改指向该表（消除双源，同时补齐 `event/`、`model/enums/`、`model/valueobject/` 等同类空洞）；`hard-constraints.md` 与其源文档新增约束 15（参数对象 → `domain/{agg}/param/`，不落 `model/`；Input 即使实现 `IParamObject` 也不入领域层；存量降级为 Advisory）；S2/S4/S5/S7 的包结构依据与读单改指 `aggregate-structure`；硬约束条数文案解除「14 条」硬编码；卡内互引不再带小节号。详见 `docs/design/agent-skills/kb-package-landing-closure-v01.md`。v2.7（2026-11-02）**标识两模式入卡** —— `bp/aggregate-database-design` 重蒸馏（源 commit `4fcc562`）：§5 主键与标识改为模式一（`{聚合名}_id` 自增主键直接充当 `entityId`，ID 后生成）/ 模式二（物理 `id` 自增主键 + `{聚合名}_id` 唯一索引，ID 代码生成）两选，明确逻辑外键不受模式影响；§6 补「标识模式决定整存整取顺序」（模式一先主后子靠 `useGeneratedKeys` 回填）；`api-contract` 坐标段补红线「仓库 pom 为开发版 `2.2.0-SNAPSHOT`，不得写入消费方坐标」；`ddd-infra-config` §3.4 读卡章节号 `§4`→`§5` 并要求先与用户确认标识模式。v2.6（2026-11-01）**坐标重验 + ④ 入 KB + 卡口硬化** —— `api-contract` Maven 坐标改为真实值 `com.pragmatic-ddd:*:2.1.0`（已发 Central）并声明 `groupId ≠ 包前缀`、artifactId 以 BOM 为唯一权威；清除不存在的 `pragmatic-ddd-outbox` 模块名；新增 `bp/design-doc-accepted`（v2.5 新增的源当时未收口，现补齐源↔卡↔技能三层）；`verify-kb.sh` 区分 STALE / BROKEN / PRODUCT DRIFT 并支持 `code-tree` 源哈希，不再静默跳过缺源；卡数口径按实际修正。v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）。v2.0（2026-10-28）PostgreSQL 支持入 KB。更早变更见 `_manifest.json` 的 note
 > **适用框架版本**：`2.1.0`——**以 `_manifest.json` 的 `framework_version` 为单一权威**；各卡头部的「框架版本」记录的是**派生当时**对应的版本，不随整体适用版本回填

@@ -258,6 +258,8 @@ public void update(OrderUpdateData data) { ... }
 
 **与领域对象不同**：参数对象是纯数据容器——只声明字段、加 `@Data` 即可，不放任何业务逻辑、不继承领域基类。这里的 `@Data` 是被鼓励的；而聚合根禁用 `@Data`（见 §3.5）、值对象禁用 `@Data`（见 [值对象最佳实践](./value-object.md)），注意区分。
 
+**包落点**：参数对象落 `domain/{agg}/param/`，**不落 `model/`**（命名 `{Agg}InitData` / `{Agg}{Action}Data`，不用 `*Param`）。完整判据见 [聚合目录落地骨架](./aggregate-structure.md) §3.1 落点判据表（硬约束 15）；应用层 Input 即使实现 `IParamObject` 仍留在 `application/{agg}/input/`。
+
 > 与[值对象](./value-object.md)（`IValueObject`）的区别：参数对象是**入参**载体，不参与持久化，等同性由 Lombok `@Data` 生成、纯属容器便利，不承载领域判等语义；值对象是**领域内**的可嵌入数据结构，判等是其领域行为。两者不要混用。
 
 ### 3.5 Lombok 统一约定

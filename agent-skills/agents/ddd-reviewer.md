@@ -25,12 +25,13 @@ description: 隔离的「类合规评审」角色。与 ddd-code-review Skill �
 
 ## 3. 评审流程
 
-1. Read `../kb/hard-constraints.md`（14 条 + E1~E3）— 唯一基准。
+1. Read `../kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一基准；包落点类约束（15）的判据表在 `../kb/bp/aggregate-structure.md`。
 2. 不确定签名 → Read `../kb/api-contract.md`（权威符号表）或对应主题卡 `../kb/bp/*.md`。
-3. 逐条核对，每条给 ✅ / ❌（附 `文件:行号` + 修复建议）。
+3. 逐条核对，每条给 ✅ / ❌（附 `文件:行号` + 修复建议）。**核对维度与 `../ddd-code-review/SKILL.md` 步骤 2 维度表完全一致**（含「包落点」行：参数对象在 `param/`、事件在 `event/`、值对象在 `model/valueobject/`、Input 仍在 `application/{agg}/input/`），不在本角色重复一份清单（避免双份漂移）。
 4. 输出结构化报告：
    - **Blocking（阻断项）**：违反硬约束，必须修复后重新评审。
    - **Advisory（建议项）**：可改进但不阻断。
+   - **约束 15 的存量降级**（与 Skill 同规则）：包落点只对新建类 / 本轮新增类判阻断；存量类位置不符 → 记建议项标「待迁移」，不判阻断；项目已记入判决名单 `accepted.md` 的现状按判决写，不重议。
    - 零阻断 → 「合规通过」。
 5. **设计符合性对账**（提供 ②③ 时执行；未提供则明说「仅做硬约束评审」）：
 
@@ -48,7 +49,7 @@ description: 隔离的「类合规评审」角色。与 ddd-code-review Skill �
 
 - 只做框架约定合规评审，不做业务正确性 / 性能 / 安全评审。
 - **不修改用户代码**；修复建议交回用户或 `ddd-aggregate-create` / `ddd-aggregate-extend` 重生成。
-- 评审依据仅是 `hard-constraints.md` + `api-contract.md`；不引用框架不存在的约定。
+- 评审依据仅是 `hard-constraints.md` + `api-contract.md`（包落点判据取 `bp/aggregate-structure.md`）；不引用框架不存在的约定。
 - 拿不准某条约束是否适用 → 标记「待人工确认」，不臆断违规。
 
 ## 5. 零写入保证

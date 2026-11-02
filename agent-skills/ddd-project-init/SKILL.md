@@ -32,7 +32,7 @@ description: 初始化一个采用 Pragmatic DDD 框架的新 Maven 工程：生
 
 ### 3.2 生成四层目录骨架
 
-按 `kb/bp/aggregate-structure.md` §3 建 `api/controller/application/domain/infrastructure` 根包（空包 + `package-info.java` 占位）。`domain` 层零基础设施依赖（硬约束 9）。
+按 `kb/bp/aggregate-structure.md` §2 目录骨架建 `api/controller/application/domain/infrastructure` 根包（空包 + `package-info.java` 占位）；具体类的包落点按该卡 §3.1 落点判据表（硬约束 15）。`domain` 层零基础设施依赖（硬约束 9）。
 
 ### 3.3 生成主启动类
 

@@ -206,6 +206,7 @@
 - ID 在构造期已确定则用即时事件，未确定才用延迟事件 `() -> XxxEvent.buildEvent(this)`，并在 §5.1 说明判定依据。
 - 值对象继承 `ValueObject` 并覆写 `equalityComponents()`；枚举实现 `IEnumValue<整数, 自身>` 并给 `of()` 反查。
 - 类清单必须与包布局一致，数量对得上。
+- 包布局必须与 [聚合目录落地骨架](./aggregate-structure.md) §3.1 落点判据表一致：参数对象列在 `domain/{agg}/param/`，**不得列进 `model/`**；事件列在 `event/`；值对象列在 `model/valueobject/`；Input 列在 `application/{agg}/input/`。
 
 **反例**：聚合根字段写 Javadoc 复述字段名；业务方法里 `if (!x) throw`。
 
@@ -283,7 +284,7 @@
 
 **硬规则**
 
-- Input 一律 `@Data implements IParamObject`；枚举字段用 `Integer`；不引用领域值对象。
+- Input 一律 `@Data`；枚举字段用 `Integer`；不引用领域值对象。**Input 固定落 `application/{agg}/input/`**——是否实现 `IParamObject` 不改变其包落点，不得把它当成领域层参数对象搬进 `domain/{agg}/param/`。
 - 工厂「先算后赋」：先取 ID、先算派生值，再构造聚合。
 - Updater 只做转换 + 调充血方法，不校验、不持久化、不发事件；需要派生值的 Updater 构造注入计算器。
 - **执行器选型必须有表**：哪个用例用 `CommandExecutor` / `OutboxCommandExecutor` / `CompensableCommandExecutor`，执行器与工作单元工厂成对匹配。

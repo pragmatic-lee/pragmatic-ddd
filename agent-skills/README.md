@@ -33,7 +33,7 @@ agent-skills/
 ├── kb/                             ← 共享知识包
 │   ├── README.md                   ← KB 索引与溯源
 │   ├── _manifest.json              ← 派生清单（source_sha 已回填真实值）
-│   ├── hard-constraints.md         ← 14 条硬约束 + 枚举出入参规则
+│   ├── hard-constraints.md         ← 防跑偏硬约束（条数以该卡为准）+ 枚举出入参规则
 │   ├── api-contract.md             ← 框架真实 API 契约（防幻觉）
 │   ├── bp/                         ← 35 篇 best-practice 派生卡（含 design-doc 七张 / projection-api / aggregate-identification / code-comment-specification / postgresql-config）
 │   └── （无外部示例依赖，KB 自足）

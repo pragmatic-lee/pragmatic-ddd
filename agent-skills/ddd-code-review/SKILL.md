@@ -29,7 +29,7 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ### 步骤 1：加载评审基准
 
-- Read `kb/hard-constraints.md`（14 条 + E1~E3）— 唯一评审基准。
+- Read `kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一评审基准；包落点类约束（15）的判据表在 `kb/bp/aggregate-structure.md`。
 - 不确定签名 → Read `kb/api-contract.md`（权威符号表）。
 
 ### 步骤 2：逐条核对（结构化输出）
@@ -48,11 +48,13 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 | 应用层 | 11 Updater/Factory 不校验不持久化不发事件；12 satisfiesRule 必抛异常 |
 | 边界 | 13 跨聚合只持 ID |
 | 父类能力 | 14 不自定义 ID/审计/版本/软删 |
+| 包落点 | 15 参数对象在 `domain/{agg}/param/`（不在 `model/`）；枚举 `model/enums/`、值对象 `model/valueobject/`、事件 `event/`；Input 仍在 `application/{agg}/input/`（按类型 + 所在层双条件判，不得只看 `IParamObject`） |
 
 ### 步骤 3：输出评审报告
 
 - **阻断项（Blocking）**：违反硬约束，必须修复后重新评审。
 - **建议项（Advisory）**：可改进但不阻断（如命名风格）。
+- **约束 15 的存量降级**：只对新建 / 本轮新增类判阻断；存量类包位置不符 → 记建议项并标「待迁移」，不判阻断（位置不符不破坏编译与运行语义，强制迁移会放大变更面）。若项目明确决定长期保留现状，提示其记入判决名单 `docs/design/aggregates/{agg}/accepted.md`，后续评审按判决不重议。
 - 零阻断 → 输出「合规通过」。
 
 ### 步骤 4：边界声明（重要）
@@ -84,5 +86,5 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ## 验收（对照路线图 §8）
 
-- A3 逐条核对 14 条 + E1~E3，零遗漏、零误判、零幻觉符号。
+- A3 逐条核对全量硬约束 + E1~E3，零遗漏、零误判、零幻觉符号。
 - 已知违规代码对照「角色评审 vs Skill 评审」阻断项召回率（阶段 3 可选）。

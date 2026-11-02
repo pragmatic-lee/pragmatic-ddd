@@ -1,7 +1,7 @@
 # 防跑偏硬约束（Hard Constraints）
 
-> 源：`documentation/best-practices/` 下各篇——`aggregate-identification.md`（约束 13：跨聚合只持 ID）、`enum-value.md`（E1~E3 枚举基础类型）、`aggregate-evolution-design.md` 与 `order-rule-pattern.md`（旧快照机制）、`registry-design.md`（注册表 public / INSTANCE）、`event-modeling.md`（事件过去式 / buildEvent）、`aggregate-design.md`（聚合根规范 / 零基础设施依赖）。本卡为上述篇章的集中蒸馏清单，供 S4 自检与 S7 评审逐条核对。
-> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/` 下各篇——`aggregate-structure.md`（约束 15：包落点判据）、`aggregate-identification.md`（约束 13：跨聚合只持 ID）、`enum-value.md`（E1~E3 枚举基础类型）、`aggregate-evolution-design.md` 与 `order-rule-pattern.md`（旧快照机制）、`registry-design.md`（注册表 public / INSTANCE）、`event-modeling.md`（事件过去式 / buildEvent）、`aggregate-design.md`（聚合根规范 / 零基础设施依赖）。本卡为上述篇章的集中蒸馏清单，供 S4 自检与 S7 评审逐条核对。
+> 派生时间：2026-11-02（新增约束 15：包落点） · 框架版本：2.1.0
 > **用途**：S4 生成后自检逐条核对；S7 评审逐条检查。任一条不满足即修正后重新核对。
 
 ## 通用红线（所有聚合代码通用）
@@ -22,12 +22,17 @@
 | 12 | `satisfiesRule` 收集后必须显式抛异常（`execute` 模板已内置） | 校验通过却不中断，脏数据落库 |
 | 13 | 跨聚合只持 ID 引用，不持对象引用 | 加载整个对象图，聚合边界失效 |
 | 14 | 不自定义 ID / 审计 / 版本号 / 软删字段 | 与父类托管能力冲突 |
+| 15 | 新类的包落点按 `bp/aggregate-structure.md` 落点判据表执行：参数对象（`IParamObject`）落 `domain/{agg}/param/` 不落 `model/`；枚举 `model/enums/`、值对象 `model/valueobject/`、事件 `event/`；应用层 Input 留 `application/{agg}/input/`，即使实现 `IParamObject` 也不入领域层 | 包失去语义导航，生成期只能临场决策（Coupon 走查已因此返工），评审无法机械核对 |
 
 > **约束 6 判定方法**：看**工厂调用构造时传入的 ID 实参**是否为 null（**不看构造签名**——签名有 ID 也可能被传 null）。
 > - 工厂 `create` 传入**真实 ID**（构造内已 `setEntityId`，构造期 ID 非 null）→ **情形 ①**，可直接 `collectEvent(XxxEvent.buildEvent(this))`。
 > - 工厂 `create` 传 `null` / ID 由 `IIdGenerator` 后置生成（如 `new Coupon(initData, null)`）→ **情形 ②**，必须用延迟事件 `() -> XxxEvent.buildEvent(this)`。
 >
 > ⚠️ **易错点**：构造签名含 ID 参数 **不等于** ID 已确定（v3 Coupon 即此例：签名 `Coupon(CouponInitData, Long)` 有 ID，工厂却传 `null`）。判定一律以**实参**为准。
+
+> **约束 15 的两个易错点**：
+> - 判据是「类型 + 所在层」双条件，**不得只看标记接口**：应用层 Input 与领域层参数对象可实现同一个 `IParamObject`，落点仍按层区分。
+> - **存量降级**：本条只对新建类 / 本轮新增类判阻断；存量类位置不符 → 评审记建议项（Advisory）不阻断，项目长期保留现状时记入该项目判决名单 `accepted.md`。
 
 ## 枚举出入参规则（memory ID 29822425）
 
@@ -43,7 +48,7 @@
 
 ## 自检动作（S4 步骤 5）
 
-1. 逐条核对上方 14 条 + E1~E3；
+1. 逐条核对上方全量硬约束（条数以本卡表为准）+ E1~E3；
 2. 编译验证：`mvn compile`（模块级）通过；
 3. 输出「待补事项」：仓储 SQL、Controller、投影/MQ 装配、单测补齐；
 4. 提示用户运行规则容器与聚合根单测骨架。
