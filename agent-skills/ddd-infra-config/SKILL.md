@@ -45,7 +45,8 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 
 ### 3.4 建表 SQL
 
-- 按 `kb/bp/aggregate-database-design.md` §4 生成：主表（`entityId` 主键 + `version` + 审计列）、子实体表（`id` 自增 + 逻辑外键 `order_id` 普通索引）、值对象 JSON 列、投影副本表（`REPLICA_ID` 唯一、副本列）。
+- 按 `kb/bp/aggregate-database-design.md` §5 生成：主表（`version` + 四审计列 + 值对象列）、子实体表（自身标识列 + 逻辑外键 `order_id` 普通索引）、值对象 JSON 列、投影副本表（`REPLICA_ID` 唯一、副本列）。
+- **标识模式先问用户，不得默认其一**（卡 §5 两种模式，命名统一 `{聚合名}_id`）：模式一 `order_id` 为 `AUTO_INCREMENT` 主键并直接充当 `entityId`（ID 后生成，仓储需 `useGeneratedKeys` + `keyProperty="entityId"` 回填，插入必须先主表后子表）；模式二 `id` 为物理自增主键、`order_id` 为 `UNIQUE KEY`（ID 代码生成，插入顺序无约束）。子表逻辑外键 `order_id` 两种模式均不入领域、不入 resultMap。
 - 用到框架能力时还需建框架表（脚本随 `pragmatic-ddd-mybatis` jar 发布，直接取出执行）：Outbox → `outbox_message`；补偿 durable → `compensation_log`；DB 号段 ID → `id_segment`。
 - SQL 落在 `infrastructure/.../schema/*.sql`（或 `resource/`），与仓储 XML 同模块。
 
@@ -73,7 +74,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 - [ ] 事件管理器/注册中心注入
 - [ ] Outbox 或 RocketMQ 二选一，未混用
 - [ ] ES/Redis 源 Bean 就位（若需）
-- [ ] 建表 SQL 含 version + 审计列 + 逻辑外键索引；所用框架能力的表已建
+- [ ] 建表 SQL 含 version + 审计列 + 逻辑外键索引；标识模式已按用户选定（模式一含自增回填顺序，模式二含 `{聚合名}_id` 唯一索引）；所用框架能力的表已建
 - [ ] 所有秘密 `${ENV}` 占位
 - [ ] domain 层零基础设施依赖（硬约束 9）
 

@@ -35,7 +35,7 @@
 | `bp/application-collaboration.md` | 应用层 WriteService 编排 | S4 / S7 |
 | `bp/code-comment-specification.md` | 代码注释规范（实体字段 / 业务方法 / Input 类与字段） | S4 / S5 / S7 |
 | `bp/repository-design.md` | 仓储设计（AbstractRepository / TrackedList / 乐观锁） | S4 / S3 / S7 |
-| `bp/aggregate-database-design.md` | 聚合数据库设计（两层判定：表边界 + 值对象落列 A/B） | S3 / S4 / S7 / ddd-design-doc |
+| `bp/aggregate-database-design.md` | 聚合数据库设计（两层判定：表边界 + 值对象落列 A/B；标识两模式：自增即 entityId / 代码生成 + 唯一索引） | S3 / S4 / S7 / ddd-design-doc |
 | `bp/projection-design.md` | 投影读模型四角色与硬约束 | S6 / S7 |
 | `bp/projection-api.md` | 投影基类可编译方法签名（零上下文场景必读） | S6 / S7 |
 | `bp/broadcast.md` | 广播事件（聚合间一写多读，仅最终一致） | S5 / S7 |
@@ -105,6 +105,6 @@
 
 ---
 
-> **版本**：v2.6
-> **变更**：v2.6（2026-11-01）**坐标重验 + ④ 入 KB + 卡口硬化** —— `api-contract` Maven 坐标改为真实值 `com.pragmatic-ddd:*:2.1.0`（已发 Central）并声明 `groupId ≠ 包前缀`、artifactId 以 BOM 为唯一权威；清除不存在的 `pragmatic-ddd-outbox` 模块名；新增 `bp/design-doc-accepted`（v2.5 新增的源当时未收口，现补齐源↔卡↔技能三层）；`verify-kb.sh` 区分 STALE / BROKEN / PRODUCT DRIFT 并支持 `code-tree` 源哈希，不再静默跳过缺源；卡数口径按实际修正。v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）。v2.0（2026-10-28）PostgreSQL 支持入 KB。更早变更见 `_manifest.json` 的 note
+> **版本**：v2.7
+> **变更**：v2.7（2026-11-02）**标识两模式入卡** —— `bp/aggregate-database-design` 重蒸馏（源 commit `4fcc562`）：§5 主键与标识改为模式一（`{聚合名}_id` 自增主键直接充当 `entityId`，ID 后生成）/ 模式二（物理 `id` 自增主键 + `{聚合名}_id` 唯一索引，ID 代码生成）两选，明确逻辑外键不受模式影响；§6 补「标识模式决定整存整取顺序」（模式一先主后子靠 `useGeneratedKeys` 回填）；`api-contract` 坐标段补红线「仓库 pom 为开发版 `2.2.0-SNAPSHOT`，不得写入消费方坐标」；`ddd-infra-config` §3.4 读卡章节号 `§4`→`§5` 并要求先与用户确认标识模式。v2.6（2026-11-01）**坐标重验 + ④ 入 KB + 卡口硬化** —— `api-contract` Maven 坐标改为真实值 `com.pragmatic-ddd:*:2.1.0`（已发 Central）并声明 `groupId ≠ 包前缀`、artifactId 以 BOM 为唯一权威；清除不存在的 `pragmatic-ddd-outbox` 模块名；新增 `bp/design-doc-accepted`（v2.5 新增的源当时未收口，现补齐源↔卡↔技能三层）；`verify-kb.sh` 区分 STALE / BROKEN / PRODUCT DRIFT 并支持 `code-tree` 源哈希，不再静默跳过缺源；卡数口径按实际修正。v2.5（2026-11-01）**一轮三件套 + 轮次** —— 取消 `bp.design-doc-facts`（现状以代码为准）；文件名加 `-V{NN}`、不再覆盖写；三件套固定产出（取消点单）；落地即冻结（只允许文字勘误与 §10.6 实施备注）；轮次判定三条判据 + 拿不准必问；新增「glob + 取最大 V」解析规则。v2.4（2026-10-29）交付节奏改为闸门制——语义文档多轮迭代后定稿（G1/G2），②③ 由用户点单（G3/G4）；新增回流矩阵（下游发现业务口径缺失先回 ① 再逐级对齐）与三份一致性校验；新增 `bp.design-doc-template` 为流程权威。v2.2（2026-10-29）文档体系改为「三契约 + 一快照」。v2.1（2026-10-29）设计文档体系改为三层（语义 → 写 → 读）。v2.0（2026-10-28）PostgreSQL 支持入 KB。更早变更见 `_manifest.json` 的 note
 > **适用框架版本**：`2.1.0`——**以 `_manifest.json` 的 `framework_version` 为单一权威**；各卡头部的「框架版本」记录的是**派生当时**对应的版本，不随整体适用版本回填

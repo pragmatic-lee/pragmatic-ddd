@@ -1,6 +1,6 @@
 # BP 卡：聚合数据库设计原则（aggregate-database-design）
 
-> 源：`documentation/best-practices/aggregate-database-design.md` · 派生时间：2026-10-29（两层判定 / A·B 形态同步） · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/aggregate-database-design.md` · 派生时间：2026-11-02（§5 标识两模式入卡） · 框架版本：2.1.0
 
 ## 1. 核心原则：表边界 = 聚合边界
 
@@ -9,7 +9,7 @@
 ```text
 Order 聚合
 ├─ t_order          基础列 + 金额展开列（A） + Customer/Address JSON（B） + search_* 生成列 + version
-└─ t_order_item     子实体表（OrderItem，独立 id，TrackedList 差量）
+└─ t_order_item     子实体表（OrderItem，独立标识 order_item_id，TrackedList 差量）
 ```
 
 不跨聚合建物理外键：聚合间只持 ID，一致性由应用层 + 单聚合事务保证。
@@ -67,7 +67,32 @@ Order 聚合
 
 ## 5. 表结构规范
 
-- 主键：聚合根表 = `entityId`（非自增）；子实体表 = 自身 `id`，`order_id` 作逻辑外键（过滤键），不入领域、不映射。
+**标识命名**：统一 `{聚合名}_id`——聚合根 `order_id`、子实体 `order_item_id`；聚合根与子实体适用同一套模式。
+
+**标识有两种落地模式，由项目按需选用（本卡不替用户取舍，未确认前先向用户提问，不得默认其一）**
+
+| 项 | 模式一：ID 后生成 | 模式二：代码生成 |
+| --- | --- | --- |
+| `{聚合名}_id` 角色 | `AUTO_INCREMENT` **主键**，直接充当 `entityId` | **唯一索引**（`UNIQUE KEY`）= `entityId` |
+| 物理主键 | 就是 `{聚合名}_id` | 另设 `id` `AUTO_INCREMENT`（行号，不参与领域） |
+| ID 来源 | 数据库生成，**落库后才有** | 落库前由应用层 / `IdSegmentMapper` 生成 |
+| 写入后动作 | 需自增键回填（见 §6） | 无需回填 |
+
+```sql
+-- 仅标识列差异；业务列、search_* 生成列、version、四审计列两种模式完全一致
+-- 模式一
+order_id   BIGINT NOT NULL AUTO_INCREMENT COMMENT '聚合根 entityId（插后生成）',
+PRIMARY KEY (order_id)
+
+-- 模式二
+id         BIGINT NOT NULL AUTO_INCREMENT COMMENT '物理行号（非 entityId）',
+order_id   BIGINT NOT NULL COMMENT '聚合根 entityId（代码生成）',
+PRIMARY KEY (id),
+UNIQUE KEY uk_order_id (order_id)
+```
+
+**逻辑外键不受标识模式影响**：子表指向父聚合的 `order_id` 始终是**逻辑外键**（过滤键），不是领域属性、不映射进 `OrderItem`、不入 resultMap，仅用于查询与级联；聚合根标识走哪种模式，该列都不变。
+
 - 映射：值对象默认 JSON；A 型用嵌套属性映射；派生列只读。
 - 审计列：`created_at/by`、`updated_at/by` 由父类托管，必须预留。
 - 版本列：主表必须有 `version`（乐观锁 CAS），子表不设。
@@ -75,7 +100,12 @@ Order 聚合
 
 ## 6. 一致性策略
 
-无物理外键（应用事务 + 先子后主）；`version` CAS 冲突抛 `OptimisticLockingFailureException`；子集合 `TrackedList` 只发增量。
+无物理外键（应用层事务 + 仓储级联，清理先子后主以免孤儿行）；`version` CAS 冲突抛 `OptimisticLockingFailureException`；子集合 `TrackedList` 只发增量 INSERT/DELETE，不整表覆盖。
+
+**标识模式决定整存整取的顺序**：
+
+- **模式一（ID 后生成）**：**必须先插主表** → MyBatis 自增键回填（`useGeneratedKeys` + `keyProperty="entityId"`）把库生成的 `order_id` 写回聚合根 `entityId` → 以该 `order_id` 回填子表逻辑外键 → 批量插子实体，同样用 `useGeneratedKeys` 把 `order_item_id` 写回 `TrackedList` 内子实体，使内存聚合与 DB 行一致；`TrackedList` 差量基于加载态计算。
+- **模式二（代码生成）**：`order_id` / `order_item_id`（唯一索引）落库前已知，物理主键 `id` 自增但不参与领域；主表与子表逻辑外键可先行填充，**插入顺序无约束、无需回填**。
 
 ## 7. 常见反模式
 

@@ -132,7 +132,7 @@ agent-skills/
 
 ---
 
-> **版本**：v2.3（KB v2.6：`api-contract` 坐标重验为 `com.pragmatic-ddd:*:2.1.0`、新增 `bp.design-doc-accepted`（④ 判决名单入源↔卡↔技能三层）、`verify-kb.sh` 升为四态哈希引擎并支持 `code-tree` 源；35 张 bp 卡，共 37 张；派生自 documentation/best-practices/ 与 pragmatic-ddd 源码 + pom）
+> **版本**：v2.3（KB v2.7：`bp.aggregate-database-design` 重蒸馏纳入「标识两模式」（自增即 entityId + `useGeneratedKeys` 回填 / 物理 `id` + `{聚合名}_id` 唯一索引），`api-contract` 坐标段补红线「开发版 `2.2.0-SNAPSHOT` 不得写入消费方坐标」，S3 建表口径同步改为先确认标识模式；35 张 bp 卡，共 37 张；派生自 documentation/best-practices/ 与 pragmatic-ddd 源码 + pom）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
 > **适用框架版本**：2.1.0（以 `kb/_manifest.json` 的 `framework_version` 为单一权威）
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)
