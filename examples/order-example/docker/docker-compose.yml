@@ -17,7 +17,7 @@ services:
     command: redis-server --appendonly yes
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 2. MySQL (基于镜像 mysql:8.0)
   mysql:
@@ -35,7 +35,7 @@ services:
       - ./mysql/init:/docker-entrypoint-initdb.d:ro  # 首次启动自动建库建表（幂等脚本，已有数据卷不触发）
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 3. Elasticsearch (基于镜像 docker.elastic.co/elasticsearch/elasticsearch:8.17.0)
   elasticsearch:
@@ -53,7 +53,7 @@ services:
       - ./es/plugins:/usr/share/elasticsearch/plugins
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 4. RocketMQ NameServer (基于镜像 apache/rocketmq:5.3.2)
   rmqnamesrv:
@@ -64,7 +64,7 @@ services:
     command: sh mqnamesrv
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 5. RocketMQ Broker (基于镜像 apache/rocketmq:5.3.2)
   rmqbroker:
@@ -85,7 +85,7 @@ services:
       - rmqnamesrv
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 6. RocketMQ Dashboard (基于镜像 apacherocketmq/rocketmq-dashboard:2.1.0)
   rmqdashboard:
@@ -99,7 +99,7 @@ services:
       - rmqnamesrv
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 7. Qdrant (向量数据库，基于镜像 qdrant/qdrant)
   qdrant:
@@ -112,7 +112,7 @@ services:
       - ./qdrant/storage:/qdrant/storage
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 8. Kafka (基于镜像 confluentinc/cp-kafka:7.6.1，底层 Kafka 3.6.1，使用 KRaft 模式，无需 ZooKeeper)
   kafka:
@@ -146,7 +146,7 @@ services:
         exec /etc/confluent/docker/run
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 9. Kafka UI (基于镜像 provectuslabs/kafka-ui，用于可视化查看主题与消息)
   kafkaui:
@@ -161,7 +161,7 @@ services:
       - kafka
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 10. Order Example (业务示例应用，基于镜像 order-example:2.0.0)
   order-example:
@@ -178,7 +178,7 @@ services:
       - ./order-example/logs:/app/logs
     networks:
       - dev-network
-    restart: always
+    restart: no
 
   # 11. PostgreSQL (基于本地已构建的 postgres 镜像)
   postgres:
@@ -196,4 +196,4 @@ services:
       - ./pgsql/init:/docker-entrypoint-initdb.d:ro  # 首次启动自动建库建表（幂等脚本，已有数据卷不触发）
     networks:
       - dev-network
-    restart: always
+    restart: no
