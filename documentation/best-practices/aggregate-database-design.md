@@ -196,8 +196,13 @@ CREATE INDEX idx_order_search_amount ON t_order (search_amount);
 
 ### 5.1 主键与标识
 
-- **聚合根表主键** = 聚合根 `entityId`（如 `order_id`），由应用层或 ID 生成器（`IdSegmentMapper`）生成，非自增。
-- **子实体表主键** = 子实体自身 ID（`id`），`order_id` 作为**逻辑外键**（过滤键），不是领域属性，不映射进 `OrderItem`，仅用于查询与级联。
+聚合根与子实体的唯一标识均支持两种落地模式，由项目按需选用，本文不替用户做取舍（命名统一为 `{聚合名}_id`，如订单聚合为 `order_id`、订单项为 `order_item_id`）。
+
+- **聚合根表标识列** = `order_id`，两种模式：
+  - **模式一**：`order_id` 为 `AUTO_INCREMENT` 主键，直接作为聚合根 `entityId`，ID 落库后由数据库生成（ID 后生成）。因 ID 后置，需由仓储在插入后通过 MyBatis 自增键回填（`useGeneratedKeys`）将 `order_id` 写回聚合根 `entityId`、将 `order_item_id` 写回子实体，再回填子表 `order_id` 逻辑外键（详见 §7）。
+  - **模式二**：`id` 为 `AUTO_INCREMENT` 主键（物理行号），另设 `order_id` 为**唯一索引（`UNIQUE KEY`，= `entityId`）**，由应用层/`IdSegmentMapper` 落库前代码生成。
+- **子实体表自身标识**（`order_item_id`）同样适用上述两种模式。
+- **子表指向父聚合的列**（`order_id`）始终是**逻辑外键**（过滤键），不是领域属性，不映射进 `OrderItem`，仅用于查询与级联；它不受上面两种模式影响，聚合根标识走何种模式该列都不变。
 
 ### 5.2 字段与列映射
 
@@ -211,10 +216,12 @@ CREATE INDEX idx_order_search_amount ON t_order (search_amount);
 
 ### 5.3 建表示例（Order）
 
+> 聚合根 `order_id` 与子实体 `order_item_id` 的标识支持两种模式，下面各给一份完整建表语句，差异仅在标识列；其余业务列、`search_*` 生成列、`version`、审计列两种模式一致。
+
 ```sql
--- 聚合根主表：t_order（A / B 混用示例）
+-- 模式一：DB 自增列 = entityId（ID 后生成）
 CREATE TABLE t_order (
-    order_id            BIGINT       NOT NULL COMMENT '订单标识（聚合根 entityId）',
+    order_id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '订单标识（聚合根 entityId，插后生成）',
     customer            JSON         NOT NULL COMMENT '客户值对象（B）',
     status              INT          NOT NULL COMMENT '订单状态（枚举 CODE）',
     shipping_address    JSON         NULL COMMENT '收货地址值对象（B）',
@@ -235,9 +242,53 @@ CREATE TABLE t_order (
     KEY idx_order_search_customer (search_customer_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '订单聚合根表';
 
--- 聚合内子实体表：t_order_item
+-- 聚合内子实体表：t_order_item（模式一）
 CREATE TABLE t_order_item (
-    id             BIGINT       NOT NULL COMMENT '订单项标识',
+    order_item_id   BIGINT       NOT NULL AUTO_INCREMENT COMMENT '订单项标识（子实体 entityId，插后生成）',
+    order_id        BIGINT       NOT NULL COMMENT '逻辑外键（查询过滤键，非领域属性）',
+    product_id      BIGINT       NOT NULL,
+    product_name    VARCHAR(128) NOT NULL,
+    spec            VARCHAR(64)  NULL,
+    price           JSON         NULL COMMENT '金额值对象',
+    quantity        INT          NOT NULL,
+    subtotal        JSON         NULL COMMENT '金额值对象',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by      VARCHAR(64)  NULL,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by      VARCHAR(64)  NULL,
+    PRIMARY KEY (order_item_id),
+    KEY idx_order_id (order_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '订单项子实体表';
+
+-- 模式二：代码生成 entityId + 物理自增列（id 为主键，order_id / order_item_id 为唯一索引）
+CREATE TABLE t_order (
+    id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '物理自增主键（行号，非 entityId）',
+    order_id          BIGINT       NOT NULL COMMENT '订单标识（聚合根 entityId，代码生成，落库前已知）',
+    customer          JSON         NOT NULL COMMENT '客户值对象（B）',
+    status            INT          NOT NULL COMMENT '订单状态（枚举 CODE）',
+    shipping_address  JSON         NULL COMMENT '收货地址值对象（B）',
+    amount_value      DECIMAL(18, 2) NOT NULL COMMENT '实付金额数值（A：Money 展开）',
+    currency          CHAR(3)      NOT NULL COMMENT '币种（A：Money 展开）',
+    remark            VARCHAR(255) NULL,
+    paid_at           DATETIME     NULL,
+    payment_method    INT          NULL COMMENT '支付方式（枚举 CODE）',
+    search_customer_id BIGINT
+        GENERATED ALWAYS AS (CAST(JSON_UNQUOTE(JSON_EXTRACT(customer, '$.customerId')) AS UNSIGNED)) STORED
+        COMMENT '派生列：按客户筛选（生成列，不进领域模型）',
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by        VARCHAR(64)  NULL,
+    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by        VARCHAR(64)  NULL,
+    version           BIGINT       NOT NULL DEFAULT 1 COMMENT '乐观锁版本',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_order_id (order_id),
+    KEY idx_order_search_customer (search_customer_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '订单聚合根表';
+
+-- 聚合内子实体表：t_order_item（模式二）
+CREATE TABLE t_order_item (
+    id             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '物理自增主键（行号）',
+    order_item_id  BIGINT       NOT NULL COMMENT '订单项标识（子实体 entityId，代码生成）',
     order_id       BIGINT       NOT NULL COMMENT '逻辑外键（查询过滤键，非领域属性）',
     product_id     BIGINT       NOT NULL,
     product_name   VARCHAR(128) NOT NULL,
@@ -250,7 +301,8 @@ CREATE TABLE t_order_item (
     updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by     VARCHAR(64)  NULL,
     PRIMARY KEY (id),
-    KEY idx_order_id (order_id)  -- 逻辑外键索引，无物理外键约束
+    UNIQUE KEY uk_order_item_id (order_item_id),
+    KEY idx_order_id (order_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '订单项子实体表';
 ```
 
@@ -278,6 +330,9 @@ CREATE TABLE t_order_item (
 - **无物理外键**：靠应用层事务 + 仓储级联（先子后主）保证一致性，避免孤儿行。
 - **乐观锁**：聚合根表 `version` 列做 CAS，冲突抛 `OptimisticLockingFailureException`。
 - **子集合差量**：`TrackedList` 只发增量 INSERT/DELETE，不整表覆盖。
+- **标识模式与整存整取顺序**：两种标识模式对仓储整存整取的顺序要求不同。
+  - **模式一（ID 后生成）**：必须先插入主表，再通过 MyBatis 自增键回填（`useGeneratedKeys` + `keyProperty="entityId"`）将数据库生成的自增 `order_id` 写回聚合根 `entityId`；随后以该 `order_id` 回填子表逻辑外键，并批量插入子实体，同样用 `useGeneratedKeys` 把 `order_item_id` 写回 `TrackedList` 内子实体，使内存聚合与 DB 行一致；`TrackedList` 差量基于加载态计算。
+  - **模式二（代码生成）**：`order_id` / `order_item_id`（唯一索引）落库前已知，物理主键 `id` 自增但不参与领域；主表与子表逻辑外键可先行填充，插入顺序无约束，无需回填。
 
 ---
 
