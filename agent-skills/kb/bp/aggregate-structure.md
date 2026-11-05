@@ -1,6 +1,6 @@
 # BP 卡：聚合目录落地骨架（aggregate-structure）
 
-> 源：`documentation/best-practices/aggregate-structure.md` · 派生时间：2026-11-02（新增「类类型 → 包」落点判据表，本卡成为包落点唯一权威） · 框架版本：2.1.0
+> 源：`documentation/best-practices/aggregate-structure.md` · 派生时间：2026-11-05（判据表扩至四层：新增应用层 / 实现层 12 行；骨架树补 `action/` `compensation/` `requirement/` 与 `projection/query/`；`service/` 行改注解按 category） · 框架版本：2.1.0
 
 ## 1. 本质与定位
 
@@ -21,11 +21,13 @@
 │   ├── updater/  # EntityUpdater 修改场景编排
 │   ├── resolver/ # Command → 领域输入适配
 │   ├── rule/     # 规则容器组装
-│   ├── service/  # 领域服务实现（@Service）
+│   ├── service/  # 领域服务实现（注解按 category：EVENT_SUBSCRIBER→@Component，其余→@Service）
+│   ├── action/  compensation/ # 可补偿动作 / 兜底处理器
 │   └── subscriber/ # 事件订阅登记
 ├── domain/{agg}/              # Domain：业务原子零件与契约（无 acl/ 包）
 │   ├── model/  event/  operation/  param/  rule/
-│   ├── service/  calculator/  dependency/  repository/  projection/  config/
+│   ├── service/  calculator/  dependency/  repository/  requirement/  config/
+│   ├── projection/            # 投影契约（含 query/ 查询条件三族、replica/ 副本版本）
 └── infrastructure/            # Infrastructure：技术实现，落地领域层契约（类型优先）
     ├── persistent/{agg}/      # 仓储实现 + 投影（projector/searcher/reducer/replica/源/版本/对账）
     ├── dependency/{agg}/      # 外部依赖实现（ACL 网关）；跨聚合共享放 dependency/shared/
@@ -48,9 +50,11 @@
 | `domain/{agg}/dependency` | 核心：依赖体系 |
 | `domain/{agg}/repository` | repository-design |
 | `domain/{agg}/projection` | projection-design |
+| `domain/{agg}/requirement` | application-collaboration |
 | `application/{agg}/input` | application-collaboration |
 | `application/{agg}/factory`+`updater`+`resolver` | domain-service · application-collaboration |
 | `application/{agg}/service` | domain-service |
+| `application/{agg}/action` + `compensation` | application-collaboration |
 | `application/{agg}/subscriber` | projection-design · rocketmq-config |
 | `infrastructure/persistent/{agg}/repository` | repository-design · mybatis-config |
 | `infrastructure/persistent/{agg}/projection` | projection-design · elasticsearch-config |
@@ -78,6 +82,18 @@
 | 仓储抽象 | `extends AbstractRepository<ID, T>` | `domain/{agg}/repository/` | — |
 | 投影契约 | `I{Agg}{Store}Source` / `{Agg}{View}Projection` | `domain/{agg}/projection/` | `infrastructure/` |
 | 应用层 Input | `@Data`，命名 `{Action}{Agg}Input`，位于 `application/` 下 | `application/{agg}/input/` | 即使实现 `IParamObject` 也不入 `domain/` |
+| 应用写服务 | `extends AbstractApplicationService` 且 `implements ICommandApplicationService` | `application/{agg}/` | `service/` |
+| 应用读服务 | `implements IQueryApplicationService`（无基类） | `application/{agg}/` | `service/` |
+| 领域服务实现 | 实现 `I{Agg}{X}Service` / `I{Agg}{X}Handle` 且契约带 `@DomainService` | `application/{agg}/service/` | 根层 |
+| 订阅注册表 | `@Configuration` + 构造器注入 `IEventRegistry`，命名 `{Agg}EventSubscriberRegistry` | `application/{agg}/subscriber/` | `service/`（实现类同禁） |
+| 应用层工厂 / 修改器 / 适配器 / 规则装配 | `EntityFactory` / `EntityUpdater` / resolver / `{Agg}RuleConfig` | `application/{agg}/` 下 `factory` / `updater` / `resolver` / `rule` | — |
+| 可补偿动作 / 兜底处理器 | `ICompensableAction` / `ICompensationHandler` | `application/{agg}/` 下 `action` / `compensation` | — |
+| 外部需求声明 | record `implements IExternalRequirement` | `domain/{agg}/requirement/` | `param/` |
+| 查询条件对象 | `{Agg}{X}Query`（sealed 三族） | `domain/{agg}/projection/query/` | `model/` |
+| 仓储实现 | `extends Abstract{Agg}Repository` | `infrastructure/persistent/{agg}/repository/` | `domain/` |
+| 投影构件 | Projector / Source / Reducer / Replica / 版本 / 对账 | `infrastructure/persistent/{agg}/projection/…` | `domain/` |
+| 依赖适配器 | 实现 `I{Agg}{X}Dependency` | `infrastructure/dependency/{agg}/`（共享 `shared/`） | `application/` |
+| 装配配置 | `@Configuration` | `infrastructure/config/`（聚合级 `config/{agg}/`） | `domain/` |
 
 - **不得简化成「只看标记接口」**：Input 与领域参数对象可实现同一个 `IParamObject`，落点仍按所在层区分。
 - **参数对象命名固定 `*Data`**（`{Agg}InitData` / `{Agg}{Action}Data`），不用 `*Param`。

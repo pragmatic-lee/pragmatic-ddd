@@ -1,6 +1,6 @@
 # BP 卡：事件订阅领域服务落地模式（event-subscriber-pattern）
 
-> 源：`documentation/best-practices/event-subscriber-pattern.md` · 派生时间：2026-10-28 · 框架版本：2.0.0
+> 源：`documentation/best-practices/event-subscriber-pattern.md` · 派生时间：2026-11-05（补订阅同聚合绑定与 `subscriber/` 内容边界） · 框架版本：2.1.0
 
 ## 1. 本质与定位
 
@@ -34,6 +34,9 @@ infrastructure/persistent/{agg}/projection/  Projector / Source
 | 别名 | kebab-case `{动作}-on-{事件}` | `sms-notify-on-order-paid` |
 
 > 接口名必须体现业务意图（发短信/发积分/投影到 ES），不得用 `Handler`/`Processor`/`Listener` 占位。
+
+> ⚠️ **订阅绑定同聚合**：注册表只登记**本聚合** `domain/{agg}/event/` 的事件、实现只来自**本聚合** `application/{agg}/service/`；不得登记其它聚合的事件或实现。`subscriber/` 只放 `{聚合}EventSubscriberRegistry`，`IHandle` 实现不放这里。
+> 判定：逐行看 `registerSubscriber(别名, XxxEvent.class, 实现)` 的事件包与实现包是否都在本聚合。
 
 ## 3. 落地方式（核心）
 
@@ -82,6 +85,8 @@ infrastructure/persistent/{agg}/projection/  Projector / Source
 | 物化版本取 `order.getOldVersion()` | 事件路径取 `event.getVersion()` |
 | 外部副作用不带幂等键 | 用聚合标识作 `bizId` |
 | 订阅者内同步编排多聚合写 | 写编排放应用服务 |
+| `IHandle` 实现放 `subscriber/` | 实现留 `service/`；`subscriber/` 只放 `{聚合}EventSubscriberRegistry` |
+| 把别聚合的事件/实现登记进本聚合注册表 | 注册表只登记本聚合 `domain/{agg}/event/` 事件与本聚合 `service/` 实现 |
 
 ## 6. 被读于
 

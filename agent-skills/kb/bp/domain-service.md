@@ -1,6 +1,6 @@
 # BP 卡：领域服务落地模式（domain-service）
 
-> 源：`documentation/best-practices/domain-service.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/domain-service.md` · 派生时间：2026-11-05（补实现注解按 category 的判定） · 框架版本：2.1.0
 
 ## 1. 本质与定位
 
@@ -17,7 +17,7 @@ domain/{agg}/
 ├── service/    事件订阅 / 校验规则 / 能力供给契约
 └── rule/       规则容器 + 注册表
 application/{agg}/
-├── service/    领域服务实现（@Service/@Component）
+├── service/    领域服务实现（注解按 category：EVENT_SUBSCRIBER→@Component，其余→@Service）
 ├── resolver/   Command DTO → 领域输入适配
 └── factory/    聚合工厂（先算后赋）
 ```
@@ -44,7 +44,7 @@ application/{agg}/
 
 ## 4. 落地方式（核心）
 
-通用三步：①领域层定义接口 + 标 `@DomainService(category, description, targetName)` ②应用层 `@Service`/`@Component` 实现 ③按分类接入机制。
+通用三步：①领域层定义接口 + 标 `@DomainService(category, description, targetName)` ②应用层实现，注解按 category 定（`EVENT_SUBSCRIBER` → `@Component`，其余 → `@Service`；类名 `*Handle` 对 `@Component`、`*Service`/`*Calculator`/`*Generator` 对 `@Service`，冲突以 category 为准；**约定，不判阻断**）③按分类接入机制。
 
 - **BUSINESS_RULE**：外部校验契约方法返回 `RuleCheckResult`，标 `BUSINESS_RULE`，构造器注入规则容器 `OrderRule`（见 `order-rule-pattern.md`）。
 - **EVENT_SUBSCRIBER**：见 `event-subscriber-pattern.md`。

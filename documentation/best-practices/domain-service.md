@@ -74,7 +74,7 @@ application/order/
 ### 5.1 通用三步
 
 1. **领域层**定义接口 + 标注 `@DomainService(category, description, targetName)`。
-2. **应用层** `@Service` / `@Component` 实现，可依赖基础设施。
+2. **应用层** 实现，可依赖基础设施；实现注解按 `category` 定：`EVENT_SUBSCRIBER` → `@Component`（实现名去 `I`，如 `OrderPaidSmsNotifyHandle`），其余 → `@Service`（如 `OrderCustomerPermissionService`）。类名与注解互校：`*Handle` 对 `@Component`，`*Service` / `*Calculator` / `*Generator` 对 `@Service`；两者冲突以 `category` 为准。（约定，不作为阻断判据）
 3. 按分类接入运行机制（事件订阅注册 / 校验规则注入规则容器 / 属性计算进工厂 / 能力供给进构造）。
 
 ### 5.2 业务规则（BUSINESS_RULE）——见 [聚合业务规则（OrderRule 范式）](./order-rule-pattern.md)

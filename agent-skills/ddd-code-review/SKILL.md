@@ -1,6 +1,6 @@
 ---
 name: ddd-code-review
-description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐条核对硬约束（注册表 public、禁用 @Data、先 recordOperation 后 collectEvent、Lombok 注解、domain 零基础设施依赖、枚举出入参类型等）与框架 API 契约；提供设计文档时另做「设计符合性对账」（实现是否与 ②③ 一致）。当用户说「检查一下这段 DDD 代码合不合规」「评审聚合代码」「对照设计文档看看实现对不对」「ddd-reviewer 跑一遍」时触发。不做业务正确性判断，只做框架约定与设计一致性评审；发现违规输出阻断项清单。
+description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐条核对硬约束（注册表 public、禁用 @Data、先 recordOperation 后 collectEvent、Lombok 注解、domain 零基础设施依赖、枚举出入参类型、应用服务落点与注入边界、订阅三要素齐备等）与框架 API 契约；提供设计文档时另做「设计符合性对账」（实现是否与 ②③ 一致）。当用户说「检查一下这段 DDD 代码合不合规」「评审聚合代码」「对照设计文档看看实现对不对」「ddd-reviewer 跑一遍」时触发。不做业务正确性判断，只做框架约定与设计一致性评审；发现违规输出阻断项清单。
 ---
 
 # ddd-code-review（类合规评审，S7）
@@ -29,7 +29,8 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ### 步骤 1：加载评审基准
 
-- Read `kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一评审基准；包落点类约束（15）的判据表在 `kb/bp/aggregate-structure.md`。
+- Read `kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一评审基准；包落点判据表（约束 15）在 `kb/bp/aggregate-structure.md`。
+- **应用服务层**另读 `kb/bp/application-collaboration.md`（落点 / 读写注入边界 / 反模式）；**订阅侧**另读 `kb/bp/event-subscriber-pattern.md`（三要素 / 别名 / 同聚合绑定）。
 - 不确定签名 → Read `kb/api-contract.md`（权威符号表）。
 
 ### 步骤 2：逐条核对（结构化输出）
@@ -49,6 +50,9 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 | 边界 | 13 跨聚合只持 ID |
 | 父类能力 | 14 不自定义 ID/审计/版本/软删 |
 | 包落点 | 15 参数对象在 `domain/{agg}/param/`（不在 `model/`）；枚举 `model/enums/`、值对象 `model/valueobject/`、事件 `event/`；Input 仍在 `application/{agg}/input/`（按类型 + 所在层双条件判，不得只看 `IParamObject`） |
+| 应用服务落点与注入 | 16 WriteService / ReadService 落 `application/{agg}/` 根层、不进 `service/`；`service/` 只放 `@DomainService` 契约实现；写侧禁投影源 / `Projector` / `Reducer` / ES·Redis 客户端，读侧禁写仓储 / `IEventManager` / Updater / `WriteService`；两服务互不注入 |
+| 订阅三要素 | 17 契约（`@DomainService(EVENT_SUBSCRIBER, targetName=事件简单类名)`）+ 实现（`service/`）+ 注册行，缺一即违规；注册的 `Class<T>` 须与 `IHandle<T>` 的 `T` 一致 |
+| 订阅同聚合绑定 | 17 注册表只登记本聚合 `domain/{agg}/event/` 的事件与本聚合实现；`subscriber/` 只放 `{Agg}EventSubscriberRegistry`（`IHandle` 实现不放这里） |
 
 ### 步骤 3：输出评审报告
 
@@ -81,10 +85,11 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ## 防幻觉
 
-- 评审依据仅是 `kb/hard-constraints.md` + `kb/api-contract.md`；不引用框架不存在的约定。
+- 评审依据：`kb/hard-constraints.md`（红线基准）+ `kb/api-contract.md`（符号权威）+ `kb/bp/aggregate-structure.md`（包落点判据表）+ `kb/bp/application-collaboration.md`（应用服务落点与注入边界）+ `kb/bp/event-subscriber-pattern.md`（订阅三要素与同聚合绑定）；不引用框架不存在的约定。
+- **阻断只按硬约束表判**（条数以卡为准）；bp 卡与判据表里更细的表述用于**给修复建议**，不额外升格为阻断项。
 - 拿不准某条约束是否适用 → 标记「待人工确认」，不臆断违规。
 
 ## 验收（对照路线图 §8）
 
-- A3 逐条核对全量硬约束 + E1~E3，零遗漏、零误判、零幻觉符号。
+- A3 逐条核对全量硬约束（含 16 / 17）+ E1~E3，零遗漏、零误判、零幻觉符号。
 - 已知违规代码对照「角色评审 vs Skill 评审」阻断项召回率（阶段 3 可选）。

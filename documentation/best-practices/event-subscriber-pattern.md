@@ -66,6 +66,10 @@ infrastructure/dependency/order/        SmsDependencyAdapter 等（实现领域 
 infrastructure/persistent/order/projection/  Projector / Source（读模型型订阅者编排的构件）
 ```
 
+> ⚠️ **订阅绑定同聚合**：`{聚合}EventSubscriberRegistry` 只登记**本聚合** `domain/{agg}/event/` 下的事件，实现只来自**本聚合** `application/{agg}/service/`；不得把其它聚合的事件或实现登记进本聚合注册表。注册表本身只放绑定行，`IHandle` 实现不放 `subscriber/`。
+>
+> 判定方法：逐行看 `registerSubscriber(别名, XxxEvent.class, 实现)`——事件类对照本聚合 `domain/{agg}/event/`、实现类对照本聚合 `application/{agg}/service/`，任一越界即违规。
+
 ### 2.2 命名规范
 
 | 元素 | 格式 | 示例 |
@@ -468,6 +472,8 @@ public final class EventSubscriberAliases {
 | 业务方法里手工发 `PURGE` | 动作语义脱离持久化事实，可能误删副本 | `PURGE` 只由 `triggerDataSyncHook` 删除路径产生 |
 | 外部副作用不带幂等键 | MQ 重投导致重复发短信 / 重复加积分 | 用聚合标识作 `bizId` 传给下游 |
 | 在 `handleEvent` 内同步编排多个聚合的写操作 | 跨聚合事务、锁竞争 | 写编排放应用服务；订阅者只做自己那一个动作 |
+| `IHandle` 实现类放进 `application/{agg}/subscriber/` | 目录名即语义失效；实现与绑定混放，按类型定位不到 | 实现留 `application/{agg}/service/`，`subscriber/` 只放 `{聚合}EventSubscriberRegistry` |
+| 把其它聚合的事件或实现登记进本聚合注册表 | 注册表退化成跨聚合总线，聚合边界失效 | 注册表只登记本聚合 `domain/{agg}/event/` 的事件与本聚合 `service/` 的实现 |
 
 ## 7. 下一步
 

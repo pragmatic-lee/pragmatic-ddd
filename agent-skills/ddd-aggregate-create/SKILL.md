@@ -63,9 +63,10 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 - `factory/{Agg}Factory implements EntityFactory<{Agg}, Create{Agg}Input>`：先算后赋。
 - `updater/{Agg}{Action}Updater implements EntityUpdater<{Agg}, {Action}Input>`：只转换 + 调充血方法，不校验/不持久化/不发事件（硬约束 11）。
 - `rule/{Agg}RuleConfig`：`@Configuration` 装配 `new {Agg}Rule(契约...)`。
-- `{Agg}WriteService extends AbstractApplicationService implements ICommandApplicationService`：显式注入执行器 + `Supplier<IUnitOfWork>`；`execute(agg, rule, repo, Consumer<T>)`。
+- `{Agg}WriteService extends AbstractApplicationService implements ICommandApplicationService`：**落 `application/{agg}/` 根层，不进 `service/`**；显式注入执行器 + `Supplier<IUnitOfWork>`；`execute(agg, rule, repo, Consumer<T>)`；方法只调 `execute` / `tryExecute` / `beginUnitOfWork`，不自行开事务 / 发事件 / `new` 执行器；**禁止注入投影源 / `Projector` / `Reducer` / ES·Redis 客户端**（硬约束 16）。
 - `repository/Abstract{Agg}Repository extends AbstractRepository<ID, {Agg}>`（领域层抽象，不实现 final 方法）。
 - 仓储基础设施实现、SQL、Controller、投影/MQ 装配：**本版仅占位提示**，交付「待补事项」。
+- **落点（硬约束 16）**：Write / Read 服务在 `application/{agg}/` 根层；`service/` 只放实现 `@DomainService` 契约的类；工厂 / 修改器 / 规则装配各归 `factory/` `updater/` `rule/`。
 
 ### 步骤 5：自检（逐条核对）
 

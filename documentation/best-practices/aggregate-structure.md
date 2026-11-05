@@ -26,7 +26,9 @@
 │   ├── updater/               #   EntityUpdater 修改场景编排
 │   ├── resolver/              #   Command → 领域输入适配
 │   ├── rule/                  #   规则容器组装
-│   ├── service/               #   领域服务实现（@Service）
+│   ├── service/               #   领域服务实现（注解按 category：EVENT_SUBSCRIBER→@Component，其余→@Service）
+│   ├── action/                #   可补偿动作 ICompensableAction（正向 / 回写 / 补偿三元组）
+│   ├── compensation/          #   兜底处理器 ICompensationHandler（durable 模式）
 │   └── subscriber/            #   事件订阅登记
 ├── domain/{agg}/              # Domain：业务原子零件与契约（无 acl/ 包）
 │   ├── model/                 #   聚合根 / 实体 / 值对象（含 enums/ valueobject/）
@@ -38,7 +40,8 @@
 │   ├── calculator/            #   属性计算契约
 │   ├── dependency/            #   外部依赖声明
 │   ├── repository/            #   仓储抽象
-│   ├── projection/            #   投影契约（含 replica/ 副本版本 / 补偿专属契约）
+│   ├── projection/            #   投影契约（含 query/ 查询条件三族、replica/ 副本版本、补偿专属契约）
+│   ├── requirement/           #   外部需求声明 IExternalRequirement（配合可补偿命令）
 │   └── config/                #   领域配置
 └── infrastructure/            # Infrastructure：技术实现，落地领域层契约（类型优先）
     ├── persistent/{agg}/      #   持久化：仓储实现 + 投影（projector/ searcher/ reducer/ + replica/ 写读一体源 / 版本 / 对账）
@@ -64,9 +67,11 @@
 | `domain/{agg}/dependency` | 外部依赖声明 | [核心：依赖体系](../core/dependency.md) |
 | `domain/{agg}/repository` | 仓储抽象 | [仓储设计原则](./repository-design.md) |
 | `domain/{agg}/projection` | 投影契约 | [投影读模型代码落地指南](./projection-design.md) |
+| `domain/{agg}/requirement` | 外部需求声明（record） | [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/input` | 业务语义入参 | [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/factory` + `updater` + `resolver` | 聚合装配 / 修改 / 适配 | [领域服务落地模式](./domain-service.md) · [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/service` | 领域服务实现 | [领域服务落地模式](./domain-service.md) |
+| `application/{agg}/action` + `compensation` | 可补偿动作 / 兜底处理器 | [应用层落地模式](./application-collaboration.md) |
 | `application/{agg}/subscriber` | 事件订阅登记 | [投影读模型代码落地指南](./projection-design.md) · [RocketMQ 配置设计原则](./rocketmq-config.md) |
 | `infrastructure/persistent/{agg}/repository` | 仓储实现 | [仓储设计原则](./repository-design.md) · [MyBatis 配置设计原则](./mybatis-config.md) |
 | `infrastructure/persistent/{agg}/projection` | 投影器 / 物化器 | [投影读模型代码落地指南](./projection-design.md) · [Elasticsearch 配置设计原则](./elasticsearch-config.md) |
@@ -94,6 +99,18 @@
 | 仓储抽象 | `extends AbstractRepository<ID, T>` | `domain/{agg}/repository/` | — |
 | 投影契约 | `I{Agg}{Store}Source` / `{Agg}{View}Projection` | `domain/{agg}/projection/` | `infrastructure/` |
 | 应用层 Input | `@Data`，命名 `{Action}{Agg}Input`，位于 `application/` 下 | `application/{agg}/input/` | 即使实现 `IParamObject` 也不入 `domain/` |
+| 应用写服务 | `extends AbstractApplicationService` 且 `implements ICommandApplicationService` | `application/{agg}/` | `service/` |
+| 应用读服务 | `implements IQueryApplicationService`（无基类） | `application/{agg}/` | `service/` |
+| 领域服务实现 | 实现 `I{Agg}{X}Service` / `I{Agg}{X}Handle` 且契约带 `@DomainService` | `application/{agg}/service/` | 根层 |
+| 订阅注册表 | `@Configuration` + 构造器注入 `IEventRegistry`，命名 `{Agg}EventSubscriberRegistry` | `application/{agg}/subscriber/` | `service/`（实现类同禁） |
+| 应用层工厂 / 修改器 / 适配器 / 规则装配 | `EntityFactory` / `EntityUpdater` / resolver / `{Agg}RuleConfig` | `application/{agg}/` 下 `factory` / `updater` / `resolver` / `rule` | — |
+| 可补偿动作 / 兜底处理器 | `ICompensableAction` / `ICompensationHandler` | `application/{agg}/` 下 `action` / `compensation` | — |
+| 外部需求声明 | record `implements IExternalRequirement` | `domain/{agg}/requirement/` | `param/` |
+| 查询条件对象 | `{Agg}{X}Query`（sealed 三族） | `domain/{agg}/projection/query/` | `model/` |
+| 仓储实现 | `extends Abstract{Agg}Repository` | `infrastructure/persistent/{agg}/repository/` | `domain/` |
+| 投影构件 | Projector / Source / Reducer / Replica / 版本 / 对账 | `infrastructure/persistent/{agg}/projection/…` | `domain/` |
+| 依赖适配器 | 实现 `I{Agg}{X}Dependency` | `infrastructure/dependency/{agg}/`（共享 `shared/`） | `application/` |
+| 装配配置 | `@Configuration` | `infrastructure/config/`（聚合级 `config/{agg}/`） | `domain/` |
 
 **两条硬说明**
 

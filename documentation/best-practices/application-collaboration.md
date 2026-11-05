@@ -29,6 +29,8 @@ application/{agg}/
 └── subscriber/                 # 事件订阅登记
 ```
 
+> ⚠️ **落点**：`{Agg}WriteService` / `{Agg}ReadService` 落 `application/{agg}/` **根层**，不得放进 `service/`；`service/` 只放领域服务实现（实现 `@DomainService` 契约的类，注解按 category 定，见 [领域服务落地模式](./domain-service.md)）。判据：实现 `ICommandApplicationService` / `IQueryApplicationService` → 根层；实现 `I{Agg}{X}Service` / `I{Agg}{X}Handle` 且契约带 `@DomainService` → `service/`。
+
 > 框架侧的可补偿命令执行器、注册表、补偿状态机与兜底中继统一放在 `io.pragmatic.ddd.application.compensation`（含 `relay/` 与 `spi/`），应用层只消费成品 Bean，不感知其内部状态机。
 
 ### 2.2 命名规范
@@ -272,7 +274,9 @@ public class OrderReadService implements IQueryApplicationService {
 
 > 读服务的**角色定位**（为什么门面放应用层、选源写在这里）与**两跳 / 裁剪的完整落地**见 [投影读模型代码落地指南](./projection-design.md#_4-8-选源由源支持哪些查询族在编译期决定)。本小节只区分读写两侧的应用服务形态，不重复投影机制的细节。
 
-> ⚠️ **读侧不发布领域事件、不持有写仓储**：读模型由写侧事件物化而来（见 [投影设计](./projection-design.md)），`ReadService` 只消费读模型副本，不反向触发业务事件，避免读路径污染写一致性。
+> ⚠️ **读写两侧的注入边界**：读侧**不注入**写仓储、`IEventManager`（即不发事件）、`EntityUpdater`、`WriteService`；写侧**不注入**投影源端口、`Projector`、`Reducer`、ES / Redis 客户端。两个服务**互不注入**（`ReadService` 不注入 `WriteService`，反之亦然）。理由是读模型由写侧事件物化而来（见 [投影设计](./projection-design.md)），读路径一旦能发事件或改聚合，就会污染写一致性。
+>
+> 判定方法：看构造器参数类型，不看类名——写侧出现 `*Source` / `*Projector` / `*Reducer` / `*Client` 即违规；读侧出现 `IEventManager` / Updater / 写仓储 / `*WriteService` 即违规。
 
 ### 4.9 工作单元（UnitOfWork / OutboxUnitOfWork）落地写法
 
@@ -525,6 +529,8 @@ public ResponseEntity<ErrorResponse> handleBrokenRule(BrokenRuleException e) {
 | 补偿与 Outbox 二选一 | 既要可靠事件又要回滚外部副作用时只做其一，另一风险裸露 | `CompensableCommandExecutor` 装饰 `OutboxCommandExecutor`，二者叠加 |
 | durable 模式漏配 `ICompensationHandler` | WAL 照写但无中继回抢，崩溃后补偿记录堆积 | 为每个需兜底的动作提供 `ICompensationHandler`，`actionName()` 等于需求 `code` |
 | 把补偿执行器当通用执行器注入基类 | 无需补偿的用例也被套上补偿范围，徒增开销 | 仅在声明外部需求的用例注入 `CompensableCommandExecutor`，其余走基类 `execute` |
+| `{Agg}WriteService` / `{Agg}ReadService` 放进 `application/{agg}/service/` | 目录名带 `Service` 易误放；`service/` = 领域服务实现的语义失效 | 两个应用服务落根层；`service/` 只放实现 `@DomainService` 契约的类 |
+| 读侧注入 `IEventManager` / Updater / 写仓储，或写侧注入投影源 / ES 客户端 | 读写边界消失：读路径可发事件、写路径耦合读模型 | 按 §4.8 注入边界：读侧只注入领域源端口与 `IReducer`，写侧只注入 Factory / Updater / Rule / Repository / 执行器 |
 
 ## 7. 下一步
 

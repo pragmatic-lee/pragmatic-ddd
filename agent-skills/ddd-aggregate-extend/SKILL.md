@@ -31,7 +31,7 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 3. 规则容器 `{Agg}Rule` 追加 `addRule(...)`（含激活条件）。
 4. 聚合根充血方法：纯赋值，先做对外校验，先 `recordOperation({OP})` 后 `collectEvent(...)`（硬约束 4/5）；入参 >5 个或成组时新增参数对象 `{Agg}{Op}Data implements IParamObject`，**落 `domain/{agg}/param/`，不落 `model/`**（硬约束 15）。
 5. 领域事件 `{Agg}{Op}Event extends BaseDomainEvent` **落 `domain/{agg}/event/`**（硬约束 15；过去式 + buildEvent + 延迟事件写法）。
-6. 应用层：独立 `{Op}Input` + `{Agg}{Op}Updater`（`apply` 只转换 + 调充血方法，不校验不持久化不发事件——硬约束 11）+ `OrderWriteService` 新增公开方法走 `execute`。
+6. 应用层：独立 `{Op}Input` + `{Agg}{Op}Updater`（`apply` 只转换 + 调充血方法，不校验不持久化不发事件——硬约束 11）+ `{Agg}WriteService` 新增公开方法走 `execute`；新增类落点与注入按硬约束 16（服务在根层、`service/` 只放契约实现、写侧不注入投影源 / ES·Redis 客户端）。
 
 > 每个新类的包落点一律查 `kb/bp/aggregate-structure.md` 落点判据表（硬约束 15）；存量类位置与该表不符时**不顺手迁移**，按项目判决名单写（§2 第 3 条）。
 
@@ -43,8 +43,9 @@ description: 在已存在的 Pragmatic DDD 聚合上做"扩展"：新增业务�
 
 ### 3.3 新增事件订阅
 
-- 领域契约 `I{事件}{意图}Handle extends IDomainService, IHandle<T>` + `@DomainService(category=EVENT_SUBSCRIBER)`。
-- 应用实现（外部联动经 `IDependency` / 物化经 `源.sync`）+ 注册表 `evtManager.registerSubscriber(别名, 事件.class, 实例)`（**必须显式**，框架不扫 `@Component`——见 `event-subscriber-pattern.md`）。
+- 领域契约 `I{事件}{意图}Handle extends IDomainService, IHandle<T>` + `@DomainService(category=EVENT_SUBSCRIBER, targetName=事件简单类名)`。
+- 应用实现（外部联动经 `IDependency` / 物化经 `源.sync`）落 `application/{agg}/service/`；注册表 `evtManager.registerSubscriber(别名, 事件.class, 实例)`（**必须显式**，框架不扫 `@Component`——见 `event-subscriber-pattern.md`）。
+- **三要素齐备（硬约束 17）**：契约 + 实现 + 注册行缺一即静默失效；注册表只登记本聚合 `domain/{agg}/event/` 的事件与本聚合实现，`subscriber/` 只放 `{Agg}EventSubscriberRegistry`（实现不放这里）。
 
 ### 3.4 新增子实体 / 值对象
 

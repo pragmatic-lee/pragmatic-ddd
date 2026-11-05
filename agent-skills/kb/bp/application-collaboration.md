@@ -1,6 +1,6 @@
 # BP 卡：应用层落地模式（application-collaboration）
 
-> 源：`documentation/best-practices/application-collaboration.md` · 派生时间：2026-10-18 · 框架版本：2.0.0
+> 源：`documentation/best-practices/application-collaboration.md` · 派生时间：2026-11-05（补应用服务落点与读写注入边界） · 框架版本：2.1.0
 
 ## 1. 本质与定位
 
@@ -26,6 +26,8 @@ application/{agg}/
 ├── compensation/            # ICompensationHandler（durable 兜底）
 └── subscriber/              # 事件订阅登记
 ```
+
+> ⚠️ **落点**：`{Agg}WriteService` / `{Agg}ReadService` 落 `application/{agg}/` 根层，**不进 `service/`**；`service/` 只放实现 `@DomainService` 契约的类。判据：实现 `ICommandApplicationService` / `IQueryApplicationService` → 根层；实现 `I{Agg}{X}Service` / `I{Agg}{X}Handle` 且契约带 `@DomainService` → `service/`。
 
 | 类型 | 命名 | 示例 |
 | --- | --- | --- |
@@ -82,7 +84,9 @@ application/{agg}/
 
 ### 3.8 读侧 ReadService：不进 execute() 模板
 
-无基类，只 `implements IQueryApplicationService`；注入领域源端口（`IOrderRedisSource`/`IOrderESSource`），选源写死在方法体内（不把 `ProjectionSource` 当入参），完成「查全量 → 裁剪」两跳；**不发布领域事件、不持有写仓储**。
+无基类，只 `implements IQueryApplicationService`；注入领域源端口（`IOrderRedisSource`/`IOrderESSource`），选源写死在方法体内（不把 `ProjectionSource` 当入参），完成「查全量 → 裁剪」两跳。
+
+**注入边界（双向）**：读侧禁止注入写仓储、`IEventManager`、`EntityUpdater`、`WriteService`；写侧禁止注入投影源端口、`Projector`、`Reducer`、ES / Redis 客户端；两服务互不注入。判定看构造器参数类型，不看类名。
 
 ### 3.9 工作单元（多聚合根同事务）
 
@@ -129,6 +133,8 @@ durable 模式：`pragmatic-ddd.compensation.mode=durable`，每个动作各提�
 | 补偿与 Outbox 二选一 | 装饰叠加使用 |
 | durable 漏配 `ICompensationHandler` | 每动作提供，`actionName()` 等于需求 `code` |
 | 补偿执行器当通用执行器注入基类 | 仅补偿用例注入 |
+| 应用服务放进 `application/{agg}/service/` | 两个服务落根层；`service/` 只放 `@DomainService` 契约实现 |
+| 读侧注入 `IEventManager`/Updater/写仓储，或写侧注入投影源/ES 客户端 | 读侧只注入领域源端口与 `IReducer`；写侧只注入 Factory/Updater/Rule/Repository/执行器；两服务互不注入 |
 
 ## 6. 被读于
 
