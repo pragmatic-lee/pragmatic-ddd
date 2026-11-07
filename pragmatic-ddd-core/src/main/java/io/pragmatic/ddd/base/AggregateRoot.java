@@ -193,13 +193,18 @@ public abstract class AggregateRoot<T> extends AbstractEntity<T> {
 
     // ============ 工作单元清理 ============
 
-    /** 清空工作单元临时状态（领域事件、外部需求、已触发操作与因果指针），由应用层在事件分发完成后调用。 */
+    /**
+     * 清空工作单元临时状态（领域事件、外部需求、已触发操作、因果指针与删除标记），
+     * 由应用层在事件分发完成后调用。
+     */
     public void clearWorkUnitState() {
         this.triggeredEvents.clear();
         this.triggeredExternalRequirements.clear();
         if (this.triggeredOperations != null) {
             this.triggeredOperations.clear();
         }
+        // 删除是本次工作单元的终态：清理后复位，避免实例复用导致重复删除
+        this.setEntityDelete(false);
     }
 
     // ============ 操作追踪 ============

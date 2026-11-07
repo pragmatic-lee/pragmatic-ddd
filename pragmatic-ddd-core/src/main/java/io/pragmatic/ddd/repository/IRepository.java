@@ -15,12 +15,21 @@ public interface IRepository<ID, T extends AggregateRoot<ID>> {
     /** 更新聚合根。 */
     void update(T aggregateRoot);
 
+    /**
+     * 按聚合声明的持久化意图路由：已删除走 remove，新建走 insert，其余走 update。
+     * 删除意图优先级最高：新建后立即删除的聚合也走 remove。
+     * 删除事实由实体既有标记 entityDelete 声明，实现方不得覆写本方法判断删除。
+     */
     default void save(T aggregateRoot) {
+        if (aggregateRoot.isEntityDelete()) {
+            remove(aggregateRoot);
+            return;
+        }
         if (aggregateRoot.isNew()) {
             insert(aggregateRoot);
-        } else {
-            update(aggregateRoot);
+            return;
         }
+        update(aggregateRoot);
     }
 
     /** 按主键查询聚合根；未命中返回 null。 */

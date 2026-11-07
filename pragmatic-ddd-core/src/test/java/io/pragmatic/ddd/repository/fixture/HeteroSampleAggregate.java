@@ -46,6 +46,11 @@ public class HeteroSampleAggregate extends AggregateRoot<Long> {
         this.setEntityDelete(true);
     }
 
+    /** 测试中模拟业务方法重新记录因果操作（clearWorkUnitState 会清空操作指针）。 */
+    public void recordSampleOperation() {
+        this.recordOperation(io.pragmatic.ddd.operation.SampleRegistry.A);
+    }
+
     @Override
     public void triggerDataSyncHook() {
         SnapshotAction action;

@@ -38,4 +38,9 @@ public class SampleAggregate extends AggregateRoot<Long> {
     public void declareExternal(IExternalRequirement requirement) {
         this.requireExternal(requirement);
     }
+
+    /** 测试用：对外暴露受保护的删除标记入口。 */
+    public void markEntityDelete() {
+        this.setEntityDelete(true);
+    }
 }
