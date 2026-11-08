@@ -1,7 +1,7 @@
 # 防跑偏硬约束（Hard Constraints）
 
-> 源：`documentation/best-practices/` 下各篇——`aggregate-structure.md`（约束 15：包落点判据）、`aggregate-identification.md`（约束 13：跨聚合只持 ID）、`enum-value.md`（E1~E3 枚举基础类型）、`aggregate-evolution-design.md` 与 `order-rule-pattern.md`（旧快照机制）、`registry-design.md`（注册表 public / INSTANCE）、`event-modeling.md`（事件过去式 / buildEvent）、`aggregate-design.md`（聚合根规范 / 零基础设施依赖）、`application-collaboration.md`（约束 10 / 11 / 16：应用服务落点与注入白名单）、`event-subscriber-pattern.md`（约束 17：订阅三要素与同聚合绑定）。本卡为上述篇章的集中蒸馏清单，供 S4 自检与 S7 评审逐条核对。
-> 派生时间：2026-11-05（新增约束 16 / 17：应用服务层与订阅侧） · 框架版本：2.1.0
+> 源：`documentation/best-practices/` 下各篇——`aggregate-structure.md`（约束 15：包落点判据）、`aggregate-identification.md`（约束 13：跨聚合只持 ID）、`enum-value.md`（E1~E3 枚举基础类型）、`aggregate-evolution-design.md` 与 `order-rule-pattern.md`（旧快照机制）、`registry-design.md`（注册表 public / INSTANCE）、`event-modeling.md`（事件过去式 / buildEvent）、`aggregate-design.md`（聚合根规范 / 零基础设施依赖）、`application-collaboration.md`（约束 10 / 11 / 16：应用服务落点与注入白名单）、`event-subscriber-pattern.md`（约束 17：订阅三要素与同聚合绑定）、`projection-design.md`（E4：投影领域类型边界）。本卡为上述篇章的集中蒸馏清单，供 S4 自检与 S7 评审逐条核对。
+> 派生时间：2026-11-08（新增 E4：投影领域类型边界；源登记 12 篇） · 框架版本：2.1.0
 > **用途**：S4 生成后自检逐条核对；S7 评审逐条检查。任一条不满足即修正后重新核对。
 
 ## 通用红线（所有聚合代码通用）
@@ -40,21 +40,28 @@
 >
 > **约束 17 判定方法**：三要素交叉对齐——有契约无注册、有注册无实现、注册的 `Class<T>` 与 `IHandle<T>` 的 `T` 不一致，三者均判违规；再核事件包是否在本聚合 `domain/{agg}/event/`、实现包是否在本聚合 `application/{agg}/service/`，跨聚合即违规。
 
-## 枚举出入参规则（memory ID 29822425）
+## 出入参与投影层类型边界规则（memory ID 29822425）
 
-框架约定：聚合与出入参层、投影层的枚举处理遵循三条规则，生成代码时**必须遵守**：
+框架约定：聚合与出入参层、投影层的枚举与领域类型处理遵循四条规则，生成代码时**必须遵守**：
 
 | # | 规则 | 适用边界 |
 | --- | --- | --- |
 | E1 | 出入参（含查询条件对象、应用层 Input）中的枚举值统一转为 `Integer` 类型（不用枚举类型本身作为字段类型） | 聚合与出入参层 |
 | E2 | 枚举值的底层类型跟随聚合上的定义：聚合该字段是 `Integer`/数字则用数字，是 `String` 则用 `String` | 聚合与出入参层 |
 | E3 | 投影（projection / 读模型）中的枚举类型，统一转换为对应基础类型（`int`/`Integer`/`String` 等），不再使用枚举类型 | 投影层 |
+| E4 | 投影读模型字段（含嵌套子投影静态类、行投影、查询条件族、跨聚合子投影）禁用领域模型类型——领域值对象（`ValueObject`/`IValueObject` 子类）、子实体（`AbstractEntity` 子类）、聚合根一律不得作为字段类型，统一展开为扁平基础类型字段；枚举仍按 E3 降级 | 投影层（含条件族） |
 
-> 注意区分：聚合**领域内部**的枚举值对象（`IEnumValue<Integer, 自身>`，见 `bp/enum-value.md`）仍用 `int` code 持久化；但**暴露给调用方的 Input / 查询条件 / 投影**字段按 E1~E3 用 `Integer`/`String` 基础类型。
+> 注意区分：聚合**领域内部**的枚举值对象（`IEnumValue<Integer, 自身>`，见 `bp/enum-value.md`）仍用 `int` code 持久化；但**暴露给调用方的 Input / 查询条件 / 投影**字段按 E1~E4 用 `Integer`/`String` 基础类型。
+
+> **E4 判定方法**：逐个检查投影类及其嵌套 `@Data` 静态类、行投影、查询条件 `record` 的**字段声明类型**——出现 `extends ValueObject` / `implements IValueObject` / `extends AbstractEntity` / `extends AggregateRoot` 的类型即违规。
+> - **允许**：投影内自定义嵌套 `@Data` 静态类（如 `AddressProjection`）；`BigDecimal` / `String` / 基础类型 / 时间类型。
+> - **不属字段类型（允许）**：`AbstractAggregateProjector<T,P>` 泛型入参、`AbstractProjectionSource.sync(T)` 入参——聚合只作转换原料，不进投影结构。
+> - **存量降级**（仿约束 15）：只对新建类 / 本轮新增类判阻断；存量投影不符 → 评审记建议项（Advisory）不阻断，项目长期保留现状记入该项目判决名单 `accepted.md`。
+> - **动机**：`IValueObject` 的 TypeHandler 是写侧 DB 持久化机制，读侧副本（ES/Redis）无对应还原；字段绑定领域类型使读写模型演进耦合、绕过投影器裁剪（详见 `bp/projection-design.md`）。
 
 ## 自检动作（S4 步骤 5）
 
-1. 逐条核对上方全量硬约束（条数以本卡表为准）+ E1~E3；应用服务与订阅相关类另按 16 / 17 的判定方法交叉核对（落点 + 注入白名单 + 三要素齐备）；
+1. 逐条核对上方全量硬约束（条数以本卡表为准）+ E 系列（E1~E4，条目以本卡表为准）；投影与条件族类另按 E4 判定方法交叉核对；应用服务与订阅相关类另按 16 / 17 的判定方法交叉核对（落点 + 注入白名单 + 三要素齐备）；
 2. 编译验证：`mvn compile`（模块级）通过；
 3. 输出「待补事项」：仓储 SQL、Controller、投影/MQ 装配、单测补齐；
 4. 提示用户运行规则容器与聚合根单测骨架。

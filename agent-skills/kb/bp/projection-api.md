@@ -3,7 +3,7 @@
 > 派生自 `pragmatic-ddd-core` 投影基类源码（`io.pragmatic.ddd.repository.query.projection`），
 > 供 S6（`ddd-projection-create`）零上下文生成投影代码时照搬。所有签名与 2.1.0-SNAPSHOT 一致（2026-10-28 复核，投影基类无变更）；
 > 包路径见 `../api-contract.md` 投影段。**KB-only 生成时必须按本卡签名写，不要臆测方法覆盖。**
-> 派生时间：2026-10-18 · 框架版本：2.0.0
+> 派生时间：2026-11-08（零上下文清单补 E4 引用；投影基类无变更） · 框架版本：2.0.0
 
 ## IAggregateProjection（标记接口）
 
@@ -46,7 +46,7 @@ public abstract class AbstractAggregateProjector<T extends AggregateRoot<?>, P e
 ```
 
 - 业务 Coupon 用法：`extends AbstractAggregateProjector<Coupon, CouponSummaryProjection>`，
-  构造传 `CouponSummaryProjection.class`；`project(Coupon)` 内手写字段取值（枚举 `getValue()` 降级 int、`getName()` 出展示名，见 E3）。
+  构造传 `CouponSummaryProjection.class`；`project(Coupon)` 内手写字段取值（枚举 `getValue()` 降级 int、`getName()` 出展示名，见 E3；字段禁用领域值对象/实体类型，见 E4）。
 
 ## IReducer<S, X>（全量投影 → 业务子投影）
 
@@ -144,7 +144,7 @@ public final class PageResult<T> { /* 分页结果容器，查询族返回类型
 
 ## 零上下文生成清单（避免 [KB缺口]）
 
-1. 投影放领域层 `...projection`，`@Data` 允许（仅聚合根/事件禁用 @Data，硬约束 8）。
+1. 投影放领域层 `...projection`，`@Data` 允许（仅聚合根/事件禁用 @Data，硬约束 8）；字段全部基础类型——E3 枚举降级、E4 禁用领域值对象/实体/聚合根类型（条件族与行投影同判）。
 2. 源端口 `ICouponRedisSource extends IAggregateProjection` 外的「查询族接口」——业务自定义接口，方法签名由业务定；KB 不强制。
 3. `CouponSummaryProjector extends AbstractAggregateProjector<Coupon, CouponSummaryProjection>`，构造传 `.class`。
 4. `CouponRedisSource extends AbstractProjectionSource<Coupon, Long, CouponSummaryProjection> implements ICouponRedisSource`，5 参构造注入 `ProjectionSource`、`Coupon.class`、`CouponSummaryProjection.class`、`projector`、`List<IReducer<...>>`。

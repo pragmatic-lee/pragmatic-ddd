@@ -27,6 +27,8 @@
 
 > 本文件是 [路线图 §8](./design/ai/ai-implementation-roadmap.md) 中 **A4 / A5** 两项验证的**操作级走查方案**，配合 [agent-skills/README.md §6 验证方法](./README.md) 使用。
 > 按项目纪律：**只产出文档与走查记录，不擅自改框架 / Skills / KB 代码**；走查中暴露的偏差，先记录，再回写对应文档（§6）。
+>
+> ⚠️ **历史基准注记（2026-11-08）**：本文走查步骤与记录基于当时的 KB 基准（如「14 条硬约束 + E1~E3」）。现行基准以 [`kb/hard-constraints.md`](./kb/hard-constraints.md) 为准（17 条硬约束 + E 系列 E1~E4）；本文中的历史表述仅作走查快照保留，不作现行依据。
 
 ---
 

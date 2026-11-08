@@ -41,7 +41,7 @@ description: 咨询入口（只读答疑，不生成代码）——分两条路�
 | 聚合四层目录骨架 | `bp/aggregate-structure` |
 | 子实体设计 | `bp/entity-design` |
 | 值对象（不可变、equalityComponents） | `bp/value-object` |
-| 枚举值对象 `IEnumValue`、出入参为什么用 Integer | `bp/enum-value` + `hard-constraints`(E1~E3) |
+| 枚举值对象 `IEnumValue`、出入参为什么用 Integer | `bp/enum-value` + `hard-constraints`(E 系列) |
 | 操作注册表 `OperationRegistry` | `bp/operation-registry-design` |
 | 规则注册表 `BrokenRuleRegistry` | `bp/registry-design` |
 | 规则容器 `EntityRule`/`OrderRule`、`RuleCheckResult` | `bp/order-rule-pattern` |

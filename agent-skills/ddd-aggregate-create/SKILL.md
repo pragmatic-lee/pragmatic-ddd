@@ -43,7 +43,7 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 - **按 ② §2 骨架逐个落文件，不改结构**：类清单少一个或多一个都要回文档核对。
 - 每个新类的**包落点一律查 `kb/bp/aggregate-structure.md` 落点判据表**（硬约束 15），不靠临场判断。
 - 聚合根 `{Agg} extends AggregateRoot<ID>` 落 `model/`，Lombok 仅 `@Getter` + `@Setter(AccessLevel.PROTECTED)` + `@NoArgsConstructor(AccessLevel.PROTECTED)`（硬约束 8）。
-- 状态用枚举（领域内部 `int` code）落 `model/enums/`，见 `kb/bp/enum-value.md`；值对象落 `model/valueobject/`；**出入参层字段按 `kb/hard-constraints.md` E1~E3 用 `Integer`/`String`**。
+- 状态用枚举（领域内部 `int` code）落 `model/enums/`，见 `kb/bp/enum-value.md`；值对象落 `model/valueobject/`；**出入参层字段按 `kb/hard-constraints.md` E 系列用 `Integer`/`String`**。
 - **参数对象单独落 `domain/{agg}/param/`，不落 `model/`**（硬约束 15）：命名 `{Agg}InitData` / `{Agg}{Action}Data`，`@Data implements IParamObject`。
 - `initData` 模式：`new {Agg}({Agg}InitData, id)`，构造只赋值 + `markCreated()`（审计时间戳 createdAt/updatedAt）+ `markNew()`（新建路由标志 isNew，仓储据此 INSERT）+ 延迟创建事件（硬约束 6）；两个标记职责不同，新建构造都要调。
 - 一对多用 `TrackedList<{Sub}, ID>`。
@@ -70,7 +70,7 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 ### 步骤 5：自检（逐条核对）
 
-- 读 `kb/hard-constraints.md` 全量硬约束 + E1~E3，逐条核对（包落点类约束的判据在 `kb/bp/aggregate-structure.md`）。
+- 读 `kb/hard-constraints.md` 全量硬约束 + E 系列，逐条核对（包落点类约束的判据在 `kb/bp/aggregate-structure.md`）。
 - 编译验证：`mvn compile`。
 - 输出「待补事项」清单：仓储 SQL、Controller、投影/MQ 装配、单测。
 
@@ -81,5 +81,5 @@ description: 按 Pragmatic DDD 规范从零生成一个完整聚合：聚合根�
 
 ## 验收（对照路线图 §8）
 
-- A2 `mvn compile` 通过；A3 硬约束全量 + E1~E3 零违反、零幻觉符号。
+- A2 `mvn compile` 通过；A3 硬约束全量 + E 系列零违反、零幻觉符号。
 - A4 基准回归（**仅仓库内验证**，第三方无需执行）：用本 Skill 从零重建 `examples/order-example` 的 Order 聚合，逐文件 diff 与 `examples/order-example` 结构一致。该示例工程属本仓库，**不属于 KB 发布范围**。
