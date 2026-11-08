@@ -9,13 +9,17 @@ import java.lang.reflect.Type;
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 单列 JSON 数组处理器（单例，注册到 List.class）：整列委托共享 {@link JsonSerializer}，按列标签还原元素类型。
+ * 单列 JSON 数组处理器（全局单例，注册到 List.class）：整列委托共享 {@link JsonSerializer}，严格按列标签还原元素类型。
+ *
+ * <p>列标签必须已在集合声明中登记，未登记直接抛错而不做兜底：兜底会把元素还原成 JSONObject 等错误类型，
+ * 把问题推迟到业务取值时暴露。按序号读取的重载经结果集元数据还原列标签，与按列名读取保持同一判定口径。</p>
  *
  * @author wizard-lee
  */
@@ -25,18 +29,15 @@ public class ListTypeHandler implements TypeHandler<List<?>> {
     private final JdbcJsonValue jdbcJsonValue;
     private final Map<String, Type> columnListTypes;   // label -> List<E> 参数化类型
     private final Map<String, ElementConverter> converters;
-    private final Type defaultListType;                 // idx/callable 路径兜底（首列类型）
 
     public ListTypeHandler(JsonSerializer serializer,
                            JdbcJsonValue jdbcJsonValue,
                            Map<String, Type> columnListTypes,
-                           Map<String, ElementConverter> converters,
-                           Type defaultListType) {
+                           Map<String, ElementConverter> converters) {
         this.serializer = serializer;
         this.jdbcJsonValue = jdbcJsonValue;
         this.columnListTypes = Map.copyOf(columnListTypes);
         this.converters = Map.copyOf(converters);
-        this.defaultListType = defaultListType;
     }
 
     @Override
@@ -56,9 +57,7 @@ public class ListTypeHandler implements TypeHandler<List<?>> {
         if (raw == null) {
             return null;
         }
-        Type t = columnListTypes.getOrDefault(column, defaultListType);
-        List<?> list = serializer.fromJsonValue(raw, t != null ? t : List.class);
-        return applyConverters(column, list);
+        return restore(column, raw);
     }
 
     @Override
@@ -67,7 +66,7 @@ public class ListTypeHandler implements TypeHandler<List<?>> {
         if (raw == null) {
             return null;
         }
-        return serializer.fromJsonValue(raw, defaultListType != null ? defaultListType : List.class);
+        return restore(labelOf(rs.getMetaData(), idx), raw);
     }
 
     @Override
@@ -76,7 +75,30 @@ public class ListTypeHandler implements TypeHandler<List<?>> {
         if (raw == null) {
             return null;
         }
-        return serializer.fromJsonValue(raw, defaultListType != null ? defaultListType : List.class);
+        return restore(labelOf(cs.getMetaData(), idx), raw);
+    }
+
+    private List<?> restore(String column, Object raw) {
+        Type listType = columnListTypes.get(column);
+        if (listType == null) {
+            throw new IllegalStateException("未登记的集合列标签：'" + column + "'。已登记标签："
+                    + columnListTypes.keySet()
+                    + "。请在 CollectionMapping 中声明该列(columnLabel 或 table)，"
+                    + "并保证与 Mapper XML 的 column / SQL AS 别名逐字符一致。");
+        }
+        return applyConverters(column, serializer.fromJsonValue(raw, listType));
+    }
+
+    private String labelOf(ResultSetMetaData metaData, int idx) throws SQLException {
+        if (metaData == null) {
+            throw new IllegalStateException("无法获取结果集元数据，集合列(序号 " + idx
+                    + ")需按列名映射：<result column=\"...\" property=\"...\"/>。");
+        }
+        if (idx < 1 || idx > metaData.getColumnCount()) {
+            throw new IllegalStateException("集合列序号越界：" + idx
+                    + "，结果集共 " + metaData.getColumnCount() + " 列。");
+        }
+        return metaData.getColumnLabel(idx);
     }
 
     @SuppressWarnings("unchecked")

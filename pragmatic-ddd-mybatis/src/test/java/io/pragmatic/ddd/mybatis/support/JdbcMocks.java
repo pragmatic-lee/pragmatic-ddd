@@ -4,7 +4,10 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -71,6 +74,7 @@ public final class JdbcMocks {
     }
 
     public static ResultSet fakeResultSet(Map<String, Object> columns, Map<Integer, Object> indexes, boolean wasNull) {
+        List<String> labels = List.copyOf(columns.keySet());
         InvocationHandler handler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getObject" -> {
@@ -81,6 +85,9 @@ public final class JdbcMocks {
                 }
                 case "wasNull" -> {
                     return wasNull;
+                }
+                case "getMetaData" -> {
+                    return fakeResultSetMetaData(labels);
                 }
                 case "equals" -> {
                     return proxy == args[0];
@@ -100,6 +107,34 @@ public final class JdbcMocks {
                 handler);
     }
 
+    /** 列信息元数据假对象：列数取自标签列表，列标签按序号返回，供按序号读取的 handler 反查标签。 */
+    public static ResultSetMetaData fakeResultSetMetaData(List<String> labels) {
+        InvocationHandler handler = (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "getColumnCount" -> {
+                    return labels.size();
+                }
+                case "getColumnLabel", "getColumnName" -> {
+                    return labels.get((Integer) args[0] - 1);
+                }
+                case "equals" -> {
+                    return proxy == args[0];
+                }
+                case "hashCode" -> {
+                    return System.identityHashCode(proxy);
+                }
+                case "toString" -> {
+                    return "FakeResultSetMetaData";
+                }
+                default -> throw new UnsupportedOperationException("FakeResultSetMetaData: " + method);
+            }
+        };
+        return (ResultSetMetaData) Proxy.newProxyInstance(
+                ResultSetMetaData.class.getClassLoader(),
+                new Class<?>[]{ResultSetMetaData.class},
+                handler);
+    }
+
     public static ResultSet fakeResultSetWithColumn(String column, Object value, boolean wasNull) {
         Map<String, Object> columns = new HashMap<>();
         columns.put(column, value);
@@ -110,5 +145,14 @@ public final class JdbcMocks {
         Map<Integer, Object> indexes = new HashMap<>();
         indexes.put(index, value);
         return fakeResultSet(new HashMap<>(), indexes, wasNull);
+    }
+
+    /** 按序号 + 显式列标签构造：序号路径可通过元数据反查到该标签。 */
+    public static ResultSet fakeResultSetWithIndexLabel(int index, String label, Object value, boolean wasNull) {
+        Map<String, Object> columns = new LinkedHashMap<>();
+        columns.put(label, value);
+        Map<Integer, Object> indexes = new HashMap<>();
+        indexes.put(index, value);
+        return fakeResultSet(columns, indexes, wasNull);
     }
 }

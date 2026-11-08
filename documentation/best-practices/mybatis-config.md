@@ -1,12 +1,12 @@
 # MyBatis 配置设计原则（会话工厂与 Mapper）
 
-> 本文档只讲 **ORM 层**：`SqlSessionFactory`、`SqlSessionTemplate`、TypeHandler 多聚合装配与 Mapper XML 加载。数据源与事务管理器见 [MySQL 配置设计原则](./mysql-config.md)；MyBatis 模块内部实现（枚举 / JSON / 集合三通道）见 [MyBatis 集成](./../integration/mybatis.md)。
+> 本文档只讲 **ORM 层**：`SqlSessionFactory`、`SqlSessionTemplate`、TypeHandler 声明与装配分离、Mapper XML 加载。数据源与事务管理器见 [MySQL 配置设计原则](./mysql-config.md)；MyBatis 模块内部实现（枚举 / JSON / 集合三通道）见 [MyBatis 集成](./../integration/mybatis.md)。
 
 ## 1. 职责边界
 
-- **`MyBatisConfig`（本文）**：产 `SqlSessionFactory` 与 `SqlSessionTemplate`，聚合各聚合的 `TypeHandlerContext`，并把**框架固定 Mapper**与业务 Mapper 一并纳入扫描。
+- **`MyBatisConfig`（本文）**：产 `SqlSessionFactory` 与 `SqlSessionTemplate`，接收框架合并出的唯一 `TypeHandlerContext`，并把**框架固定 Mapper**与业务 Mapper 一并纳入扫描。
 - **`MySqlConfig`（见 [MySQL 配置设计原则](./mysql-config.md)）**：只产 `DataSource` 与 `PlatformTransactionManager`。
-- **聚合专属 `{Agg}MybatisTypeHandlerConfig`**：每个聚合一个，只登记本聚合的枚举与值对象，落在 `infrastructure/config/{agg}/`。
+- **聚合专属 `{Agg}MybatisTypeHandlerConfig`**：每个聚合一个，只**声明**本聚合的枚举、值对象与集合列（`TypeHandlerDeclaration`），落在 `infrastructure/config/{agg}/`，不构建解析器/序列化器。
 
 依赖方向单向：`MyBatisConfig → MySqlConfig`。`MyBatisConfig` 的 `sqlSessionFactory` 以 `DataSource` 为入参，Spring 按类型注入，与类名无关。
 
@@ -16,16 +16,16 @@
 
 ### 2.1 原生 Configuration 对象，而不是 configLocation
 
-不使用 `setConfigLocation` 加载 `mybatis-config.xml` 来装配 TypeHandler，而是**创建原生 `Configuration` 对象**，在构建阶段把各聚合 `TypeHandlerContext` 逐个 `registerInto`，再通过 `setConfiguration` 注入会话工厂。
+不使用 `setConfigLocation` 加载 `mybatis-config.xml` 来装配 TypeHandler，而是**创建原生 `Configuration` 对象**，在构建阶段把框架合并出的唯一 `TypeHandlerContext` 灌入，再通过 `setConfiguration` 注入会话工厂。
 
 ```java
 @Bean
 public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
-                                           List<TypeHandlerContext> typeHandlerContexts) throws Exception {
+                                           TypeHandlerContext typeHandlerContext) throws Exception {
     org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
 
-    // 各聚合 TypeHandler 必须在 XML 解析前灌入
-    typeHandlerContexts.forEach(context -> context.registerInto(configuration));
+    // 复杂类型处理器必须在 XML 解析前灌入；全局只有一个上下文，只注册一次
+    typeHandlerContext.registerInto(configuration);
 
     configuration.setMapUnderscoreToCamelCase(true);
     configuration.setCacheEnabled(true);
@@ -53,19 +53,49 @@ public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
 | `aggressiveLazyLoading` | `false` | 按需加载，不激进触发 |
 | `logImpl` | `Slf4jImpl.class` | 统一走 SLF4J 日志 |
 
-### 2.3 TypeHandler 多聚合装配
+### 2.3 TypeHandler 装配：声明与装配分离
 
-**入参必须是 `List<TypeHandlerContext>`**：每个聚合各产出一个 `TypeHandlerContext` Bean（如 `orderTypeHandlerContext`），声明为 `List<T>` 时 Spring 会把这些 Bean 全部收集注入。若声明为单个 `TypeHandlerContext`，多聚合时会因无法确定注入哪一个而抛 `NoUniqueBeanDefinitionException`。
+**MyBatis 的 `TypeHandlerRegistry` 对 `List.class` 只有全局单槽**（`register` 是 `put` 覆盖而非追加），因此**一个 `Configuration` 只能装配一份 `TypeHandlerContext`**。若每个聚合各产出一个 `TypeHandlerContext` Bean，只有最后一个生效，其余聚合的集合列会静默退化为 `List<JSONObject>`，直到业务取值时才抛 `ClassCastException`。
 
-- 单聚合：列表只有一个元素，行为不变；
-- 多聚合：自动收集全部并逐个注册，**新增聚合只需新增一个 `TypeHandlerContext` Bean，`MyBatisConfig` 零改动**；
-- 零聚合：注入空列表、循环空转，不报错。
+正确形态是「聚合侧只声明、框架侧统一装配」：
+
+| 角色 | 类型 | 职责 |
+| --- | --- | --- |
+| 聚合侧 | `TypeHandlerDeclaration` | 只声明本聚合的 `enumRules` / `voTypes` / `collections`，不持有解析器、序列化器、方言适配器 |
+| 框架侧 | `TypeHandlerAssembler` | 合并全部声明，校验冲突后产出唯一的 `TypeHandlerContext` |
+| 装配侧 | `MyBatisConfig` | 以单个 `TypeHandlerContext` 入参，构建阶段 `registerInto(configuration)` 一次 |
+
+```java
+// 聚合侧：infrastructure/config/{agg}/{Agg}MybatisTypeHandlerConfig.java
+@Bean
+public TypeHandlerDeclaration orderTypeHandlerDeclaration() {
+    return TypeHandlerDeclaration.of(
+            Map.of(OrderStatus.class, EnumRule.CODE),
+            List.of(Customer.class, Money.class),
+            List.of(CollectionMapping.of(OrderRow.class, "items", OrderItem.class)
+                    .columnLabel("order_items").build()));
+}
+```
+
+引入 `pragmatic-ddd-spring-boot` 后，唯一的 `TypeHandlerContext` 由 `DddMybatisTypeHandlerAutoConfiguration` 自动产出（收集容器内全部声明后合并），业务无需手写装配器调用；JDBC JSON 方言优先取显式声明的 `JdbcJsonValue` Bean，否则按数据源产品名探测（MySQL / PostgreSQL），探测失败回落透传实现。
+
+合并期的冲突全部在**启动阶段 fail-fast**：
+
+| 冲突 | 处理 |
+| --- | --- |
+| 同一枚举被声明为两种 `EnumRule` | 抛错，指出冲突的两种策略 |
+| 同一类型同时出现在 `enumRules` 与 `voTypes` | 抛错（枚举通道与 JSON 通道只能选其一） |
+| `voTypes` 含未实现 `IValueObject` 的类型 | 抛错 |
+| 集合元素是枚举但未在 `enumRules` 声明策略 | 抛错（不再隐式按 CODE 处理） |
+| 同列标签被声明为不同元素类型 / 不同转换器 | 抛错，要求用 `table(...)` 或 SQL `AS` 别名隔离 |
+| 声明 `scope` 非 `default` | 抛错（多数据源分组尚未接入装配入口） |
+| 运行期遇到未登记的列标签 | 抛错并列出已登记标签（不再做类型兜底） |
+
+**列标签即契约**：`CollectionMapping` 声明的标签必须与 Mapper XML 的 `<result column="...">` / SQL `AS` 别名**逐字符一致**，否则运行期抛「未登记的集合列标签」。
 
 **为什么必须手动装配而非包扫描**：`UniversalEnumTypeHandler`、`GenericJsonTypeHandler`、`ListTypeHandler` 都是运行时按类型动态构建的（泛型类需针对每个值对象 new 实例，集合处理器需运行期装配查表配置），包扫描只能发现"类存在"，无法生成对应实例。
 
-**单点来源**：枚举单列通道与 JSON 通道必须共用同一 `resolver` / `serializer` / `enumRules`，否则同一枚举在两处解析结果不一致。括号细节见 [MyBatis 集成 §2](./../integration/mybatis.md)。
-
-> 空列表不报错，但 Mapper XML 解析期缺 handler 会抛 `BuilderException`。单独装配测试时，`@Import` 必须同时带上 `MySqlConfig`、`MyBatisConfig` 与对应聚合的 TypeHandler 配置。
+> 没有任何集合列声明时不注册 `List.class` 处理器（空标签表会占掉全局槽位并清空元素类型信息）。单独装配测试时，`@Import` 必须带上 `MySqlConfig`、`MyBatisConfig` 与对应聚合的声明配置。
 
 ## 3. 纯 XML Mapper 加载
 
@@ -157,14 +187,14 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 | 反模式 | 问题 | 正确做法 |
 | --- | --- | --- |
 | 用 `mybatis-config.xml` + `setConfigLocation` 装配 TypeHandler | 与 `setConfiguration` 互斥，装配分散难审查 | 原生 `Configuration` 统一注入后 `setConfiguration` |
-| `sqlSessionFactory` 用单个 `TypeHandlerContext` 入参 | 多聚合时抛 `NoUniqueBeanDefinitionException` | 入参用 `List<TypeHandlerContext>` |
+| `sqlSessionFactory` 入参用 `List<TypeHandlerContext>`、每个聚合各产一个上下文 Bean | MyBatis 对 `List.class` 只有全局单槽，后注册覆盖前注册，其余聚合的集合列静默退化 | 聚合侧产出 `TypeHandlerDeclaration`，由框架合并为唯一上下文 |
 | 用包扫描装配复杂 TypeHandler | 泛型/动态构建的处理器无法被发现 | `TypeHandlerContext.registerInto` 在构建阶段手动注入 |
 | 只扫 `classpath:mapper/**/*.xml` | 跨 jar 扫不到框架 XML，Outbox/号段功能运行期报绑定异常 | 用 `classpath*:` 并显式列出三个框架目录 |
 | 认为 starter 会自动注册框架 Mapper | 自动配置只装配 Bean，不加载 XML | 在 `MyBatisConfig` 显式扫描框架 XML |
-| 只 `@Import(MySqlConfig.class)` 做单测 | 缺 `SqlSessionTemplate`，或 Mapper XML 解析期缺 handler | 同时导入 `MySqlConfig` + `MyBatisConfig` + 聚合 TypeHandler 配置 |
-| 枚举单列与 JSON 通道配置不一致 | 同一枚举两处解析结果不同 | 三者共用同一 resolver / serializer / enumRules |
-| 集合 TypeHandler 遇到多表同名列 | 启动期抛 `IllegalStateException` | 用 SQL `AS` 别名隔离列类型 |
-| MySQL 用错 JSON 方言 | 写 JSON 列失败 | MySQL 用 `JdbcJsonValue.MYSQL`，PG 用 `PgJdbcJsonValue` |
+| 只 `@Import(MySqlConfig.class)` 做单测 | 缺 `SqlSessionTemplate`，或 Mapper XML 解析期缺 handler | 同时导入 `MySqlConfig` + `MyBatisConfig` + 聚合 TypeHandler 声明 |
+| 枚举单列与 JSON 通道各自 new 解析器/序列化器 | 同一枚举两处解析结果不一致 | 只产出 `TypeHandlerDeclaration`，全局组件由装配器统一构建 |
+| 集合声明标签与 Mapper XML 不一致 | 运行期抛「未登记的集合列标签」 | 标签与 `<result column>` / SQL `AS` 逐字符对齐 |
+| MySQL 用错 JSON 方言 | 写 JSON 列失败 | 显式声明 `JdbcJsonValue` Bean，或依赖自动配置按数据源探测 |
 | PG 场景仍套用 MySQL 装配 | 扫错方言 XML、未设 `databaseId` 或可空参数漏 `jdbcType`，运行期才报错 | 按 [PostgreSQL 配置设计原则](./postgresql-config.md) 装配 |
 
 ## 下一步

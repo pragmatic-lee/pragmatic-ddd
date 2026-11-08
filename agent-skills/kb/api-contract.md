@@ -1,6 +1,6 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**；**2026-11-01 v2.6 坐标重验：groupId 已迁至 `com.pragmatic-ddd`，版本取已发 Central 的正式版 `2.1.0`**；**2026-11-02 v2.7 补开发版红线：仓库 pom 当前为 `2.2.0-SNAPSHOT`，属未发布的开发版，不得写入消费方坐标**）
+> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**；**2026-11-01 v2.6 坐标重验：groupId 已迁至 `com.pragmatic-ddd`，版本取已发 Central 的正式版 `2.1.0`**；**2026-11-02 v2.7 补开发版红线：仓库 pom 当前为 `2.2.0-SNAPSHOT`，属未发布的开发版，不得写入消费方坐标**；**2026-11-08 v2.8 补 TypeHandler 声明/装配分离：新增 `TypeHandlerDeclaration` / `TypeHandlerAssembler`，`TypeHandlerContext` 全局唯一且应用侧不得直接 `new`**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。
@@ -179,7 +179,9 @@
 
 | 类 / 接口 | 全限定 import | 关键成员（精确签名） |
 | --- | --- | --- |
-| `TypeHandlerContext` | `io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext` | `record TypeHandlerContext(EnumValueResolver resolver, JsonSerializer serializer, JdbcJsonValue jdbcJsonValue, Map<Class<?>, EnumRule> enumRules, Collection<Class<?>> voTypes, CollectionElementTypeConfig collections)`；`void registerInto(Configuration)`；`Collection<TypeHandlerRegistration> registrations()` |
+| `TypeHandlerDeclaration` | `io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDeclaration` | `record TypeHandlerDeclaration(String scope, Map<Class<?>, EnumRule> enumRules, Collection<Class<?>> voTypes, Collection<CollectionMapping> collections)`；静态 `of(enumRules, voTypes, collections)` / `empty()` / 实例 `withScope(String)`；`DEFAULT_SCOPE = "default"` |
+| `TypeHandlerAssembler` | `io.pragmatic.ddd.mybatis.typehandler.TypeHandlerAssembler` | 静态 `assemble(Collection<TypeHandlerDeclaration> declarations, JdbcJsonValue jdbcJsonValue)`；重载 `assemble(declarations, EnumValueResolver, JsonSerializer, JdbcJsonValue)`；合并期冲突与 `scope != default` 均抛 `IllegalStateException` |
+| `TypeHandlerContext` | `io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext` | `record TypeHandlerContext(EnumValueResolver resolver, JsonSerializer serializer, JdbcJsonValue jdbcJsonValue, Map<Class<?>, EnumRule> enumRules, Collection<Class<?>> voTypes, CollectionElementTypeConfig collections)`；`void registerInto(Configuration)`；`Collection<TypeHandlerRegistration> registrations()`；**全局唯一**（一个 `Configuration` 只装配一份），应用侧不得直接 `new` |
 | `EnumValueResolver` | `io.pragmatic.ddd.mybatis.typehandler.enums.EnumValueResolver` | 无参构造（`public final class`） |
 | `EnumRule` | `io.pragmatic.ddd.mybatis.typehandler.enums.EnumRule` | 枚举：`EnumRule.CODE` 等 |
 | `Fastjson2JsonSerializer` | `io.pragmatic.ddd.mybatis.typehandler.json.Fastjson2JsonSerializer` | 构造 `Fastjson2JsonSerializer(EnumValueResolver resolver, Map<Class<?>, EnumRule> enumRules)`；实现 `JsonSerializer, IEventSerializer` |

@@ -20,6 +20,13 @@ import java.util.Map;
  * 装配上下文：集中持有枚举策略、VO 类型与共享组件，统一一次构建全部 TypeHandler。
  * 零 Spring 依赖，纯手动装配；经 {@link #registrations()} 导出注册项、{@link #registerInto(Configuration)} 装配。
  *
+ * <p><b>唯一性约束</b>：MyBatis 的 {@code TypeHandlerRegistry} 对 {@code List.class} 只有全局单槽，
+ * 后注册覆盖前注册，因此一个 {@code Configuration} 只能装配一份本上下文。应用侧不得直接 {@code new}，
+ * 必须经 {@link TypeHandlerAssembler} 合并多份 {@link TypeHandlerDeclaration} 后产出，
+ * 否则会绕过声明冲突校验并重新引入多实例互相覆盖。</p>
+ *
+ * <p>{@link #resolver()} 在装配完成后视为冻结：之后不得再变更策略，以免运行期污染全局枚举策略。</p>
+ *
  * @author wizard-lee
  */
 public record TypeHandlerContext(EnumValueResolver resolver,

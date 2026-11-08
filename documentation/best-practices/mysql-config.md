@@ -15,8 +15,8 @@
 数据访问装配拆成两层，避免把 ORM 细节混进数据源配置：
 
 - **`MySqlConfig`（本文）**：只产 `DataSource` 与 `PlatformTransactionManager`，并开启 `@EnableTransactionManagement`；不 import 任何 MyBatis 类型。
-- **`MyBatisConfig`（见 [MyBatis 配置设计原则](./mybatis-config.md)）**：产 `SqlSessionFactory` 与 `SqlSessionTemplate`，聚合各聚合的 `TypeHandlerContext` 并加载 Mapper XML。
-- **聚合专属 `{Agg}MybatisTypeHandlerConfig`**：每个聚合一个，产出该聚合的枚举与值对象 TypeHandler 清单。
+- **`MyBatisConfig`（见 [MyBatis 配置设计原则](./mybatis-config.md)）**：产 `SqlSessionFactory` 与 `SqlSessionTemplate`，接收框架合并出的唯一 `TypeHandlerContext` 并加载 Mapper XML。
+- **聚合专属 `{Agg}MybatisTypeHandlerConfig`**：每个聚合一个，只声明该聚合的枚举、值对象与集合列（`TypeHandlerDeclaration`）。
 
 依赖方向单向：`MyBatisConfig → MySqlConfig`（会话工厂依赖数据源），无循环。
 
@@ -25,11 +25,11 @@ infrastructure/config/                      # 通用技术配置
 ├── MySqlConfig.java                        # DataSource / TransactionManager
 ├── MyBatisConfig.java                      # SqlSessionFactory / SqlSessionTemplate
 └── {agg}/
-    ├── {Agg}MybatisTypeHandlerConfig.java  # 该聚合专属 TypeHandler 装配
+    ├── {Agg}MybatisTypeHandlerConfig.java  # 该聚合的复杂类型声明
     └── ...                                 # 其它绑定聚合的配置
 ```
 
-**设计含义**：数据源配置不感知 ORM，也不感知具体聚合；新增聚合只新增一个 `TypeHandlerContext` Bean，`MySqlConfig` 与 `MyBatisConfig` 均零改动。
+**设计含义**：数据源配置不感知 ORM，也不感知具体聚合；新增聚合只新增一个 `TypeHandlerDeclaration` Bean，`MySqlConfig` 与 `MyBatisConfig` 均零改动。
 
 ## 2. DataSource 装配
 

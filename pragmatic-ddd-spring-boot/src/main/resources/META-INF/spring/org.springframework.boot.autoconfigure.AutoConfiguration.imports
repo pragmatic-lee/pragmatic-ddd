@@ -1,4 +1,5 @@
 io.pragmatic.ddd.springboot.configuration.DddConfigurationAutoConfiguration
+io.pragmatic.ddd.springboot.mybatis.DddMybatisTypeHandlerAutoConfiguration
 io.pragmatic.ddd.springboot.transaction.DddTransactionAutoConfiguration
 io.pragmatic.ddd.springboot.rocketmq.DddRocketMqAutoConfiguration
 io.pragmatic.ddd.springboot.kafka.DddKafkaAutoConfiguration

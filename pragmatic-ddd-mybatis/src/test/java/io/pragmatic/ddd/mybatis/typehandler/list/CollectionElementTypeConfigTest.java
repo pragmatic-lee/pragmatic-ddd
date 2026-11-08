@@ -68,4 +68,30 @@ class CollectionElementTypeConfigTest {
                 CollectionMapping.of(Product.class, "tags", Integer.class).columnLabel("tags").build()
         ), resolver)).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void same_label_same_type_different_converter_fails_fast() {
+        EnumValueResolver resolver = new EnumValueResolver();
+        assertThatThrownBy(() -> CollectionElementTypeConfig.from(List.of(
+                CollectionMapping.of(Order.class, "tags", String.class).columnLabel("tags")
+                        .converter(e -> e.toString().toUpperCase()).build(),
+                CollectionMapping.of(Product.class, "tags", String.class).columnLabel("tags")
+                        .converter(e -> e.toString().toLowerCase()).build()
+        ), resolver))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("转换器冲突");
+    }
+
+    @Test
+    void enum_element_keeps_declared_rule_when_already_registered() {
+        EnumValueResolver resolver = new EnumValueResolver();
+        resolver.register(Status.class, EnumRule.NAME);
+
+        CollectionElementTypeConfig.from(List.of(
+                CollectionMapping.of(Order.class, "steps", Status.class).build()
+        ), resolver);
+
+        // 集合兜底注册不得覆盖声明阶段已指定的策略
+        assertThat(resolver.ruleOf(Status.class)).isEqualTo(EnumRule.NAME);
+    }
 }

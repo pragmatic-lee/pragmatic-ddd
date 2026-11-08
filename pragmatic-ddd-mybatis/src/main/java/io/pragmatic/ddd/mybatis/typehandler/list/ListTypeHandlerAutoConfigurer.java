@@ -21,6 +21,8 @@ public final class ListTypeHandlerAutoConfigurer {
 
     /**
      * 构建 List TypeHandler 并写入输出映射（注册到 {@code List.class}）。
+     * 没有任何集合列声明时不注册：空标签表会把全局 {@code List.class} 槽位占掉，
+     * 使其它聚合的集合列失去元素类型信息。
      *
      * @param serializer     JSON 序列化器
      * @param jdbcJsonValue  JDBC JSON 方言
@@ -32,13 +34,14 @@ public final class ListTypeHandlerAutoConfigurer {
                                 CollectionElementTypeConfig collections,
                                 Map<Class<?>, TypeHandler<?>> out) {
         Map<String, Type> columnListTypes = collections.columnListTypes();
-        Type defaultListType = columnListTypes.isEmpty()
-                ? null
-                : columnListTypes.values().iterator().next();
-
-        ListTypeHandler handler = new ListTypeHandler(
-                serializer, jdbcJsonValue, columnListTypes, collections.converters(), defaultListType);
-        out.put(List.class, handler);
+        if (columnListTypes.isEmpty()) {
+            return;
+        }
+        out.put(List.class, new ListTypeHandler(
+                serializer,
+                jdbcJsonValue,
+                columnListTypes,
+                collections.converters()));
     }
 
     private ListTypeHandlerAutoConfigurer() {

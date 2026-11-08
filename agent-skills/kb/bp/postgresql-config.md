@@ -47,16 +47,19 @@ MySQL → PG 转写：`LONGTEXT→TEXT`（框架表 `payload` 用 `TEXT`）；`D
 
 ## 4. TypeHandler 适配
 
-枚举 / 值对象 / 集合三通道装配方式与 MySQL 一致（见 `mybatis-config.md` §2.3），PG 场景只把 JSON 适配器换成 `PgJdbcJsonValue`（全限定名见 `api-contract.md`）：
+类型装配与 MySQL 完全一致（见 `mybatis-config.md` §2.3）：聚合侧只产 `TypeHandlerDeclaration`，框架合并为唯一上下文。PG 的区别只在 JSON 方言适配器（全限定名见 `api-contract.md`）：
+
+- 引入 starter 且未显式声明 `JdbcJsonValue` Bean 时，自动配置按数据源产品名探测并选 `PgJdbcJsonValue`；
+- 手动装配时显式传入。
 
 ```java
-return new TypeHandlerContext(
-        resolver,
-        new Fastjson2JsonSerializer(resolver, enumRules),
-        new PgJdbcJsonValue(),
-        enumRules,
-        voTypes,
-        CollectionElementTypeConfig.empty());
+TypeHandlerDeclaration orderDeclaration = TypeHandlerDeclaration.of(
+        Map.of(OrderStatus.class, EnumRule.CODE),
+        List.of(Customer.class, Money.class),
+        List.of());
+
+TypeHandlerContext context = TypeHandlerAssembler.assemble(
+        List.of(orderDeclaration), new PgJdbcJsonValue());
 ```
 
 `PgJdbcJsonValue` 反射构造 `PGobject`（默认 `type=jsonb`）；`org.postgresql` 不在类路径时首次写入抛 `IllegalStateException`。

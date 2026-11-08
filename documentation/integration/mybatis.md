@@ -12,14 +12,15 @@
 - **JSON 通道**：值对象整体写入原生 JSON 列（MySQL `JSON` / PostgreSQL `jsonb`）。
 - **集合通道**：单列 JSON 数组存储 `List<T>`，按列标签精确还原泛型。
 
-配套提供 `TypeHandlerContext` 统一装配以上三通道，以及 `MybatisOutboxStore`、`DbSegmentAllocator` 两个基础设施实现。
+配套提供 `TypeHandlerDeclaration`（聚合侧纯声明）+ `TypeHandlerAssembler`（框架侧合并，产出唯一的 `TypeHandlerContext`）统一装配以上三通道，以及 `MybatisOutboxStore`、`DbSegmentAllocator` 两个基础设施实现。
 
 **它解决的典型场景问题**：
 
 - **枚举无法按业务 code 存储、且每个枚举都要手写 handler**：MyBatis 默认 enum 处理只能存 `name`/`ordinal`，拿不到"存 `CREATED` 而非 `0`"的稳定业务码；`UniversalEnumTypeHandler` 用单个泛型类覆盖全部枚举，避免 N 个枚举 N 个 handler 的样板代码，并补齐带 `jdbcType` 的 `getResult` 以免退回默认处理。
 - **值对象没有独立表、扁平拆列会丢失结构**：`Address` 这类复合结构无需建表，`GenericJsonTypeHandler` 将其整体写入原生 JSON 列，保留嵌套结构、整体存取。
 - **`List<T>` 反序列化丢失泛型**：MyBatis 原生对集合只能存文本且取回时泛型丢失；`ListTypeHandler` 按列标签精确还原 `List<String>` / `List<OrderStatus>` 等具体类型。
-- **枚举在单列与 JSON 内双通道配置漂移**：`TypeHandlerContext` 让枚举通道与 JSON 通道共用同一 `EnumValueResolver` / `JsonSerializer` / `enumRules`，杜绝同枚举在两处解析结果不一致。
+- **枚举在单列与 JSON 内双通道配置漂移**：`TypeHandlerAssembler` 统一构建唯一的 `EnumValueResolver` / `JsonSerializer` / `enumRules` 并注入 `TypeHandlerContext`，杜绝同枚举在两处解析结果不一致。
+- **多聚合各自注册导致集合列相互覆盖**：MyBatis 对 `List.class` 只有全局单槽（`register` 是覆盖而非追加），每聚合一个上下文只有最后一个生效；改为多份声明合并为唯一上下文后，集合列标签表是全部聚合的并集。
 
 ### 1.2 模块依赖与类型关系
 
@@ -41,16 +42,15 @@ pragmatic-ddd-mybatis
   │     ├── CollectionMapping          (字段→列标签 映射)
   │     ├── CollectionElementTypeConfig(构建期冲突校验)
   │     └── ElementConverter (SPI)     (元素级转换钩子)
+  ├── TypeHandlerDeclaration (record) (聚合侧声明：枚举/值对象/集合)
+  ├── TypeHandlerAssembler            (合并声明 + 冲突校验，产出唯一上下文)
   ├── TypeHandlerContext (record)      (三通道统一装配)
   ├── MybatisOutboxStore              (实现 core IOutboxStore)
   └── DbSegmentAllocator              (实现 core IIdSegmentAllocator)
 
 依赖关系：
-  enumRules / EnumValueResolver ──┐
-                                  ├─► TypeHandlerContext ──► SqlSessionFactory
-  JsonSerializer / JdbcJsonValue ─┤
-  CollectionElementTypeConfig ────┘
-  EnumValueResolver、JsonSerializer 被 JSON 通道与枚举通道共用（单点来源）。
+  TypeHandlerDeclaration × N ──► TypeHandlerAssembler ──► TypeHandlerContext ──► SqlSessionFactory
+  EnumValueResolver、JsonSerializer 由装配器只建一份，被 JSON 通道与枚举通道共用（单点来源）。
 ```
 
 > 本文档聚焦 typehandler 三大通道（第 2~4 节）；Outbox 与号段 ID 见第 5、6 节。
@@ -184,7 +184,7 @@ JsonSerializer serializer = new Fastjson2JsonSerializer(
 
 - `CollectionMapping` 由 `of(entityClass, field, elementType)` 构造，**不可**用 `builder()`，三者缺一不可。
 - 运行期还原依赖 MyBatis 结果集的 `columnLabel`，必须与 SQL `AS` 别名或推导出的 `table_field` 一致。
-- 枚举元素类型会在 `from(...)` 时自动在传入的 `EnumValueResolver` 中预注册，无需手动 `register`。
+- 枚举元素类型在 `from(...)` 时仅在**未注册**的情况下兜底注册（不覆盖声明阶段已指定的 `EnumRule`）；经 `TypeHandlerAssembler` 装配时要求该枚举已写入 `enumRules`，否则启动失败。
 
 #### 代码示例
 
@@ -201,32 +201,28 @@ CollectionElementTypeConfig config = CollectionElementTypeConfig.from(
         List.of(tags, amounts), resolver);
 ```
 
-### 2.4 统一装配：TypeHandlerContext
+### 2.4 统一装配：Declaration → Assembler → Context
 
-`TypeHandlerContext` 是 `record`，构造参数顺序固定，调用一次 `registerInto(SqlSessionFactory)` 即触发三通道注册。
+**`TypeHandlerContext` 对一个 `Configuration` 必须全局唯一**（MyBatis 对 `List.class` 只有全局单槽）。业务侧不得直接 `new`，而是多份 `TypeHandlerDeclaration` 的合并产物：
 
-| 位置 | 参数 | 说明 |
-|------|------|------|
-| 1 | `EnumValueResolver` | 枚举注册表 |
-| 2 | `JsonSerializer` | JSON 序列化器 |
-| 3 | `JdbcJsonValue` | 数据库驱动适配器 |
-| 4 | `Map<Class, EnumRule>` | 枚举策略 |
-| 5 | `List<Class>` | 登记的 `IValueObject` 类型 |
-| 6 | `CollectionElementTypeConfig` | 集合通道配置 |
+| 类型 | 职责 |
+|------|------|
+| `TypeHandlerDeclaration(scope, enumRules, voTypes, collections)` | 聚合侧纯声明，不含运行时组件；`scope` 预留给多数据源 |
+| `TypeHandlerAssembler.assemble(declarations, jdbcJsonValue)` | 合并声明、校验冲突，内部只建一份 resolver / serializer |
+| `TypeHandlerContext(resolver, serializer, jdbcJsonValue, enumRules, voTypes, collections)` | 装配产物，`registerInto(Configuration)` 注册一次三通道 |
 
 ```java
-TypeHandlerContext ctx = new TypeHandlerContext(
-        resolver,
-        serializer,
-        JdbcJsonValue.MYSQL,            // 或 new PgJdbcJsonValue()
+TypeHandlerDeclaration orderDeclaration = TypeHandlerDeclaration.of(
         Map.of(OrderStatus.class, EnumRule.CODE),
         List.of(Address.class),
-        config);
+        List.of(tags));
 
-ctx.registerInto(sqlSessionFactory);
+TypeHandlerContext context = TypeHandlerAssembler.assemble(
+        List.of(orderDeclaration), JdbcJsonValue.MYSQL);   // PG 场景传 new PgJdbcJsonValue()
+context.registerInto(configuration);
 ```
 
-> 零 Spring 依赖：纯 MyBatis API 装配。Spring Boot 项目只需注入同一个 `TypeHandlerContext` 并调用 `registerInto`。
+> 零 Spring 依赖：纯 MyBatis API 装配。Spring Boot 项目引入 `pragmatic-ddd-spring-boot` 后，唯一的 `TypeHandlerContext` 由 `DddMybatisTypeHandlerAutoConfiguration` 自动产出（收集全部声明后合并，方言可自动探测），业务只写声明。若自定义了 `TypeHandlerContext` Bean，框架退让。
 
 ### 2.5 端到端示例
 
@@ -279,26 +275,20 @@ SELECT id, biz_name, status_code,
 FROM order_demo WHERE id = #{id}
 ```
 
-装配（把 2.1~2.3 的零件一次性注入 `TypeHandlerContext`）：
+装配（声明 → 合并 → 唯一上下文）：
 
 ```java
-EnumValueResolver resolver = new EnumValueResolver();
-resolver.register(OrderStatus.class);
-
-JsonSerializer serializer = new Fastjson2JsonSerializer(
-        resolver, Map.of(OrderStatus.class, EnumRule.CODE));
-
 CollectionMapping tags = CollectionMapping.of(Order.class, "tags", String.class)
         .columnLabel("tags").build();
-CollectionElementTypeConfig collections =
-        CollectionElementTypeConfig.from(List.of(tags), resolver);
 
-TypeHandlerContext ctx = new TypeHandlerContext(
-        resolver, serializer, JdbcJsonValue.MYSQL,
+TypeHandlerDeclaration declaration = TypeHandlerDeclaration.of(
         Map.of(OrderStatus.class, EnumRule.CODE),
-        List.of(Address.class), collections);
+        List.of(Address.class),
+        List.of(tags));
 
-ctx.registerInto(sqlSessionFactory);   // 单次注册，三通道全部生效
+TypeHandlerContext context = TypeHandlerAssembler.assemble(
+        List.of(declaration), JdbcJsonValue.MYSQL);
+context.registerInto(configuration);   // 单次注册，三通道全部生效
 ```
 
 > 上例中 `OrderStatus` 无论存为 `status_code` 单列还是嵌在 `profile_json` 内，都走同一 `resolver` 与 `EnumRule.CODE`，解析结果一致。原因见第 3.1 节。
@@ -309,9 +299,13 @@ ctx.registerInto(sqlSessionFactory);   // 单次注册，三通道全部生效
 
 > ⚠️ **重要约束**：枚举通道（`UniversalEnumTypeHandler`）与 JSON 通道（`Fastjson2JsonSerializer`）共用同一个 `EnumValueResolver`、`JsonSerializer` 和 `enumRules`。同一枚举无论存为单列还是嵌在 JSON 值对象内，持久化形态与解析逻辑完全一致。不要在两处分别配置不同 `EnumRule`，否则会出现单列举与值对象内枚举解析结果不一致。
 
-### 3.2 多表同名列隔离
+### 3.2 列标签路由与未知标签拒绝
 
-> ⚠️ **重要约束**：`ListTypeHandler` 按 `columnLabel` 还原泛型。当两个表存在同名列且元素类型不同（如 `a.tags` 为 `String`、`b.tags` 为 `Integer`），必须用 SQL `AS` 给出不同 `columnLabel`（或设置 `table` 让框架推导为 `table_field`）。否则 `CollectionElementTypeConfig.from` 在构建期抛出 `IllegalStateException`（"同 label + 不同类型"）。该冲突在应用启动期而非运行期暴露。
+> ⚠️ **重要约束**：`ListTypeHandler` 严格按 `columnLabel` 还原泛型，**不再做类型兜底**。运行期遇到未登记的列标签直接抛 `IllegalStateException` 并列出已登记标签——因为兜底会把元素还原成 `JSONObject`，把错误推迟到业务取值时的 `ClassCastException`。
+
+> ⚠️ **重要约束**：当两个表存在同名列且元素类型不同（如 `a.tags` 为 `String`、`b.tags` 为 `Integer`），必须用 SQL `AS` 给出不同 `columnLabel`（或设置 `table` 让框架推导为 `table_field`）。否则合并期抛 `IllegalStateException`（"同 label + 不同类型"），该冲突在应用启动期而非运行期暴露。
+
+> 补充：按序号读取的重载（`<constructor>` 映射、存储过程出参）会通过结果集元数据反查列标签，走同一套路由；元数据不可用时抛错并提示改用按列名映射。
 
 ### 3.3 PostgreSQL 驱动依赖
 
@@ -322,8 +316,10 @@ ctx.registerInto(sqlSessionFactory);   // 单次注册，三通道全部生效
 | 阶段 | 触发条件 | 异常 |
 |------|----------|------|
 | 枚举注册 | 同一枚举重复 `code` 或重复 `name` | `IllegalArgumentException` |
-| 集合配置构建 | 同 `columnLabel` 对应不同类型 | `IllegalStateException` |
-| 多实例注册 | 同一 `SqlSessionFactory` 重复 `registerInto` | 不抛异常，但后注册的不同策略枚举不生效（绑定首次注册时的 rule） |
+| 声明合并 | 同一枚举声明为两种 `EnumRule`、同一类型同时在 `enumRules` 与 `voTypes`、`voTypes` 未实现 `IValueObject`、枚举元素未声明策略、同标签不同类型/转换器、`scope` 非 `default` | `IllegalStateException` |
+| 集合配置构建 | 同 `columnLabel` 对应不同类型或不同转换器 | `IllegalStateException` |
+| 运行期读取 | 未登记的列标签、序号路径取不到列标签 | `IllegalStateException` |
+| 多实例注册 | 同一 `Configuration` 装配两份 `TypeHandlerContext` | 不抛异常，后注册覆盖前注册；应由单 Bean 注入从根上消除 |
 
 ## 4. 异常与错误处理体系
 
@@ -332,10 +328,11 @@ ctx.registerInto(sqlSessionFactory);   // 单次注册，三通道全部生效
 ```text
 RuntimeException
   ├── IllegalArgumentException   (EnumValueIndex: 重复 code / name)
-  └── IllegalStateException     (CollectionElementTypeConfig: 同 label 不同类型冲突)
+  └── IllegalStateException     (TypeHandlerAssembler / CollectionElementTypeConfig: 声明冲突；
+                                 ListTypeHandler: 未登记的集合列标签)
 ```
 
-最佳实践：以上异常均为**启动期**抛出，应在应用启动阶段暴露并终止，不应在业务代码层捕获；修复方式为调整枚举 code 唯一性或为冲突列标设置不同 `columnLabel`。运行期（SQL 执行）异常由 MyBatis / JDBC 原样传递，本模块不拦截。
+最佳实践：以上异常均为**启动期**抛出（未登记标签属运行期严格失败），应在应用启动阶段暴露并终止，不应在业务代码层捕获；修复方式为统一枚举策略、拆分冲突列标签或补齐声明。运行期（SQL 执行）异常由 MyBatis / JDBC 原样传递，本模块不拦截。
 
 ## 5. Outbox 落库（MybatisOutboxStore）
 
@@ -409,12 +406,12 @@ CREATE TABLE IF NOT EXISTS id_segment (
 
 | 概念 | 使用方式 | 最关键约束 |
 |------|----------|------------|
-| `EnumRule` | 在 `EnumValueResolver.register` / `TypeHandlerContext` 构造参数指定 | 默认 `CODE`；无码枚举仅 `ORDINAL` 可用 |
+| `EnumRule` | 在 `TypeHandlerDeclaration.enumRules` 指定 | 默认 `CODE`；无码枚举仅 `ORDINAL` 可用 |
 | `EnumValueResolver` | `register` / `registerAll` 启动期注册 | 反序列化 O(1) 查表；重复 code 启动期抛 `IllegalArgumentException` |
-| `GenericJsonTypeHandler` | 值对象实现 `IValueObject` 并登记到 `TypeHandlerContext` | 列类型 `Types.OTHER`；`Fastjson2JsonSerializer` 作用域私有 |
+| `GenericJsonTypeHandler` | 值对象实现 `IValueObject` 并写入 `TypeHandlerDeclaration.voTypes` | 列类型 `Types.OTHER`；`Fastjson2JsonSerializer` 作用域私有 |
 | `JdbcJsonValue` / `PgJdbcJsonValue` | MySQL 用常量，PostgreSQL `new PgJdbcJsonValue()` | PostgreSQL 需 `org.postgresql` 运行期依赖 |
 | `CollectionMapping` | `of(entityClass, field, elementType).columnLabel(...)` | 不可 `builder()`；三者缺一不可 |
 | `ListTypeHandler` | 单例注册 `List.class`，由 `columnLabel` 还原泛型 | 同名列不同类型须用不同 `columnLabel` 隔离（启动期 `IllegalStateException`） |
-| `TypeHandlerContext` | `record(6 参数)` → `registerInto(sqlSessionFactory)` | 枚举策略单点来源，勿分头配置 |
+| `TypeHandlerContext` | 由 `TypeHandlerAssembler.assemble(...)` 产出 → `registerInto(configuration)` | 全局唯一；应用侧不得直接 `new`，也不得每聚合各建一份 |
 | `MybatisOutboxStore` | `new MybatisOutboxStore(executor, txOps)` | 传统纯 XML 直调；持有 `IOutboxStatementExecutor`，store 走调用方事务，补偿操作走 `txOps` 独立短事务（REQUIRES_NEW） |
 | `DbSegmentAllocator` | `new DbSegmentAllocator(idExecutor)` | 传统纯 XML 直调；持有 `IIdSegmentStatementExecutor`，执行器自管独立短事务实现 core `IIdSegmentAllocator` |

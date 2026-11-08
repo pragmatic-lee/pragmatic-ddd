@@ -10,16 +10,16 @@ import org.apache.ibatis.type.JdbcType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Type;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * ListTypeHandler 纯单测：集合读路径（还原、converter、NULL）与 NULL 写路径。
+ * ListTypeHandler 纯单测：集合读路径（标签路由、converter、NULL、序号回退）与 NULL 写路径。
  * 说明：setParameter 内部经 serializer.toJsonValue 写入，而 toJsonValue 对集合/数组顶层
  * 按 JSONObject.class 强转会抛 JSONException（Fastjson2JsonSerializer 的已知限制，属主代码范畴），
  * 故写路径的集合序列化不在本次测试范围内，仅覆盖稳定的读取路径。
@@ -42,13 +42,11 @@ class ListTypeHandlerTest {
     }
 
     private ListTypeHandler handler(CollectionElementTypeConfig config) {
-        Map<String, Type> columnListTypes = config.columnListTypes();
         return new ListTypeHandler(
                 serializer,
                 JdbcJsonValue.DEFAULT,
-                columnListTypes,
-                config.converters(),
-                columnListTypes.get("tags"));
+                config.columnListTypes(),
+                config.converters());
     }
 
     @Test
@@ -98,5 +96,38 @@ class ListTypeHandlerTest {
         List<?> result = upperHandler.getResult(rs, "tags");
 
         assertThat(result).isEqualTo(List.of("A", "B"));
+    }
+
+    @Test
+    @DisplayName("未登记的列标签直接抛错，不做兜底")
+    void unknownLabelFailsFast() throws Exception {
+        ListTypeHandler handler = handler(config());
+        ResultSet rs = JdbcMocks.fakeResultSetWithColumn("unknown_col", "[\"a\"]", false);
+
+        assertThatThrownBy(() -> handler.getResult(rs, "unknown_col"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("未登记的集合列标签")
+                .hasMessageContaining("tags");
+    }
+
+    @Test
+    @DisplayName("按序号读取时经结果集元数据还原列标签")
+    void getResultByIndexUsesMetaDataLabel() throws Exception {
+        ListTypeHandler handler = handler(config());
+        String raw = serializer.serialize(List.of("a", "b"));
+        ResultSet rs = JdbcMocks.fakeResultSetWithIndexLabel(1, "tags", raw, false);
+
+        assertThat(handler.getResult(rs, 1)).isEqualTo(List.of("a", "b"));
+    }
+
+    @Test
+    @DisplayName("按序号读取且元数据缺失列时抛错")
+    void getResultByIndexWithoutLabelFails() throws Exception {
+        ListTypeHandler handler = handler(config());
+        ResultSet rs = JdbcMocks.fakeResultSetWithIndex(1, "[\"a\"]", false);
+
+        assertThatThrownBy(() -> handler.getResult(rs, 1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("集合列序号越界");
     }
 }

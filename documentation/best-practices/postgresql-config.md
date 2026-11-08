@@ -182,10 +182,10 @@ public DatabaseIdProvider databaseIdProvider() {
 
 @Bean
 public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
-                                           List<TypeHandlerContext> typeHandlerContexts,
+                                           TypeHandlerContext typeHandlerContext,
                                            DatabaseIdProvider databaseIdProvider) throws Exception {
     org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
-    typeHandlerContexts.forEach(context -> context.registerInto(configuration));
+    typeHandlerContext.registerInto(configuration);
 
     SqlSessionFactoryBean sessionFactory = new SqlSessionFactoryBean();
     sessionFactory.setDataSource(dataSource);
@@ -282,29 +282,28 @@ MySQL 到 PG 的转写规则：
 
 ## 6. TypeHandler 适配
 
-### 6.1 聚合专属 TypeHandlerContext
+### 6.1 聚合侧声明与方言选择
 
-枚举、值对象与集合三通道的装配方式不变；PG 场景只把 JSON 适配器换成 `PgJdbcJsonValue`：
+类型装配方式与 MySQL 完全一致：每个聚合只产出 `TypeHandlerDeclaration`，框架合并为唯一上下文。PG 场景的区别只在 JSON 方言适配器：
+
+- 引入 `pragmatic-ddd-spring-boot` 且未显式声明 `JdbcJsonValue` Bean 时，自动配置会按数据源产品名探测，PostgreSQL 走 `PgJdbcJsonValue`（`PGobject`，`type=jsonb`）；
+- 手动装配时显式传入：
+
+```java
+TypeHandlerContext context = TypeHandlerAssembler.assemble(
+        List.of(orderDeclaration()), new PgJdbcJsonValue());
+context.registerInto(configuration);
+```
+
+聚合声明本身不因方言而改变：
 
 ```java
 @Bean
-public TypeHandlerContext orderTypeHandlerContext() {
-    EnumValueResolver resolver = new EnumValueResolver();
-    Map<Class<?>, EnumRule> enumRules = Map.of(
-            OrderStatus.class, EnumRule.CODE,
-            PaymentStatus.class, EnumRule.CODE,
-            ShipmentStatus.class, EnumRule.CODE,
-            PaymentMethod.class, EnumRule.CODE);
-    List<Class<?>> voTypes = List.of(
-            Customer.class, Address.class, Money.class,
-            PaymentInfo.class, LogisticsInfo.class);
-    return new TypeHandlerContext(
-            resolver,
-            new Fastjson2JsonSerializer(resolver, enumRules),
-            new PgJdbcJsonValue(),
-            enumRules,
-            voTypes,
-            CollectionElementTypeConfig.empty());
+public TypeHandlerDeclaration orderTypeHandlerDeclaration() {
+    return TypeHandlerDeclaration.of(
+            Map.of(OrderStatus.class, EnumRule.CODE),
+            List.of(Customer.class, Address.class, Money.class),
+            List.of());
 }
 ```
 
@@ -348,7 +347,7 @@ PG 版 XML 对每个可能为 `null` 的参数显式声明类型：
 | --- | --- |
 | 状态列 | 使用 `VARCHAR(20)` + `EnumTypeHandler`（按 `name()`）；不使用 PG 自定义 enum、domain 或 `CHECK` 约束 |
 | 单列枚举 | `UniversalEnumTypeHandler` 按 `EnumRule` 存取；列类型与 MySQL 保持一致（`VARCHAR` / `INT`） |
-| 集合列 | `ListTypeHandler` 按 `columnLabel` 还原泛型；PG 与 MySQL 行为一致，仍需用 SQL `AS` 隔离同名列 |
+| 集合列 | `ListTypeHandler` 按 `columnLabel` 还原泛型；未声明标签直接抛错，PG 与 MySQL 行为一致，仍需用 SQL `AS` 隔离同名列 |
 | 时间 | `Instant` ↔ `TIMESTAMP(3)`；DDL 不带时区 |
 
 ## 7. 框架 SQL 方言要点

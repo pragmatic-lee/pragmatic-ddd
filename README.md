@@ -81,7 +81,7 @@
 | 防腐层 | `AbstractQueryGateway` / `AbstractWriteGateway` / `AbstractIdempotentWriteGateway` 继承式套路，或 `ExternalCall` 组合式调用；`AclExceptions` 区分可重试与不可重试异常 |
 | 外部依赖声明 | `@ExternalDependency` + `DependencyType` 声明式标注聚合依赖的外部系统端口 |
 | 配置体系 | `IConfigurationSource` / `ConfigurationBinder` / `AbstractConfiguration` 三层配置，含 `IFeatureToggle` 特性开关与灰度策略 |
-| MyBatis | `TypeHandlerContext` 一次性注册枚举、JSON、集合三类 TypeHandler；`MybatisOutboxStore`、`DbSegmentAllocator` 开箱即用 |
+| MyBatis | `TypeHandlerDeclaration`（聚合侧声明）+ `TypeHandlerAssembler`（合并为唯一 `TypeHandlerContext`）注册枚举、JSON、集合三类 TypeHandler；`MybatisOutboxStore`、`DbSegmentAllocator` 开箱即用 |
 | RocketMQ | `RocketMqEventManager`（Remoting）与 `RocketMqGrpcEventManager`（gRPC 5.x Proxy）双通道事件管理器 |
 | 零框架依赖 | 核心库只依赖 JDK 与 Lombok（provided），不依赖 Spring / MyBatis / MQ，领域层保持纯净可测 |
 
@@ -426,10 +426,11 @@ uow.commit();   // 同事务落库 + 落 outbox，提交后推送事件
 
 `pragmatic-ddd-mybatis` 提供与 MyBatis 的衔接能力，让聚合根可借助框架基础设施持久化：
 
-- **统一类型处理器装配**：`TypeHandlerContext` 集中持有枚举策略、VO 类型与共享组件，构建完 `SqlSessionFactory` 后调用一次 `registerInto(...)` 即可同时注册枚举、JSON、集合三类处理器，零 Spring 依赖。
-  - `enums`：`UniversalEnumTypeHandler` + `EnumValueResolver`，按策略（CODE/ORDINAL/NAME）映射枚举。
+- **声明与装配分离的复杂类型装配**：聚合侧只产出 `TypeHandlerDeclaration`（声明枚举、值对象、集合列），框架侧 `TypeHandlerAssembler` 合并全部声明、启动期校验冲突后产出**唯一**的 `TypeHandlerContext`，构建完 `SqlSessionFactory` 前调用一次 `registerInto(configuration)` 即可同时注册枚举、JSON、集合三类处理器，零 Spring 依赖。
+  - 为什么要唯一：MyBatis 对 `List.class` 只有全局单槽，`register` 是覆盖而非追加；每聚合一个上下文时只有最后一个生效，其余集合列会静默退化。
+  - `enums`：`UniversalEnumTypeHandler` + `EnumValueResolver`，按策略（CODE/ORDINAL/NAME/LABEL）映射枚举。
   - `json`：`GenericJsonTypeHandler`，把值对象整体读写为数据库原生 JSON 列（PG `jsonb` / MySQL `JSON`）。
-  - `list`：`ListTypeHandler`，单列 JSON 数组处理器，按列标签还原 `List<E>` 元素类型。
+  - `list`：`ListTypeHandler`，单列 JSON 数组处理器，严格按列标签还原 `List<E>` 元素类型；未登记的标签直接报错，不做类型兜底。
 - **可靠事件 Outbox**：`MybatisOutboxStore` 实现 `IOutboxStore`，`store` 在调用方事务内执行，`claim`/`markSent` 等为独立短事务，`markSent` 带状态守卫保证幂等。
 - **ID 号段分配**：`DbSegmentAllocator` 实现 `IIdSegmentAllocator`，基于数据库 `SELECT ... FOR UPDATE` 自管独立短事务分配号段，仅依赖 MyBatis 核心 API。
 
@@ -441,7 +442,9 @@ import io.pragmatic.ddd.mybatis.id.DbSegmentAllocator;
 import io.pragmatic.ddd.mybatis.id.IIdSegmentStatementExecutor;
 import io.pragmatic.ddd.mybatis.outbox.IOutboxStatementExecutor;
 import io.pragmatic.ddd.mybatis.outbox.MybatisOutboxStore;
+import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerAssembler;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
+import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDeclaration;
 
 // 基于 MyBatis 的号段 ID 分配器（传统纯 XML 直调，执行器自管独立短事务）
 IIdSegmentStatementExecutor idExecutor = ...; // 由集成层实现：注入 SqlSessionFactory，自管独立短事务
@@ -454,10 +457,10 @@ IOutboxStatementExecutor outboxExecutor = ...; // 由集成层实现：注入 Sq
 IOutboxStore outboxStore = new MybatisOutboxStore(outboxExecutor, transactionOperations);
 outboxStore.store(outboxMessages); // 在调用方事务内批量落库
 
-// 统一注册枚举 / JSON / 集合类型处理器（构建完 SqlSessionFactory 后调用一次）
-TypeHandlerContext context = new TypeHandlerContext(resolver, serializer,
-        new PgJdbcJsonValue(), enumRules, voTypes, collectionsConfig);
-context.registerInto(sqlSessionFactory);
+// 统一注册枚举 / JSON / 集合类型处理器（构建 Configuration 时调用一次）
+TypeHandlerContext context = TypeHandlerAssembler.assemble(
+        List.of(orderDeclaration), new PgJdbcJsonValue());
+context.registerInto(configuration);
 ```
 
 ### RocketMQ 集成

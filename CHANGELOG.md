@@ -19,8 +19,27 @@
 - **真实 PG 集成测试**：`PostgresTestSupport` + Outbox（含并发认领不重不漏）/ 补偿 / 号段（含并发行锁）/ TypeHandler（jsonb 通道）四套用例，与 MySQL 版逐条对称；PG 与 MySQL 驱动均仅 test scope，不进框架产物。
 - **父 POM `dependencyManagement` 登记 `org.postgresql:postgresql`**。
 
+### 变更
+
+#### MyBatis 复杂类型装配改为「声明与装配分离」（pragmatic-ddd-mybatis / pragmatic-ddd-spring-boot）
+
+- **新增 `TypeHandlerDeclaration`**：聚合侧只声明 `enumRules` / `voTypes` / `collections` 与预留给多数据源的 `scope`，不再持有 `EnumValueResolver`、`JsonSerializer`、`JdbcJsonValue` 等运行时组件。
+- **新增 `TypeHandlerAssembler`**：合并全部声明并在启动期 fail-fast（同一枚举两种策略、同一类型同时出现在两通道、`voTypes` 未实现 `IValueObject`、集合元素枚举未声明策略、同列标签不同类型/不同转换器、`scope` 非 `default`），产出唯一的 `TypeHandlerContext`。
+- **新增 `DddMybatisTypeHandlerAutoConfiguration`**：收集容器内全部声明合并为单例 `TypeHandlerContext`；业务自定义该 Bean 时自动退让；`JdbcJsonValue` 优先取显式 Bean，否则按数据源产品名探测，无数据源时回落透传实现。
+- **破坏性变更**：`MyBatisConfig.sqlSessionFactory` 入参从 `List<TypeHandlerContext>` 改为单个 `TypeHandlerContext`。每个聚合各建一个上下文时，MyBatis 对 `List.class` 的全局单槽会让后注册者覆盖前注册者（只有最后一个生效），这是本次收敛的直接动因；接入方需把 `{Agg}MybatisTypeHandlerConfig` 改为产出 `TypeHandlerDeclaration`。
+- 新增 `EnumValueResolver.registerIfAbsent`：仅未注册时兜底注册，不覆盖既有策略。
+
+### 移除
+
+- `ListTypeHandler` 移除 `defaultListType` 兜底构造参数；按序号读取的重载改为通过结果集元数据反查列标签，与按列名读取走同一套路由。
+- `ListTypeHandler` 遇到未登记列标签不再兜底还原，改为抛 `IllegalStateException` 并列出已登记标签。
+- 无任何集合列声明时不再注册 `List.class` 处理器（空标签表会清空全局映射并让其它聚合的集合列失效）。
+- 集合元素枚举的兜底注册不再隐式使用 `CODE` 覆盖声明阶段指定的 `EnumRule`。
+
 ### 修复
 
+- 修复多聚合各自注册 `TypeHandlerContext` 时 `ListTypeHandler` 相互覆盖、集合列回读退化为 `List<JSONObject>` 并在业务取值时抛 `ClassCastException` 的问题。
+- 修复 `defaultListType` 取自 `Map.copyOf` 无序迭代导致的兜底类型不确定（跨 JVM 启动可能变化）。
 - `MybatisCompensationLog` 主键冲突判断补充标准 SQLState「23 类」：PostgreSQL 驱动抛 `PSQLException`（SQLState 23505）而非 `SQLIntegrityConstraintViolationException`，原 `instanceof` 判断在 PG 下漏判，重复登记不再被正确翻译为 `CompensationRecordConflictException`（MySQL 行为不变）。
 
 ## [2.0.0] — 2026-10-14

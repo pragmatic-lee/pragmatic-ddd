@@ -96,8 +96,7 @@ class TypeHandlerRealDbPostgresTest {
                 new Fastjson2JsonSerializer(resolver, Map.of()),
                 pgJson,
                 listConfig.columnListTypes(),
-                listConfig.converters(),
-                listConfig.columnListTypes().get("colors_json"));
+                listConfig.converters());
         cfg.getTypeHandlerRegistry().register(List.class, listHandler);
     }
 

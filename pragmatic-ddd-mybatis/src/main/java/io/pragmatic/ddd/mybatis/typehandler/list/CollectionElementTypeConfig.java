@@ -54,10 +54,17 @@ public final class CollectionElementTypeConfig {
                                 + "不要在同一查询结果中保留同名列。");
             }
 
-            // 枚举元素类型确保已在 resolver 注册（与单列枚举 EnumRule 一致；register 幂等）
+            // 冲突校验：同 label 同元素类型但转换器不同 -> 启动期 fail-fast，避免后者静默覆盖
+            if (prev != null && prev.elementType().equals(m.elementType()) && prev.converter() != m.converter()) {
+                throw new IllegalStateException(
+                        "集合列标签转换器冲突: 结果集列标签 '" + label + "' 被声明为两种不同的 ElementConverter —— "
+                                + prev + " 与 " + m + "。同一列标签只能有一个转换器。");
+            }
+
+            // 枚举元素类型兜底注册（幂等，不覆盖声明阶段已显式指定的 EnumRule）
             Class<?> et = m.elementType();
             if (Enum.class.isAssignableFrom(et)) {
-                resolver.register(et.asSubclass(Enum.class));
+                resolver.registerIfAbsent(et.asSubclass(Enum.class));
             }
 
             c.put(label, listTypeOf(et));

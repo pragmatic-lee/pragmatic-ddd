@@ -28,7 +28,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 职责分两层，两个配置类单向依赖（`MyBatisConfig → MySqlConfig`）：
 
 - `infrastructure/config/MySqlConfig`：只产 `DataSource`（Hikari）与 `PlatformTransactionManager`，开 `@EnableTransactionManagement`；不 import 任何 MyBatis 类型。连接参数读 `application.properties` 的 `${ENV}` 占位。
-- `infrastructure/config/MyBatisConfig`：产 `SqlSessionFactory` 与 `SqlSessionTemplate`；用原生 `Configuration` 注入各聚合 `TypeHandlerContext`（入参必须 `List<TypeHandlerContext>`）， **不用 `setConfigLocation` / `mybatis-config.xml`**。
+- `infrastructure/config/MyBatisConfig`：产 `SqlSessionFactory` 与 `SqlSessionTemplate`；用原生 `Configuration` 注入**框架合并出的唯一** `TypeHandlerContext`（入参单个，**不得**用 `List<TypeHandlerContext>`）， **不用 `setConfigLocation` / `mybatis-config.xml`**。聚合侧只产 `TypeHandlerDeclaration`（`MyBatisConfig` 不感知具体聚合类型）。
 - Mapper XML 必须用 `classpath*:` 扫四路：框架三组（`io/pragmatic/ddd/mybatis/{outbox,id,compensation}/*.xml`）+ 业务 `mapper/**/*.xml`；用单 `classpath:` 扫不到 jar 内框架 XML。
 - 通用配置放 `infrastructure/config/`（单一来源），聚合级配置放 `infrastructure/config/{agg}/`。
 - 不注解 `@MapperScan` 扫描 Java 接口（本框架 Mapper 为纯 XML，`SqlSessionTemplate` 用 `namespace` 查）。

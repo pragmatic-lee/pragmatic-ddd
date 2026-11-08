@@ -13,12 +13,11 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Stream;
 
 /**
  * 通用 MyBatis 会话装配（ORM 层）。
- * 提供 SqlSessionFactory 与 SqlSessionTemplate：构建阶段把各聚合专属的
+ * 提供 SqlSessionFactory 与 SqlSessionTemplate：构建阶段把框架合并出的唯一
  * {@link TypeHandlerContext} 灌入原生 Configuration，并把框架固定 Mapper XML
  * 与业务 Mapper XML 一并纳入扫描。
  *
@@ -43,21 +42,21 @@ public class MyBatisConfig {
     /**
      * 构建 MyBatis 会话工厂。
      *
-     * <p>复杂类型（枚举 / 值对象 JSON / 集合）的 TypeHandler 由各聚合专属配置类产出的多个
-     * {@link TypeHandlerContext} 在工厂构建阶段逐个经 {@code registerInto} 注入原生 Configuration，
-     * 确保 Mapper XML 解析前完成装配；本类不感知任何具体聚合类型，新增聚合只需新增一个
-     * {@code TypeHandlerContext} Bean 即可被自动聚合注册。</p>
+     * <p>复杂类型（枚举 / 值对象 JSON / 集合）的 TypeHandler 由框架侧收集各聚合
+     * {@code TypeHandlerDeclaration} 后合并出的唯一 {@link TypeHandlerContext} 提供，在工厂构建阶段经
+     * {@code registerInto} 注入原生 Configuration，确保 Mapper XML 解析前完成装配；本类不感知任何具体聚合类型，
+     * 新增聚合只需新增一个 {@code TypeHandlerDeclaration} 即可被自动合并。</p>
      *
-     * @param dataSource           数据源
-     * @param typeHandlerContexts  复杂类型 TypeHandler 装配上下文集合（每个聚合专属配置各产出一个）
+     * @param dataSource         数据源
+     * @param typeHandlerContext 复杂类型 TypeHandler 装配上下文（全局唯一）
      * @return MyBatis 会话工厂
      * @throws Exception 资源扫描或工厂构建失败时抛出
      */
     @Bean
     public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
-                                               List<TypeHandlerContext> typeHandlerContexts) throws Exception {
+                                               TypeHandlerContext typeHandlerContext) throws Exception {
         org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
-        typeHandlerContexts.forEach(context -> context.registerInto(configuration));
+        typeHandlerContext.registerInto(configuration);
 
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.setCacheEnabled(true);

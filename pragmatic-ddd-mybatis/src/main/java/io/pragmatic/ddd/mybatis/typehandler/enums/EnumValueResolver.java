@@ -47,6 +47,14 @@ public final class EnumValueResolver {
         registry.put(type, ResolverEntry.build(type, rule, codec));
     }
 
+    /**
+     * 仅在未注册时按默认策略注册；已注册则保持既有策略不变（不覆盖）。
+     * 供集合元素枚举的兜底注册使用，避免覆盖声明阶段已显式指定的策略。
+     */
+    public <E extends Enum<E>> void registerIfAbsent(Class<E> type) {
+        registry.computeIfAbsent(type, key -> ResolverEntry.build(key, defaultRule, codec));
+    }
+
     /** 批量注册：统一使用默认策略。 */
     public void registerAll(Collection<Class<?>> types) {
         for (Class<?> t : types)
