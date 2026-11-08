@@ -64,7 +64,7 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 
 ### 3.6 自检 + 交付
 
-- 逐条核对 `projection-design.md` §4 关键约束 + 硬约束 E3（枚举降级）。
+- 逐条核对 `projection-design.md` §4 关键约束 + 硬约束 E3（枚举降级）/ E4（投影字段禁用领域值对象/实体/聚合根类型）。
 - 提示：建表（副本表含 `REPLICA_ID` 唯一）见 S3；StoreClient/SDK 封装见 S3 能力供给。
 
 ## 4. 生成规则
@@ -77,6 +77,7 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 
 - 投影 DTO `@Data`；聚合根/事件禁用 `@Data`（同一项目两种约定）。
 - 枚举降级：投影 `status` 用 `int`、`statusName` 用 `String` 双写（E3）；条件 `Integer`。
+- 字段禁用领域类型（E4）：投影与条件字段（含嵌套子投影静态类、行投影）不使用领域值对象/子实体/聚合根类型，一律展开为扁平基础类型字段；聚合只作 Projector 入参与 `sync(T)` 原料。
 - `REPLICA_ID` 每源唯一；源自身即副本（`replicaId()` == 源 id）。
 - 源泛型 P 编译期钉死唯一产物类型；业务子投影由裁剪器内存产出。
 - 无独立 `*Searcher` 类；分页在源内，totalCount/nextCursor 取裁剪前。
@@ -86,9 +87,9 @@ description: 按 Pragmatic DDD 投影读模型规范生成查询侧：聚合→�
 
 - [ ] 四角色文件齐 + 职责不越界
 - [ ] 投影 DTO @Data、聚合根/事件非 @Data
-- [ ] 枚举降级 int/String 双写
+- [ ] 枚举降级 int/String 双写 + 无领域类型字段（E4）
 - [ ] REPLICA_ID 唯一、源自身即副本
-- [ ] 条件族 sealed + 枚举 Integer
+- [ ] 条件族 sealed + 枚举 Integer + 无领域类型字段（E4）
 - [ ] 读服务两跳 + getReducer null 显式抛
 - [ ] 写路径订阅已 registerSubscriber，version 取 event.getVersion()
 - [ ] 无独立 *Searcher 类

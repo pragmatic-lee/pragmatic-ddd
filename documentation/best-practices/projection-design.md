@@ -152,7 +152,8 @@ public class OrderEsSource extends AbstractProjectionSource<Order, Long, OrderEs
 | 标识字段 | 聚合标识，作为文档 `_id` / 缓存键后缀 |
 | 枚举双写 | code（`getValue()`）与文案（`getName()`）同时落库，避免查询侧枚举反查 |
 | 金额 / 数值**原样承载** | 用 `BigDecimal`，与聚合字段保持同一单位与精度，**不做任何隐式单位换算** |
-| 嵌套对象 | 有强归属的子结构扁平化嵌入（如无跨字段约束，不引入 `nested`） |
+| 领域类型禁用 | 投影字段（含嵌套子投影静态类、行投影）与查询条件字段**不使用领域模型类型**（值对象 / 子实体 / 聚合根）——值对象在投影器内展开为扁平基础字段（`Money → BigDecimal`、`Address → province / city / detail`），枚举按「枚举双写」行降级 |
+| 嵌套对象 | 有强归属的子结构扁平化嵌入（如无跨字段约束，不引入 `nested`）；嵌套子结构用投影内 `@Data` 静态类承载，不引用领域值对象/实体类型 |
 | 派生字段 | 冗余查询辅助字段（聚合列表 / 拼接文本等），由投影器计算 |
 
 :::: tip 金额单位：与聚合同单位，不做换算
@@ -415,6 +416,8 @@ public class OrderEsProjection implements IOrderProjection {
 > ⚠️ **投影用 `@Data`，聚合根禁用 `@Data`**：投影等同性由 Lombok 生成、纯属容器便利；聚合根等同性由 `AbstractEntity` 托管。嵌套子投影（`CustomerProjection` 等）不实现 `IOrderProjection`，只有聚合拓扑级投影实现。
 >
 > ⚠️ **投影中枚举降级为基础类型**：投影字段不使用枚举类型，`status` 用 `int`、`statusName` 用 `String` 双写承载。投影是跨进程传输的存储文档，绑定枚举类型会让文档反序列化与枚举演进互相牵制。
+>
+> ⚠️ **投影字段禁用领域值对象/子实体/聚合根**：`IValueObject` 的 TypeHandler 是写侧 DB 持久化机制，读侧副本（ES/Redis）无对应还原；字段直接绑定领域类型会让读模型反序列化与值对象演进互相牵制，且绕过投影器的裁剪闸门。嵌套子结构用投影内 `@Data` 静态类（如 `AddressProjection`），字段展开为扁平基础类型；值对象取值留在投影器内完成（见 `amountOf(Money)`）。该约束同样适用于查询条件族与行投影，无豁免。
 >
 > ⚠️ **缓存副本投影需要自带版本字段**：Redis 这类不提供外部版本号的存储，副本版本 V' 要由投影自己承载——`OrderCacheProjection.version`（`Long`）由投影器写入 `aggregate.getOldVersion()`，`readVersion` 解析它。ES 有 `_version`，故 `OrderEsProjection` 不需要该字段。
 
@@ -740,6 +743,7 @@ public sealed interface OrderPageQuery extends PageQueryCriteria
 - **族内扩展只加 `record` 并在 `permits` 登记**：新增场景后，所有 `instanceof` 分发点在编译期暴露未覆盖分支。
 - **Page / Scroll 共用同一条件族**：二者语义同属「按需过滤」，不各自建族。
 - **条件中枚举一律降级为基础类型**：`status` / `paymentStatus` 用 `Integer`，不用枚举类型。
+- **条件字段禁用领域模型类型**：条件 `record` 字段不使用领域值对象/子实体/聚合根类型，与投影字段同判（一律展开为标量基础类型）。
 - **条件不含分页参数**：分页由 `PageRequest` / `ScrollPosition` 单独传入，不塞进条件 `record`。
 - **条件不含存储方言**：条件只表达业务意图（"商品名分词匹配"），翻译成 `match` 还是 `wildcard` 由源决定。
 
@@ -1734,6 +1738,7 @@ Optional.ofNullable(first.nextCursor())
 | 跨族复用条件（`ListQuery` 传给 `searchPage`） | 编译期报错，语义混用 | 分页场景建 `PageQueryCriteria` 子族，字段全 `Optional` |
 | 分页参数塞进条件 `record` | 条件与分页语义耦合、无法复用条件做滚动 | 分页由 `PageRequest` / `ScrollPosition` 单独传入 |
 | 条件中使用枚举类型 | 跨进程传输与枚举演进互相牵制 | 条件与投影中枚举一律降级为 `Integer` / `int` + 文案 `String` |
+| 投影字段直接引用领域值对象/子实体（如 `private Money amount`） | 读写模型演进耦合；副本反序列化受制于领域类型；绕过裁剪泄露内部口径 | 字段展开为扁平基础类型，值对象取值留在投影器内（参照 `amountOf(Money)`）；条件族与行投影同判 |
 | 把 `ProjectionSearcherNotFoundException` / `ProjectionReducerNotFoundException` 当「业务上查不到」处理 | 接线 bug 被掩盖成「查不到」 | 异常上抛不降级；注意 `getReducer` 未注册返回 `null`，由读服务显式抛异常 |
 | 读路径为拿最新数据回源聚合根 | 同步阻塞、绕过副本、副本落后无法暴露 | 读路径只读副本，落后由对账修复 |
 | 绕过源手写投影更新 | 事件路径与 resync 逻辑不一致 | 共用 `AbstractProjectionSource.sync` |

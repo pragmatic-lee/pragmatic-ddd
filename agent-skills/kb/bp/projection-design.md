@@ -1,6 +1,6 @@
 # BP 卡：投影读模型代码落地指南（projection-design）
 
-> 源：`documentation/best-practices/projection-design.md` · 派生时间：2026-10-29（同源直读同步） · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/projection-design.md` · 派生时间：2026-11-08（新增投影字段领域类型禁令 E4） · 框架版本：2.1.0-SNAPSHOT
 
 ## 1. 本质与角色（异构副本）
 
@@ -50,10 +50,10 @@ application/{agg}/      OrderWriteService / OrderReadService / service/（sync�
 ## 3. 落地方式（核心）
 
 1. **领域契约**：`IOrderProjection extends IAggregateProjection`；`IOrderESSource extends IProjectionByIdSearcher<P>, IOneQuerySearcher<P,C>, IListQuerySearcher<P,C>, IPagedQuerySearcher<P,C>`（Redis 只 extends ById 族）；`getReducer(Class<X>)` 声明在此。
-2. **投影**：`@Data` 纯数据容器、对齐存储形状；**枚举降级为基础类型**（`int` code + `String` name 双写）；金额 `BigDecimal` 原样承载同单位同精度；**缓存副本自带 `version` 字段**（ES 用 `_version` 不需要）。
+2. **投影**：`@Data` 纯数据容器、对齐存储形状；**枚举降级为基础类型**（`int` code + `String` name 双写）；**字段禁用领域模型类型**（E4：值对象/子实体/聚合根不作字段类型，含嵌套子投影静态类、行投影、条件族——值对象在投影器内展开为扁平基础字段，嵌套子结构用投影内 `@Data` 静态类如 `AddressProjection`）；金额 `BigDecimal` 原样承载同单位同精度；**缓存副本自带 `version` 字段**（ES 用 `_version` 不需要）。
 3. **投影器**：`extends AbstractAggregateProjector<Order, P>`，`project` 手写全字段映射；金额原样承载、派生字段在 `project` 内 `stream` 计算、可空嵌套用 `Optional.ofNullable().ifPresent()`；纯映射无状态单例。
 4. **源**：`extends AbstractProjectionSource<Order, Long, P> implements IOrderESSource`，`super(ProjectionSource.of(REPLICA_ID), Order.class, P.class, projector, List.of(reducer))`；覆写 `materialize`/`purge`/`readVersion`/`rebuild`；External 版本控制（409 冲突静默丢弃 `log.debug`，真正写失败 `IOException` 上抛）；`materialize` 形参是 `IAggregateProjection`，第一行强转本源 `P`。
-5. **条件族**：三 `sealed interface`（`OneQueryCriteria`/`ListQueryCriteria`/`PageQueryCriteria`，互不继承）+ `record` 场景；字段全必填（One/List）/全 Optional（Page）；枚举降级 `Integer`；条件不含分页参数与存储方言。
+5. **条件族**：三 `sealed interface`（`OneQueryCriteria`/`ListQueryCriteria`/`PageQueryCriteria`，互不继承）+ `record` 场景；字段全必填（One/List）/全 Optional（Page）；枚举降级 `Integer`；字段禁用领域模型类型（E4）；条件不含分页参数与存储方言。
 6. **读服务**：`implements IQueryApplicationService`（**无基类**），注入领域源接口，方法体显式选源（ById→Redis、条件/分页→ES），两跳：`源.查询族()` 拿全量 → `源.getReducer(类型).reduce` 裁剪；目标即全量投影时 `isInstance` 短路 `cast`；`getReducer` 返回 `null` 显式抛 `ProjectionReducerNotFoundException`；`totalCount`/`nextCursor` 取自裁剪前。
 7. **装配**：投影侧零登记（源 `@Component` 即 Bean）；唯一装配 `OrderReconciliationConfig` 贡献 `ReconcileContribution.registerRepository(Order.class, repo)`；副本由 `List<IReadModelReplica<?>>` 自动登记。
 8. **事件订阅**：一份副本一个订阅者（`OrderDataSyncEsProjectionHandle` 等），`handleEvent` **先按 `event.getDataSyncAction()` 分流**：`PURGE` → `源.purge(id)`；`UPSERT` → `findById` → `源.sync(order)`，聚合为 `null` 时转 `源.purge(id)`（不静默 `return`）；`DeliveryPolicy.DELAYED` 的 `reconcile` 订阅者做写后延迟复核。
@@ -122,6 +122,7 @@ application/{agg}/      OrderWriteService / OrderReadService / service/（sync�
 | 手拼 `new ProjectionSource(...)` | 引用 `XxxTargets.REPLICA_ID` |
 | 跨族传参（ListQuery→searchPage） | 编译期报错，Page 族字段全 Optional |
 | 条件用枚举类型 | 降级 `Integer`/`int` + 文案 `String` |
+| 投影字段直接引用领域值对象/子实体（如 `private Money amount`） | 展开为扁平基础类型，取值留在投影器内（E4）；条件族与行投影同判 |
 | 把 `*NotFoundException` 当「查不到」 | 接线 bug 上抛；`getReducer` 返回 null 由读服务抛 |
 | 读路径回源聚合根 | 只读副本，落后由对账修 |
 | resync 重放单条事件 | `findById→project→materialize` |

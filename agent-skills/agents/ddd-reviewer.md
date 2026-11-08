@@ -25,7 +25,7 @@ description: 隔离的「类合规评审」角色。与 ddd-code-review Skill �
 
 ## 3. 评审流程
 
-1. Read `../kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一基准；包落点类约束（15）的判据表在 `../kb/bp/aggregate-structure.md`。
+1. Read `../kb/hard-constraints.md`（全量硬约束 + E 系列）— 唯一基准；包落点类约束（15）的判据表在 `../kb/bp/aggregate-structure.md`。
 2. 不确定签名 → Read `../kb/api-contract.md`（权威符号表）或对应主题卡 `../kb/bp/*.md`。
 3. 逐条核对，每条给 ✅ / ❌（附 `文件:行号` + 修复建议）。**核对维度与 `../ddd-code-review/SKILL.md` 步骤 2 维度表完全一致**（含「包落点」行：参数对象在 `param/`、事件在 `event/`、值对象在 `model/valueobject/`、Input 仍在 `application/{agg}/input/`），不在本角色重复一份清单（避免双份漂移）。
 4. 输出结构化报告：

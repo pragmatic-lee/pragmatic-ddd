@@ -29,7 +29,7 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ### 步骤 1：加载评审基准
 
-- Read `kb/hard-constraints.md`（全量硬约束 + E1~E3）— 唯一评审基准；包落点判据表（约束 15）在 `kb/bp/aggregate-structure.md`。
+- Read `kb/hard-constraints.md`（全量硬约束 + E 系列）— 唯一评审基准；包落点判据表（约束 15）在 `kb/bp/aggregate-structure.md`。
 - **应用服务层**另读 `kb/bp/application-collaboration.md`（落点 / 读写注入边界 / 反模式）；**订阅侧**另读 `kb/bp/event-subscriber-pattern.md`（三要素 / 别名 / 同聚合绑定）。
 - 不确定签名 → Read `kb/api-contract.md`（权威符号表）。
 
@@ -45,7 +45,7 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 | 事件 | 6 延迟事件写法；7 过去式 + buildEvent + 无快照 |
 | Lombok | 8 聚合根/事件禁用 @Data/@Builder，仅 Getter+Setter(PROTECTED)+NoArgsConstructor(PROTECTED) |
 | 依赖 | 9 domain 层零 Spring/MyBatis/MQ |
-| 出入参 | 10 每操作独立 Input；E1~E3 枚举出入参/投影用 Integer/String 基础类型 |
+| 出入参与投影 | 10 每操作独立 Input；E1~E3 枚举出入参/投影用 Integer/String 基础类型；E4 投影/条件字段禁用领域值对象/实体/聚合根类型（存量 Advisory） |
 | 应用层 | 11 Updater/Factory 不校验不持久化不发事件；12 satisfiesRule 必抛异常 |
 | 边界 | 13 跨聚合只持 ID |
 | 父类能力 | 14 不自定义 ID/审计/版本/软删 |
@@ -91,5 +91,5 @@ description: 评审 Pragmatic DDD 生成/手写代码的「类合规」——逐
 
 ## 验收（对照路线图 §8）
 
-- A3 逐条核对全量硬约束（含 16 / 17）+ E1~E3，零遗漏、零误判、零幻觉符号。
+- A3 逐条核对全量硬约束（含 16 / 17）+ E 系列，零遗漏、零误判、零幻觉符号。
 - 已知违规代码对照「角色评审 vs Skill 评审」阻断项召回率（阶段 3 可选）。
