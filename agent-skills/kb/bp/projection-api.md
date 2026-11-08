@@ -1,9 +1,9 @@
 # 投影 API 速查（可编译签名）
 
-> 派生自 `pragmatic-ddd-core` 投影基类源码（`io.pragmatic.ddd.repository.query.projection`），
-> 供 S6（`ddd-projection-create`）零上下文生成投影代码时照搬。所有签名与 2.1.0-SNAPSHOT 一致（2026-10-28 复核，投影基类无变更）；
+> 派生自 `pragmatic-ddd-core` 投影基类与 `repository` 源码（`io.pragmatic.ddd.repository.query.projection`），
+> 供 S6（`ddd-projection-create`）零上下文生成投影代码时照搬。所有签名与已发布 `2.1.0` 一致（2026-11-08 复核：投影基类签名未变；登记源中的 `IRepository.save` 虽有删除意图路由变更，但本卡未登记该方法，故卡内签名不受影响）；
 > 包路径见 `../api-contract.md` 投影段。**KB-only 生成时必须按本卡签名写，不要臆测方法覆盖。**
-> 派生时间：2026-11-08（零上下文清单补 E4 引用；投影基类无变更） · 框架版本：2.0.0
+> 派生时间：2026-11-08 · 框架版本：2.1.0
 
 ## IAggregateProjection（标记接口）
 

@@ -1,6 +1,6 @@
 # BP 卡：MyBatis 配置设计原则（mybatis-config）
 
-> 源：`documentation/best-practices/mybatis-config.md` · 派生时间：2026-10-28（2026-11-08 手工同步 v2.2 声明/装配分离）· 框架版本：2.2.0-SNAPSHOT
+> 源：`documentation/best-practices/mybatis-config.md` · 派生时间：2026-11-08 · 框架版本：2.1.0
 
 ## 1. 职责边界（ORM 层）
 
@@ -45,6 +45,7 @@ public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
 - `pragmatic-ddd-spring-boot` 提供 `DddMybatisTypeHandlerAutoConfiguration` 自动产出该单例（业务自定义则退让），方言优先取显式 `JdbcJsonValue` Bean，否则按数据源探测。
 - 合并期 fail-fast：同枚举两种 `EnumRule`、同类型同时在 `enumRules`/`voTypes`、`voTypes` 未实现 `IValueObject`、集合元素枚举未声明策略、同标签不同类型/不同转换器、`scope` 非 `default`；运行期未登记列标签直接报错。
 - 无任何集合声明时不注册 `List.class` 处理器。
+- 列标签即契约：`CollectionMapping` 声明的标签必须与 Mapper XML 的 `<result column>` / SQL `AS` 别名逐字符一致（全限定符号见 `api-contract.md`）。
 - 必须手动装配（`TypeHandlerContext.registerInto`），包扫描发现不了动态构建的处理器。
 
 ## 3. 纯 XML Mapper 加载

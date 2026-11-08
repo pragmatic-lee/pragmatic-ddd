@@ -1,10 +1,10 @@
 # BP 卡：MySQL 配置设计原则（mysql-config）
 
-> 源：`documentation/best-practices/mysql-config.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/mysql-config.md` · 派生时间：2026-11-08 · 框架版本：2.1.0
 
 ## 1. 职责边界（JDBC 层）
 
-`MySqlConfig` 只产 **`DataSource` 与 `PlatformTransactionManager`**，不 import 任何 MyBatis 类型。ORM 细节拆到 `MyBatisConfig`（见 `mybatis-config.md`）。
+`MySqlConfig` 只产 **`DataSource` 与 `PlatformTransactionManager`**，不 import 任何 MyBatis 类型；`MyBatisConfig` 产 `SqlSessionFactory` 与 `SqlSessionTemplate`，接收框架合并出的唯一 `TypeHandlerContext` 并加载 Mapper XML（见 `mybatis-config.md`）。聚合专属 `{Agg}MybatisTypeHandlerConfig` 只**声明**本聚合的枚举、值对象与集合列（`TypeHandlerDeclaration`），不构建解析器 / 序列化器。
 
 PostgreSQL 使用方见 `postgresql-config.md`：JDBC 数据源与事务管理器骨架可复用（`PostgresConfig` 与 `MySqlConfig` 同构），但驱动、方言 XML、`databaseId` 与建表脚本不同。
 
@@ -13,10 +13,11 @@ infrastructure/config/
 ├── MySqlConfig.java                 # DataSource / PlatformTransactionManager + @EnableTransactionManagement
 ├── MyBatisConfig.java               # SqlSessionFactory / SqlSessionTemplate
 └── {agg}/
-    └── {Agg}MybatisTypeHandlerConfig.java   # 该聚合专属 TypeHandler 装配
+    └── {Agg}MybatisTypeHandlerConfig.java   # 该聚合的复杂类型声明
 ```
 
 - 依赖方向单向：`MyBatisConfig → MySqlConfig`（会话工厂依赖数据源），无循环。
+- 设计含义：数据源配置不感知 ORM 与具体聚合；新增聚合只新增一个 `TypeHandlerDeclaration` Bean，`MySqlConfig` 与 `MyBatisConfig` 均零改动。
 - `pragmatic-ddd-spring-boot` 只**消费**本配置产出的 `PlatformTransactionManager` 与 `SqlSessionTemplate`，不创建数据源。
 
 ## 2. DataSource 装配

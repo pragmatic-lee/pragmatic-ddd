@@ -6,7 +6,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 # ddd-infra-config（基础设施配置）
 
 > 类型：S3（基础设施配置类）
-> 版本：v2.0 · 适用框架：2.1.0
+> 版本：v2.1 · 适用框架：2.1.0
 > 共享知识：`../kb/`（只读引用，见 `../kb/README.md` 路由表）
 
 ## 1. 定位
@@ -17,7 +17,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 
 - 已初始化的工程（S1 产物）。
 - **前置条件清单（必读）**：数据库类型与版本、事件总线、Outbox 开关、补偿模式、ES / Redis 版本与安全开关。**未确认项不生成对应装配**（阻断映射见 `bp.design-doc-prerequisites` §4）。
-- **上游写设计文档 ② §7**：表结构、索引、特殊列（`version` / 软删 / 审计）决定建表 SQL 与 TypeHandler 登记。
+- **上游写设计文档 ② §7**：表结构、索引、特殊列（`version` / 软删 / 审计）决定建表 SQL 与 TypeHandler 声明。
 - 待装配能力清单：MySQL / PostgreSQL + MyBatis（默认）/ RocketMQ / Kafka / Outbox / ES 源 / Redis 源。
 - 真实连接信息：仅填 `application.yaml` 的 `${ENV}` 占位（不硬编码）。
 
@@ -75,6 +75,7 @@ description: 为 Pragmatic DDD 工程装配基础设施：MySQL 数据源、MyBa
 - [ ] Outbox 或 RocketMQ 二选一，未混用
 - [ ] ES/Redis 源 Bean 就位（若需）
 - [ ] 建表 SQL 含 version + 审计列 + 逻辑外键索引；标识模式已按用户选定（模式一含自增回填顺序，模式二含 `{聚合名}_id` 唯一索引）；所用框架能力的表已建
+- [ ] 聚合侧只产 `TypeHandlerDeclaration`，`MyBatisConfig` 的 `TypeHandlerContext` 入参为单个且只 `registerInto` 一次；集合列标签与 Mapper XML `<result column>` / SQL `AS` 逐字符一致
 - [ ] 所有秘密 `${ENV}` 占位
 - [ ] domain 层零基础设施依赖（硬约束 9）
 

@@ -1,6 +1,6 @@
 # 框架 API 契约（防幻觉符号）
 
-> 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 坐标钉死 2.1.0-SNAPSHOT，新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**；**2026-11-01 v2.6 坐标重验：groupId 已迁至 `com.pragmatic-ddd`，版本取已发 Central 的正式版 `2.1.0`**；**2026-11-02 v2.7 补开发版红线：仓库 pom 当前为 `2.2.0-SNAPSHOT`，属未发布的开发版，不得写入消费方坐标**；**2026-11-08 v2.8 补 TypeHandler 声明/装配分离：新增 `TypeHandlerDeclaration` / `TypeHandlerAssembler`，`TypeHandlerContext` 全局唯一且应用侧不得直接 `new`**）
+> 派生时间：2026-11-08 · 框架版本：2.1.0（Tier-2 签名于 2026-10-14 复核修正；2026-10-16 依 `pragmatic-ddd-core` 源码补全缺口并修正 D1–D5 漂移；2026-10-18 v1.7 全量语义重蒸馏；2026-10-28 新增 `IDataSyncEvent` / `DataSyncAction` / `BaseDataSyncEvent` 三条契约；**v2.0 新增「MyBatis TypeHandler 与方言」段（`PgJdbcJsonValue` / `TypeHandlerContext` / 语句常量等，依源码核验）**；**2026-11-01 v2.6 坐标重验：groupId 已迁至 `com.pragmatic-ddd`，版本取已发 Central 的正式版 `2.1.0`**；**2026-11-02 v2.7 补开发版红线：仓库 pom 当前为 `2.2.0-SNAPSHOT`，属未发布的开发版，不得写入消费方坐标**；**2026-11-08 v3.1 补 TypeHandler 声明/装配分离：新增 `TypeHandlerDeclaration` / `TypeHandlerAssembler` / `CollectionMapping` / `DddMybatisTypeHandlerAutoConfiguration`，`TypeHandlerContext` 全局唯一且应用侧不得直接 `new`；`IRepository.save` 改为删除意图优先**）
 > **用途**：Skill 生成代码前，对任一不确定签名一律以本文件为准核实，禁止臆造接口签名。
 > **自足性声明**：本文件（全限定 import + 精确方法签名）与 `bp/*.md`（骨架/范式）共同构成完整知识，**第三方仅凭 `kb/` 即可生成可编译代码，无需访问任何示例工程**。
 > 所有类位于包前缀 `io.pragmatic.ddd.*`，下表「全限定 import」列为**权威子包**，生成时照搬，不要臆测子包（如 `IEnumValue` 在 `base` 而非 `base.enums`、`rules` 在 `io.pragmatic.ddd.rules` 而非 `base.rule`）。
@@ -97,7 +97,7 @@
 
 | 类 / 接口 | 全限定 import | 关键成员 | 注意 |
 | --- | --- | --- | --- |
-| `IRepository<ID, T>` | `io.pragmatic.ddd.repository.IRepository` | `insert` / `update` / `save`（按 `isNew()` 路由）/ `findById`（未命中返回 null）/ `remove`（**无默认实现，必须提供**）/ `existsById` / `currentVersion` | T extends AggregateRoot |
+| `IRepository<ID, T>` | `io.pragmatic.ddd.repository.IRepository` | `insert` / `update` / `save`（**删除意图优先**：`isEntityDelete()` → `remove`，否则 `isNew()` → `insert`，其余 `update`；实现方不得覆写本方法判断删除）/ `findById`（未命中返回 null）/ `remove`（**无默认实现，必须提供**）/ `existsById` / `currentVersion` | T extends AggregateRoot |
 | `AbstractRepository<ID, T>` | `io.pragmatic.ddd.repository.AbstractRepository` | `insert`/`update`/`remove`（先 `triggerDataSyncHook` 再 `doXxx`，**非 final**）；子类覆写 `doInsert`/`doUpdate`/`doRemove`，`findById` 由子类**直接实现**（基类**无 `doFindById` 钩子**） | 勿直接实现 IRepository 的抽象方法；覆写 insert/update/remove 本身框架不鼓励 |
 | `TrackedList<T extends ITrackable<ID>, ID>` | `io.pragmatic.ddd.track.TrackedList` | 构造：`TrackedList()` / `TrackedList(List<T> init)`（直接赋引用不触发懒加载子查询）；**写**：`append(T)`、`append(List<T>)`、`update(T oldItem, T newItem)`（=remove+append，`oldItem.id()` 未命中基线抛 `IllegalArgumentException`）、`List<T> removeItems(Predicate<? super T>)`、`removeAll()`、`clearAndAppend(List<T>)`；**读**：`getAppendedItems()`（待 INSERT）、`getRemovedItems()`（待 DELETE）、`getAllItems()`（init+append 逻辑视图）、`getInitItems()`（基线） | 子集合**结构差量**三桶（基线/新增/删除），只做增删差量、不引入原地 UPDATE 第四态；元素泛型上界 **`T extends ITrackable<ID>`**（编译期约束，提供 `id()`），第二泛型 `ID` 为行标识类型；仅用于有独立 DB 行的对象，不用于基本类型/内嵌值对象 |
 | `ITrackable<ID>` | `io.pragmatic.ddd.track.ITrackable` | `ID id()` | `TrackedList` 元素的行标识契约（实体返回其 ID，独立表值对象返回行键） |
@@ -175,7 +175,7 @@
 
 ## MyBatis TypeHandler 与方言（pragmatic-ddd-mybatis）
 
-> 供 S3 / PG 场景装配使用；签名依 `pragmatic-ddd-mybatis` 源码核验（2026-10-28）。
+> 供 S3 / PG 场景装配使用；签名依 `pragmatic-ddd-mybatis` / `pragmatic-ddd-spring-boot` 源码核验（2026-11-08 重验）。
 
 | 类 / 接口 | 全限定 import | 关键成员（精确签名） |
 | --- | --- | --- |
@@ -187,7 +187,10 @@
 | `Fastjson2JsonSerializer` | `io.pragmatic.ddd.mybatis.typehandler.json.Fastjson2JsonSerializer` | 构造 `Fastjson2JsonSerializer(EnumValueResolver resolver, Map<Class<?>, EnumRule> enumRules)`；实现 `JsonSerializer, IEventSerializer` |
 | `JdbcJsonValue` | `io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue` | 接口；静态常量 `JdbcJsonValue MYSQL`（透传 JSON 字符串）、`JdbcJsonValue DEFAULT`；`Object adapt(Object jsonValue)` |
 | `PgJdbcJsonValue` | `io.pragmatic.ddd.mybatis.typehandler.json.PgJdbcJsonValue` | 构造 `PgJdbcJsonValue()`（默认 `jsonb`）/ `PgJdbcJsonValue(String type)`；`implements JdbcJsonValue`；反射构造 `PGobject`，驱动不在类路径时首次写入抛 `IllegalStateException` |
-| `CollectionElementTypeConfig` | `io.pragmatic.ddd.mybatis.typehandler.list.CollectionElementTypeConfig` | `CollectionElementTypeConfig.empty()` |
+| `CollectionMapping` | `io.pragmatic.ddd.mybatis.typehandler.list.CollectionMapping` | `public final class`（私有构造，只能 Builder）；静态 `Builder of(Class<?> entityClass, String field, Class<?> elementType)`；实例 `Class<?> elementType()` / `String lookupKey()` / `ElementConverter converter()`；嵌套 `Builder.table(String)` / `columnLabel(String)` / `converter(ElementConverter)` / `build()`；`columnLabel` 未设时取 `SqlAlias.of(table, field)` |
+| `CollectionElementTypeConfig` | `io.pragmatic.ddd.mybatis.typehandler.list.CollectionElementTypeConfig` | 静态 `from(Collection<CollectionMapping> mappings, EnumValueResolver resolver)` / `empty()` / `listTypeOf(Class<?> elementType)`；实例 `Map<String, Type> columnListTypes()` / `Map<String, ElementConverter> converters()` / `Map<String, CollectionMapping> sources()`；同标签不同元素类型或转换器抛 `IllegalStateException` |
+| `ListTypeHandler` | `io.pragmatic.ddd.mybatis.typehandler.list.ListTypeHandler` | 构造 `ListTypeHandler(JsonSerializer serializer, JdbcJsonValue jdbcJsonValue, Map<String, Type> columnListTypes, Map<String, ElementConverter> converters)`；实现 `TypeHandler<List<?>>`；未登记列标签运行期抛 `IllegalStateException`（不再类型兜底） |
+| `DddMybatisTypeHandlerAutoConfiguration` | `io.pragmatic.ddd.springboot.mybatis.DddMybatisTypeHandlerAutoConfiguration`（位于 `pragmatic-ddd-spring-boot`） | `@AutoConfiguration` + `@ConditionalOnClass({TypeHandlerContext.class, TypeHandlerAssembler.class})`；`@Bean` 方法 `TypeHandlerContext typeHandlerContext(List<TypeHandlerDeclaration> declarations, ObjectProvider<JdbcJsonValue> jdbcJsonValueProvider, ObjectProvider<DataSource> dataSourceProvider)`，带 `@ConditionalOnBean(TypeHandlerDeclaration.class)` / `@ConditionalOnMissingBean(TypeHandlerContext.class)`；无显式 `JdbcJsonValue` Bean 时按数据源产品名探测方言，探测失败回落 `JdbcJsonValue.DEFAULT` |
 | `OutboxStatements` | `io.pragmatic.ddd.mybatis.outbox.OutboxStatements` | 常量 `NAMESPACE` / `INSERT_BATCH` / `CLAIM_PENDING` / `MARK_SENT` / `RELEASE` 等 |
 | `CompensationStatements` | `io.pragmatic.ddd.mybatis.compensation.CompensationStatements` | 常量 `NAMESPACE` / `INSERT` / `MARK_EXECUTED` 等 |
 | `IdSegmentStatements` | `io.pragmatic.ddd.mybatis.id.IdSegmentStatements` | 常量 `NAMESPACE` / `SELECT_FOR_UPDATE` / `INCREMENT_MAX` |

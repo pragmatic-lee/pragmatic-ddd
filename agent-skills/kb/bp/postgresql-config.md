@@ -1,6 +1,6 @@
 # BP 卡：PostgreSQL 配置设计原则（postgresql-config）
 
-> 源：`documentation/best-practices/postgresql-config.md` · 派生时间：2026-10-28 · 框架版本：2.1.0-SNAPSHOT
+> 源：`documentation/best-practices/postgresql-config.md` · 派生时间：2026-11-08 · 框架版本：2.1.0
 
 ## 1. 本质与边界
 
@@ -34,6 +34,8 @@ PostgreSQL 支持不是一套新的 Java API：框架 SQL 全在 XML，仓储 / 
 2. **必须设置 `databaseId`**：Spring 用 `VendorDatabaseIdProvider`（`setProperties(Map.of("PostgreSQL","postgres","MySQL","mysql"))`，注入 `SqlSessionFactoryBean.setDatabaseIdProvider`）；非 Spring 用 `configuration.setDatabaseId("postgres")`。未设置时**静默失效**——启动正常，首次调用 SQL 才抛 `Mapped Statements collection does not contain value for ...`。
 3. **可空参数逐个显式 `jdbcType`**：MyBatis 默认 `jdbcTypeForNull=OTHER`，PG 报 `could not determine data type of parameter $n`（`setJdbcTypeForNull(JdbcType.NULL)` 可全局规避，但影响全部 Mapper，框架推荐逐参数声明）。
 
+`SqlSessionFactory` 的 `TypeHandlerContext` 入参为**单个**（框架合并出的唯一上下文），构建阶段只 `registerInto(configuration)` 一次，不得用 `List<TypeHandlerContext>`。
+
 触发矩阵：Outbox 缺失→首发事件报 `...OutboxMapper.insertBatch`；补偿 durable 缺失→`...CompensationMapper.insert`；号段缺失→取号时 `...IdSegmentMapper.selectForUpdate` 找不到。建议启动期 `ApplicationRunner` + `configuration.hasStatement(OutboxStatements.CLAIM_PENDING / IdSegmentStatements.SELECT_FOR_UPDATE)` 校验实际启用的能力。
 
 ## 3. 建表脚本与转写规则
@@ -47,7 +49,7 @@ MySQL → PG 转写：`LONGTEXT→TEXT`（框架表 `payload` 用 `TEXT`）；`D
 
 ## 4. TypeHandler 适配
 
-类型装配与 MySQL 完全一致（见 `mybatis-config.md` §2.3）：聚合侧只产 `TypeHandlerDeclaration`，框架合并为唯一上下文。PG 的区别只在 JSON 方言适配器（全限定名见 `api-contract.md`）：
+类型装配与 MySQL 完全一致（见 `mybatis-config.md` 的 TypeHandler 装配）：聚合侧只产 `TypeHandlerDeclaration`，框架合并为唯一上下文。PG 的区别只在 JSON 方言适配器（全限定名见 `api-contract.md`）：
 
 - 引入 starter 且未显式声明 `JdbcJsonValue` Bean 时，自动配置按数据源产品名探测并选 `PgJdbcJsonValue`；
 - 手动装配时显式传入。
@@ -72,7 +74,7 @@ JSON 列三策略：
 | 连接串兜底 | `#{profile}` + 连接串 `stringtype=unspecified` | `JdbcJsonValue.MYSQL` | 仅遗留迁移考虑 |
 | 文本存储 | `#{profile}`，列 `TEXT` | `JdbcJsonValue.MYSQL` | 放弃 jsonb 索引能力 |
 
-状态列用 `VARCHAR(20)` + `EnumTypeHandler`（按 `name()`），不用 PG 自定义 enum / domain / `CHECK`；单列枚举 `UniversalEnumTypeHandler` 列类型与 MySQL 一致；集合列 `ListTypeHandler` 仍需 SQL `AS` 隔离同名列；时间 `Instant` ↔ `TIMESTAMP(3)`。
+状态列用 `VARCHAR(20)` + `EnumTypeHandler`（按 `name()`），不用 PG 自定义 enum / domain / `CHECK`；单列枚举 `UniversalEnumTypeHandler` 列类型与 MySQL 一致；集合列 `ListTypeHandler` 按 `columnLabel` 还原泛型，未声明标签直接抛错，PG 与 MySQL 行为一致，仍需用 SQL `AS` 隔离同名列；时间 `Instant` ↔ `TIMESTAMP(3)`。
 
 ## 5. 框架 SQL 方言要点（业务 Mapper 同模式可沿用）
 
