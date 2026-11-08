@@ -51,7 +51,7 @@ application/{agg}/
 2. satisfiesRule(rule)                 规则校验，失败抛 BrokenRuleException
 3. persistAndDispatch                  事务内 repository.save（覆盖聚合全部表）
 4. 事务提交后 publish                   事件发布严格晚于提交
-5. clearWorkUnitState()                事件/操作清空（finally，模板内置）
+5. clearWorkUnitState()                事件/操作清空（finally，模板内置），并复位删除标记
 ```
 
 > 第 3、4 步事务边界完全由子类 `persistAndDispatch` 钩子决定，模板不感知事务。仓储不管理事务（§1.5）。

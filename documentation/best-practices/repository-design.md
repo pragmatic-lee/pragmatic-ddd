@@ -92,16 +92,16 @@ repo.updateOrderItems(orderId, items); // 绕过聚合根直接改子表
 | --- | --- | --- |
 | `insert(T)` | 抽象 | 插入聚合根 |
 | `update(T)` | 抽象 | 更新聚合根 |
-| `save(T)` | 默认 | 按 `aggregateRoot.isNew()` 路由 insert / update |
+| `save(T)` | 默认 | 删除意图优先：`isEntityDelete()` → `remove`，否则 `isNew()` → `insert`，其余 `update`；实现方不得覆写本方法判断删除 |
 | `findById(ID)` | 抽象 | 按主键查询，未命中返回 `null` |
-| `remove(T)` | 抽象 | 按主键删除聚合，**必须提供真实删除逻辑** |
+| `remove(T)` | 抽象 | 按主键删除聚合，**必须提供真实删除逻辑**（`save` 在待删除态下也会触发 `remove`，删除逻辑只在 `doRemove` 一处实现即可） |
 | `existsById(ID)` | 默认 | `findById(id) != null` |
 | `currentVersion(ID)` | 默认 | 返回写模型当前版本，聚合不存在返回 `-1`（供 ORPHAN 判定） |
 
 要点：
 
-- **`save`**：默认实现根据 `isNew()` 路由——新建聚合走 insert，重建聚合走 update。聚合根在业务构造时调用 `markNew()` 打上新建标记。
-- **`remove`**：接口层**没有默认空实现**，实现方必须提供真实删除（物理删或软删由实现决定），避免误以为删了其实什么都没做。
+- **`save`**：默认实现**删除意图优先**——聚合若处于待删除态（`isEntityDelete()==true`），`save` 路由到 `remove` 执行真实删除；否则按 `isNew()` 路由：新建聚合走 insert，重建聚合走 update。聚合根在业务构造时调用 `markNew()` 打上新建标记。
+- **`remove`**：接口层**没有默认空实现**，实现方必须提供真实删除（物理删或软删由实现决定），避免误以为删了其实什么都没做。`save` 的删除意图路由与显式 `remove` 调用共用 `doRemove`，无需重复实现。
 - **`existsById` / `currentVersion`**：默认实现都基于 `findById`。高频对账场景可覆写为"只查主键列 / 只查版本列"，避免加载整个聚合。
 
 ### 2.2 AbstractRepository 模板方法

@@ -131,7 +131,7 @@ public class OrderWriteService extends AbstractApplicationService
 2. satisfiesRule(rule)                 规则校验，失败抛 BrokenRuleException
 3. persistAndDispatch                  事务内 repository.save（覆盖聚合全部表）
 4. 事务提交后 publish                   事件发布严格晚于提交
-5. clearWorkUnitState()                事件 / 操作清空（防止跨请求串味），置于 finally
+5. clearWorkUnitState()                事件 / 操作清空（防止跨请求串味），并复位删除标记，置于 finally
 ```
 
 > 事件发布后的清理由模板内置，继承 `AbstractApplicationService` 无需手动调用；仅在自研编排时需要。
@@ -342,7 +342,7 @@ public void payWithDeduction(Long orderId, Long inventoryId, PayOrderInput input
         uow.register(order, orderRule, orderRepository, t -> orderPayUpdater.apply(t, input))
            .register(inventory, inventoryRule, inventoryRepository, Inventory::deduct)
            .commit();   // 事务外校验 → 事务内统一落库 → 事务外发布事件
-    }                  // 未提交时 close() 自动 clearWorkUnitState，防事件泄漏
+    }                  // 未提交时 close() 自动 clearWorkUnitState，清事件并复位删除标记，防事件泄漏
 }
 ```
 

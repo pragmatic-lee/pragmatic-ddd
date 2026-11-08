@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | `insert(T)` | 抽象 | 插入聚合根 |
 | `update(T)` | 抽象 | 更新聚合根 |
-| `save(T)` | 默认 | 按 `isNew()` 路由 insert/update |
+| `save(T)` | 默认 | 删除意图优先：`isEntityDelete()` → `remove`，否则 `isNew()` → `insert`，其余 `update`；实现方不得覆写本方法判断删除 |
 | `findById(ID)` | 抽象 | 按主键查，未命中返回 `null` |
 | `remove(T)` | 抽象 | **必须提供真实删除**（接口无默认空实现） |
 | `existsById(ID)` | 默认 | `findById(id) != null` |

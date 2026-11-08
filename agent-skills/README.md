@@ -132,7 +132,7 @@ agent-skills/
 
 ---
 
-> **版本**：v2.4（KB v3.1：TypeHandler 声明/装配分离入卡——`bp.mysql-config` / `bp.mybatis-config` / `bp.postgresql-config` 重蒸馏，`api-contract` 补 `CollectionMapping` / 自动配置类契约与 `IRepository.save` 删除意图优先，`bp.projection-api` 头部版本口径修正，`ddd-infra-config` 读卡口径同步；35 张 bp 卡，共 37 张；派生自 documentation/best-practices/ 与 pragmatic-ddd 源码 + pom）
+> **版本**：v2.5（KB v3.2：在 v3.1 基础上补 `repository-design` / `application-collaboration` / `aggregate-design` 源侧删除语义并重蒸馏、`api-contract` 补 `EnumValueResolver` 完整 Tier-2 契约；35 张 bp 卡，共 37 张；派生自 documentation/best-practices/ 与 pragmatic-ddd 源码 + pom）
 > **状态**：草稿，待按路线图 §8 验收走查；KB 已解耦示例工程依赖，第三方可独立使用
 > **适用框架版本**：2.1.0（以 `kb/_manifest.json` 的 `framework_version` 为单一权威）
 > **上游**：[AI 能力实施路线图](../docs/design/ai/ai-implementation-roadmap.md) · [聚合生成器落地设计](./design/ai/aggregate-generator-landing-design.md)
