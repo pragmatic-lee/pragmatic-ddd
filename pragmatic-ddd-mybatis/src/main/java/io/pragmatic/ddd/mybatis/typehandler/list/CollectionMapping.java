@@ -28,23 +28,9 @@ public final class CollectionMapping {
         return new Builder(entityClass, field, elementType);
     }
 
-    public Class<?> entityClass() {
-        return entityClass;
-    }
-
-    public String field() {
-        return field;
-    }
-
     public Class<?> elementType() {
         return elementType;
     }
-
-    /** 结果集列标签（= MyBatis 传入的 column 参数），运行期查表键。 */
-    public String columnLabel() {
-        return columnLabel;
-    }
-
     /** 运行期查表键（= 列标签）。 */
     public String lookupKey() {
         return columnLabel;
