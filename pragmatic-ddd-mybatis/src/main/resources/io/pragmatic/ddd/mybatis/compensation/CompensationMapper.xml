@@ -14,8 +14,7 @@
     <resultMap id="CompensationRecordResult" type="io.pragmatic.ddd.application.compensation.spi.CompensationRecord">
         <constructor>
             <idArg column="action_key" javaType="java.lang.String"/>
-            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.spi.CompensationStatus"
-                 typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+            <arg column="status" javaType="io.pragmatic.ddd.application.compensation.spi.CompensationStatus"/>
             <arg column="handler" javaType="java.lang.String"/>
             <arg column="payload" javaType="java.lang.String"/>
             <!-- 基本类型须用 _int 别名：MyBatis 的 "int" 别名解析为 java.lang.Integer，与 record 的 int 形参不匹配 -->

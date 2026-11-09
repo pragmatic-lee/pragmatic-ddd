@@ -18,7 +18,9 @@
         <result column="event_type" property="eventType"/>
         <result column="entity_id" property="entityId"/>
         <result column="payload" property="payload"/>
-        <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <!-- status 为 name-based 枚举（PENDING/PROCESSING/SENT/FAILED）：只声明 javaType 走默认枚举解析，
+             不写 typeHandler="EnumTypeHandler"，避免命中 MyBatis 按 handler 类维护的全局单槽（会被业务侧未注册枚举污染） -->
+        <result column="status" property="status" javaType="io.pragmatic.ddd.application.outbox.OutboxStatus"/>
         <result column="attempts" property="attempts"/>
         <result column="queue" property="queue"/>
         <result column="created_at" property="createdAt"/>

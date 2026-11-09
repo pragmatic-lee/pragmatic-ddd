@@ -4,15 +4,23 @@ import io.pragmatic.ddd.application.fixture.CountingEventManager;
 import io.pragmatic.ddd.application.outbox.fixture.InMemoryOutboxStore;
 import io.pragmatic.ddd.application.outbox.fixture.RecordingScheduledExecutorService;
 import io.pragmatic.ddd.application.outbox.fixture.StubEventSerializer;
+import io.pragmatic.ddd.application.outbox.fixture.ThrowingClaimOutboxStore;
+import io.pragmatic.ddd.application.outbox.fixture.ThrowingEventManager;
 import io.pragmatic.ddd.application.outbox.fixture.ThrowingEventSerializer;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * OutboxRelay 兜底轮询测试：验证成功补发、失败释放+重试、超限转死信，以及 start 的周期调度装配。
@@ -116,5 +124,114 @@ class OutboxRelayTest {
         assertThat(scheduler.initialDelay()).isEqualTo(3);
         assertThat(scheduler.period()).isEqualTo(3);
         assertThat(scheduler.unit()).isEqualTo(TimeUnit.SECONDS);
+    }
+
+    @Test
+    void pollOnce_claimPendingFails_logsWarningAndDoesNotPropagate() {
+        OutboxRelay relay = new OutboxRelay(
+                new ThrowingClaimOutboxStore(),
+                new CountingEventManager(),
+                new StubEventSerializer(),
+                new RecordingScheduledExecutorService(),
+                new OutboxRelayConfig(Duration.ofSeconds(1), Duration.ofSeconds(1), 10, 10));
+        RecordingLogHandler handler = attachLogHandler();
+        try {
+            assertThatCode(relay::pollOnce).doesNotThrowAnyException();
+
+            assertThat(handler.records())
+                    .anySatisfy(record -> {
+                        assertThat(record.getLevel()).isEqualTo(Level.WARNING);
+                        assertThat(record.getMessage()).isEqualTo("outbox relay claimPending failed");
+                        assertThat(record.getThrown()).isInstanceOf(IllegalStateException.class);
+                    });
+        } finally {
+            detachLogHandler(handler);
+        }
+    }
+
+    @Test
+    void start_periodicTask_claimPendingFails_keepsRunningAndLogsEachTime() {
+        RecordingScheduledExecutorService scheduler = new RecordingScheduledExecutorService();
+        OutboxRelay relay = new OutboxRelay(
+                new ThrowingClaimOutboxStore(),
+                new CountingEventManager(),
+                new StubEventSerializer(),
+                scheduler,
+                new OutboxRelayConfig(Duration.ofSeconds(1), Duration.ofSeconds(1), 10, 10));
+        RecordingLogHandler handler = attachLogHandler();
+        try {
+            relay.start();
+            Runnable task = scheduler.periodicTask();
+            assertThat(task).isNotNull();
+
+            assertThatCode(task::run).doesNotThrowAnyException();
+            assertThatCode(task::run).doesNotThrowAnyException();
+
+            assertThat(handler.records())
+                    .filteredOn(record -> "outbox relay claimPending failed".equals(record.getMessage()))
+                    .hasSize(2);
+        } finally {
+            detachLogHandler(handler);
+        }
+    }
+
+    @Test
+    void pollOnce_oneMessageFails_logsAndKeepsProcessingRemainingMessages() {
+        InMemoryOutboxStore store = new InMemoryOutboxStore();
+        store.store(List.of(pending("m-4"), pending("m-5")));
+        OutboxRelay relay = new OutboxRelay(
+                store,
+                new ThrowingEventManager(),
+                new StubEventSerializer(),
+                new RecordingScheduledExecutorService(),
+                new OutboxRelayConfig(Duration.ofSeconds(1), Duration.ofSeconds(1), 10, 10));
+        RecordingLogHandler handler = attachLogHandler();
+        try {
+            assertThatCode(relay::pollOnce).doesNotThrowAnyException();
+
+            assertThat(store.releaseIds()).containsExactlyInAnyOrder("m-4", "m-5");
+            assertThat(store.find("m-4").getAttempts()).isEqualTo(1);
+            assertThat(store.find("m-5").getAttempts()).isEqualTo(1);
+            assertThat(handler.records())
+                    .filteredOn(record -> record.getMessage().startsWith("outbox relay publish failed"))
+                    .hasSize(2);
+        } finally {
+            detachLogHandler(handler);
+        }
+    }
+
+    private static RecordingLogHandler attachLogHandler() {
+        RecordingLogHandler handler = new RecordingLogHandler();
+        handler.setLevel(Level.ALL);
+        Logger.getLogger(OutboxRelay.class.getName()).addHandler(handler);
+        return handler;
+    }
+
+    private static void detachLogHandler(RecordingLogHandler handler) {
+        Logger.getLogger(OutboxRelay.class.getName()).removeHandler(handler);
+    }
+
+    private static final class RecordingLogHandler extends Handler {
+
+        private final List<LogRecord> records = new ArrayList<>();
+
+        @Override
+        public void publish(LogRecord record) {
+            records.add(record);
+        }
+
+        @Override
+        public void flush() {
+            // 单元测试无需刷新
+        }
+
+        @Override
+        public void close() {
+            // 单元测试无需关闭资源
+        }
+
+        private List<LogRecord> records() {
+            return records;
+        }
     }
 }

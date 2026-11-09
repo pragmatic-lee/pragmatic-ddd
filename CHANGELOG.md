@@ -46,6 +46,7 @@
 
 ### 修复
 
+- **Outbox Relay 异常可见化与调度存活（pragmatic-ddd-core）**：周期任务改经 `pollOnceSafely` 调度，捕获并记录 `Throwable`，避免 `scheduleAtFixedRate` 因单次异常永久抑制后续轮询，同时让异常栈进入日志；`claimPending` 失败、单条消息投递失败、失败记账失败分别以 `WARNING` 记录（含消息 ID 与异常栈），单条失败不再影响同批其余消息。
 - **修复 RocketMQ 多 topic 路由下消费通道创建错误（pragmatic-ddd-rocketmq）**：同一消费组改为只创建一个 Consumer，并订阅 `ITopicResolver.getAllTopics()` 返回的全部 topic。原实现按 topic 各建一个同组 Consumer：Remoting 下同 JVM 的第二个 Consumer 因消费组重复注册抛 `The consumer group[...] has been created before`，导致应用启动失败；gRPC 下同组订阅集合不一致，部分队列可能无人消费。同时修复多 topic 集成测试按全限定类名匹配、实际未覆盖分流的问题。
 - 修复多聚合各自注册 `TypeHandlerContext` 时 `ListTypeHandler` 相互覆盖、集合列回读退化为 `List<JSONObject>` 并在业务取值时抛 `ClassCastException` 的问题。
 - 修复 `defaultListType` 取自 `Map.copyOf` 无序迭代导致的兜底类型不确定（跨 JVM 启动可能变化）。
