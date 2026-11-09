@@ -26,6 +26,7 @@ public class OrderEventTopicConfig {
     @Bean
     public ITopicResolver orderTopicResolver() {
         return ConfigurableTopicResolver.builder()
+                .eventTopic("OrderDataSyncEvent","sy_event")
                 .globalDefaultTopic(DEFAULT_TOPIC)
                 .build();
     }

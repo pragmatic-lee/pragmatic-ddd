@@ -28,6 +28,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RocketMqGrpcEventManagerTest {
 
     private static final String CLASSNAME_TOPIC = "pdd_ddd_classname_topic";
+    private static final String DEFAULT_TOPIC = "pdd_ddd_default_topic";
+    private static final String EVENT_A_TOPIC = "pdd_ddd_event_a_topic";
+    private static final String EVENT_B_TOPIC = "pdd_ddd_event_b_topic";
 
     private RocketMqGrpcEventManager manager;
 
@@ -57,6 +60,40 @@ class RocketMqGrpcEventManagerTest {
         manager.publish(MyDomainEvent.buildEvent("abc-" + System.nanoTime(), "abc"));
 
         assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+    }
+
+    /**
+     * 同一消费组下多个 topic 只创建一个 Consumer，验证全部 topic 均可消费。
+     */
+    @Test
+    void multiTopicSingleConsumerTest() throws InterruptedException {
+        manager = RocketMqGrpcEventManager.builder()
+                .config(new RocketMqProperties()
+                        .setProxyAddr(RocketMqTestSupport.proxyAddr())
+                        .setConsumerGroup("pdd-ddd-test-5x-multi"))
+                .topicResolver(RocketMqTestSupport.perEventTypeResolver(
+                        DEFAULT_TOPIC,
+                        MyDomainEvent.class, EVENT_A_TOPIC,
+                        ShareDomainEvent.class, EVENT_B_TOPIC))
+                .serializer(new Fastjson2EventSerializer())
+                .build();
+        CountDownLatch latch = new CountDownLatch(2);
+        List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        manager.start();
+        manager.registerSubscriber("a", MyDomainEvent.class, s -> {
+            received.add("A:" + s.getName());
+            latch.countDown();
+        });
+        manager.registerSubscriber("b", ShareDomainEvent.class, s -> {
+            received.add("B:" + s.getName());
+            latch.countDown();
+        });
+        manager.publish(MyDomainEvent.buildEvent("x", "x-" + System.nanoTime()));
+        manager.publish(ShareDomainEvent.buildEvent("100", "y-" + System.nanoTime()));
+
+        assertThat(latch.await(30, TimeUnit.SECONDS)).isTrue();
+        assertThat(received).containsExactlyInAnyOrder("A:x", "B:y");
     }
 
     /**

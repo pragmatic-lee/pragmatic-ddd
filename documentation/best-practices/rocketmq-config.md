@@ -157,6 +157,7 @@ topic 由应用级 `ConfigurableTopicResolver` 解析（默认 `data_sync_event`
 - **`eventManager` 必须应用就绪后再 `start()`**：通过 `ApplicationRunner` 触发；漏掉 start，Consumer 不会订阅、事件无人消费。
 - **序列化器只用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer`**：Outbox 的 `Relay` 反序列化重发与 `RocketMqEventManager` 共用同一 `IEventSerializer` 端口；两套实现导致格式不一致、重发失败。
 - **`consumer-group` 禁止与 topic 同名**：否则 rebalance 抢队列，消费错乱。
+- **同一消费组只允许一个 Consumer 订阅全部 topic**：框架按此模型创建消费通道；禁止按 topic 拆分同组 Consumer——Remoting 会因同组重复注册启动失败，gRPC 会造成订阅关系不一致、部分队列无人消费。topic 分流只扩展 `ConfigurableTopicResolver`，不要改消费通道的创建方式。
 - **Producer 生命周期只能一处回收**：`@Bean(destroyMethod="shutdown")` 自管，注入管理器后由管理器 `externalProducer` 守卫跳过，不要在业务里再 `producer.shutdown()`。
 
 ## 8. 常见反模式
@@ -169,6 +170,7 @@ topic 由应用级 `ConfigurableTopicResolver` 解析（默认 `data_sync_event`
 | 漏掉应用就绪后 `start()` | Consumer 不订阅、事件堆积 | `@Bean(destroyMethod="shutdown")` 构造 + `ApplicationRunner` 调用 `start()` |
 | `.serializer(...)` 自己 new 一个 `Fastjson2EventSerializer` 类 | 与 Outbox Relay 端口不一致、重发失败 | 复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer` |
 | `consumer-group` 写成与 topic 同名 | rebalance 抢队列、消费丢失 | 消费组与汇聚 topic 区分命名 |
+| 按 topic 拆分同消费组的 Consumer | Remoting 同组重复注册启动失败；gRPC 订阅关系不一致、部分队列无人消费 | 每个消费组一个 Consumer 订阅全部 topic（框架默认行为），topic 分流只改 `ConfigurableTopicResolver` |
 | 业务代码里手动 `producer.shutdown()` | 管理器 `externalProducer` 守卫下二次关闭或提前关闭 | Producer 生命周期交 `@Bean(destroyMethod="shutdown")` |
 | 把 `name-server` 写死生产地址 | 环境切换需改代码、易误提交 | 经 `environment.getProperty` 注入，yml 覆盖 |
 

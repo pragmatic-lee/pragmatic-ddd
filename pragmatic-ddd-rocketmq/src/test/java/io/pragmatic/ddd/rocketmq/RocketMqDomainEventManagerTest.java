@@ -214,6 +214,7 @@ class RocketMqDomainEventManagerTest {
 
     /**
      * 模式 B：不同 Event 走不同 Topic（按 Event 分 Topic）。
+     * 同时验证同一消费组下多 topic 只创建一个 Consumer 即可正常启动与消费。
      */
     @Test
     void route_differentEventsToDifferentTopics() throws InterruptedException {
@@ -221,8 +222,9 @@ class RocketMqDomainEventManagerTest {
                 .config(new RocketMqProperties().setNameServer(RocketMqTestSupport.nameServer())
                         .setConsumerGroup("pdd-ddd-test-4x"))
                 .topicResolver(RocketMqTestSupport.perEventTypeResolver(
-                        DEFAULT_TOPIC, MyDomainEvent.class.getName(), EVENT_A_TOPIC,
-                        ShareDomainEvent.class.getName(), EVENT_B_TOPIC))
+                        DEFAULT_TOPIC,
+                        MyDomainEvent.class, EVENT_A_TOPIC,
+                        ShareDomainEvent.class, EVENT_B_TOPIC))
                 .serializer(new Fastjson2EventSerializer())
                 .build();
         CountDownLatch latch = new CountDownLatch(2);

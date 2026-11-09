@@ -49,6 +49,9 @@ public abstract class AbstractMQEventManager extends AbstractEventManager {
     /**
      * 初始化一批 Topic 的 MQ 通道（Producer/Consumer）。
      * 框架保证同一 topic 不会重复传入此方法。
+     * <p>
+     * 实现方可在同一个消费通道内订阅本批全部 topic；禁止在同一消费组下创建多个
+     * 订阅集合不一致的 Consumer，否则会破坏订阅关系一致性，导致部分队列无人消费。
      */
     protected abstract void initializeTopics(Set<String> topics);
 

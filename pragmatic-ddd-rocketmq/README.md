@@ -89,8 +89,8 @@ mqadmin updateTopic -n localhost:9876 -t <TOPIC> -c DefaultCluster
 | `pdd_ddd_classname_topic` | 以类名作为 topic 的发布订阅 | `RocketMqDomainEventManagerTest#topicUseClassNameTest`、`RocketMqGrpcEventManagerTest`、`ConsumerTriggerCheckTest` |
 | `pdd_ddd_smoke_topic` | 原生收发连通冒烟 | `SimpleRocketMqSendConsumeTest` |
 | `pdd_ddd_single_topic` | 路由模式 A：所有 Event 共用同一底层 topic | `RocketMqDomainEventManagerTest#route_allEventsToSingleTopic` |
-| `pdd_ddd_event_a_topic` | 路由模式 B：按事件类型分 topic（事件 A） | `RocketMqDomainEventManagerTest#route_differentEventsToDifferentTopics` |
-| `pdd_ddd_event_b_topic` | 路由模式 B：按事件类型分 topic（事件 B） | `RocketMqDomainEventManagerTest#route_differentEventsToDifferentTopics` |
+| `pdd_ddd_event_a_topic` | 路由模式 B：按事件类型分 topic（事件 A） | `RocketMqDomainEventManagerTest#route_differentEventsToDifferentTopics`、`RocketMqGrpcEventManagerTest#multiTopicSingleConsumerTest` |
+| `pdd_ddd_event_b_topic` | 路由模式 B：按事件类型分 topic（事件 B） | `RocketMqDomainEventManagerTest#route_differentEventsToDifferentTopics`、`RocketMqGrpcEventManagerTest#multiTopicSingleConsumerTest` |
 | `pdd_ddd_sub_a_topic` | 路由模式 C：按订阅者分 topic（可选） | `RocketMqDomainEventManagerTest` 模式 C 用例 |
 
 一键创建脚本（4.x 本地默认地址）：
@@ -138,4 +138,5 @@ mvn test -Dtest=RocketMqDomainEventManagerTest
 
 - **集成测试全部被跳过？** 检查 RocketMQ 是否启动、地址是否正确、端口是否可达；或确认是否误设了 `rocketmq.skip-4x` / `rocketmq.skip-5x`。
 - **报 Topic 不存在？** 集成测试不会自动建 Topic，请按第 3.2 节预建全部 Topic（尤其 `pdd_ddd_` 前缀系列）。
+- **报 `The consumer group[...] has been created before`？** 说明同一 JVM 内为同一消费组创建了多个 Consumer。框架已改为每个消费组一个 Consumer 订阅全部 topic，请确认未自行按 topic 拆分同组 Consumer。
 - **纯单测失败？** 纯单测不依赖外部，若失败通常为代码或依赖问题，与 RocketMQ 环境无关。

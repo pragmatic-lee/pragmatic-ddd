@@ -113,6 +113,7 @@ public class OrderEventSubscriberRegistry {
 - `eventManager` 必须应用就绪后 `start()`（漏掉则 Consumer 不订阅）。
 - 序列化器只用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer`（与 Outbox Relay 共用端口）。
 - `consumer-group` 禁止与 topic 同名（rebalance 抢队列）。
+- 同一消费组只创建一个 Consumer 并订阅全部 topic；禁止按 topic 拆分同组 Consumer（Remoting 启动失败 / gRPC 订阅关系不一致）。
 - Producer 生命周期只一处回收（`@Bean(destroyMethod="shutdown")`）。
 
 ## 7. 常见反模式
@@ -125,6 +126,7 @@ public class OrderEventSubscriberRegistry {
 | 漏掉就绪后 `start()` | `ApplicationRunner` 调 `start()` |
 | 自 new `Fastjson2EventSerializer` | 复用 `io.pragmatic.ddd.rocketmq.Fastjson2EventSerializer` |
 | `consumer-group` 与 topic 同名 | 区分命名 |
+| 按 topic 拆分同组 Consumer | 每消费组一个 Consumer 订阅全部 topic |
 
 ## 8. 被读于
 

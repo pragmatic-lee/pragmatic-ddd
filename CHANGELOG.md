@@ -46,6 +46,7 @@
 
 ### 修复
 
+- **修复 RocketMQ 多 topic 路由下消费通道创建错误（pragmatic-ddd-rocketmq）**：同一消费组改为只创建一个 Consumer，并订阅 `ITopicResolver.getAllTopics()` 返回的全部 topic。原实现按 topic 各建一个同组 Consumer：Remoting 下同 JVM 的第二个 Consumer 因消费组重复注册抛 `The consumer group[...] has been created before`，导致应用启动失败；gRPC 下同组订阅集合不一致，部分队列可能无人消费。同时修复多 topic 集成测试按全限定类名匹配、实际未覆盖分流的问题。
 - 修复多聚合各自注册 `TypeHandlerContext` 时 `ListTypeHandler` 相互覆盖、集合列回读退化为 `List<JSONObject>` 并在业务取值时抛 `ClassCastException` 的问题。
 - 修复 `defaultListType` 取自 `Map.copyOf` 无序迭代导致的兜底类型不确定（跨 JVM 启动可能变化）。
 - `MybatisCompensationLog` 主键冲突判断补充标准 SQLState「23 类」：PostgreSQL 驱动抛 `PSQLException`（SQLState 23505）而非 `SQLIntegrityConstraintViolationException`，原 `instanceof` 判断在 PG 下漏判，重复登记不再被正确翻译为 `CompensationRecordConflictException`（MySQL 行为不变）。

@@ -25,9 +25,8 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -58,8 +57,8 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
     private final RocketMqProperties config;
     private final ClientServiceProvider provider;
     private Producer producer;
-    private final List<PushConsumer> consumerList = new ArrayList<>();
-    private final List<String> pendingConsumerTopics = new ArrayList<>();
+    private PushConsumer consumer;
+    private final Set<String> pendingConsumerTopics = new HashSet<>();
     private final IEventMetrics metrics;
 
     // ── 生命周期状态 ──
@@ -167,18 +166,20 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
     // ══════════════════════════════════════════════
 
     /**
-     * 初始化各 Topic 对应的 gRPC 通道。
+     * 收集待消费的 Topic。
      * <p>
      * gRPC 的 Producer/Consumer 在 SDK 中 build 即连接，因此此处仅收集待消费的 topic，
      * 不创建任何客户端、不建立连接；真正的 build（即 start）由 {@link #start()} 受控触发。
+     * Consumer 按消费组只创建一个实例并订阅全部 topic，故 topic 集合必须在 start 前确定。
      */
     @Override
     protected void initializeTopics(Set<String> topics) {
-        // 仅收集 topic，延迟到 start() 才 build Producer/Consumer
-        for (String topic : topics) {
-            this.pendingConsumerTopics.add(topic);
-            log.info("gRPC topic collected, topic={}", topic);
+        if (this.started) {
+            throw new IllegalStateException(
+                    "gRPC consumer topics must be fixed before start, newTopics=" + topics);
         }
+        this.pendingConsumerTopics.addAll(topics);
+        log.info("gRPC topics collected, topics={}", this.pendingConsumerTopics);
     }
 
     // ══════════════════════════════════════════════
@@ -231,37 +232,40 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
         // 1. Producer 受控 build（未注入时）
         if (this.producer == null) {
             try {
-                ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
+                ClientConfiguration producerConfig = ClientConfiguration.newBuilder()
                         .setEndpoints(config.getProxyAddr())
                         .enableSsl(false)
                         .build();
                 this.producer = provider.newProducerBuilder()
-                        .setClientConfiguration(clientConfig)
-                        .setTopics(pendingConsumerTopics.toArray(new String[0]))
+                        .setClientConfiguration(producerConfig)
+                        .setTopics(this.pendingConsumerTopics.toArray(new String[0]))
                         .build();
                 log.info("gRPC Producer started, proxy={}", config.getProxyAddr());
             } catch (Exception e) {
                 throw new RuntimeException("Failed to start gRPC Producer", e);
             }
         }
-        // 2. Consumer 受控 build（即连接/启动）
-        for (String topic : pendingConsumerTopics) {
+        // 2. Consumer 受控 build（即连接/启动）：消费组唯一实例，订阅全部 topic
+        if (!this.pendingConsumerTopics.isEmpty()) {
             try {
-                ClientConfiguration clientConfig = ClientConfiguration.newBuilder()
+                ClientConfiguration consumerConfig = ClientConfiguration.newBuilder()
                         .setEndpoints(config.getProxyAddr())
                         .build();
                 Map<String, FilterExpression> subscription = new HashMap<>();
-                subscription.put(topic, FilterExpression.SUB_ALL);
-                PushConsumer consumer = provider.newPushConsumerBuilder()
-                        .setClientConfiguration(clientConfig)
+                for (String topic : this.pendingConsumerTopics) {
+                    subscription.put(topic, FilterExpression.SUB_ALL);
+                }
+                this.consumer = provider.newPushConsumerBuilder()
+                        .setClientConfiguration(consumerConfig)
                         .setConsumerGroup(config.getConsumerGroup())
                         .setSubscriptionExpressions(subscription)
                         .setMessageListener(this)
                         .build();
-                this.consumerList.add(consumer);
-                log.info("gRPC Consumer started, topic={}", topic);
+                log.info("gRPC Consumer started, group={}, topics={}",
+                        config.getConsumerGroup(),
+                        this.pendingConsumerTopics);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to start gRPC Consumer for topic: " + topic, e);
+                throw new RuntimeException("Failed to start gRPC Consumer", e);
             }
         }
         this.pendingConsumerTopics.clear();
@@ -279,14 +283,13 @@ public class RocketMqGrpcEventManager extends AbstractMQEventManager implements 
     @Override
     public void shutdown() {
         log.info("RocketMqGrpcEventManager shutting down...");
-        for (PushConsumer c : consumerList) {
+        if (this.consumer != null) {
             try {
-                c.close();
+                this.consumer.close();
             } catch (Exception e) {
                 log.error("gRPC Consumer close error", e);
             }
         }
-        consumerList.clear();
         if (this.producer != null) {
             try {
                 this.producer.close();

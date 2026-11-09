@@ -166,7 +166,7 @@ eventManager.shutdown();
 
 ### 2.4 订阅者注册
 
-订阅者注册方式与 core 本地管理器一致（基于 `AbstractMQEventManager`）。每个 topic 独立 Consumer，消费隔离。
+订阅者注册方式与 core 本地管理器一致（基于 `AbstractMQEventManager`）。消费通道按**消费组唯一实例**创建：一个消费组只建一个 Consumer，并在其上订阅 `ITopicResolver.getAllTopics()` 返回的全部 topic；同一消费组的多实例之间订阅集合一致。
 
 ```java
 // 基本注册
@@ -255,9 +255,13 @@ _root_ → notify-customer ──(完成后发新消息)──▶ update-read-mo
 
 ## 3. 关键机制与避坑指南
 
-### 3.1 Consumer Group 唯一性
+### 3.1 Consumer Group 唯一性与订阅一致性
 
 > ⚠️ **重要约束**：`consumerGroup` 必须全局唯一，且禁止与 topic 同名，否则会导致 rebalance 抢队列、消息被错误消费。框架默认值为 `PRAGMATIC_DDD_RMQ_CONSUMER`，多实例部署时务必显式配置为各自唯一值。
+
+> ⚠️ **重要约束**：同一消费组内所有 Consumer 的订阅关系必须完全一致。框架每个消费组只创建一个 Consumer，并一次性订阅 `ITopicResolver.getAllTopics()` 的全部 topic；**禁止按 topic 拆分同组 Consumer**——Remoting 下同 JVM 的第二个 Consumer 会因消费组重复注册抛 `The consumer group[...] has been created before` 而启动失败；gRPC 下会造成订阅关系不一致、部分队列分给未订阅的实例而无人消费。
+
+> ⚠️ **重要约束**：topic 集合必须在 `start()` 前确定。gRPC 的订阅在 `PushConsumer` 构建时固化，`start()` 之后不支持追加 topic；Remoting 虽可在运行期追加订阅，但框架不会在启动后重新解析 topic，topic 集合仍以启动时 `getAllTopics()` 的结果为准。
 
 ### 3.2 外部注入 Producer 的生命周期
 
@@ -361,6 +365,7 @@ public class MyEventMetrics implements IEventMetrics {
 | `serializer` / `metrics` | 缺省 `Fastjson2EventSerializer` / `NoOpEventMetrics` | 可注入自定义实现 |
 | 外部 Producer | `builder().producer(...)` | `shutdown()` 不关闭外部注入的 Producer |
 | `consumerGroup` | 默认 `PRAGMATIC_DDD_RMQ_CONSUMER` | 全局唯一，禁止与 topic 同名 |
+| 消费通道 | 每个消费组一个 Consumer，订阅全部 topic | 同组订阅集合必须一致，禁止按 topic 拆分同组 Consumer |
 | 死信 topic | 代码格式 `topic%DLQ%` | 非 `%DLQ%{consumerGroup}` |
 | 延迟消息 | `DELAYED` + `defaultDelayLevel` | Remoting 用级别，gRPC 映射为绝对时间戳（18 级 1s~2h） |
 | 可靠投递 | `OutboxRelay` + `outboxStore` | 解决发送失败丢事件；订阅逻辑需幂等 |

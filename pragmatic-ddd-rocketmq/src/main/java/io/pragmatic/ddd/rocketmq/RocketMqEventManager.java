@@ -13,7 +13,6 @@ import io.pragmatic.ddd.event.spi.IEventSerializer;
 import io.pragmatic.ddd.event.spi.ISubscriberOrderManager;
 import io.pragmatic.ddd.event.spi.ITopicResolver;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
-import org.apache.rocketmq.client.consumer.MQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyContext;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyStatus;
 import org.apache.rocketmq.client.consumer.listener.MessageListenerConcurrently;
@@ -25,7 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -40,7 +39,7 @@ import java.util.Set;
  * <ul>
  *   <li>通过 RocketMqProperties 统一配置入口</li>
  *   <li>Producer 支持外部注入（与 Spring 容器共享），未注入时框架自建；单实例复用</li>
- *   <li>Consumer 始终框架内部创建（不同 Consumer Group 完全独立，不可共用）</li>
+ *   <li>Consumer 始终框架内部创建：每个消费组一个实例，订阅全部 topic，保证同组订阅关系一致</li>
  *   <li>消费异常返回 RECONSUME_LATER，保障最终一致性</li>
  *   <li>通过 IEventMetrics 支持可观测性</li>
  * </ul>
@@ -59,7 +58,8 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // ── 资源 ──
     private volatile MQProducer sharedProducer;
     private boolean externalProducer;
-    private final List<MQPushConsumer> consumerList = new ArrayList<>();
+    private volatile DefaultMQPushConsumer consumer;
+    private final Set<String> subscribedTopics = new HashSet<>();
 
     // ── 生命周期状态 ──
     private volatile boolean started = false;
@@ -142,40 +142,55 @@ public class RocketMqEventManager extends AbstractMQEventManager
     // ══════════════════════════════════════════════
 
     /**
-     * 初始化各 Topic 对应的 Producer 与 Consumer。
+     * 初始化 Producer 与消费组唯一的 Consumer。
      * <p>
-     * 仅创建连接对象、配置参数并注册监听，不发起任何网络连接或消息收发；
+     * Consumer 按消费组只创建一个实例，并在其上订阅本批全部 topic，保证同一消费组的订阅关系一致；
+     * 仅创建连接对象、配置参数并注册监听，不发起任何网络连接或消息收发。
      * 真正的 start 由 {@link #start()} 受控触发，确保应用完全就绪后再收发。
      */
     @Override
     protected void initializeTopics(Set<String> topics) {
         // 1. Producer — 外部注入优先，未注入则创建对象（懒初始化，单实例复用），但先不 start
-        if (this.sharedProducer == null) {
-            synchronized (this) {
-                if (this.sharedProducer == null) {
-                    DefaultMQProducer p = new DefaultMQProducer(config.getProducerGroup());
-                    p.setNamesrvAddr(config.getNameServer());
-                    p.setRetryTimesWhenSendFailed(config.getRetryTimesWhenSendFailed());
-                    p.setSendMsgTimeout(config.getSendMsgTimeout());
-                    p.setCompressMsgBodyOverHowmuch(config.getCompressMsgBodyOverHowmuch());
-                    this.sharedProducer = p;
-                    log.info("Shared Producer created, group={}", config.getProducerGroup());
+        ensureProducer();
+        // 2. Consumer — 每个消费组唯一实例，订阅本批全部 topic，先不 start
+        synchronized (this) {
+            if (this.consumer == null) {
+                this.consumer = new DefaultMQPushConsumer(config.getConsumerGroup());
+                this.consumer.setNamesrvAddr(config.getNameServer());
+                this.consumer.setMaxReconsumeTimes(config.getMaxReconsumeTimes());
+                this.consumer.registerMessageListener(this);
+                log.info("Shared Consumer created, group={}", config.getConsumerGroup());
+            }
+            for (String topic : topics) {
+                if (this.subscribedTopics.contains(topic)) {
+                    continue;
                 }
+                try {
+                    this.consumer.subscribe(topic, "*");
+                } catch (Exception ex) {
+                    throw new RegisterDomainEventException(topic, ex);
+                }
+                this.subscribedTopics.add(topic);
+                log.info("Consumer subscribed, group={}, topic={}", config.getConsumerGroup(), topic);
             }
         }
-        // 2. Consumer — 每 topic 独立实例，始终框架内部创建，先不 start
-        for (String topic : topics) {
-            try {
-                DefaultMQPushConsumer c = new DefaultMQPushConsumer(config.getConsumerGroup());
-                c.setNamesrvAddr(config.getNameServer());
-                c.setMaxReconsumeTimes(config.getMaxReconsumeTimes());
-                c.subscribe(topic, "*");
-                c.registerMessageListener(this);
-                this.consumerList.add(c);
-                log.info("Consumer created, topic={}", topic);
-            } catch (Exception ex) {
-                throw new RegisterDomainEventException(topic, ex);
+    }
+
+    private void ensureProducer() {
+        if (this.sharedProducer != null) {
+            return;
+        }
+        synchronized (this) {
+            if (this.sharedProducer != null) {
+                return;
             }
+            DefaultMQProducer p = new DefaultMQProducer(config.getProducerGroup());
+            p.setNamesrvAddr(config.getNameServer());
+            p.setRetryTimesWhenSendFailed(config.getRetryTimesWhenSendFailed());
+            p.setSendMsgTimeout(config.getSendMsgTimeout());
+            p.setCompressMsgBodyOverHowmuch(config.getCompressMsgBodyOverHowmuch());
+            this.sharedProducer = p;
+            log.info("Shared Producer created, group={}", config.getProducerGroup());
         }
     }
 
@@ -274,13 +289,15 @@ public class RocketMqEventManager extends AbstractMQEventManager
                 throw new RegisterDomainEventException(config.getProducerGroup(), e);
             }
         }
-        // 2. Consumer 受控 start
-        for (MQPushConsumer c : consumerList) {
+        // 2. Consumer 受控 start（消费组唯一实例，已订阅全部 topic）
+        if (this.consumer != null) {
             try {
-                c.start();
-                log.info("Consumer started");
+                this.consumer.start();
+                log.info("Consumer started, group={}, topics={}",
+                        config.getConsumerGroup(),
+                        this.subscribedTopics);
             } catch (Exception ex) {
-                throw new RegisterDomainEventException("consumer-start", ex);
+                throw new RegisterDomainEventException(config.getConsumerGroup(), ex);
             }
         }
         this.started = true;
@@ -297,14 +314,13 @@ public class RocketMqEventManager extends AbstractMQEventManager
     @Override
     public void shutdown() {
         log.info("RocketMqEventManager shutting down...");
-        for (MQPushConsumer c : consumerList) {
+        if (this.consumer != null) {
             try {
-                c.shutdown();
+                this.consumer.shutdown();
             } catch (Exception e) {
                 log.error("Consumer shutdown error", e);
             }
         }
-        consumerList.clear();
         if (!externalProducer && this.sharedProducer != null) {
             try {
                 this.sharedProducer.shutdown();

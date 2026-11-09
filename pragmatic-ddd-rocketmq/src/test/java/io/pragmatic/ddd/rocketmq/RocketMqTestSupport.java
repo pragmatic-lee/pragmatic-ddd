@@ -1,5 +1,6 @@
 package io.pragmatic.ddd.rocketmq;
 
+import io.pragmatic.ddd.event.IDomainEvent;
 import io.pragmatic.ddd.event.internal.defaults.ConfigurableTopicResolver;
 import io.pragmatic.ddd.event.internal.defaults.SubscriberOrderManager;
 import io.pragmatic.ddd.event.spi.ISubscriberOrderManager;
@@ -117,11 +118,13 @@ final class RocketMqTestSupport {
     }
 
     /** 构建按事件类型分 topic 的解析器（模式 B）。 */
-    static ITopicResolver perEventTypeResolver(String defaultTopic, String eventA, String topicA, String eventB, String topicB) {
+    static ITopicResolver perEventTypeResolver(String defaultTopic,
+                                               Class<? extends IDomainEvent> eventA, String topicA,
+                                               Class<? extends IDomainEvent> eventB, String topicB) {
         return ConfigurableTopicResolver.builder()
                 .globalDefaultTopic(defaultTopic)
-                .eventTopic(eventA, topicA)
-                .eventTopic(eventB, topicB)
+                .eventTopic(eventA.getSimpleName(), topicA)
+                .eventTopic(eventB.getSimpleName(), topicB)
                 .build();
     }
 
