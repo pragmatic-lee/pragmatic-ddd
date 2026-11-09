@@ -61,7 +61,7 @@ public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
 
 | 角色 | 类型 | 职责 |
 | --- | --- | --- |
-| 聚合侧 | `TypeHandlerDeclaration` | 只声明本聚合的 `enumRules` / `voTypes` / `collections`，不持有解析器、序列化器、方言适配器 |
+| 聚合侧 | `TypeHandlerDeclaration` | 只声明本聚合的 `enumRules` / `voTypes` / `collections` / `customHandlers`，不持有解析器、序列化器、方言适配器 |
 | 框架侧 | `TypeHandlerAssembler` | 合并全部声明，校验冲突后产出唯一的 `TypeHandlerContext` |
 | 装配侧 | `MyBatisConfig` | 以单个 `TypeHandlerContext` 入参，构建阶段 `registerInto(configuration)` 一次 |
 
@@ -78,6 +78,27 @@ public TypeHandlerDeclaration orderTypeHandlerDeclaration() {
 ```
 
 引入 `pragmatic-ddd-spring-boot` 后，唯一的 `TypeHandlerContext` 由 `DddMybatisTypeHandlerAutoConfiguration` 自动产出（收集容器内全部声明后合并），业务无需手写装配器调用；JDBC JSON 方言优先取显式声明的 `JdbcJsonValue` Bean，否则按数据源产品名探测（MySQL / PostgreSQL），探测失败回落透传实现。
+
+**自定义 handler 通道（第四通道）**：框架三通道未覆盖或不满足的类型，用 `CustomTypeHandlerMapping(javaType, handler)` 显式配对声明，随声明走同一套合并校验：
+
+```java
+// 框架未覆盖的类型：自定义 handler 全库生效
+TypeHandlerDeclaration.of(
+        Map.of(OrderStatus.class, EnumRule.CODE),
+        List.of(Customer.class, Money.class),
+        List.of(),
+        List.of(new CustomTypeHandlerMapping(GiftCode.class, new GiftCodeHandler())));
+```
+
+| 约束 | 说明 |
+| --- | --- |
+| 与框架三通道同键 | 启动期 fail-fast：枚举改 `EnumRule`、VO 换 `JsonSerializer` SPI、集合列用 `ElementConverter`；确需接管某类型则从框架通道移除声明（补位语义） |
+| 多声明同键 | 同 handler 实例幂等；不同实例 fail-fast |
+| 泛型一致性 | handler 可解析出 `TypeHandler<T>` 实参时必须与 javaType 同型或子型，否则 fail-fast |
+| 无状态约定 | handler 实例等价单例，不得持有可变状态、不得依赖框架共享组件 |
+| 触碰内置默认 | 注册 `Long` / `String` 等基础类型会全局覆盖 MyBatis 内置映射，装配期打 WARN；个别列特殊处理直接在 XML 显式 `typeHandler`，不进声明 |
+
+handler 选择优先级：**XML 映射点显式指定 > registry 注册（框架通道 + 自定义通道）> MyBatis 内置默认**；前两层可叠加（XML 能在注册之上再局部覆盖）。
 
 合并期的冲突全部在**启动阶段 fail-fast**：
 

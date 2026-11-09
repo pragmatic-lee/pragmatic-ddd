@@ -19,6 +19,14 @@
 - **真实 PG 集成测试**：`PostgresTestSupport` + Outbox（含并发认领不重不漏）/ 补偿 / 号段（含并发行锁）/ TypeHandler（jsonb 通道）四套用例，与 MySQL 版逐条对称；PG 与 MySQL 驱动均仅 test scope，不进框架产物。
 - **父 POM `dependencyManagement` 登记 `org.postgresql:postgresql`**。
 
+#### 自定义 TypeHandler 注册通道（pragmatic-ddd-mybatis）
+
+- **新增 `CustomTypeHandlerMapping`**：javaType 与 handler 实例的显式配对声明单元，handler 约定无状态、不依赖框架共享组件（`EnumValueResolver` / `JsonSerializer` / `JdbcJsonValue` 不注入）。
+- **`TypeHandlerDeclaration` 新增第五组件 `customHandlers`**：聚合侧可声明框架三通道（枚举 / 值对象 / 集合列）未占用类型的自定义 handler；三参 `of(...)` 重载保留，既有调用面零改动（canonical 构造器 4 参变 5 参，直接 `new` 的调用点需补参）。
+- **`TypeHandlerAssembler` 新增合并期校验 R11–R14**：自定义键与框架三通道同键 fail-fast（错误信息按通道指路 SPI 或补位语义）；多声明同键不同 handler 实例 fail-fast（同实例幂等通过）；泛型可解析时校验与 javaType 的同型/子型关系，解析不出（raw 实现）跳过；javaType 与 handler 非空在声明单元构造期兜底。
+- **`TypeHandlerContext` 追加自定义通道**：注册顺序「框架三通道先、自定义通道补位」，合并期互斥校验保证无覆盖；触碰 MyBatis 内置默认映射（如 `Long` / `String`）时装配期打 WARN，全局生效影响显性化。
+- 无集合声明时可用自定义通道补位注册 `List.class` handler；有集合声明时同键 fail-fast（`ListTypeHandler` 不支持整类替换，元素转换走 `ElementConverter`）。
+
 ### 变更
 
 #### MyBatis 复杂类型装配改为「声明与装配分离」（pragmatic-ddd-mybatis / pragmatic-ddd-spring-boot）

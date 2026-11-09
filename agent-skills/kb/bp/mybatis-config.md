@@ -40,8 +40,9 @@ public SqlSessionFactory sqlSessionFactory(DataSource dataSource,
 ### 2.3 TypeHandler 装配：声明与装配分离
 
 - **一个 `Configuration` 只能装配一份 `TypeHandlerContext`**：MyBatis 对 `List.class` 只有全局单槽（`register` 是 `put` 覆盖），每聚合一个上下文时只有最后一个生效。
-- 聚合侧只产 `TypeHandlerDeclaration`（`enumRules` / `voTypes` / `collections` + 预留 `scope`），不持有 resolver / serializer / `JdbcJsonValue`。
+- 聚合侧只产 `TypeHandlerDeclaration`（`enumRules` / `voTypes` / `collections` / `customHandlers` + 预留 `scope`），不持有 resolver / serializer / `JdbcJsonValue`。
 - 框架侧 `TypeHandlerAssembler.assemble(declarations, jdbcJsonValue)` 合并全部声明并启动期 fail-fast，产出唯一上下文。
+- 框架未覆盖或不满足的类型用 `CustomTypeHandlerMapping(javaType, handler)` 声明进 `customHandlers`：与框架通道同键启动期 fail-fast，触碰 MyBatis 内置默认映射装配期 WARN；个别列特殊处理走 XML 显式 `typeHandler`，不进声明。
 - `pragmatic-ddd-spring-boot` 提供 `DddMybatisTypeHandlerAutoConfiguration` 自动产出该单例（业务自定义则退让），方言优先取显式 `JdbcJsonValue` Bean，否则按数据源探测。
 - 合并期 fail-fast：同枚举两种 `EnumRule`、同类型同时在 `enumRules`/`voTypes`、`voTypes` 未实现 `IValueObject`、集合元素枚举未声明策略、同标签不同类型/不同转换器、`scope` 非 `default`；运行期未登记列标签直接报错。
 - 无任何集合声明时不注册 `List.class` 处理器。
@@ -108,6 +109,7 @@ public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory
 | 认为 starter 自动注册框架 Mapper | 在 `MyBatisConfig` 显式扫描 |
 | 只 `@Import(MySqlConfig.class)` 做单测 | 同时导入 `MySqlConfig`+`MyBatisConfig`+聚合 TypeHandler 声明 |
 | 枚举/JSON 通道各自 new 解析器 | 只产 `TypeHandlerDeclaration`，全局组件由装配器统一构建 |
+| 自定义 handler 直接 `registry.register` 绕过声明 | 写进 `customHandlers` 声明，经装配器统一校验（同键 fail-fast / 泛型校验 / 统一注册时机） |
 | 集合声明标签与 Mapper XML 不一致 | 标签与 `<result column>` / SQL `AS` 逐字符对齐（否则运行期报错） |
 | MySQL 用错 JSON 方言 | 显式声明 `JdbcJsonValue` Bean，或依赖自动配置探测 |
 | PG 场景仍套用 MySQL 装配 | 扫错方言 XML、未设 `databaseId` 或可空参数漏 `jdbcType`，运行期才报错；按 `postgresql-config.md` 装配 |

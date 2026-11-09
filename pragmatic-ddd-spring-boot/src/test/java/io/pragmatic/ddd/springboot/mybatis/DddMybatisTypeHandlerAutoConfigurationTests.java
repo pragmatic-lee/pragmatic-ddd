@@ -1,16 +1,22 @@
 package io.pragmatic.ddd.springboot.mybatis;
 
 import io.pragmatic.ddd.base.IEnumValue;
+import io.pragmatic.ddd.mybatis.typehandler.CustomTypeHandlerMapping;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerAssembler;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerContext;
 import io.pragmatic.ddd.mybatis.typehandler.TypeHandlerDeclaration;
 import io.pragmatic.ddd.mybatis.typehandler.enums.EnumRule;
 import io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue;
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
 
@@ -66,6 +72,55 @@ class DddMybatisTypeHandlerAutoConfigurationTests {
         @Override
         public String getName() {
             return label;
+        }
+    }
+
+    /** 泛型可解析的自定义 handler：TypeHandler&lt;GiftCode&gt;，框架与 MyBatis 均未内置的类型。 */
+    static class GiftCode {
+    }
+
+    static class GiftCodeHandler extends BaseTypeHandler<GiftCode> {
+
+        @Override
+        public void setNonNullParameter(PreparedStatement ps, int i, GiftCode parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public GiftCode getNullableResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public GiftCode getNullableResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public GiftCode getNullableResult(CallableStatement cs, int columnIndex) {
+            return null;
+        }
+    }
+
+    /** 泛型可解析的自定义 handler：TypeHandler&lt;String&gt;，触碰 MyBatis 内置 StringTypeHandler。 */
+    static class StringHandler extends BaseTypeHandler<String> {
+
+        @Override
+        public void setNonNullParameter(PreparedStatement ps, int i, String parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public String getNullableResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public String getNullableResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public String getNullableResult(CallableStatement cs, int columnIndex) {
+            return null;
         }
     }
 
@@ -131,5 +186,40 @@ class DddMybatisTypeHandlerAutoConfigurationTests {
                 .withBean("secondDeclaration", TypeHandlerDeclaration.class,
                         () -> TypeHandlerDeclaration.of(Map.of(Status.class, EnumRule.NAME), List.of(), List.of()))
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    @DisplayName("声明含自定义 handler 时上下文正常产出并保留声明（T24）")
+    void customHandlerInDeclarationIsAssembled() {
+        this.runner
+                .withBean(TypeHandlerDeclaration.class, () -> TypeHandlerDeclaration.of(
+                        Map.of(Status.class, EnumRule.CODE), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(GiftCode.class, new GiftCodeHandler()))))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TypeHandlerContext.class);
+                    assertThat(context.getBean(TypeHandlerContext.class).customHandlers())
+                            .hasSize(1)
+                            .first()
+                            .satisfies(mapping -> {
+                                assertThat(mapping.javaType()).isEqualTo(GiftCode.class);
+                                assertThat(mapping.handler()).isInstanceOf(GiftCodeHandler.class);
+                            });
+                });
+    }
+
+    @Test
+    @DisplayName("自定义 handler 触碰 MyBatis 内置默认时装配成功（T25）")
+    void customHandlerOverridingBuiltinStillAssembles() {
+        this.runner
+                .withBean(TypeHandlerDeclaration.class, () -> TypeHandlerDeclaration.of(
+                        Map.of(), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(String.class, new StringHandler()))))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TypeHandlerContext.class);
+                    assertThat(context.getBean(TypeHandlerContext.class).customHandlers())
+                            .hasSize(1)
+                            .first()
+                            .satisfies(mapping -> assertThat(mapping.javaType()).isEqualTo(String.class));
+                });
     }
 }

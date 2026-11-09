@@ -9,8 +9,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 复杂类型声明：聚合侧只描述本聚合涉及的枚举、值对象与集合列，不描述装配机制。
+ * 复杂类型声明：聚合侧只描述本聚合涉及的枚举、值对象、集合列与自定义 handler 配对，不描述装配机制。
  * 由 {@link TypeHandlerAssembler} 汇总合并后产出唯一的 {@link TypeHandlerContext}。
+ *
+ * <p>四条通道的职责边界：枚举走 {@code enumRules}、值对象走 {@code voTypes}、
+ * 集合列走 {@code collections}、其余类型走 {@code customHandlers}（javaType 与 handler 实例显式配对）。</p>
  *
  * <p>声明天然可多份（每个聚合一份），但不得持有 {@code EnumValueResolver}、{@code JsonSerializer}、
  * {@code JdbcJsonValue} 等运行时组件——这些组件全局唯一，由装配器统一构建。</p>
@@ -20,7 +23,8 @@ import java.util.Optional;
 public record TypeHandlerDeclaration(String scope,
                                      Map<Class<?>, EnumRule> enumRules,
                                      Collection<Class<?>> voTypes,
-                                     Collection<CollectionMapping> collections) {
+                                     Collection<CollectionMapping> collections,
+                                     Collection<CustomTypeHandlerMapping> customHandlers) {
 
     /** 单数据源默认作用域；多数据源场景预留。 */
     public static final String DEFAULT_SCOPE = "default";
@@ -39,10 +43,13 @@ public record TypeHandlerDeclaration(String scope,
         collections = Optional.ofNullable(collections)
                 .map(List::copyOf)
                 .orElseGet(List::of);
+        customHandlers = Optional.ofNullable(customHandlers)
+                .map(List::copyOf)
+                .orElseGet(List::of);
     }
 
     /**
-     * 按默认作用域构建声明。
+     * 按默认作用域构建声明（无自定义 handler）。
      *
      * @param enumRules   枚举类 → 持久化策略
      * @param voTypes     JSON 值对象类型
@@ -52,7 +59,23 @@ public record TypeHandlerDeclaration(String scope,
     public static TypeHandlerDeclaration of(Map<Class<?>, EnumRule> enumRules,
                                            Collection<Class<?>> voTypes,
                                            Collection<CollectionMapping> collections) {
-        return new TypeHandlerDeclaration(DEFAULT_SCOPE, enumRules, voTypes, collections);
+        return of(enumRules, voTypes, collections, List.of());
+    }
+
+    /**
+     * 按默认作用域构建声明（含自定义 handler 配对）。
+     *
+     * @param enumRules      枚举类 → 持久化策略
+     * @param voTypes        JSON 值对象类型
+     * @param collections    集合列映射声明
+     * @param customHandlers 自定义 handler 声明单元
+     * @return 声明实例
+     */
+    public static TypeHandlerDeclaration of(Map<Class<?>, EnumRule> enumRules,
+                                           Collection<Class<?>> voTypes,
+                                           Collection<CollectionMapping> collections,
+                                           Collection<CustomTypeHandlerMapping> customHandlers) {
+        return new TypeHandlerDeclaration(DEFAULT_SCOPE, enumRules, voTypes, collections, customHandlers);
     }
 
     /** 空声明：不登记任何类型。 */
@@ -67,6 +90,6 @@ public record TypeHandlerDeclaration(String scope,
      * @return 新声明
      */
     public TypeHandlerDeclaration withScope(String scope) {
-        return new TypeHandlerDeclaration(scope, enumRules, voTypes, collections);
+        return new TypeHandlerDeclaration(scope, enumRules, voTypes, collections, customHandlers);
     }
 }

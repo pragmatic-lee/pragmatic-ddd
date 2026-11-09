@@ -81,7 +81,7 @@
 | 防腐层 | `AbstractQueryGateway` / `AbstractWriteGateway` / `AbstractIdempotentWriteGateway` 继承式套路，或 `ExternalCall` 组合式调用；`AclExceptions` 区分可重试与不可重试异常 |
 | 外部依赖声明 | `@ExternalDependency` + `DependencyType` 声明式标注聚合依赖的外部系统端口 |
 | 配置体系 | `IConfigurationSource` / `ConfigurationBinder` / `AbstractConfiguration` 三层配置，含 `IFeatureToggle` 特性开关与灰度策略 |
-| MyBatis | `TypeHandlerDeclaration`（聚合侧声明）+ `TypeHandlerAssembler`（合并为唯一 `TypeHandlerContext`）注册枚举、JSON、集合三类 TypeHandler；`MybatisOutboxStore`、`DbSegmentAllocator` 开箱即用 |
+| MyBatis | `TypeHandlerDeclaration`（聚合侧声明）+ `TypeHandlerAssembler`（合并为唯一 `TypeHandlerContext`）注册枚举、JSON、集合、自定义四类 TypeHandler；`MybatisOutboxStore`、`DbSegmentAllocator` 开箱即用 |
 | RocketMQ | `RocketMqEventManager`（Remoting）与 `RocketMqGrpcEventManager`（gRPC 5.x Proxy）双通道事件管理器 |
 | 零框架依赖 | 核心库只依赖 JDK 与 Lombok（provided），不依赖 Spring / MyBatis / MQ，领域层保持纯净可测 |
 
@@ -426,11 +426,12 @@ uow.commit();   // 同事务落库 + 落 outbox，提交后推送事件
 
 `pragmatic-ddd-mybatis` 提供与 MyBatis 的衔接能力，让聚合根可借助框架基础设施持久化：
 
-- **声明与装配分离的复杂类型装配**：聚合侧只产出 `TypeHandlerDeclaration`（声明枚举、值对象、集合列），框架侧 `TypeHandlerAssembler` 合并全部声明、启动期校验冲突后产出**唯一**的 `TypeHandlerContext`，构建完 `SqlSessionFactory` 前调用一次 `registerInto(configuration)` 即可同时注册枚举、JSON、集合三类处理器，零 Spring 依赖。
+- **声明与装配分离的复杂类型装配**：聚合侧只产出 `TypeHandlerDeclaration`（声明枚举、值对象、集合列与自定义 handler 配对），框架侧 `TypeHandlerAssembler` 合并全部声明、启动期校验冲突后产出**唯一**的 `TypeHandlerContext`，构建完 `SqlSessionFactory` 前调用一次 `registerInto(configuration)` 即可同时注册枚举、JSON、集合、自定义四类处理器，零 Spring 依赖。
   - 为什么要唯一：MyBatis 对 `List.class` 只有全局单槽，`register` 是覆盖而非追加；每聚合一个上下文时只有最后一个生效，其余集合列会静默退化。
   - `enums`：`UniversalEnumTypeHandler` + `EnumValueResolver`，按策略（CODE/ORDINAL/NAME/LABEL）映射枚举。
   - `json`：`GenericJsonTypeHandler`，把值对象整体读写为数据库原生 JSON 列（PG `jsonb` / MySQL `JSON`）。
   - `list`：`ListTypeHandler`，单列 JSON 数组处理器，严格按列标签还原 `List<E>` 元素类型；未登记的标签直接报错，不做类型兜底。
+  - `customHandlers`：自定义 handler 通道（`CustomTypeHandlerMapping`，javaType ↔ handler 实例显式配对），用于框架三通道未覆盖或不能满足的类型；与框架通道同键启动期 fail-fast，触碰 MyBatis 内置默认映射（如 `Long`）时装配期打 WARN，个别列特殊处理则直接在 XML 显式 `typeHandler` 不需进声明。
 - **可靠事件 Outbox**：`MybatisOutboxStore` 实现 `IOutboxStore`，`store` 在调用方事务内执行，`claim`/`markSent` 等为独立短事务，`markSent` 带状态守卫保证幂等。
 - **ID 号段分配**：`DbSegmentAllocator` 实现 `IIdSegmentAllocator`，基于数据库 `SELECT ... FOR UPDATE` 自管独立短事务分配号段，仅依赖 MyBatis 核心 API。
 

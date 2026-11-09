@@ -5,9 +5,16 @@ import io.pragmatic.ddd.base.IValueObject;
 import io.pragmatic.ddd.mybatis.typehandler.enums.EnumRule;
 import io.pragmatic.ddd.mybatis.typehandler.json.JdbcJsonValue;
 import io.pragmatic.ddd.mybatis.typehandler.list.CollectionMapping;
+import org.apache.ibatis.type.BaseTypeHandler;
+import org.apache.ibatis.type.JdbcType;
+import org.apache.ibatis.type.TypeHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
 
@@ -105,6 +112,98 @@ class TypeHandlerAssemblerTest {
     }
 
     static class MemberRow {
+    }
+
+    /** 泛型可解析的自定义 handler：TypeHandler&lt;String&gt;。 */
+    static class MoneyHandler extends BaseTypeHandler<String> {
+
+        @Override
+        public void setNonNullParameter(PreparedStatement ps, int i, String parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public String getNullableResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public String getNullableResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public String getNullableResult(CallableStatement cs, int columnIndex) {
+            return null;
+        }
+    }
+
+    /** 泛型可解析的自定义 handler：TypeHandler&lt;BigDecimal&gt;。 */
+    static class BigDecimalHandler extends BaseTypeHandler<BigDecimal> {
+
+        @Override
+        public void setNonNullParameter(PreparedStatement ps, int i, BigDecimal parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public BigDecimal getNullableResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public BigDecimal getNullableResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public BigDecimal getNullableResult(CallableStatement cs, int columnIndex) {
+            return null;
+        }
+    }
+
+    /** 泛型可解析的自定义 handler：TypeHandler&lt;List&gt;，供 List.class 补位用例使用。 */
+    static class AnyListHandler extends BaseTypeHandler<List> {
+
+        @Override
+        public void setNonNullParameter(PreparedStatement ps, int i, List parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public List getNullableResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public List getNullableResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public List getNullableResult(CallableStatement cs, int columnIndex) {
+            return null;
+        }
+    }
+
+    /** raw 实现：TypeHandler 泛型不可解析，R13 跳过校验。 */
+    static class RawHandler implements TypeHandler {
+
+        @Override
+        public void setParameter(PreparedStatement ps, int i, Object parameter, JdbcType jdbcType) {
+        }
+
+        @Override
+        public Object getResult(ResultSet rs, String columnName) {
+            return null;
+        }
+
+        @Override
+        public Object getResult(ResultSet rs, int columnIndex) {
+            return null;
+        }
+
+        @Override
+        public Object getResult(CallableStatement cs, int columnIndex) {
+            return null;
+        }
     }
 
     @Test
@@ -257,10 +356,162 @@ class TypeHandlerAssemblerTest {
         assertThat(context.collections().columnListTypes()).isEmpty();
     }
 
+    @Test
+    @DisplayName("两份声明各含一个自定义 handler 时合并注册（T13）")
+    void mergesCustomHandlers() {
+        MoneyHandler first = new MoneyHandler();
+        TypeHandlerContext context = TypeHandlerAssembler.assemble(
+                List.of(
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(String.class, first))),
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(BigDecimal.class, new BigDecimalHandler())))),
+                JdbcJsonValue.DEFAULT);
+
+        assertThat(javaTypes(context)).contains(String.class, BigDecimal.class);
+        assertThat(handlerOf(context, String.class)).isSameAs(first);
+        assertThat(handlerOf(context, BigDecimal.class)).isInstanceOf(BigDecimalHandler.class);
+    }
+
+    @Test
+    @DisplayName("自定义键命中枚举通道时启动失败并指路（T14）")
+    void customHandlerClashingEnumChannelFails() {
+        assertThatThrownBy(() -> TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(
+                        Map.of(Color.class, EnumRule.CODE), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(Color.class, new MoneyHandler())))),
+                JdbcJsonValue.DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("与枚举通道冲突")
+                .hasMessageContaining("调整 enumRules");
+    }
+
+    @Test
+    @DisplayName("自定义键命中值对象通道时启动失败并指路（T15）")
+    void customHandlerClashingVoChannelFails() {
+        assertThatThrownBy(() -> TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(
+                        Map.of(), List.of(Profile.class), List.of(),
+                        List.of(new CustomTypeHandlerMapping(Profile.class, new MoneyHandler())))),
+                JdbcJsonValue.DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("与值对象通道冲突")
+                .hasMessageContaining("JsonSerializer");
+    }
+
+    @Test
+    @DisplayName("有集合声明时自定义 List.class 启动失败并指路（T16）")
+    void customHandlerClashingListChannelFails() {
+        assertThatThrownBy(() -> TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(
+                        Map.of(), List.of(),
+                        List.of(CollectionMapping.of(OrderRow.class, "items", String.class).build()),
+                        List.of(new CustomTypeHandlerMapping(List.class, new MoneyHandler())))),
+                JdbcJsonValue.DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("与集合通道冲突")
+                .hasMessageContaining("ElementConverter");
+    }
+
+    @Test
+    @DisplayName("无集合声明时自定义 List.class 放行（补位语义，T17）")
+    void customListHandlerWithoutCollectionsSucceeds() {
+        AnyListHandler handler = new AnyListHandler();
+        TypeHandlerContext context = TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(
+                        Map.of(), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(List.class, handler)))),
+                JdbcJsonValue.DEFAULT);
+
+        assertThat(javaTypes(context)).contains(List.class);
+        assertThat(handlerOf(context, List.class)).isSameAs(handler);
+    }
+
+    @Test
+    @DisplayName("同 javaType 绑定不同 handler 实例时启动失败（T18）")
+    void sameCustomKeyDifferentHandlersFails() {
+        assertThatThrownBy(() -> TypeHandlerAssembler.assemble(
+                List.of(
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(String.class, new MoneyHandler()))),
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(String.class, new MoneyHandler())))),
+                JdbcJsonValue.DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("自定义 handler 冲突");
+    }
+
+    @Test
+    @DisplayName("同 javaType 绑定同一 handler 实例时幂等通过（T19）")
+    void sameCustomKeySameHandlerIsIdempotent() {
+        MoneyHandler handler = new MoneyHandler();
+        TypeHandlerContext context = TypeHandlerAssembler.assemble(
+                List.of(
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(String.class, handler))),
+                        TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                                List.of(new CustomTypeHandlerMapping(String.class, handler)))),
+                JdbcJsonValue.DEFAULT);
+
+        assertThat(javaTypes(context).stream().filter(String.class::equals).count()).isEqualTo(1);
+        assertThat(handlerOf(context, String.class)).isSameAs(handler);
+    }
+
+    @Test
+    @DisplayName("handler 泛型与 javaType 无同型或子类型关系时启动失败（T20）")
+    void genericMismatchFails() {
+        assertThatThrownBy(() -> TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(Integer.class, new MoneyHandler())))),
+                JdbcJsonValue.DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("泛型与 javaType 不匹配");
+    }
+
+    @Test
+    @DisplayName("raw 实现泛型不可解析时跳过校验放行（T21）")
+    void rawHandlerSkipsGenericCheck() {
+        RawHandler handler = new RawHandler();
+        TypeHandlerContext context = TypeHandlerAssembler.assemble(
+                List.of(TypeHandlerDeclaration.of(Map.of(), List.of(), List.of(),
+                        List.of(new CustomTypeHandlerMapping(String.class, handler)))),
+                JdbcJsonValue.DEFAULT);
+
+        assertThat(handlerOf(context, String.class)).isSameAs(handler);
+    }
+
+    @Test
+    @DisplayName("自定义配对的 javaType 或 handler 为 null 时构造期失败（T22）")
+    void nullMappingPartsFailFast() {
+        assertThatThrownBy(() -> new CustomTypeHandlerMapping(null, new MoneyHandler()))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("javaType");
+        assertThatThrownBy(() -> new CustomTypeHandlerMapping(String.class, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("handler");
+    }
+
+    @Test
+    @DisplayName("三参 of 兼容：customHandlers 为空（T23）")
+    void threeArgOfKeepsCustomHandlersEmpty() {
+        TypeHandlerDeclaration declaration = TypeHandlerDeclaration.of(
+                Map.of(Color.class, EnumRule.CODE), List.of(), List.of());
+
+        assertThat(declaration.customHandlers()).isEmpty();
+    }
+
     private List<Class<?>> javaTypes(TypeHandlerContext context) {
         return context.registrations().stream()
-                .map(TypeHandlerRegistration::javaType)
+                .<Class<?>>map(TypeHandlerRegistration::javaType)
                 .toList();
+    }
+
+    private TypeHandler<?> handlerOf(TypeHandlerContext context, Class<?> javaType) {
+        return context.registrations().stream()
+                .filter(registration -> registration.javaType() == javaType)
+                .map(TypeHandlerRegistration::handler)
+                .findFirst()
+                .orElseThrow();
     }
 
     private TypeHandlerDeclaration orderDeclaration() {
