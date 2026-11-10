@@ -102,7 +102,7 @@ pragmatic-ddd/
     └── order-example           ← 电商订单完整示例（见下方「完整示例」）
 ```
 
-> **模块状态说明**：7 个框架模块（`parent` / `bom` / `core` / `rocketmq` / `kafka` / `mybatis` / `spring-boot`）均已完整实现，并随 `2.0.0` 一起发布到 Maven 中央仓库。
+> **模块状态说明**：7 个框架模块（`parent` / `bom` / `core` / `rocketmq` / `kafka` / `mybatis` / `spring-boot`）均已完整实现，并随 `2.2.0` 一起发布到 Maven 中央仓库。
 > 示例模块默认不参与构建，如需连同示例一起编译请使用 `mvn install -Pexamples`。
 
 ---
@@ -119,7 +119,7 @@ pragmatic-ddd/
         <dependency>
             <groupId>com.pragmatic-ddd</groupId>
             <artifactId>pragmatic-ddd-bom</artifactId>
-            <version>2.0.0</version>
+            <version>2.2.0</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -150,7 +150,7 @@ pragmatic-ddd/
 </dependency>
 ```
 
-> 不想用 BOM，也可逐个写 `<version>2.0.0</version>`。当前版本见 [Maven Central](https://central.sonatype.com/artifact/com.pragmatic-ddd/pragmatic-ddd-core)。
+> 不想用 BOM，也可逐个写 `<version>2.2.0</version>`。当前版本见 [Maven Central](https://central.sonatype.com/artifact/com.pragmatic-ddd/pragmatic-ddd-core)。
 
 ### 从源码安装（可选）
 

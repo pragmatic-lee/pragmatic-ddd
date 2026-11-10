@@ -5,19 +5,20 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本规范](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [2.2.0] — 2026-11-10
+
+### 升级指引（2.1.0 → 2.2.0，破坏性变更迁移）
+
+本次含破坏性变更，升级前按序处理：
+
+1. **`sqlSessionFactory` 入参收敛**：`MyBatisConfig.sqlSessionFactory` 从 `List<TypeHandlerContext>` 改为单个 `TypeHandlerContext`，不再逐个注入各聚合上下文。
+2. **聚合侧改为声明式**：`{Agg}MybatisTypeHandlerConfig` 由产出 `TypeHandlerContext` 改为产出 `TypeHandlerDeclaration`；三参 `of(...)` 重载既有调用面零改动，直接 `new` canonical 构造器的调用点需补第五参 `customHandlers`。
+3. **轮询对账移除**：删除 `ReconciliationScanner` / `ScanConfig` / `IReconciliationCandidateProvider`；依赖定时扫描兜底的接入方改为保障事件链路（Outbox + 消费重试 + DLQ 告警），需要回填/修复存量时自备 ID 集合调用 `ReconciliationManager.reconcileBatch`。
+4. **集合列契约收紧**：`ListTypeHandler` 未登记列标签直接抛 `IllegalStateException`，须在 `CollectionMapping` 声明 `columnLabel` / `table`，并与 Mapper XML 的 `column` / SQL `AS` 别名逐字符一致；无任何集合声明时不再注册 `List.class`。
+5. **`save` 路由语义变化**：`IRepository.save` 现在优先识别删除意图（`isEntityDelete` → `remove`），自定义仓储若覆写了 `save` 需同步该优先级。
+6. **参考实现**：迁移样例见 `examples/order-example` 的 `MyBatisConfig` 与 `OrderMybatisTypeHandlerConfig`。
 
 ### 新增
-
-#### PostgreSQL 方言支持（pragmatic-ddd-mybatis）
-
-- **框架固定 Mapper 新增 PostgreSQL 方言版**：`{outbox,compensation,id}/postgres/*.xml`，namespace 与 MySQL 版相同，每条语句 `databaseId="postgres"`，使用方扫描方言目录并为 `SqlSessionFactory` 设置 `VendorDatabaseIdProvider`（或 `setDatabaseId("postgres")`）即可；MySQL 侧零变更。关键适配：
-  - `claimPending`：MySQL 的 `UPDATE ... ORDER BY ... LIMIT` 在 PG 不支持，改为物化 CTE（`AS MATERIALIZED`）+ `FOR UPDATE SKIP LOCKED`（普通子查询会被嵌套循环逐行重估导致超批次认领，必须物化）；
-  - `releaseStaleClaims`：`DATE_SUB` 改为 `CURRENT_TIMESTAMP - make_interval(secs => ...)`；`CURRENT_TIMESTAMP(3)` 统一为无参 `CURRENT_TIMESTAMP`；
-  - 可空参数全部显式 `jdbcType`（MyBatis 默认 `jdbcTypeForNull=OTHER` 在 PG 报无法确定参数类型）。
-- **框架三张表新增 PG 建表脚本**：`outbox-schema-postgres.sql` / `compensation-log-schema-postgres.sql` / `id-segment-schema-postgres.sql`（`LONGTEXT→text`、`DATETIME(3)→TIMESTAMP(3)`、内联索引拆独立 `CREATE INDEX`，幂等可重跑）。
-- **真实 PG 集成测试**：`PostgresTestSupport` + Outbox（含并发认领不重不漏）/ 补偿 / 号段（含并发行锁）/ TypeHandler（jsonb 通道）四套用例，与 MySQL 版逐条对称；PG 与 MySQL 驱动均仅 test scope，不进框架产物。
-- **父 POM `dependencyManagement` 登记 `org.postgresql:postgresql`**。
 
 #### 自定义 TypeHandler 注册通道（pragmatic-ddd-mybatis）
 
@@ -28,6 +29,11 @@
 - 无集合声明时可用自定义通道补位注册 `List.class` handler；有集合声明时同键 fail-fast（`ListTypeHandler` 不支持整类替换，元素转换走 `ElementConverter`）。
 
 ### 变更
+
+#### 工作单元删除语义收敛（pragmatic-ddd-core）
+
+- **`IRepository.save` 改为删除意图优先路由**：已删除（`isEntityDelete`）走 `remove`，新建走 `insert`，其余走 `update`；删除优先级最高，新建后立即删除的聚合也走 `remove`，实现方不得覆写该判断。
+- **`AggregateRoot.clearWorkUnitState` 复位删除标记**：清理工作单元时同步 `setEntityDelete(false)`，避免实例复用导致二次 `save` 重复删除（新增 `SaveRoutingTest` / `AggregateRootDeleteStateTest` 覆盖）。
 
 #### MyBatis 复杂类型装配改为「声明与装配分离」（pragmatic-ddd-mybatis / pragmatic-ddd-spring-boot）
 
@@ -50,6 +56,24 @@
 - **修复 RocketMQ 多 topic 路由下消费通道创建错误（pragmatic-ddd-rocketmq）**：同一消费组改为只创建一个 Consumer，并订阅 `ITopicResolver.getAllTopics()` 返回的全部 topic。原实现按 topic 各建一个同组 Consumer：Remoting 下同 JVM 的第二个 Consumer 因消费组重复注册抛 `The consumer group[...] has been created before`，导致应用启动失败；gRPC 下同组订阅集合不一致，部分队列可能无人消费。同时修复多 topic 集成测试按全限定类名匹配、实际未覆盖分流的问题。
 - 修复多聚合各自注册 `TypeHandlerContext` 时 `ListTypeHandler` 相互覆盖、集合列回读退化为 `List<JSONObject>` 并在业务取值时抛 `ClassCastException` 的问题。
 - 修复 `defaultListType` 取自 `Map.copyOf` 无序迭代导致的兜底类型不确定（跨 JVM 启动可能变化）。
+
+## [2.1.0] — 2026-10-30
+
+### 新增
+
+- **异构数据同步事件契约（pragmatic-ddd-core）**：新增 `IDataSyncEvent` / `BaseDataSyncEvent` / `DataSyncAction`，用于同源直读与异构副本双模下的同步动作分流（删除 → `PURGE`，聚合缺失转 purge）。
+- **PostgreSQL 方言支持（pragmatic-ddd-mybatis）**：`{outbox,compensation,id}/postgres/*.xml` 方言版 Mapper（namespace 与 MySQL 版相同、语句 `databaseId="postgres"`，使用方扫描方言目录并为 `SqlSessionFactory` 设置 `VendorDatabaseIdProvider` 或 `setDatabaseId("postgres")`，MySQL 侧零变更）；`claimPending` 改用物化 CTE（`AS MATERIALIZED`）+ `FOR UPDATE SKIP LOCKED`（普通子查询会被嵌套循环逐行重估导致超批次认领，必须物化），`releaseStaleClaims` 换 `CURRENT_TIMESTAMP - make_interval(...)`，可空参数全部显式 `jdbcType`。
+- **三张表 PG 建表脚本**：`outbox-schema-postgres.sql` / `compensation-log-schema-postgres.sql` / `id-segment-schema-postgres.sql`（`LONGTEXT→text`、`DATETIME(3)→TIMESTAMP(3)`、内联索引拆独立 `CREATE INDEX`，幂等可重跑）。
+- **真实 PG 集成测试**：`PostgresTestSupport` + Outbox（含并发认领不重不漏）/ 补偿 / 号段（含并发行锁）/ TypeHandler（jsonb 通道）四套用例，与 MySQL 版逐条对称；PG 驱动仅 test scope，不进框架产物。
+- **父 POM `dependencyManagement` 登记 `org.postgresql:postgresql`**（仅 test scope 引用）。
+- **examples 读模型示例**：新增 `IOrderReadSource` / `OrderRowProjection` / `OrderDbReadSource` / `OrderRowSummaryReducer` 与 `OrderRowMapper.xml`，演示数据库直读投影链路。
+
+### 变更
+
+- **投影查询接口注释对齐双模读源（pragmatic-ddd-core）**：`IListQuerySearcher` / `IOneQuerySearcher` / `IPagedQuerySearcher` / `IProjectionByIdSearcher` / `IReducer` 仅 Javadoc 修订（同源直读 vs 异构副本），方法签名与泛型未变，二进制兼容保留。
+
+### 修复
+
 - `MybatisCompensationLog` 主键冲突判断补充标准 SQLState「23 类」：PostgreSQL 驱动抛 `PSQLException`（SQLState 23505）而非 `SQLIntegrityConstraintViolationException`，原 `instanceof` 判断在 PG 下漏判，重复登记不再被正确翻译为 `CompensationRecordConflictException`（MySQL 行为不变）。
 
 ## [2.0.0] — 2026-10-14
