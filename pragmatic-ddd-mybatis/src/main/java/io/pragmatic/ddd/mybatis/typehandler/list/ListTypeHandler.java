@@ -11,9 +11,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 单列 JSON 数组处理器（全局单例，注册到 List.class）：整列委托共享 {@link JsonSerializer}，严格按列标签还原元素类型。
@@ -42,12 +42,10 @@ public class ListTypeHandler implements TypeHandler<List<?>> {
 
     @Override
     public void setParameter(PreparedStatement ps, int i, List<?> parameter, JdbcType jdbcType) throws SQLException {
-        if (parameter == null) {
-            ps.setNull(i, Types.OTHER);   // JSON 列统一用 Types.OTHER
-            return;
-        }
+        // 集合列为 NOT NULL：null 统一落库为 JSON 空数组，而非 SQL NULL
+        List<?> columnValue = Optional.ofNullable(parameter).orElseGet(List::of);
         // 整列写成 JSON 数组：每个元素由共享 serializer 按运行时类型分派(base→标量 / enum→code / VO→对象)
-        ps.setObject(i, jdbcJsonValue.adapt(serializer.toJsonValue(parameter)));
+        ps.setObject(i, jdbcJsonValue.adapt(serializer.toJsonValue(columnValue)));
     }
 
     @Override
