@@ -8,8 +8,7 @@ import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Map;
-import java.util.Optional;
+import java.sql.Types;
 
 /**
  * 通用 JSON 值对象类型处理器：把 VO（含枚举）整体委托 {@link JsonSerializer} 读写原生 JSON 列。
@@ -30,10 +29,12 @@ public class GenericJsonTypeHandler<T> implements TypeHandler<T> {
 
     @Override
     public void setParameter(PreparedStatement ps, int i, T parameter, JdbcType jdbcType) throws SQLException {
-        // JSON 列为 NOT NULL：null 统一落库为空对象 {}，而非 SQL NULL
-        Object columnValue = Optional.<Object>ofNullable(parameter).orElseGet(Map::of);
+        if (parameter == null) {
+            ps.setNull(i, Types.OTHER);           // JSON 列统一用 Types.OTHER（多数驱动识别为 json/jsonb）
+            return;
+        }
         // 结构化 JSON 值写入原生 JSON 列；驱动差异由 jdbcJsonValue 适配（PG → PGobject）
-        ps.setObject(i, jdbcJsonValue.adapt(serializer.toJsonValue(columnValue)));
+        ps.setObject(i, jdbcJsonValue.adapt(serializer.toJsonValue(parameter)));
     }
 
     @Override
